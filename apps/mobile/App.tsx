@@ -31,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import {colors, SafeScreen} from './src/components/ui';
 import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
+import {selectionTick} from './src/lib/haptics';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
@@ -102,7 +103,13 @@ function TabBar({tab, onSelect}: {tab: Tab; onSelect: (tab: Tab) => void}) {
           <Pressable
             key={item.key}
             style={styles.tabItem}
-            onPress={() => onSelect(item.key)}
+            onPress={() => {
+              if (tab !== item.key) {
+                // Native iOS-style tick only when the tab actually changes.
+                selectionTick();
+                onSelect(item.key);
+              }
+            }}
             hitSlop={6}>
             <Animated.View
               entering={FadeIn.duration(160)}

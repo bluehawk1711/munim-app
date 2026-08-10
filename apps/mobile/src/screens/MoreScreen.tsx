@@ -9,6 +9,7 @@ import {
 } from 'lucide-react-native';
 import {colors, Header, Screen} from '../components/ui';
 import {useThemeStyles} from '../theme';
+import {sectionPress} from '../lib/haptics';
 import {JobLettersScreen} from './JobLettersScreen';
 import {ReportsScreen} from './ReportsScreen';
 import {SettingsScreen} from './SettingsScreen';
@@ -77,7 +78,10 @@ export function MoreScreen() {
           return (
             <Pressable
               key={item.key}
-              onPress={() => setSection(item.key)}
+              onPress={() => {
+                sectionPress();
+                setSection(item.key);
+              }}
               style={({pressed}) => [
                 styles.row,
                 index < SECTIONS.length - 1 && styles.rowBorder,
