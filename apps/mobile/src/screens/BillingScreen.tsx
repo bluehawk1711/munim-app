@@ -12,6 +12,7 @@ import {
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
+import {successFeedback, errorFeedback} from '../lib/haptics';
 import {
   Badge,
   Button,
@@ -109,8 +110,10 @@ export function BillingScreen() {
         setPaid('0');
         setLines([emptyLine()]);
         reloadList();
+        successFeedback();
       }
     } catch {
+      errorFeedback();
       // keep form for retry
     } finally {
       setSaving(false);

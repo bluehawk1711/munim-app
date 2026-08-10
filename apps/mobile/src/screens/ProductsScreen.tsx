@@ -5,6 +5,7 @@ import {listAllProducts, createProduct, adjustStock, deleteProduct, type Product
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
+import {successFeedback, errorFeedback} from '../lib/haptics';
 import {
   Badge,
   Button,
@@ -60,6 +61,7 @@ export function ProductsScreen() {
         purchasePrice: Math.max(0, Number(buy) || 0),
         sellingPrice: Math.max(0, Number(sell) || 0),
       });
+      successFeedback();
       setAddOpen(false);
       setName('');
       setColor('');
@@ -69,6 +71,7 @@ export function ProductsScreen() {
       setSell('0');
       reload();
     } catch {
+      errorFeedback();
       // surfaced by the caller UI in a future iteration; keep the modal open
     } finally {
       setSaving(false);
@@ -85,10 +88,12 @@ export function ProductsScreen() {
     }
     try {
       await adjustStock(await getCore(), adjusting.id, {adjustment: qty});
+      successFeedback();
       setAdjusting(null);
       setAdjustQty('');
       reload();
     } catch {
+      errorFeedback();
       // keep modal open on failure
     }
   }
@@ -98,6 +103,7 @@ export function ProductsScreen() {
       await deleteProduct(await getCore(), p.id);
       reload();
     } catch {
+      errorFeedback();
       // ignore
     }
   }

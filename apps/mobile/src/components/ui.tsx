@@ -18,6 +18,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 // single source of truth for web, desktop AND mobile. The proxy resolves the
 // active mode's palette, so these tokens flip with dark mode automatically.
 import {colors, useThemeStyles} from '../theme';
+import {actionPress} from '../lib/haptics';
 
 export {colors};
 
@@ -178,7 +179,14 @@ export function Button({title, onPress, variant = 'primary', disabled, loading, 
   const isDanger = variant === 'danger';
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        // Native feedback for confirmations; outline buttons (selectors,
+        // filters) stay quiet to avoid haptic noise.
+        if (!isOutline && !disabled && !loading) {
+          actionPress();
+        }
+        onPress();
+      }}
       disabled={disabled || loading}
       style={({pressed}) => [
         styles.button,

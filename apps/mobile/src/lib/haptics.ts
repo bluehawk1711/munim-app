@@ -15,3 +15,18 @@ export function selectionTick() {
 export function sectionPress() {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 }
+
+/** Medium press — primary action buttons (sell, save, settle). */
+export function actionPress() {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+}
+
+/** Success confirmation — after a mutation completes (iOS-style ding). */
+export function successFeedback() {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+}
+
+/** Error / destructive confirmation — when an action fails. */
+export function errorFeedback() {
+  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+}

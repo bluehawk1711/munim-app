@@ -4,6 +4,7 @@ import {saveJobLetter, listJobLetters, deleteJobLetter, formatDate} from '@munim
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
+import {successFeedback, errorFeedback} from '../lib/haptics';
 import {
   Button,
   Card,
@@ -37,12 +38,14 @@ export function JobLettersScreen() {
         monthlySalary: Number(salary) || 0,
         data: {},
       });
+      successFeedback();
       setOpen(false);
       setEmployeeName('');
       setPosition('');
       setSalary('');
       reload();
     } catch {
+      errorFeedback();
       // keep modal open
     }
   }
@@ -50,8 +53,10 @@ export function JobLettersScreen() {
   async function handleDelete(id: string) {
     try {
       await deleteJobLetter(await getCore(), id);
+      successFeedback();
       reload();
     } catch {
+      errorFeedback();
       // ignore
     }
   }

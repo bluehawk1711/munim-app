@@ -25,7 +25,7 @@ import {
   colors,
 } from '../components/ui';
 import {useThemeStyles} from '../theme';
-import {sectionPress} from '../lib/haptics';
+import {successFeedback, errorFeedback} from '../lib/haptics';
 
 type EditorState =
   | {kind: CatalogKind; mode: 'add'; item?: undefined}
@@ -76,10 +76,12 @@ export function CatalogScreen() {
       } else {
         await createCatalogItem(db, editor.kind, trimmed);
       }
+      successFeedback();
       setEditor(null);
       setName('');
       reload();
     } catch {
+      errorFeedback();
       // keep the sheet open so the user can retry
     } finally {
       setSaving(false);
@@ -98,8 +100,10 @@ export function CatalogScreen() {
           onPress: async () => {
             try {
               await deleteCatalogItem(await getCore(), kind, item.id);
+              successFeedback();
               reload();
             } catch {
+              errorFeedback();
               // surfaced via the list still containing the item
             }
           },
@@ -157,23 +161,8 @@ export function CatalogScreen() {
       )}
 
       <Animated.View entering={FadeInUp.duration(320)} style={styles.fabRow}>
-        <Button
-          title="+ Add color"
-          variant="outline"
-          style={styles.fabHalf}
-          onPress={() => {
-            sectionPress();
-            openAdd('color');
-          }}
-        />
-        <Button
-          title="+ Add size"
-          style={styles.fabHalf}
-          onPress={() => {
-            sectionPress();
-            openAdd('size');
-          }}
-        />
+        <Button title="+ Add color" variant="outline" style={styles.fabHalf} onPress={() => openAdd('color')} />
+        <Button title="+ Add size" style={styles.fabHalf} onPress={() => openAdd('size')} />
       </Animated.View>
 
       <ModalSheet

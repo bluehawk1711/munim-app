@@ -8,6 +8,7 @@ import {
   formatDate,
   type Invoice,
 } from '@munim/core';
+import {successFeedback, errorFeedback} from '../lib/haptics';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
@@ -73,11 +74,13 @@ export function SalesScreen() {
         amount,
         method: payMethod,
       });
+      successFeedback();
       setPaying(null);
       setPayAmount('');
       setPayMethod('cash');
       reloadRecent();
     } catch {
+      errorFeedback();
       // keep the sheet open so the user can retry
     } finally {
       setPayingNow(false);
@@ -99,12 +102,14 @@ export function SalesScreen() {
         paymentMethod: 'cash',
       });
       if (invoice) {
+        successFeedback();
         setQuantity('1');
         setCustomer('');
         reloadProducts();
         reloadRecent();
       }
     } catch {
+      errorFeedback();
       // keep form for retry
     } finally {
       setSaving(false);

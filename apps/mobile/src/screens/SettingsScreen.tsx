@@ -4,6 +4,7 @@ import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
+import {successFeedback, errorFeedback} from '../lib/haptics';
 import {useTheme} from '../theme';
 
 export function SettingsScreen() {
@@ -51,8 +52,10 @@ export function SettingsScreen() {
     setTestResult('idle');
     try {
       await pingDatabase(createDb({databaseUrl: url.trim()}));
+      successFeedback();
       setTestResult('ok');
     } catch {
+      errorFeedback();
       setTestResult('fail');
     } finally {
       setTesting(false);
@@ -60,7 +63,12 @@ export function SettingsScreen() {
   }
 
   async function handleSaveUrl() {
-    await saveDatabaseUrl(url);
+    try {
+      await saveDatabaseUrl(url);
+      successFeedback();
+    } catch {
+      errorFeedback();
+    }
     setTestResult('idle');
   }
 
@@ -75,8 +83,10 @@ export function SettingsScreen() {
         currency: currency.trim() || 'INR',
         lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
       });
+      successFeedback();
       reload();
     } catch {
+      errorFeedback();
       // ignore
     } finally {
       setSavingShop(false);

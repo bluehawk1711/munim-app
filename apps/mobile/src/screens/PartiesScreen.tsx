@@ -14,6 +14,7 @@ import {
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
+import {successFeedback, errorFeedback} from '../lib/haptics';
 import {
   Badge,
   Button,
@@ -76,11 +77,13 @@ export function PartiesScreen() {
   async function handleSettleAdvance(id: string) {
     try {
       await settleAdvance(await getCore(), id);
+      successFeedback();
       reloadParties();
       if (selected) {
         void openLedger(selected);
       }
     } catch {
+      errorFeedback();
       // keep for retry
     }
   }
@@ -91,11 +94,13 @@ export function PartiesScreen() {
     }
     try {
       const party = await createParty(await getCore(), {name: newName.trim()});
+      successFeedback();
       setAddOpen(false);
       setNewName('');
       reloadParties();
       void openLedger(party);
     } catch {
+      errorFeedback();
       // keep modal open
     }
   }
@@ -110,6 +115,7 @@ export function PartiesScreen() {
     }
     try {
       await createAdvance(await getCore(), {partyId: selectedId, direction, amount: value});
+      successFeedback();
       setAdvanceOpen(false);
       setAmount('');
       reloadParties();
@@ -117,6 +123,7 @@ export function PartiesScreen() {
         void openLedger(selected);
       }
     } catch {
+      errorFeedback();
       // keep modal open
     }
   }
@@ -136,6 +143,7 @@ export function PartiesScreen() {
         amount: value,
         method: 'cash',
       });
+      successFeedback();
       setPaymentOpen(false);
       setPaymentAmount('');
       reloadParties();
@@ -143,6 +151,7 @@ export function PartiesScreen() {
         void openLedger(selected);
       }
     } catch {
+      errorFeedback();
       // keep for retry
     }
   }
