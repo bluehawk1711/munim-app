@@ -5,40 +5,49 @@ Guidance for AI agents and developers working in this repository.
 ## Commands
 
 ```bash
-bun run dev          # dev server on port 3000 (logs to dev.log)
-bun run build        # prisma generate && prisma db push && next build (standalone)
-bun run lint         # ESLint
-bun run db:push      # sync Prisma schema to DB (create/update tables, no migration files)
-bun run db:generate  # regenerate Prisma client
-bun run db:migrate   # create migration (dev only)
-bun run db:reset     # reset DB from migrations (dev only, destructive)
-npx tsc --noEmit     # typecheck
+pnpm dev              # Next.js dev server on port 3000
+pnpm build            # production build (Next.js 16, Turbopack)
+pnpm start            # run the production build
+pnpm lint             # ESLint
+pnpm typecheck        # tsc --noEmit
 ```
 
-- This is a **Windows (win32) / PowerShell** dev environment. The `build` and `start` scripts are POSIX-oriented; avoid running them locally.
-- The build script runs `prisma db push` and therefore **requires a reachable `DATABASE_URL`** — the placeholder in `.env` will make the build fail.
-- Package manager: **pnpm** (`pnpm-lock.yaml`, `pnpm-workspace.yaml`) for Vercel builds; Bun is used for local dev. Update both `package.json` and the lockfile when adding dependencies.
+- Package manager is **pnpm** (workspace monorepo, `pnpm-lock.yaml`).
+- Run from `apps/web`, or from the repo root via turbo: `pnpm --filter @munim/web dev`.
 
 ## Architecture
 
-- **Next.js 16 App Router**. Pages live in `src/app`, API route handlers in `src/app/api/{dashboard,products,sales,reports}`.
-- **`src/lib/db.ts`** is the singleton Prisma client — always import `db` from there, never construct a new `PrismaClient`.
-- **`src/views/*`** hold page-level components; **`src/components/ui/*`** are shadcn/ui primitives (Radix).
-- **`src/lib/`** contains shared helpers: `format.ts` (currency/number formatting), `sku.ts` (SKU generation), `export.ts` (Excel/PDF export), `activity.ts` (activity log writes), `validators.ts` (zod schemas), `api-client.ts` (fetch wrapper).
+- **Next.js 16 App Router**. Pages live in `src/app`, API route handlers in
+  `src/app/api/{dashboard,products,sales,reports,...}`.
+- **No Prisma, no ORM of its own.** All database access goes through
+  `@munim/core` (`src/lib/db.ts` exposes the shared Neon client). Schema and
+  business logic live in `packages/core` — see the root `docs/features.md`.
+- **`src/views/*`** hold page-level components; **`src/components/ui/*`** are
+  shadcn/ui primitives (Radix). The shared theme comes from `@munim/theme`
+  (see `docs/theme.md`).
+- **`src/lib/`** contains app helpers: `db.ts` (shared client proxy),
+  `format.ts`, `sku.ts`, `export.ts` (Excel/PDF), `validators.ts` (zod),
+  `api-client.ts` (fetch wrapper), `cloudinary.ts`.
 - **`src/store/`** — Zustand stores for client state.
-- **`prisma/schema.prisma`** — models: `Product`, `Sale`, `ActivityLog`. `Sale` stores a snapshot of product name/SKU/price at time of sale; stock is decremented when a sale is created.
-- `tests/` and `.zscripts/` contain **shell scripts for the older self-hosted deployment** (Caddy + standalone server). They are legacy and not used on Vercel; don't rely on them for current behavior.
+- `next.config.ts` sets `reactStrictMode: false` only. There is intentionally
+  **no `output: "standalone"`** — the app deploys on **Vercel**, which does its
+  own serverless bundling.
 
-## Database
+## Deployment
 
-- Provider is **PostgreSQL** (production, Vercel) — do not change it back to SQLite.
-- `DATABASE_URL` comes from the `.env` (local) or is injected by the Vercel Neon Postgres integration (prod).
-- After any change to `prisma/schema.prisma`, run `bun run db:generate` (and `bun run db:push` to apply).
-- No `prisma/migrations/` directory exists — schema is applied via `prisma db push` on every Vercel build.
+- Production: **Vercel** (project root `apps/web`). Build = `turbo run build`
+  (Vercel detects Turbo). Env vars (DATABASE_URL, CLOUDINARY_*) are injected by
+  Vercel; they are declared in `turbo.json` → `globalEnv` so turbo passes them
+  to the build tasks.
+- CI: `.github/workflows/web.yml` (typecheck + build on push/PR).
+- The `output: "standalone"` + Caddy + `.zscripts/` self-hosted pipeline was
+  removed — do not reintroduce it.
 
 ## Conventions
 
-- `.env` is untracked and must never be committed; use `.env.example` for new env vars. Never log secrets.
-- UI strings are in English (hardcoded); `next-intl` is a dependency but not wired up — don't assume it exists.
-- `next.config.ts` intentionally sets `typescript.ignoreBuildErrors: true` and `reactStrictMode: false`; `output: "standalone"` is required for the Vercel build scripts.
-- Follow existing code style: shadcn/ui components, Tailwind classes, zod for validation, `@/` path alias for imports.
+- `.env` is untracked and must never be committed; use `.env.example` for new
+  env vars. Never log secrets.
+- UI strings are English; follow the existing style (shadcn/ui components,
+  Tailwind v4 classes, zod validation, `@/` path alias).
+- Do not use `any`/`unknown` unless nothing else works (monorepo rule — see
+  root AGENTS.md/docs).

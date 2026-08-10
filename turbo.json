@@ -1,6 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalEnv": [
+    "DATABASE_URL",
+    "EXPO_PUBLIC_DATABASE_URL",
+    "NEON_HOST",
+    "NEON_USER",
+    "NEON_PASSWORD",
+    "DATABASE_AUTH_TOKEN",
+    "EXPO_PUBLIC_DATABASE_AUTH_TOKEN",
+    "CLOUDINARY_CLOUD_NAME",
+    "CLOUDINARY_API_KEY",
+    "CLOUDINARY_API_SECRET"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
