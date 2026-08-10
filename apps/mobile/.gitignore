@@ -2,6 +2,10 @@
 #
 .DS_Store
 
+# expo export output (pnpm export)
+#
+dist/
+
 # Xcode
 #
 build/

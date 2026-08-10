@@ -30,8 +30,23 @@ npx eas-cli install
 
 ```bash
 cd apps/mobile
-pnpm android    # or: pnpm ios
+pnpm android    # or: pnpm ios   (compiles, installs on a device/simulator, starts Metro)
 ```
+
+### Build an APK locally (no EAS, no device needed)
+
+```bash
+cd apps/mobile
+pnpm build:android          # debug APK  → android/app/build/outputs/apk/debug/app-debug.apk
+pnpm build:android:release  # release APK → android/app/build/outputs/apk/release/app-release.apk
+```
+
+These run `scripts/build-android.mjs`, which rebuilds `@munim/core` +
+`@munim/theme` first and then runs the Gradle wrapper (works on Windows,
+macOS and Linux). Install the APK with `adb install -r <path>`. The debug
+APK is the dev client — start `pnpm start` and connect it to Metro as
+below. (From the repo root you can also use `pnpm build:mobile:android`.)
+For an iOS build you need macOS + Xcode: `pnpm build:ios`.
 
 ### 2. Start Metro and scan
 

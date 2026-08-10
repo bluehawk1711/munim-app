@@ -6,6 +6,10 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "start": "expo start",
+    "build:android": "node scripts/build-android.mjs",
+    "build:android:release": "node scripts/build-android.mjs --variant=release",
+    "build:ios": "expo run:ios --no-bundler",
+    "export": "expo export --platform android",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "jest"

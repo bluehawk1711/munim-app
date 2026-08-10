@@ -11,6 +11,8 @@
     "dev:mobile": "turbo run dev --filter=@munim/mobile",
     "build": "turbo run build",
     "build:core": "turbo run build --filter=@munim/core",
+    "build:mobile:android": "pnpm --filter @munim/mobile build:android",
+    "build:mobile:release": "pnpm --filter @munim/mobile build:android:release",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "db:generate": "pnpm --filter @munim/core db:generate",
