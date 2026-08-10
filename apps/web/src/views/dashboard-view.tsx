@@ -11,6 +11,7 @@ import {
   Receipt,
   ArrowRight,
   Sparkles,
+  HandCoins,
 } from "lucide-react"
 import { useDashboard } from "@/hooks/use-dashboard"
 import { useAppStore } from "@/store/view-store"
@@ -19,8 +20,6 @@ import { LoadingState, EmptyState } from "@/components/app/shared"
 import dynamic from "next/dynamic"
 const MonthlySalesChart = dynamic(() => import("@/components/charts").then((m) => m.MonthlySalesChart), { ssr: false })
 const StockDistributionChart = dynamic(() => import("@/components/charts").then((m) => m.StockDistributionChart), { ssr: false })
-const TopProductsChart = dynamic(() => import("@/components/charts").then((m) => m.TopProductsChart), { ssr: false })
-const SoldPerMonthChart = dynamic(() => import("@/components/charts").then((m) => m.SoldPerMonthChart), { ssr: false })
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -86,11 +85,11 @@ export function DashboardView() {
           loading={isLoading}
         />
         <StatCard
-          title="Products Sold"
-          value={formatNumber(data?.productsSold ?? 0)}
-          icon={ShoppingCart}
+          title="Invoices"
+          value={formatNumber(data?.invoicesCount ?? 0)}
+          icon={Receipt}
           accent="teal"
-          hint={`${formatNumber(data?.productsSoldToday ?? 0)} sold today`}
+          hint={`${formatCurrency(data?.unpaidAmount ?? 0)} outstanding`}
           loading={isLoading}
         />
         <StatCard
@@ -111,28 +110,12 @@ export function DashboardView() {
         />
       </div>
 
-      {/* Secondary analytics row */}
+      {/* Money position */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <MiniStat
-          icon={TrendingUp}
-          label="Monthly Revenue"
-          value={formatCurrency(data?.monthlyRevenue ?? 0)}
-        />
-        <MiniStat
-          icon={Receipt}
-          label="Avg. Sale Value"
-          value={formatCurrency(data?.averageSale ?? 0)}
-        />
-        <MiniStat
-          icon={Boxes}
-          label="Total Stock Units"
-          value={formatNumber(data?.totalStock ?? 0)}
-        />
-        <MiniStat
-          icon={ShoppingCart}
-          label="Sold Today"
-          value={formatNumber(data?.productsSoldToday ?? 0)}
-        />
+        <MiniStat icon={TrendingUp} label="Monthly Revenue" value={formatCurrency(data?.monthlyRevenue ?? 0)} />
+        <MiniStat icon={HandCoins} label="We are owed" value={formatCurrency(data?.receivables ?? 0)} />
+        <MiniStat icon={HandCoins} label="We owe (payable)" value={formatCurrency(data?.payables ?? 0)} />
+        <MiniStat icon={ShoppingCart} label="Sold Today" value={formatNumber(data?.productsSoldToday ?? 0)} />
       </div>
 
       {!hasData && (
@@ -143,7 +126,7 @@ export function DashboardView() {
                 <Sparkles className="h-5 w-5" />
               </div>
               <div>
-                <p className="text-sm font-semibold">Welcome to StockPilot</p>
+                <p className="text-sm font-semibold">Welcome to Munim</p>
                 <p className="text-xs text-muted-foreground">
                   Your inventory is empty. Load sample products to explore the dashboard.
                 </p>
@@ -193,58 +176,34 @@ export function DashboardView() {
         </Card>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Products Sold Per Month</CardTitle>
-            <CardDescription className="text-xs">Unit volume trend</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SoldPerMonthChart data={data?.soldPerMonth ?? []} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Top Selling Products</CardTitle>
-            <CardDescription className="text-xs">By units sold</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {data && data.topProducts.length > 0 ? (
-              <TopProductsChart data={data.topProducts} />
-            ) : (
-              <EmptyState icon={Package} title="No sales yet" description="Top sellers will appear here after your first sale." />
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent sales + activity */}
+      {/* Recent invoices + activity */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <div>
-              <CardTitle className="text-base">Recent Sales</CardTitle>
+              <CardTitle className="text-base">Recent Invoices</CardTitle>
               <CardDescription className="text-xs">Latest transactions</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setView("sales")} className="gap-1">
+            <Button variant="ghost" size="sm" onClick={() => setView("invoices")} className="gap-1">
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            {data && data.recentSales.length > 0 ? (
+            {data && data.recentInvoices.length > 0 ? (
               <div className="divide-y">
-                {data.recentSales.map((sale) => (
-                  <div key={sale.id} className="flex items-center justify-between gap-3 px-6 py-3">
+                {data.recentInvoices.map((inv) => (
+                  <div key={inv.id} className="flex items-center justify-between gap-3 px-6 py-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">{sale.productName}</p>
+                      <p className="truncate text-sm font-medium">{inv.customerName || "Walk-in customer"}</p>
                       <p className="text-xs text-muted-foreground">
-                        {sale.invoiceNumber} · {sale.color} / {sale.size} · {formatDateTime(sale.createdAt)}
+                        {inv.invoiceNumber} · {inv.items[0]?.productName ?? `${inv.items.length} items`} · {formatDateTime(inv.date)}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold">{formatCurrency(sale.total)}</p>
-                      <p className="text-xs text-muted-foreground">×{sale.quantity}</p>
+                      <p className="text-sm font-semibold">{formatCurrency(inv.total)}</p>
+                      <Badge variant="outline" className="mt-0.5 font-normal">
+                        {inv.status.charAt(0) + inv.status.slice(1).toLowerCase()}
+                      </Badge>
                     </div>
                   </div>
                 ))}
@@ -253,8 +212,8 @@ export function DashboardView() {
               <div className="px-6 py-8">
                 <EmptyState
                   icon={ShoppingCart}
-                  title="No sales recorded"
-                  description="Record your first sale to see it here."
+                  title="No invoices yet"
+                  description="Record your first sale or bill to see it here."
                   action={<Button size="sm" onClick={() => setSellDialogOpen(true)}>Sell a product</Button>}
                 />
               </div>

@@ -20,6 +20,7 @@ export async function POST(request: Request, { params }: Params) {
     const body = await request.json()
     const values = paymentSchema.parse(body)
     const invoice = await recordInvoicePayment(db, id, values)
+    if (!invoice) throw new InvoiceError("Invoice not found", "NOT_FOUND", 404)
     return NextResponse.json({
       ...invoice,
       date: invoice.date.toISOString(),

@@ -29,7 +29,8 @@ export async function uploadImage(
         { folder: FOLDER, resource_type: "image" },
         (error, result) => {
           if (error) reject(error)
-          else if (result) resolve(result as unknown as { secure_url: string; public_id: string })
+          else if (result && typeof result.secure_url === "string" && typeof result.public_id === "string")
+            resolve({ secure_url: result.secure_url, public_id: result.public_id })
           else reject(new Error("Upload returned no result"))
         }
       )
@@ -56,6 +57,6 @@ export async function destroyImageByUrl(url: string | null | undefined): Promise
 //  -> public_id "products/abc"
 export function publicIdFromUrl(url: string): string | null {
   const match = url.match(/\/image\/upload\/(?:v\d+\/)?(.+)$/)
-  if (!match) return null
+  if (!match?.[1]) return null
   return match[1].replace(/\.[a-z0-9]+$/i, "")
 }

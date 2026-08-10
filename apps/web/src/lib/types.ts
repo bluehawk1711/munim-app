@@ -79,6 +79,18 @@ export type MonthlySalesPoint = {
   orders: number
 }
 
+export type SoldPerMonthPoint = {
+  month: string
+  quantity: number
+}
+
+export type TopProduct = {
+  productName: string
+  sku: string | null
+  quantitySold: number
+  revenue: number
+}
+
 export type StockDistributionPoint = {
   name: string
   value: number

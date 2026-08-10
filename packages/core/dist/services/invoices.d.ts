@@ -21,6 +21,9 @@ export declare function createSale(db: DbClient, input: SaleInput): Promise<Invo
 export type InvoiceItemInput = {
     productId?: string;
     productName: string;
+    sku?: string;
+    color?: string;
+    size?: string;
     description?: string;
     quantity: number;
     price: number;
@@ -65,11 +68,14 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
     invoices: {
         items: {
             id: string;
+            sku: string | null;
             productId: string | null;
             quantity: number;
             total: number;
             invoiceId: string;
             productName: string;
+            color: string | null;
+            size: string | null;
             description: string | null;
             price: number;
         }[];

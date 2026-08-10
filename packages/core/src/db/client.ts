@@ -137,7 +137,7 @@ export type DbOptions = NonNullable<Parameters<typeof createDb>[0]>;
  * Singleton for apps that share one connection (web app, desktop).
  * Mobile apps can also use it since fetch is global.
  */
-const globalForDb = globalThis as unknown as { munimDb?: DbClient };
+const globalForDb = globalThis as { munimDb?: DbClient };
 
 export function getDb(opts?: DbOptions): DbClient {
   if (!globalForDb.munimDb) globalForDb.munimDb = createDb(opts);

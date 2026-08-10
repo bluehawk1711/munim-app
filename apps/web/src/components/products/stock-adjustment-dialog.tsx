@@ -33,6 +33,10 @@ export function StockAdjustmentDialog({ open, onOpenChange, product }: Props) {
   const adjust = useAdjustStock()
 
   const form = useForm<StockAdjustmentValues>({
+    // Sanctioned boundary cast: react-hook-form's Resolver<T> requires
+    // TFieldValues == TTransformedValues, but zodResolver infers the schema's
+    // *input* type (fields use z.coerce.number, so input ≠ output). Runtime
+    // values are always the parsed (output) values. Nothing else types here.
     resolver: zodResolver(stockAdjustmentSchema) as unknown as Resolver<StockAdjustmentValues>,
     defaultValues: { adjustment: 0, reason: "" },
   })

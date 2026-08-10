@@ -4,11 +4,13 @@ export const productSchema = z.object({
   name: z.string().min(1, "Product name is required").max(120),
   color: z.string().min(1, "Color is required").max(40),
   size: z.string().min(1, "Size is required").max(40),
+  category: z.string().max(40).optional().or(z.literal("")),
   barcode: z.string().max(80).optional().or(z.literal("")),
   imageUrl: z.string().max(1000).optional().or(z.literal("")),
   stock: z.coerce.number().min(0, "Stock cannot be negative"),
   purchasePrice: z.coerce.number().min(0, "Purchase price cannot be negative"),
   sellingPrice: z.coerce.number().min(0, "Selling price cannot be negative"),
+  lowStockThreshold: z.coerce.number().min(0).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),
 })
 

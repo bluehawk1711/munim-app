@@ -1,0 +1,310 @@
+import React from 'react';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  type KeyboardTypeOptions,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
+
+export const colors = {
+  bg: '#f6f7fb',
+  card: '#ffffff',
+  text: '#0f172a',
+  muted: '#64748b',
+  border: '#e2e8f0',
+  primary: '#4f46e5',
+  success: '#059669',
+  danger: '#dc2626',
+  warning: '#d97706',
+};
+
+const styles = StyleSheet.create({
+  screen: {flex: 1, backgroundColor: colors.bg},
+  header: {paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12},
+  title: {fontSize: 22, fontWeight: '700', color: colors.text},
+  subtitle: {fontSize: 13, color: colors.muted, marginTop: 2},
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginHorizontal: 16,
+    marginBottom: 10,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buttonText: {color: '#fff', fontSize: 15, fontWeight: '600'},
+  buttonOutline: {
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  buttonOutlineText: {color: colors.text},
+  buttonDanger: {backgroundColor: colors.danger},
+  field: {marginBottom: 12},
+  label: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5},
+  input: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: colors.text,
+    backgroundColor: colors.card,
+  },
+  badge: {paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999},
+  badgeText: {fontSize: 11, fontWeight: '700'},
+  stat: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    flex: 1,
+  },
+  statLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
+  statValue: {fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 4},
+  row: {flexDirection: 'row', alignItems: 'center', paddingVertical: 10},
+  modalOverlay: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end'},
+  modalSheet: {
+    backgroundColor: colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 18,
+    maxHeight: '85%',
+  },
+  modalTitle: {fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 14},
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: colors.card,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingVertical: 6,
+  },
+  tabItem: {flex: 1, alignItems: 'center', paddingVertical: 4},
+  tabLabel: {fontSize: 10, marginTop: 2, color: colors.muted, fontWeight: '600'},
+  tabLabelActive: {color: colors.primary},
+});
+
+export function Screen({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return <View style={[styles.screen, style]}>{children}</View>;
+}
+
+export function Header({title, subtitle}: {title: string; subtitle?: string}) {
+  return (
+    <View style={styles.header}>
+      <Text style={styles.title}>{title}</Text>
+      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+    </View>
+  );
+}
+
+export function Card({
+  children,
+  style,
+}: {
+  children: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return <View style={[styles.card, style]}>{children}</View>;
+}
+
+type ButtonProps = {
+  title: string;
+  onPress: () => void;
+  variant?: 'primary' | 'outline' | 'danger';
+  disabled?: boolean;
+  loading?: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+export function Button({title, onPress, variant = 'primary', disabled, loading, style}: ButtonProps) {
+  const isOutline = variant === 'outline';
+  const isDanger = variant === 'danger';
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled || loading}
+      style={({pressed}) => [
+        styles.button,
+        isOutline && styles.buttonOutline,
+        isDanger && styles.buttonDanger,
+        (disabled || loading) && {opacity: 0.5},
+        pressed && {opacity: 0.85},
+        style,
+      ]}>
+      {loading ? (
+        <ActivityIndicator color={isOutline ? colors.text : '#fff'} />
+      ) : (
+        <Text style={[styles.buttonText, isOutline && styles.buttonOutlineText]}>{title}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+type FieldProps = {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  placeholder?: string;
+  keyboardType?: KeyboardTypeOptions;
+  style?: StyleProp<ViewStyle>;
+};
+
+export function Field({label, value, onChangeText, placeholder, keyboardType, style}: FieldProps) {
+  return (
+    <View style={[styles.field, style]}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        keyboardType={keyboardType}
+        style={styles.input}
+        placeholderTextColor="#94a3b8"
+        autoCapitalize="none"
+      />
+    </View>
+  );
+}
+
+export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' | 'danger' | 'muted'}) {
+  const bg =
+    tone === 'success'
+      ? '#d1fae5'
+      : tone === 'warning'
+      ? '#fef3c7'
+      : tone === 'danger'
+      ? '#fee2e2'
+      : '#e2e8f0';
+  const fg =
+    tone === 'success'
+      ? colors.success
+      : tone === 'warning'
+      ? colors.warning
+      : tone === 'danger'
+      ? colors.danger
+      : colors.muted;
+  return (
+    <View style={[styles.badge, {backgroundColor: bg}]}>
+      <Text style={[styles.badgeText, {color: fg}]}>{text}</Text>
+    </View>
+  );
+}
+
+export function StatBox({label, value, valueColor}: {label: string; value: string; valueColor?: string}) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, valueColor ? {color: valueColor} : null]} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+export function Row({
+  label,
+  value,
+  valueColor,
+  onPress,
+}: {
+  label: string;
+  value?: string;
+  valueColor?: string;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={styles.row}>
+      <Text style={{flex: 1, fontSize: 14, color: colors.text}} numberOfLines={1}>
+        {label}
+      </Text>
+      {value ? (
+        <Text style={{fontSize: 14, fontWeight: '600', color: valueColor ?? colors.text}} numberOfLines={1}>
+          {value}
+        </Text>
+      ) : null}
+    </Pressable>
+  );
+}
+
+export function Loading() {
+  return (
+    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40}}>
+      <ActivityIndicator size="large" color={colors.primary} />
+    </View>
+  );
+}
+
+export function Empty({text}: {text: string}) {
+  return (
+    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40}}>
+      <Text style={{color: colors.muted, fontSize: 14}}>{text}</Text>
+    </View>
+  );
+}
+
+export function ErrorBox({message, onRetry}: {message: string; onRetry?: () => void}) {
+  return (
+    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32}}>
+      <Text style={{color: colors.danger, fontSize: 14, textAlign: 'center'}}>{message}</Text>
+      {onRetry ? (
+        <Button title="Retry" onPress={onRetry} style={{marginTop: 16, paddingHorizontal: 32}} />
+      ) : null}
+    </View>
+  );
+}
+
+export function ModalSheet({
+  visible,
+  title,
+  onClose,
+  children,
+}: {
+  visible: boolean;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalOverlay} onPress={onClose}>
+        <Pressable style={styles.modalSheet} onPress={() => {}}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          {children}
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+export function SafeScreen({children}: {children: React.ReactNode}) {
+  return (
+    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+      {children}
+    </SafeAreaView>
+  );
+}
+
+export type TextStyleOverride = StyleProp<TextStyle>;

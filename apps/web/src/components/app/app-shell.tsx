@@ -9,6 +9,11 @@ import { ProductsView } from "@/views/products-view"
 import { SalesView } from "@/views/sales-view"
 import { ReportsView } from "@/views/reports-view"
 import { CatalogView } from "@/views/catalog-view"
+import { InvoicesView } from "@/views/invoices-view"
+import { BillingView } from "@/views/billing-view"
+import { JobLetterView } from "@/views/job-letter-view"
+import { PartiesView } from "@/views/parties-view"
+import { AdvancesView } from "@/views/advances-view"
 import { useAppStore } from "@/store/view-store"
 
 function ActiveView() {
@@ -24,6 +29,16 @@ function ActiveView() {
       return <ReportsView />
     case "catalog":
       return <CatalogView />
+    case "invoices":
+      return <InvoicesView />
+    case "billing":
+      return <BillingView />
+    case "job-letter":
+      return <JobLetterView />
+    case "parties":
+      return <PartiesView />
+    case "advances":
+      return <AdvancesView />
     default:
       return <DashboardView />
   }
@@ -59,11 +74,11 @@ export function AppShell() {
           <footer className="mt-auto border-t bg-background px-4 py-3 lg:px-6">
             <div className="flex flex-col items-center justify-between gap-2 text-xs text-muted-foreground sm:flex-row">
               <p>
-                © {new Date().getFullYear()} StockPilot — Inventory & Sales Management
+                © {new Date().getFullYear()} Munim — Stock, Billing &amp; Khata Management
               </p>
               <p className="flex items-center gap-1.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-                Built with Next.js, Prisma &amp; shadcn/ui
+                Web · Desktop · Mobile on one shared database
               </p>
             </div>
           </footer>

@@ -49,6 +49,9 @@ export async function createSale(db, input) {
         invoiceId: invoice.id,
         productId: product.id,
         productName: product.name,
+        sku: product.sku,
+        color: product.colorName,
+        size: product.sizeName,
         quantity: input.quantity,
         price,
         total,
@@ -126,10 +129,14 @@ export async function createInvoice(db, input) {
     if (!invoice)
         throw new InvoiceError("Failed to create invoice", "CREATE_FAILED", 500);
     for (const item of input.items) {
+        const product = item.productId ? await getProduct(db, item.productId) : undefined;
         await db.insert(schema.invoiceItems).values({
             invoiceId: invoice.id,
             productId: item.productId ?? null,
             productName: item.productName.trim(),
+            sku: item.sku || product?.sku || null,
+            color: item.color || product?.colorName || null,
+            size: item.size || product?.sizeName || null,
             description: item.description?.trim() || null,
             quantity: item.quantity,
             price: item.price,

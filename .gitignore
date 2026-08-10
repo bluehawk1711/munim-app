@@ -24,8 +24,6 @@ next-env.d.ts
 expo-env.d.ts
 *.orig.*
 web-build/
-ios/
-android/
 
 # tauri / rust
 apps/desktop/src-tauri/target/

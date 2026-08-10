@@ -13,6 +13,11 @@ const VIEW_TITLES: Record<string, { title: string; subtitle: string }> = {
   dashboard: { title: "Dashboard", subtitle: "Business overview & analytics" },
   products: { title: "Products", subtitle: "Manage your inventory" },
   sales: { title: "Sales", subtitle: "Record sales & view history" },
+  invoices: { title: "Invoices", subtitle: "All bills & payment statuses" },
+  billing: { title: "New Bill", subtitle: "Create a bill / invoice" },
+  "job-letter": { title: "Job Letters", subtitle: "Offer & joining letters" },
+  parties: { title: "Parties", subtitle: "Khata — customers, suppliers, workers" },
+  advances: { title: "Advances", subtitle: "Who owes whom — given & taken" },
   reports: { title: "Reports", subtitle: "Generate & export reports" },
   catalog: { title: "Catalog", subtitle: "Manage colors & sizes" },
 }
@@ -32,7 +37,7 @@ export function AppTopbar() {
     setSearchValue(globalSearch)
   }
 
-  const meta = VIEW_TITLES[activeView] ?? VIEW_TITLES.dashboard
+  const meta = VIEW_TITLES[activeView] ?? { title: "Dashboard", subtitle: "Business overview & analytics" }
 
   function commitSearch(value: string) {
     setGlobalSearch(value)

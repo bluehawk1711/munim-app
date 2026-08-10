@@ -53,6 +53,10 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const sizes = Array.from(new Set([...DEFAULT_SIZES, ...(meta?.sizes ?? [])]))
 
   const form = useForm<ProductFormValues>({
+    // Sanctioned boundary cast: react-hook-form's Resolver<T> requires
+    // TFieldValues == TTransformedValues, but zodResolver infers the schema's
+    // *input* type (fields use z.coerce.number, so input ≠ output). Runtime
+    // values are always the parsed (output) values. Nothing else types here.
     resolver: zodResolver(productSchema) as unknown as Resolver<ProductFormValues>,
     defaultValues: {
       name: "",

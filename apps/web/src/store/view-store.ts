@@ -3,7 +3,17 @@
 import { create } from "zustand"
 import type { StockStatus } from "@/lib/types"
 
-export type ViewKey = "dashboard" | "products" | "sales" | "reports" | "catalog"
+export type ViewKey =
+  | "dashboard"
+  | "products"
+  | "sales"
+  | "invoices"
+  | "billing"
+  | "job-letter"
+  | "parties"
+  | "advances"
+  | "reports"
+  | "catalog"
 
 type AppState = {
   activeView: ViewKey

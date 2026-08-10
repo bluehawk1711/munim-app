@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { createSale, listInvoices, InvoiceError, type Invoice } from "@munim/core"
+import { createSale, listInvoices, InvoiceError, type Invoice, type InvoiceItem } from "@munim/core"
 import { saleSchema } from "@/lib/validators"
 import { z } from "zod"
 import type { Sale } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
 
+type InvoiceWithItems = Invoice & { items: InvoiceItem[] }
+
 /** Maps core invoices + items into the flattened Sale DTO the UI expects. */
-function toSaleDto(invoice: Invoice): Sale {
-  const item = invoice.items[0]
+function toSaleDto(invoice: InvoiceWithItems): Sale {
+  const item = (invoice.items ?? [])[0]
   return {
     id: invoice.id,
     invoiceId: invoice.id,
@@ -27,15 +29,22 @@ function toSaleDto(invoice: Invoice): Sale {
   }
 }
 
+const INVOICE_STATUSES = ["DRAFT", "UNPAID", "PARTIAL", "PAID"] as const;
+
+function statusParam(value: string | null): "DRAFT" | "UNPAID" | "PARTIAL" | "PAID" | undefined {
+  return INVOICE_STATUSES.find((s) => s === value);
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const { invoices } = await listInvoices(db, {
     search: searchParams.get("search")?.trim() || "",
+    status: statusParam(searchParams.get("status")),
     startDate: searchParams.get("startDate") || undefined,
     endDate: searchParams.get("endDate") || undefined,
     pageSize: 500,
   })
-  return NextResponse.json(invoices.map(toSaleDto))
+  return NextResponse.json(invoices.map((i) => toSaleDto(i)))
 }
 
 export async function POST(request: Request) {
@@ -45,11 +54,11 @@ export async function POST(request: Request) {
     const invoice = await createSale(db, {
       productId: values.productId,
       quantity: values.quantity,
-      sellingPrice: values.sellingPrice,
       paid: true,
       paymentMethod: "cash",
     })
-    return NextResponse.json(toSaleDto(invoice!), { status: 201 })
+    if (!invoice) throw new InvoiceError("Failed to create sale", "CREATE_FAILED", 500)
+    return NextResponse.json(toSaleDto(invoice as InvoiceWithItems), { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues[0]?.message ?? "Invalid input" }, { status: 400 })

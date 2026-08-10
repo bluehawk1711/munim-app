@@ -158,6 +158,7 @@ export async function getReport(db, type, startDate, endDate) {
         name: schema.products.name,
         stock: schema.products.stock,
         purchasePrice: schema.products.purchasePrice,
+        lowStockThreshold: schema.products.lowStockThreshold,
         colorName: schema.colors.name,
         sizeName: schema.sizes.name,
     })
@@ -171,8 +172,7 @@ export async function getReport(db, type, startDate, endDate) {
             .filter((p) => {
             if (type !== "low_stock")
                 return true;
-            const threshold = p.lowStockThreshold;
-            return p.stock <= (threshold ?? 5);
+            return p.stock <= p.lowStockThreshold;
         })
             .map((p) => {
             const sold = rows.find((r) => r.productId === p.id);

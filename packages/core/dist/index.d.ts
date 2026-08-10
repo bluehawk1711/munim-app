@@ -8,6 +8,7 @@
 export { createDb, getDb, parseConnectionString, type DbClient } from "./db/client";
 export * as schema from "./db/schema";
 export type * from "./db/schema";
+export * from "./billing";
 export { numberToWords, amountInWords } from "./utils/numberToWords";
 export { generateSku, generateInvoiceNumber } from "./utils/codes";
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel } from "./utils/format";

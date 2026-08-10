@@ -19,6 +19,7 @@ export async function GET() {
     payables,
     recentInvoices: data.recentInvoices.map((inv) => ({
       ...inv,
+      items: inv.items ?? [],
       date: inv.date.toISOString(),
       createdAt: inv.createdAt.toISOString(),
     })),

@@ -8,6 +8,8 @@
 /* DB */
 export { createDb, getDb, parseConnectionString } from "./db/client";
 export * as schema from "./db/schema";
+/* Billing — shared bill/invoice generation (all 3 apps) */
+export * from "./billing";
 /* Utils */
 export { numberToWords, amountInWords } from "./utils/numberToWords";
 export { generateSku, generateInvoiceNumber } from "./utils/codes";

@@ -60,6 +60,10 @@ export function SellProductDialog() {
   const prevOpenRef = React.useRef(false)
 
   const form = useForm<SaleFormValues>({
+    // Sanctioned boundary cast: react-hook-form's Resolver<T> requires
+    // TFieldValues == TTransformedValues, but zodResolver infers the schema's
+    // *input* type (fields use z.coerce.number, so input ≠ output). Runtime
+    // values are always the parsed (output) values. Nothing else types here.
     resolver: zodResolver(saleSchema) as unknown as Resolver<SaleFormValues>,
     defaultValues: { productId: "", color: "", size: "", quantity: 1 },
   })
@@ -75,7 +79,7 @@ export function SellProductDialog() {
     if (justOpened) {
       setCompletedSale(null)
       const pending = consumePendingSellProduct()
-      setSelectedProduct(pending)
+      if (pending) setSelectedProduct(pending)
       setSearch("")
       form.reset({
         productId: pending?.id ?? "",
@@ -215,7 +219,7 @@ export function SellProductDialog() {
                           if (e.key === "Enter" && visible.length > 0) {
                             e.preventDefault()
                             const first = visible.find((p) => p.stock > 0) ?? visible[0]
-                            pickProduct(first)
+                            if (first) pickProduct(first)
                           }
                         }}
                         placeholder="Search by name, SKU, color…"
