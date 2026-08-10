@@ -1,6 +1,25 @@
 import { jsPDF } from "jspdf";
-import { JobLetterData, BillData, BillDetails } from "./types";
-import { numberToWords, formatCurrency } from "./numberToWords";
+import { numberToWords, formatCurrency } from "@munim/core";
+import type { BillDocument } from "@munim/core";
+import type { JobLetterData } from "./types";
+
+/**
+ * Web bill/invoice PDF renderer.
+ *
+ * This file renders the SHARED `BillDocument` built by `@munim/core`
+ * (`buildBillDocument`) — the same model the desktop and mobile apps render.
+ * All totals, discount/delivery math, amount-in-words and due amounts come
+ * from core; this file only draws them with jsPDF. Two presentation templates
+ * are supported (classic jewellery / modern e-commerce) plus the 2-in-1
+ * (duplicate / distinct) layout — these are presentation-only options.
+ */
+
+export type BillTemplateSettings = {
+  template: "jewellery" | "ecommerce";
+  classicColor: "red" | "yellow";
+  twoInOne: boolean;
+  mode: "duplicate" | "distinct";
+};
 
 // Color themes for classic template
 const classicColors = {
@@ -29,7 +48,11 @@ const ecommerceColors = {
   white: [255, 255, 255] as [number, number, number],
 };
 
-export function generateBillPDF(data: BillData): void {
+export function generateBillPDF(
+  bill: BillDocument,
+  settings: BillTemplateSettings,
+  secondBill?: BillDocument,
+): void {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -40,29 +63,19 @@ export function generateBillPDF(data: BillData): void {
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 8;
 
-  const drawBill = (yOffset: number, billData: BillDetails) => {
-    const isEcommerce = data.settings.template === "ecommerce";
-    const billHeight = (pageHeight - 16) / (data.settings.twoInOne ? 2 : 1);
+  const drawBill = (yOffset: number, billDoc: BillDocument) => {
+    const isEcommerce = settings.template === "ecommerce";
+    const billHeight = (pageHeight - 16) / (settings.twoInOne ? 2 : 1);
     const contentWidth = pageWidth - 2 * margin;
 
     if (isEcommerce) {
-      drawEcommerceBill(
-        doc,
-        yOffset,
-        billData,
-        data,
-        billHeight,
-        pageWidth,
-        margin,
-        contentWidth,
-      );
+      drawEcommerceBill(doc, yOffset, billDoc, billHeight, pageWidth, margin, contentWidth);
     } else {
-      const colorTheme = classicColors[data.settings.classicColor || "red"];
+      const colorTheme = classicColors[settings.classicColor];
       drawClassicJewelleryBill(
         doc,
         yOffset,
-        billData,
-        data,
+        billDoc,
         billHeight,
         pageWidth,
         margin,
@@ -72,25 +85,23 @@ export function generateBillPDF(data: BillData): void {
     }
   };
 
-  if (data.settings.twoInOne) {
-    drawBill(margin, data);
-    if (data.settings.mode === "distinct" && data.secondBill) {
-      drawBill(pageHeight / 2 + 4, data.secondBill);
-    } else {
-      drawBill(pageHeight / 2 + 4, data);
-    }
+  if (settings.twoInOne) {
+    drawBill(margin, bill);
+    drawBill(
+      pageHeight / 2 + 4,
+      settings.mode === "distinct" && secondBill ? secondBill : bill,
+    );
   } else {
-    drawBill(margin, data);
+    drawBill(margin, bill);
   }
 
-  doc.save(`Bill_${data.billNo}.pdf`);
+  doc.save(`Bill_${bill.billNo}.pdf`);
 }
 
 function drawEcommerceBill(
   doc: jsPDF,
   yOffset: number,
-  billData: BillDetails,
-  data: BillData,
+  bill: BillDocument,
   billHeight: number,
   pageWidth: number,
   margin: number,
@@ -104,11 +115,7 @@ function drawEcommerceBill(
   doc.rect(margin, yOffset, contentWidth, billHeight);
 
   // Inner subtle border
-  doc.setDrawColor(
-    colors.lightGray[0],
-    colors.lightGray[1],
-    colors.lightGray[2],
-  );
+  doc.setDrawColor(colors.lightGray[0], colors.lightGray[1], colors.lightGray[2]);
   doc.setLineWidth(0.3);
   doc.rect(margin + 2, yOffset + 2, contentWidth - 4, billHeight - 4);
 
@@ -120,18 +127,14 @@ function drawEcommerceBill(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.text(data.shopDetails.name, margin + 10, yOffset + 15);
+  doc.text(bill.shop.name, margin + 10, yOffset + 15);
 
   // Company details (smaller, below company name) - GOLD text
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-  doc.text(data.shopDetails.address, margin + 10, yOffset + 21);
-  doc.text(
-    "Tel: " + data.shopDetails.phones.join(" | "),
-    margin + 10,
-    yOffset + 26,
-  );
+  doc.text(bill.shop.address ?? "", margin + 10, yOffset + 21);
+  doc.text("Tel: " + bill.shop.phones.join(" | "), margin + 10, yOffset + 26);
 
   // Invoice label (right side in header) - GOLD text
   doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
@@ -144,11 +147,11 @@ function drawEcommerceBill(
   // Invoice number - WHITE text
   doc.setFontSize(10);
   doc.setTextColor(255, 255, 255);
-  doc.text("#" + billData.billNo, pageWidth - margin - 10, yOffset + 21, {
+  doc.text("#" + bill.billNo, pageWidth - margin - 10, yOffset + 21, {
     align: "right",
   });
   doc.setFontSize(8);
-  doc.text("Date: " + billData.date, pageWidth - margin - 10, yOffset + 27, {
+  doc.text("Date: " + bill.date, pageWidth - margin - 10, yOffset + 27, {
     align: "right",
   });
 
@@ -167,26 +170,18 @@ function drawEcommerceBill(
   doc.setFont("helvetica", "bold");
   doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
   doc.setFontSize(11);
-  doc.text(billData.customerName || "-", margin + 10, billToY + 9);
+  doc.text(bill.customerName || "-", margin + 10, billToY + 9);
 
   // Customer details - smaller, gray
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
-  doc.setTextColor(
-    colors.mediumGray[0],
-    colors.mediumGray[1],
-    colors.mediumGray[2],
-  );
-  doc.text(billData.customerAddress || "", margin + 10, billToY + 14);
-  doc.text(billData.customerPhone || "", margin + 10, billToY + 19);
+  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
+  doc.text(bill.customerAddress ?? "", margin + 10, billToY + 14);
+  doc.text(bill.customerPhone ?? "", margin + 10, billToY + 19);
 
   // Items Table Header
   const tableHeaderY = billToY + 28;
-  doc.setFillColor(
-    colors.lightGray[0],
-    colors.lightGray[1],
-    colors.lightGray[2],
-  );
+  doc.setFillColor(colors.lightGray[0], colors.lightGray[1], colors.lightGray[2]);
   doc.rect(margin + 5, tableHeaderY - 4, contentWidth - 10, 8, "F");
 
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
@@ -202,7 +197,7 @@ function drawEcommerceBill(
   let itemY = tableHeaderY + 10;
   const rowHeight = 8;
 
-  billData.items.forEach((item, index) => {
+  bill.lines.forEach((item, index) => {
     // Alternate row background
     if (index % 2 === 1) {
       doc.setFillColor(252, 252, 253);
@@ -217,80 +212,61 @@ function drawEcommerceBill(
 
     // Quantity - Normal, Gray
     doc.setFont("helvetica", "normal");
-    doc.setTextColor(
-      colors.mediumGray[0],
-      colors.mediumGray[1],
-      colors.mediumGray[2],
-    );
+    doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
     doc.text(item.quantity.toString(), margin + 105, itemY, {
       align: "center",
     });
 
     // Price - Normal, Gray
-    doc.text("Rs. " + item.price.toLocaleString(), margin + 130, itemY, {
+    doc.text(formatCurrency(item.price), margin + 130, itemY, {
       align: "center",
     });
 
-    // Total - Bold, Dark
+    // Total - Bold, Dark (from the shared model)
     doc.setFont("helvetica", "bold");
     doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-    doc.text(
-      "Rs. " + (item.quantity * item.price).toLocaleString(),
-      pageWidth - margin - 15,
-      itemY,
-      { align: "right" },
-    );
+    doc.text(formatCurrency(item.total), pageWidth - margin - 15, itemY, {
+      align: "right",
+    });
 
     itemY += rowHeight;
   });
 
-  // Subtotal and delivery calculations
-  const subtotal = billData.items.reduce(
-    (acc, item) => acc + item.quantity * item.price,
-    0,
-  );
-  const deliveryCharge = billData.deliveryCharge || 0;
-  const grandTotal = subtotal + deliveryCharge;
+  // Totals section (values come from core's BillDocument)
+  const subtotal = bill.subtotal;
+  const deliveryCharge = bill.deliveryCharge;
+  const discount = bill.discount;
+  const grandTotal = bill.total;
 
-  // Totals section
   const totalY = itemY + 8;
 
   doc.setDrawColor(colors.gold[0], colors.gold[1], colors.gold[2]);
   doc.setLineWidth(0.3);
-  doc.line(
-    pageWidth - margin - 80,
-    totalY - 8,
-    pageWidth - margin - 10,
-    totalY - 8,
-  );
+  doc.line(pageWidth - margin - 80, totalY - 8, pageWidth - margin - 10, totalY - 8);
 
   // Subtotal row
-  doc.setTextColor(
-    colors.mediumGray[0],
-    colors.mediumGray[1],
-    colors.mediumGray[2],
-  );
+  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.text("Subtotal:", pageWidth - margin - 60, totalY - 2);
-  doc.text(
-    "Rs. " + subtotal.toLocaleString(),
-    pageWidth - margin - 15,
-    totalY - 2,
-    { align: "right" },
-  );
+  doc.text(formatCurrency(subtotal), pageWidth - margin - 15, totalY - 2, {
+    align: "right",
+  });
 
-  // Delivery charge row (if applicable)
   let grandTotalY = totalY + 5;
   if (deliveryCharge > 0) {
     doc.text("Delivery:", pageWidth - margin - 60, totalY + 4);
-    doc.text(
-      "Rs. " + deliveryCharge.toLocaleString(),
-      pageWidth - margin - 15,
-      totalY + 4,
-      { align: "right" },
-    );
+    doc.text(formatCurrency(deliveryCharge), pageWidth - margin - 15, totalY + 4, {
+      align: "right",
+    });
     grandTotalY = totalY + 12;
+  }
+  if (discount > 0) {
+    doc.text("Discount:", pageWidth - margin - 60, grandTotalY);
+    doc.text(`- ${formatCurrency(discount)}`, pageWidth - margin - 15, grandTotalY, {
+      align: "right",
+    });
+    grandTotalY += 7;
   }
 
   // Grand Total box
@@ -303,12 +279,9 @@ function drawEcommerceBill(
   doc.text("TOTAL", pageWidth - margin - 65, grandTotalY + 5);
   doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
   doc.setFontSize(11);
-  doc.text(
-    "Rs. " + grandTotal.toLocaleString(),
-    pageWidth - margin - 15,
-    grandTotalY + 6,
-    { align: "right" },
-  );
+  doc.text(formatCurrency(grandTotal), pageWidth - margin - 15, grandTotalY + 6, {
+    align: "right",
+  });
 
   // Footer
   const footerY = yOffset + billHeight - 12;
@@ -316,11 +289,7 @@ function drawEcommerceBill(
   doc.setLineWidth(0.3);
   doc.line(margin + 10, footerY - 3, pageWidth - margin - 10, footerY - 3);
 
-  doc.setTextColor(
-    colors.mediumGray[0],
-    colors.mediumGray[1],
-    colors.mediumGray[2],
-  );
+  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
   doc.setFontSize(8);
   doc.setFont("helvetica", "italic");
   doc.text("Thank you for your business!", pageWidth / 2, footerY + 2, {
@@ -330,21 +299,30 @@ function drawEcommerceBill(
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
-  doc.text(data.shopDetails.email || "", pageWidth / 2, footerY + 6, {
+  doc.text(bill.shop.email ?? "", pageWidth / 2, footerY + 6, {
     align: "center",
   });
+
+  // Amount in words (shared, from core) — only if there is room
+  const wordsY = grandTotalY + 16;
+  if (wordsY + 12 < footerY) {
+    doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "italic");
+    const words = doc.splitTextToSize(bill.amountInWords, contentWidth - 20);
+    doc.text(words, margin + 10, wordsY);
+  }
 }
 
 function drawClassicJewelleryBill(
   doc: jsPDF,
   yOffset: number,
-  billData: BillDetails,
-  data: BillData,
+  bill: BillDocument,
   billHeight: number,
   pageWidth: number,
   margin: number,
   contentWidth: number,
-  colorTheme: typeof classicColors.red,
+  colorTheme: (typeof classicColors)["red"],
 ): void {
   const { primary, secondary, accent, dark } = colorTheme;
 
@@ -368,34 +346,17 @@ function drawClassicJewelleryBill(
   // Corner decorations
   drawCornerDecoration(doc, margin + 4, yOffset + 4, primary);
   drawCornerDecoration(doc, pageWidth - margin - 4, yOffset + 4, primary, true);
-  drawCornerDecoration(
-    doc,
-    margin + 4,
-    yOffset + billHeight - 4,
-    primary,
-    false,
-    true,
-  );
-  drawCornerDecoration(
-    doc,
-    pageWidth - margin - 4,
-    yOffset + billHeight - 4,
-    primary,
-    true,
-    true,
-  );
+  drawCornerDecoration(doc, margin + 4, yOffset + billHeight - 4, primary, false, true);
+  drawCornerDecoration(doc, pageWidth - margin - 4, yOffset + billHeight - 4, primary, true, true);
 
   // Phone numbers at top corners
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
-  doc.text("Ph: " + data.shopDetails.phones[0], margin + 12, yOffset + 12);
-  doc.text(
-    "Ph: " + (data.shopDetails.phones[1] || ""),
-    pageWidth - margin - 12,
-    yOffset + 12,
-    { align: "right" },
-  );
+  doc.text("Ph: " + (bill.shop.phones[0] ?? ""), margin + 12, yOffset + 12);
+  doc.text("Ph: " + (bill.shop.phones[1] ?? ""), pageWidth - margin - 12, yOffset + 12, {
+    align: "right",
+  });
 
   // Blessing text
   doc.setTextColor(primary[0], primary[1], primary[2]);
@@ -409,7 +370,7 @@ function drawClassicJewelleryBill(
   doc.setTextColor(secondary[0], secondary[1], secondary[2]);
   doc.setFontSize(26);
   doc.setFont("times", "bold");
-  doc.text(data.shopDetails.name, pageWidth / 2, yOffset + 22, {
+  doc.text(bill.shop.name, pageWidth / 2, yOffset + 22, {
     align: "center",
   });
 
@@ -432,7 +393,7 @@ function drawClassicJewelleryBill(
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text("Add: " + data.shopDetails.address, pageWidth / 2, yOffset + 40, {
+  doc.text("Add: " + (bill.shop.address ?? ""), pageWidth / 2, yOffset + 40, {
     align: "center",
   });
 
@@ -446,8 +407,8 @@ function drawClassicJewelleryBill(
   doc.setTextColor(primary[0], primary[1], primary[2]);
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("Bill No: " + billData.billNo, margin + 10, detailsY);
-  doc.text("Date: " + billData.date, pageWidth - margin - 10, detailsY, {
+  doc.text("Bill No: " + bill.billNo, margin + 10, detailsY);
+  doc.text("Date: " + bill.date, pageWidth - margin - 10, detailsY, {
     align: "right",
   });
 
@@ -456,24 +417,14 @@ function drawClassicJewelleryBill(
   doc.setFontSize(11);
   doc.setFont("helvetica", "normal");
   const customerY = detailsY + 10;
-  doc.text(
-    "Customer: " +
-      (billData.customerName || "________________________________"),
-    margin + 10,
-    customerY,
-  );
-  doc.text(
-    "Address: " +
-      (billData.customerAddress || "________________________________"),
-    margin + 10,
-    customerY + 7,
-  );
-  if (billData.customerPhone) {
-    doc.text("Phone: " + billData.customerPhone, margin + 10, customerY + 14);
+  doc.text("Customer: " + (bill.customerName || "________________________________"), margin + 10, customerY);
+  doc.text("Address: " + (bill.customerAddress || "________________________________"), margin + 10, customerY + 7);
+  if (bill.customerPhone) {
+    doc.text("Phone: " + bill.customerPhone, margin + 10, customerY + 14);
   }
 
   // Items Table Header
-  const tableHeaderY = customerY + (billData.customerPhone ? 22 : 16);
+  const tableHeaderY = customerY + (bill.customerPhone ? 22 : 16);
   doc.setFillColor(primary[0], primary[1], primary[2]);
   doc.rect(margin + 6, tableHeaderY - 5, contentWidth - 12, 9, "F");
 
@@ -490,7 +441,7 @@ function drawClassicJewelleryBill(
   let itemY = tableHeaderY + 10;
   const rowHeight = 10;
 
-  billData.items.forEach((item, index) => {
+  bill.lines.forEach((item, index) => {
     // Subtle row separator
     if (index > 0) {
       doc.setDrawColor(accent[0], accent[1], accent[2]);
@@ -517,64 +468,56 @@ function drawClassicJewelleryBill(
     doc.text(item.quantity.toString(), margin + 100, itemY, {
       align: "center",
     });
-    doc.text("Rs. " + item.price.toLocaleString(), margin + 128, itemY, {
+    doc.text(formatCurrency(item.price), margin + 128, itemY, {
       align: "center",
     });
 
     doc.setFont("helvetica", "bold");
-    doc.text(
-      "Rs. " + (item.quantity * item.price).toLocaleString(),
-      pageWidth - margin - 15,
-      itemY,
-      { align: "right" },
-    );
+    doc.text(formatCurrency(item.total), pageWidth - margin - 15, itemY, {
+      align: "right",
+    });
 
     itemY += item.description ? rowHeight + 2 : rowHeight;
   });
 
-  // Subtotal and delivery calculations
-  const subtotal = billData.items.reduce(
-    (acc, item) => acc + item.quantity * item.price,
-    0,
-  );
-  const deliveryCharge = billData.deliveryCharge || 0;
-  const grandTotal = subtotal + deliveryCharge;
+  // Totals section (values come from core's BillDocument)
+  const subtotal = bill.subtotal;
+  const deliveryCharge = bill.deliveryCharge;
+  const discount = bill.discount;
+  const grandTotal = bill.total;
 
-  // Total section
   let totalY = itemY + 6;
 
-  // Show delivery if applicable
-  if (deliveryCharge > 0) {
+  // Show subtotal + extras when there are extras
+  if (deliveryCharge > 0 || discount > 0) {
     doc.setTextColor(dark[0], dark[1], dark[2]);
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     doc.text("Subtotal:", pageWidth - margin - 55, totalY);
-    doc.text(
-      "Rs. " + subtotal.toLocaleString(),
-      pageWidth - margin - 12,
-      totalY,
-      { align: "right" },
-    );
+    doc.text(formatCurrency(subtotal), pageWidth - margin - 12, totalY, {
+      align: "right",
+    });
     totalY += 6;
-    doc.text("Delivery:", pageWidth - margin - 55, totalY);
-    doc.text(
-      "Rs. " + deliveryCharge.toLocaleString(),
-      pageWidth - margin - 12,
-      totalY,
-      { align: "right" },
-    );
-    totalY += 6;
+    if (deliveryCharge > 0) {
+      doc.text("Delivery:", pageWidth - margin - 55, totalY);
+      doc.text(formatCurrency(deliveryCharge), pageWidth - margin - 12, totalY, {
+        align: "right",
+      });
+      totalY += 6;
+    }
+    if (discount > 0) {
+      doc.text("Discount:", pageWidth - margin - 55, totalY);
+      doc.text(`- ${formatCurrency(discount)}`, pageWidth - margin - 12, totalY, {
+        align: "right",
+      });
+      totalY += 6;
+    }
   }
 
   // Total line
   doc.setDrawColor(primary[0], primary[1], primary[2]);
   doc.setLineWidth(0.8);
-  doc.line(
-    pageWidth - margin - 80,
-    totalY - 2,
-    pageWidth - margin - 8,
-    totalY - 2,
-  );
+  doc.line(pageWidth - margin - 80, totalY - 2, pageWidth - margin - 8, totalY - 2);
 
   doc.setFillColor(secondary[0], secondary[1], secondary[2]);
   doc.roundedRect(pageWidth - margin - 80, totalY, 72, 12, 2, 2, "F");
@@ -584,27 +527,29 @@ function drawClassicJewelleryBill(
   doc.setFont("helvetica", "bold");
   doc.text("GRAND TOTAL:", pageWidth - margin - 75, totalY + 8);
   doc.setFontSize(13);
-  doc.text(
-    "Rs. " + grandTotal.toLocaleString(),
-    pageWidth - margin - 12,
-    totalY + 8,
-    { align: "right" },
-  );
+  doc.text(formatCurrency(grandTotal), pageWidth - margin - 12, totalY + 8, {
+    align: "right",
+  });
+
+  // Amount in words (shared, from core) — only if there is room
+  const wordsY = totalY + 18;
+  const signatureY = yOffset + billHeight - 20;
+  if (wordsY + 10 < signatureY) {
+    doc.setTextColor(dark[0], dark[1], dark[2]);
+    doc.setFontSize(8);
+    doc.setFont("times", "italic");
+    const words = doc.splitTextToSize(bill.amountInWords, contentWidth - 20);
+    doc.text(words, margin + 12, wordsY);
+  }
 
   // Signature section
-  const signatureY = yOffset + billHeight - 20;
   doc.setTextColor(dark[0], dark[1], dark[2]);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text("For " + data.shopDetails.name, pageWidth - margin - 50, signatureY);
+  doc.text("For " + bill.shop.name, pageWidth - margin - 50, signatureY);
   doc.setDrawColor(primary[0], primary[1], primary[2]);
   doc.setLineWidth(0.3);
-  doc.line(
-    pageWidth - margin - 55,
-    signatureY + 8,
-    pageWidth - margin - 10,
-    signatureY + 8,
-  );
+  doc.line(pageWidth - margin - 55, signatureY + 8, pageWidth - margin - 10, signatureY + 8);
   doc.setFontSize(9);
   doc.text("Authorized Signature", pageWidth - margin - 50, signatureY + 13);
 
@@ -690,29 +635,17 @@ export function generateJobLetterPDF(data: JobLetterData): void {
   doc.text("To,", leftMargin, currentY);
   currentY += lineHeight;
   doc.setFont("times", "bold");
-  doc.text(
-    "Name: " + (data.employeeName || "_____________________________"),
-    leftMargin,
-    currentY,
-  );
+  doc.text("Name: " + (data.employeeName || "_____________________________"), leftMargin, currentY);
   doc.setFont("times", "normal");
   currentY += lineHeight;
-  doc.text(
-    "Address: " + (data.employeeAddress || "_____________________________"),
-    leftMargin,
-    currentY,
-  );
+  doc.text("Address: " + (data.employeeAddress || "_____________________________"), leftMargin, currentY);
   currentY += lineHeight * 2;
 
   // Subject line with emphasis
   doc.setFontSize(13);
   doc.setFont("times", "bold");
   doc.setTextColor(139, 119, 42);
-  doc.text(
-    "Subject: Appointment & Joining Confirmation Letter",
-    leftMargin,
-    currentY,
-  );
+  doc.text("Subject: Appointment & Joining Confirmation Letter", leftMargin, currentY);
 
   // Underline for subject
   doc.setDrawColor(180, 160, 100);
@@ -725,13 +658,7 @@ export function generateJobLetterPDF(data: JobLetterData): void {
   doc.setFont("times", "normal");
   doc.setTextColor(40, 40, 40);
 
-  doc.text(
-    "Dear " +
-      (data.employeeName ? "Mr./Ms. " + data.employeeName : "_______________") +
-      ",",
-    leftMargin,
-    currentY,
-  );
+  doc.text("Dear " + (data.employeeName ? "Mr./Ms. " + data.employeeName : "_______________") + ",", leftMargin, currentY);
   currentY += lineHeight * 1.5;
 
   // Position paragraph
@@ -754,38 +681,25 @@ export function generateJobLetterPDF(data: JobLetterData): void {
           year: "numeric",
         })
       : "_________ (Joining Date)";
-  doc.text(
-    "You are required to join on " + joiningText + ".",
-    leftMargin,
-    currentY,
-  );
+  doc.text("You are required to join on " + joiningText + ".", leftMargin, currentY);
   currentY += lineHeight;
 
   if (data.additionalTasks) {
-    doc.text(
-      "Additional responsibilities: " + data.additionalTasks,
-      leftMargin,
-      currentY,
-    );
+    doc.text("Additional responsibilities: " + data.additionalTasks, leftMargin, currentY);
     currentY += lineHeight;
   }
   currentY += lineHeight * 0.5;
 
   // Salary details
-  const salaryInWords =
-    data.monthlySalary > 0 ? numberToWords(data.monthlySalary) : "____________";
+  const salaryInWords = data.monthlySalary > 0 ? numberToWords(data.monthlySalary) : "____________";
   const salaryFormatted =
-    data.monthlySalary > 0 ? formatCurrency(data.monthlySalary) : "________";
+    data.monthlySalary > 0 ? data.monthlySalary.toLocaleString("en-IN") : "________";
 
   doc.setFont("times", "bold");
   doc.text("Compensation:", leftMargin, currentY);
   doc.setFont("times", "normal");
   currentY += lineHeight;
-  doc.text(
-    "Monthly Salary: Rs. " + salaryFormatted + " (" + salaryInWords + ")",
-    leftMargin + 5,
-    currentY,
-  );
+  doc.text("Monthly Salary: Rs. " + salaryFormatted + " (" + salaryInWords + ")", leftMargin + 5, currentY);
   currentY += lineHeight * 1.5;
 
   // Working hours
@@ -799,18 +713,13 @@ export function generateJobLetterPDF(data: JobLetterData): void {
     currentY += lineHeight;
   }
   doc.text(
-    "Timing: " +
-      (data.workingHoursFrom || "_________") +
-      " to " +
-      (data.workingHoursTo || "_________"),
+    "Timing: " + (data.workingHoursFrom || "_________") + " to " + (data.workingHoursTo || "_________"),
     leftMargin + 5,
     currentY,
   );
   currentY += lineHeight;
   doc.text(
-    "Weekly Off: " +
-      (data.weeklyOff1 || "____________") +
-      (data.weeklyOff2 ? ", " + data.weeklyOff2 : ""),
+    "Weekly Off: " + (data.weeklyOff1 || "____________") + (data.weeklyOff2 ? ", " + data.weeklyOff2 : ""),
     leftMargin + 5,
     currentY,
   );
@@ -841,9 +750,7 @@ export function generateJobLetterPDF(data: JobLetterData): void {
   doc.text(data.companyName, leftMargin, currentY);
 
   doc.save(
-    data.employeeName
-      ? "Job_Letter_" + data.employeeName.replace(/\s+/g, "_") + ".pdf"
-      : "Job_Letter.pdf",
+    data.employeeName ? "Job_Letter_" + data.employeeName.replace(/\s+/g, "_") + ".pdf" : "Job_Letter.pdf",
   );
 }
 
@@ -861,12 +768,7 @@ function drawDecorativeBorder(
   // Inner lighter border
   doc.setDrawColor(200, 180, 120);
   doc.setLineWidth(0.5);
-  doc.rect(
-    margin + 4,
-    margin + 4,
-    pageWidth - 2 * margin - 8,
-    pageHeight - 2 * margin - 8,
-  );
+  doc.rect(margin + 4, margin + 4, pageWidth - 2 * margin - 8, pageHeight - 2 * margin - 8);
 
   // Corner flourishes
   const cornerSize = 15;
@@ -878,46 +780,16 @@ function drawDecorativeBorder(
   doc.line(margin + 6, margin + 6, margin + cornerSize, margin + 6);
 
   // Top-right corner
-  doc.line(
-    pageWidth - margin - 6,
-    margin + cornerSize,
-    pageWidth - margin - 6,
-    margin + 6,
-  );
-  doc.line(
-    pageWidth - margin - cornerSize,
-    margin + 6,
-    pageWidth - margin - 6,
-    margin + 6,
-  );
+  doc.line(pageWidth - margin - 6, margin + cornerSize, pageWidth - margin - 6, margin + 6);
+  doc.line(pageWidth - margin - cornerSize, margin + 6, pageWidth - margin - 6, margin + 6);
 
   // Bottom-left corner
-  doc.line(
-    margin + 6,
-    pageHeight - margin - cornerSize,
-    margin + 6,
-    pageHeight - margin - 6,
-  );
-  doc.line(
-    margin + 6,
-    pageHeight - margin - 6,
-    margin + cornerSize,
-    pageHeight - margin - 6,
-  );
+  doc.line(margin + 6, pageHeight - margin - cornerSize, margin + 6, pageHeight - margin - 6);
+  doc.line(margin + 6, pageHeight - margin - 6, margin + cornerSize, pageHeight - margin - 6);
 
   // Bottom-right corner
-  doc.line(
-    pageWidth - margin - 6,
-    pageHeight - margin - cornerSize,
-    pageWidth - margin - 6,
-    pageHeight - margin - 6,
-  );
-  doc.line(
-    pageWidth - margin - cornerSize,
-    pageHeight - margin - 6,
-    pageWidth - margin - 6,
-    pageHeight - margin - 6,
-  );
+  doc.line(pageWidth - margin - 6, pageHeight - margin - cornerSize, pageWidth - margin - 6, pageHeight - margin - 6);
+  doc.line(pageWidth - margin - cornerSize, pageHeight - margin - 6, pageWidth - margin - 6, pageHeight - margin - 6);
 
   // Corner diamonds
   doc.setFillColor(180, 160, 100);

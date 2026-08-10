@@ -11,8 +11,8 @@ import { useCreateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
 import { useProducts } from "@/hooks/use-products"
-import { generateBillPDF } from "@/lib/billing/generatePDF"
-import type { BillData } from "@/lib/billing/types"
+import { buildBillDocument, type BillDocument } from "@munim/core"
+import { generateBillPDF, type BillTemplateSettings } from "@/lib/billing/generatePDF"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -104,28 +104,35 @@ export function BillingView() {
     }
   }
 
-  function buildBillData(): BillData {
-    return {
+  /** Builds the SHARED BillDocument (core) — the same model desktop & mobile render. */
+  function buildBill(): { bill: BillDocument; settings: BillTemplateSettings } {
+    const bill = buildBillDocument({
       billNo: "NEW",
       date,
       customerName,
-      customerAddress,
       customerPhone,
-      items: items.map((it) => ({ productName: it.productName, description: it.description, quantity: it.quantity, price: it.price })),
-      deliveryCharge,
-      shopDetails: {
+      customerAddress,
+      shop: {
         name: shop.shopName,
-        address: shop.shopAddress ?? "",
+        address: shop.shopAddress ?? null,
         phones: shop.shopPhones ?? [],
-        email: shop.shopEmail ?? "",
+        email: shop.shopEmail ?? null,
       },
-      settings: {
-        twoInOne,
-        template,
-        mode,
-        classicColor,
-      },
-    }
+      lines: items.map((it) => ({
+        productName: it.productName,
+        description: it.description || undefined,
+        sku: it.sku,
+        color: it.color,
+        size: it.size,
+        quantity: it.quantity,
+        price: it.price,
+      })),
+      deliveryCharge,
+      discount,
+      amountPaid: paid,
+      currency: "INR",
+    })
+    return { bill, settings: { template, classicColor, twoInOne, mode } }
   }
 
   async function handleSaveAndPrint() {
@@ -158,10 +165,10 @@ export function BillingView() {
     try {
       const invoice = await createInvoice.mutateAsync(payload)
       toast.success("Bill saved", { description: invoice.invoiceNumber })
-      // Generate the PDF with the pre-save data shape (billNo replaced by the real one)
-      const billData = buildBillData()
-      billData.billNo = invoice.invoiceNumber
-      generateBillPDF(billData)
+      // Render the shared BillDocument with the real invoice number
+      const { bill, settings } = buildBill()
+      bill.billNo = invoice.invoiceNumber
+      generateBillPDF(bill, settings)
       reset()
       setView("invoices")
     } catch (err) {
@@ -409,7 +416,16 @@ export function BillingView() {
             {paid > 0 && <p className="text-xs text-muted-foreground">Paying now: {formatCurrency(paid)} · Balance: {formatCurrency(total - paid)}</p>}
             <div className="flex flex-wrap gap-2 pt-2">
               <Button variant="outline" onClick={reset} className="gap-1.5"><Trash2 className="h-4 w-4" /> Clear</Button>
-              <Button variant="outline" onClick={() => generateBillPDF(buildBillData())} className="gap-1.5"><Printer className="h-4 w-4" /> Preview PDF</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const { bill, settings } = buildBill()
+                  generateBillPDF(bill, settings)
+                }}
+                className="gap-1.5"
+              >
+                <Printer className="h-4 w-4" /> Preview PDF
+              </Button>
               <Button onClick={handleSaveAndPrint} className="ml-auto gap-1.5" disabled={createInvoice.isPending}>
                 {createInvoice.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
                 Save &amp; Generate Bill

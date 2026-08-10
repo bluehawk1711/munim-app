@@ -1,0 +1,42 @@
+Annotations
+1 error and 1 warning
+eas-build
+failed now in 4s
+Search logs
+1s
+1s
+0s
+Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Run pnpm/action-setup@v4
+Running self-installer...
+  Error: Multiple versions of pnpm specified:
+    - version 11 in the GitHub Action config with the key "version"
+    - version pnpm@11.5.0 in the package.json with the key "packageManager"
+  Remove one of these versions to avoid version mismatch errors like ERR_PNPM_BAD_PM_VERSION
+      at readTarget (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:7537)
+      at runSelfInstaller (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:6702)
+      at async install (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:5706)
+      at async runMain (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:2804)
+      at async main (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:2726)
+  Error: Error: Multiple versions of pnpm specified:
+    - version 11 in the GitHub Action config with the key "version"
+    - version pnpm@11.5.0 in the package.json with the key "packageManager"
+  Remove one of these versions to avoid version mismatch errors like ERR_PNPM_BAD_PM_VERSION
+  ---------------------
+  0s
+Node 20 is being deprecated. This workflow is running with Node 24 by default. If you need to temporarily use Node 20, you can set the ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true environment variable. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Run pnpm/action-setup@v4
+Running self-installer...
+  Error: Multiple versions of pnpm specified:
+    - version 11 in the GitHub Action config with the key "version"
+    - version pnpm@11.5.0 in the package.json with the key "packageManager"
+  Remove one of these versions to avoid version mismatch errors like ERR_PNPM_BAD_PM_VERSION
+      at readTarget (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:7537)
+      at runSelfInstaller (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:6702)
+  Error: Error: Multiple versions of pnpm specified:
+    - version 11 in the GitHub Action config with the key "version"
+    - version pnpm@11.5.0 in the package.json with the key "packageManager"
+  Remove one of these versions to avoid version mismatch errors like ERR_PNPM_BAD_PM_VERSION
+      at async install (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:5706)
+      at async runMain (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:2804)
+      at async main (/home/runner/work/_actions/pnpm/action-setup/v4/dist/index.js:1:2726)
