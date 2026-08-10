@@ -1,6 +1,13 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
-import {createSale, listInvoices, listAllProducts, formatDate} from '@munim/core';
+import {
+  createSale,
+  listInvoices,
+  listAllProducts,
+  recordInvoicePayment,
+  formatDate,
+  type Invoice,
+} from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
@@ -36,6 +43,12 @@ export function SalesScreen() {
   const [customer, setCustomer] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Invoice payment
+  const [paying, setPaying] = useState<Invoice | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState('cash');
+  const [payingNow, setPayingNow] = useState(false);
+
   useEffect(() => {
     if (products && products.length > 0 && !productId) {
       setProductId(products[0]?.id ?? '');
@@ -45,6 +58,31 @@ export function SalesScreen() {
 
   const selected = useMemo(() => products?.find(p => p.id === productId) ?? null, [products, productId]);
   const total = (Number(quantity) || 0) * (Number(price) || 0);
+
+  async function handleRecordPayment() {
+    if (!paying) {
+      return;
+    }
+    const amount = Number(payAmount);
+    if (!amount || amount <= 0) {
+      return;
+    }
+    setPayingNow(true);
+    try {
+      await recordInvoicePayment(await getCore(), paying.id, {
+        amount,
+        method: payMethod,
+      });
+      setPaying(null);
+      setPayAmount('');
+      setPayMethod('cash');
+      reloadRecent();
+    } catch {
+      // keep the sheet open so the user can retry
+    } finally {
+      setPayingNow(false);
+    }
+  }
 
   async function handleSell() {
     if (!selected) {
@@ -99,27 +137,78 @@ export function SalesScreen() {
           data={recent.invoices}
           keyExtractor={item => item.id}
           contentContainerStyle={{paddingBottom: 90}}
-          renderItem={({item, index}) => (
-            <Card index={index}>
-              <View style={styles.row}>
-                <View style={{flex: 1}}>
-                  <Text style={styles.name}>{item.invoiceNumber}</Text>
-                  <Text style={styles.meta}>
-                    {item.customerName ?? 'Walk-in'} · {formatDate(item.date)}
-                  </Text>
+          renderItem={({item, index}) => {
+            const outstanding = Math.max(0, item.total - item.amountPaid);
+            const canPay = item.status !== 'PAID' && outstanding > 0;
+            return (
+              <Card index={index}>
+                <View style={styles.row}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.name}>{item.invoiceNumber}</Text>
+                    <Text style={styles.meta}>
+                      {item.customerName ?? 'Walk-in'} · {formatDate(item.date)}
+                    </Text>
+                    {canPay ? (
+                      <Text style={styles.meta}>
+                        Paid {money(item.amountPaid)} · Due {money(outstanding)}
+                      </Text>
+                    ) : null}
+                  </View>
+                  <View style={{alignItems: 'flex-end', gap: 4}}>
+                    <Text style={styles.name}>{money(item.total)}</Text>
+                    <Badge
+                      text={item.status}
+                      tone={item.status === 'PAID' ? 'success' : item.status === 'PARTIAL' ? 'warning' : 'muted'}
+                    />
+                    {canPay ? (
+                      <Button
+                        title="Record payment"
+                        variant="outline"
+                        onPress={() => {
+                          setPaying(item);
+                          setPayAmount(String(outstanding));
+                          setPayMethod('cash');
+                        }}
+                      />
+                    ) : null}
+                  </View>
                 </View>
-                <View style={{alignItems: 'flex-end', gap: 4}}>
-                  <Text style={styles.name}>{money(item.total)}</Text>
-                  <Badge
-                    text={item.status}
-                    tone={item.status === 'PAID' ? 'success' : item.status === 'PARTIAL' ? 'warning' : 'muted'}
-                  />
-                </View>
-              </View>
-            </Card>
-          )}
+              </Card>
+            );
+          }}
         />
       )}
+
+      <ModalSheet
+        visible={paying !== null}
+        title={`Record payment — ${paying?.invoiceNumber ?? ''}`}
+        onClose={() => setPaying(null)}>
+        {paying ? (
+          <>
+            <Text style={styles.meta}>
+              Invoice {money(paying.total)} · Paid {money(paying.amountPaid)} · Due{' '}
+              {money(Math.max(0, paying.total - paying.amountPaid))}
+            </Text>
+            <Field
+              label="Amount"
+              value={payAmount}
+              onChangeText={setPayAmount}
+              keyboardType="numeric"
+            />
+            <Field
+              label="Method"
+              value={payMethod}
+              onChangeText={setPayMethod}
+              placeholder="cash / upi / bank / card"
+            />
+            <Button
+              title={payingNow ? 'Recording…' : 'Record payment'}
+              onPress={handleRecordPayment}
+              loading={payingNow}
+            />
+          </>
+        ) : null}
+      </ModalSheet>
 
       <ModalSheet visible={pickerOpen} title="Choose product" onClose={() => setPickerOpen(false)}>
         {products?.map(p => (

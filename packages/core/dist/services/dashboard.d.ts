@@ -57,4 +57,18 @@ export declare function getReport(db: DbClient, type: ReportType, startDate?: st
         profit: number;
     };
 }>;
+/**
+ * Serializes a report into RFC-4180 CSV (quoted, escaped, CRLF line endings).
+ * Shared by web, desktop AND mobile so every platform exports the same file.
+ */
+export declare function reportToCsv(report: {
+    title: string;
+    rows: ReportRow[];
+    totals: {
+        stock: number;
+        soldQuantity: number;
+        revenue: number;
+        profit: number;
+    };
+}): string;
 //# sourceMappingURL=dashboard.d.ts.map

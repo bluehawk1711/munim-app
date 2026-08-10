@@ -225,4 +225,21 @@ export async function getReport(db, type, startDate, endDate) {
         totals,
     };
 }
+/**
+ * Serializes a report into RFC-4180 CSV (quoted, escaped, CRLF line endings).
+ * Shared by web, desktop AND mobile so every platform exports the same file.
+ */
+export function reportToCsv(report) {
+    const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Revenue", "Profit"];
+    const lines = [
+        header.join(","),
+        ...report.rows.map((r) => [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, r.revenue, r.profit]
+            .map((v) => {
+            const s = String(v);
+            return `"${s.replace(/"/g, '""')}"`;
+        })
+            .join(",")),
+    ];
+    return lines.join("\r\n");
+}
 //# sourceMappingURL=dashboard.js.map

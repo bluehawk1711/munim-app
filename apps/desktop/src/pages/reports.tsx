@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CalendarDays, CalendarRange, CalendarClock, Calendar, Package, AlertTriangle, ShoppingCart, Loader2, RefreshCw, TrendingUp, FileSpreadsheet, FileText } from "lucide-react";
-import { getReport, type ReportType } from "@munim/core";
+import { getReport, reportToCsv, type ReportType } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money, formatDateTime } from "@/lib/format";
@@ -51,13 +51,8 @@ export function ReportsPage() {
 
   async function handleCsv() {
     if (!report || report.rows.length === 0) return;
-    const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Revenue", "Profit"];
-    const lines = report.rows.map((r) =>
-      [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, r.revenue, r.profit]
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(","),
-    );
-    const blob = new Blob([[header.join(","), ...lines].join("\n")], { type: "text/csv;charset=utf-8" });
+    const csv = reportToCsv(report);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
-import {ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
-import {getReport, type ReportType} from '@munim/core';
+import {ScrollView, Share, StyleSheet, Text, TextInput, View} from 'react-native';
+import {getReport, reportToCsv, type ReportType} from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
@@ -37,6 +37,24 @@ export function ReportsScreen() {
 
   function generate() {
     setActive(type);
+  }
+
+  async function handleShareCsv() {
+    if (!report || report.rows.length === 0) {
+      return;
+    }
+    const csv = reportToCsv(report);
+    const summary = report.rows.length > 0
+      ? `Totals — Revenue ${money(report.totals.revenue)} · Profit ${money(report.totals.profit)} · ${report.totals.soldQuantity} items sold`
+      : '';
+    try {
+      await Share.share({
+        title: `${report.title}.csv`,
+        message: `${report.title}\n${report.periodLabel}\n\n${csv}\n${summary}`,
+      });
+    } catch {
+      // user dismissed the share sheet — nothing to do
+    }
   }
 
   return (
@@ -79,7 +97,21 @@ export function ReportsScreen() {
               />
             </View>
           ) : null}
-          <Button title={loading ? 'Generating…' : 'Generate report'} onPress={generate} loading={loading} />
+          <View style={styles.exportRow}>
+            <Button
+              title={loading ? 'Generating…' : 'Generate report'}
+              onPress={generate}
+              loading={loading}
+              style={styles.exportGrow}
+            />
+            <Button
+              title="Share CSV"
+              variant="outline"
+              disabled={!report || report.rows.length === 0}
+              onPress={handleShareCsv}
+              style={styles.exportGrow}
+            />
+          </View>
         </Card>
 
         {error ? (
@@ -141,6 +173,8 @@ const makeStyles = () =>
     chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10},
     chip: {paddingHorizontal: 14, paddingVertical: 9},
     dateHint: {fontSize: 11, color: colors.muted, marginBottom: 4},
+    exportRow: {flexDirection: 'row', gap: 8, marginTop: 12},
+    exportGrow: {flex: 1},
     input: {
       borderWidth: 1,
       borderColor: colors.border,

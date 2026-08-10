@@ -94,14 +94,14 @@ plain drizzle output.
 | 5 | Sales — quick sale (product, qty, price, customer, paid/unpaid) | ✅ | ✅ | ✅ | `createSale` in core |
 | 6 | Billing / Invoice creation (line items, discount, delivery, paid-now) | ✅ | ✅ | ✅ | Shared `buildBillDocument`; web has richest form (date, party link, notes, templates) |
 | 7 | Invoice list — search, status filter, pagination | ✅ | 🟡 | 🟡 | Web has dedicated view with filters; desktop/mobile list inside Billing/Sales without search/filter |
-| 8 | Record invoice payment (partial/full) | ✅ | ✅ | ❌ | Web + desktop; **mobile lists invoices but cannot record payments yet** |
+| 8 | Record invoice payment (partial/full) | ✅ | ✅ | ✅ | Shared `recordInvoicePayment` in core; mobile has a Record-payment sheet on unpaid/partial invoices |
 | 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ❌ | Web: jsPDF templates; Desktop: `billPdf.ts`; Mobile: **text share only** (`Share`) |
 | 10 | Job letters — create, save, list, delete | ✅ | 🟡 | 🟡 | Web has the full rich form + gold-bordered **PDF**; desktop/mobile have basic create/list without PDF |
 | 11 | Parties & Khata — balances (due / owed), ledger, advances given/taken | ✅ | ✅ | ✅ | Full ledger on web + desktop; mobile shows balances + compact ledger |
 | 12 | Advances summary — "whom I gave money / whom I owe" dashboard | ✅ | 🟡 | 🟡 | Web has a dedicated Advances view; desktop/mobile surface it inside Parties |
 | 13 | Settle advance | ✅ | ✅ | ❌ | Web + desktop; **mobile cannot settle an advance yet** |
 | 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; web/desktop can export (Excel/PDF/CSV), mobile view-only |
-| 15 | Report export (Excel / PDF / CSV) | ✅ | 🟡 | ❌ | Web: Excel+PDF; Desktop: CSV; Mobile: none (view only) |
+| 15 | Report export (Excel / PDF / CSV) | ✅ | 🟡 | 🟡 | Web: Excel+PDF; Desktop: CSV (shared `reportToCsv`); Mobile: CSV via native Share |
 | 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row |
 | 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings |
 
@@ -126,12 +126,10 @@ plain drizzle output.
 
 ## Known gaps & next steps
 
-1. **Record invoice payment on mobile** — core `recordInvoicePayment` exists; needs a screen action.
-2. **Settle advance on mobile** — core `settleAdvance` exists; needs a screen action.
-3. **Mobile bill PDF** — would need a PDF renderer (e.g. `expo-print` / react-native-html-to-pdf)
+1. **Settle advance on mobile** — core `settleAdvance` exists; needs a screen action.
+2. **Mobile bill PDF** — would need a PDF renderer (e.g. `expo-print` / react-native-html-to-pdf)
    or keep text share.
-4. **Job-letter PDF on desktop/mobile** — web-only generator today.
-5. **Report export parity** — give mobile a simple CSV/text export.
+3. **Job-letter PDF on desktop/mobile** — web-only generator today.
 
 ## How to add a feature globally
 
