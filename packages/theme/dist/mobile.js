@@ -15,6 +15,7 @@ export function mobileColorsFor(mode) {
         card: t.card,
         text: t.foreground,
         muted: t.mutedForeground,
+        mutedBg: t.muted,
         border: t.border,
         primary: t.primary,
         accent: t.accent,

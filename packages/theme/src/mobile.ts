@@ -13,6 +13,9 @@ export interface MobileColors {
   card: string;
   text: string;
   muted: string;
+  /** Muted BACKGROUND (tokens `muted`) — for pressed/hover fills. Distinct
+   *  from `muted`, which is the muted FOREGROUND text color. */
+  mutedBg: string;
   border: string;
   primary: string;
   accent: string;
@@ -38,6 +41,7 @@ export function mobileColorsFor(mode: ThemeMode): MobileColors {
     card: t.card,
     text: t.foreground,
     muted: t.mutedForeground,
+    mutedBg: t.muted,
     border: t.border,
     primary: t.primary,
     accent: t.accent,

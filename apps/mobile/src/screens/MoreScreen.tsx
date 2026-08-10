@@ -85,7 +85,10 @@ export function MoreScreen() {
               style={({pressed}) => [
                 styles.row,
                 index < SECTIONS.length - 1 && styles.rowBorder,
-                pressed && {backgroundColor: colors.muted},
+                // `mutedBg` (not `muted`): `muted` is a foreground text color —
+                // using it as a pressed background makes text unreadable in
+                // dark mode.
+                pressed && {backgroundColor: colors.mutedBg},
               ]}>
               <View style={styles.iconWrap}>
                 <Icon size={18} color={colors.primary} strokeWidth={2.2} />
