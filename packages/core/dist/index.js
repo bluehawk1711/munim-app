@@ -6,7 +6,7 @@
  * NO separate API server.
  */
 /* DB */
-export { createDb, getDb, parseConnectionString } from "./db/client";
+export { createDb, getDb, pingDatabase, parseConnectionString } from "./db/client";
 export * as schema from "./db/schema";
 /* Billing — shared bill/invoice generation (all 3 apps) */
 export * from "./billing";

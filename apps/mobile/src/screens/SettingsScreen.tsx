@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {Text, View} from 'react-native';
-import {sql} from 'drizzle-orm';
-import {createDb, getSettings, updateSettings} from '@munim/core';
+import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
@@ -38,7 +37,7 @@ export function SettingsScreen() {
     setTesting(true);
     setTestResult('idle');
     try {
-      await createDb({databaseUrl: url.trim()}).execute(sql`select 1`);
+      await pingDatabase(createDb({databaseUrl: url.trim()}));
       setTestResult('ok');
     } catch (err) {
       setTestResult('fail');

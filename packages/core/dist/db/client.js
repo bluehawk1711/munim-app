@@ -1,5 +1,14 @@
 import { drizzle } from "drizzle-orm/pg-proxy";
+import { sql } from "drizzle-orm";
 import * as schema from "./schema";
+/**
+ * Cheap connectivity check used by the Settings screens. Runs `select 1`
+ * through the app's own db client (fetch-based Neon proxy), so apps don't
+ * need to import drizzle directly (avoids version-duplication type issues).
+ */
+export async function pingDatabase(db) {
+    await db.execute(sql `select 1`);
+}
 /**
  * Parses a Postgres connection URL into the parts needed for Neon's
  * SQL-over-HTTP endpoint. Avoids pulling in a full URL parser so the package

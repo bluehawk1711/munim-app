@@ -24,6 +24,7 @@ import {
   FileText,
   Users,
   ScrollText,
+  BarChart3,
   Settings,
 } from 'lucide-react-native';
 import {colors, SafeScreen} from './src/components/ui';
@@ -33,6 +34,7 @@ import {SalesScreen} from './src/screens/SalesScreen';
 import {BillingScreen} from './src/screens/BillingScreen';
 import {PartiesScreen} from './src/screens/PartiesScreen';
 import {JobLettersScreen} from './src/screens/JobLettersScreen';
+import {ReportsScreen} from './src/screens/ReportsScreen';
 import {SettingsScreen} from './src/screens/SettingsScreen';
 
 type Tab =
@@ -42,6 +44,7 @@ type Tab =
   | 'billing'
   | 'parties'
   | 'letters'
+  | 'reports'
   | 'settings';
 
 const TABS: {key: Tab; label: string; icon: React.ComponentType<{size?: number; color?: string; strokeWidth?: number}>}[] = [
@@ -51,6 +54,7 @@ const TABS: {key: Tab; label: string; icon: React.ComponentType<{size?: number; 
   {key: 'billing', label: 'Bills', icon: FileText},
   {key: 'parties', label: 'Khata', icon: Users},
   {key: 'letters', label: 'Letters', icon: ScrollText},
+  {key: 'reports', label: 'Reports', icon: BarChart3},
   {key: 'settings', label: 'Settings', icon: Settings},
 ];
 
@@ -121,6 +125,7 @@ function App() {
             {tab === 'billing' ? <BillingScreen /> : null}
             {tab === 'parties' ? <PartiesScreen /> : null}
             {tab === 'letters' ? <JobLettersScreen /> : null}
+            {tab === 'reports' ? <ReportsScreen /> : null}
             {tab === 'settings' ? <SettingsScreen /> : null}
           </Animated.View>
         </View>

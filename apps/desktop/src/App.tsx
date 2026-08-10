@@ -8,6 +8,7 @@ import { SalesPage } from "@/pages/sales";
 import { BillingPage } from "@/pages/billing";
 import { PartiesPage } from "@/pages/parties";
 import { JobLettersPage } from "@/pages/job-letters";
+import { ReportsPage } from "@/pages/reports";
 import { SettingsPage } from "@/pages/settings";
 
 const ROUTES: { path: string; title: string; element: ReactNode }[] = [
@@ -17,6 +18,7 @@ const ROUTES: { path: string; title: string; element: ReactNode }[] = [
   { path: "/billing", title: "Billing / Invoices", element: <BillingPage /> },
   { path: "/parties", title: "Parties & Khata", element: <PartiesPage /> },
   { path: "/job-letters", title: "Job Letters", element: <JobLettersPage /> },
+  { path: "/reports", title: "Reports", element: <ReportsPage /> },
   { path: "/settings", title: "Settings", element: <SettingsPage /> },
 ];
 

@@ -1,6 +1,12 @@
 import * as schema from "./schema";
 export type DbClient = ReturnType<typeof createDb>;
 /**
+ * Cheap connectivity check used by the Settings screens. Runs `select 1`
+ * through the app's own db client (fetch-based Neon proxy), so apps don't
+ * need to import drizzle directly (avoids version-duplication type issues).
+ */
+export declare function pingDatabase(db: DbClient): Promise<void>;
+/**
  * Parses a Postgres connection URL into the parts needed for Neon's
  * SQL-over-HTTP endpoint. Avoids pulling in a full URL parser so the package
  * stays dependency-free for React Native / webview bundlers.

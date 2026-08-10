@@ -7,7 +7,7 @@
  */
 
 /* DB */
-export { createDb, getDb, parseConnectionString, type DbClient } from "./db/client";
+export { createDb, getDb, pingDatabase, parseConnectionString, type DbClient } from "./db/client";
 export * as schema from "./db/schema";
 export type * from "./db/schema";
 

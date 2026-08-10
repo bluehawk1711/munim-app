@@ -5,7 +5,7 @@
  * connection logic, and business rules live in this one package — there is
  * NO separate API server.
  */
-export { createDb, getDb, parseConnectionString, type DbClient } from "./db/client";
+export { createDb, getDb, pingDatabase, parseConnectionString, type DbClient } from "./db/client";
 export * as schema from "./db/schema";
 export type * from "./db/schema";
 export * from "./billing";

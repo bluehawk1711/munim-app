@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Database, Save, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
-import { sql } from "drizzle-orm";
-import { createDb, getSettings, updateSettings } from "@munim/core";
+import { createDb, getSettings, pingDatabase, updateSettings } from "@munim/core";
 import { getCore, resetCore } from "@/lib/core";
 import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
@@ -63,7 +62,7 @@ export function SettingsPage() {
     setTesting("testing");
     try {
       const testDb = createDb({ databaseUrl: url });
-      await testDb.execute(sql`select 1`);
+      await pingDatabase(testDb);
       setTesting("ok");
     } catch (err) {
       setTesting("fail");
