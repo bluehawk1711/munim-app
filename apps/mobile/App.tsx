@@ -31,7 +31,7 @@ import {
 } from 'lucide-react-native';
 import {colors, SafeScreen} from './src/components/ui';
 import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
-import {selectionTick} from './src/lib/haptics';
+import {loadHapticsEnabled, selectionTick} from './src/lib/haptics';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
@@ -135,6 +135,11 @@ function AppInner() {
   const {mode} = useTheme();
   const styles = useThemeStyles(makeStyles);
   const [tab, setTab] = useState<Tab>('home');
+
+  // Restore the persisted haptics preference before any feedback can fire.
+  React.useEffect(() => {
+    loadHapticsEnabled().catch(() => {});
+  }, []);
 
   return (
     <SafeAreaProvider>

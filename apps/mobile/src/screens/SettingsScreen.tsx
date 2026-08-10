@@ -4,7 +4,12 @@ import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
-import {successFeedback, errorFeedback} from '../lib/haptics';
+import {
+  successFeedback,
+  errorFeedback,
+  isHapticsEnabled,
+  setHapticsEnabled,
+} from '../lib/haptics';
 import {useTheme} from '../theme';
 
 export function SettingsScreen() {
@@ -22,6 +27,14 @@ export function SettingsScreen() {
   const [savingShop, setSavingShop] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
+  // Lazy-init from the in-memory flag (loaded at app start) so the switch
+  // never flashes the wrong state when re-entering the Settings section.
+  const [haptics, setHaptics] = useState(() => isHapticsEnabled());
+
+  // Still sync once in case the app-start load resolved after mount.
+  useEffect(() => {
+    setHaptics(isHapticsEnabled());
+  }, []);
 
   useEffect(() => {
     if (!urlLoaded) {
@@ -132,6 +145,30 @@ export function SettingsScreen() {
           <Switch
             value={mode === 'dark'}
             onValueChange={toggle}
+            trackColor={{true: colors.primary, false: colors.border}}
+            thumbColor="#ffffff"
+          />
+        </View>
+      </Card>
+      <Card>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+          <View style={{flex: 1, paddingRight: 12}}>
+            <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>Haptic feedback</Text>
+            <Text style={{fontSize: 12, color: colors.muted, marginTop: 2}}>
+              Ticks, dings &amp; buzzes on buttons and actions
+            </Text>
+          </View>
+          <Switch
+            value={haptics}
+            onValueChange={value => {
+              setHaptics(value);
+              void setHapticsEnabled(value);
+            }}
             trackColor={{true: colors.primary, false: colors.border}}
             thumbColor="#ffffff"
           />
