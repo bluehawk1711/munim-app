@@ -5,6 +5,8 @@ export declare const mobileColors: {
     readonly muted: string;
     readonly border: string;
     readonly primary: string;
+    readonly accent: string;
+    readonly accentForeground: string;
     /** Text/icon color placed on top of `primary`. */
     readonly onPrimary: string;
     readonly success: string;

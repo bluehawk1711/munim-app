@@ -23,9 +23,7 @@ import {
   ShoppingCart,
   FileText,
   Users,
-  ScrollText,
-  BarChart3,
-  Settings,
+  LayoutGrid,
 } from 'lucide-react-native';
 import {colors, SafeScreen} from './src/components/ui';
 import {HomeScreen} from './src/screens/HomeScreen';
@@ -33,19 +31,9 @@ import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
 import {BillingScreen} from './src/screens/BillingScreen';
 import {PartiesScreen} from './src/screens/PartiesScreen';
-import {JobLettersScreen} from './src/screens/JobLettersScreen';
-import {ReportsScreen} from './src/screens/ReportsScreen';
-import {SettingsScreen} from './src/screens/SettingsScreen';
+import {MoreScreen} from './src/screens/MoreScreen';
 
-type Tab =
-  | 'home'
-  | 'products'
-  | 'sales'
-  | 'billing'
-  | 'parties'
-  | 'letters'
-  | 'reports'
-  | 'settings';
+type Tab = 'home' | 'products' | 'sales' | 'billing' | 'parties' | 'more';
 
 const TABS: {key: Tab; label: string; icon: React.ComponentType<{size?: number; color?: string; strokeWidth?: number}>}[] = [
   {key: 'home', label: 'Home', icon: Home},
@@ -53,9 +41,7 @@ const TABS: {key: Tab; label: string; icon: React.ComponentType<{size?: number; 
   {key: 'sales', label: 'Sales', icon: ShoppingCart},
   {key: 'billing', label: 'Bills', icon: FileText},
   {key: 'parties', label: 'Khata', icon: Users},
-  {key: 'letters', label: 'Letters', icon: ScrollText},
-  {key: 'reports', label: 'Reports', icon: BarChart3},
-  {key: 'settings', label: 'Settings', icon: Settings},
+  {key: 'more', label: 'More', icon: LayoutGrid},
 ];
 
 function TabBar({tab, onSelect}: {tab: Tab; onSelect: (tab: Tab) => void}) {
@@ -124,9 +110,7 @@ function App() {
             {tab === 'sales' ? <SalesScreen /> : null}
             {tab === 'billing' ? <BillingScreen /> : null}
             {tab === 'parties' ? <PartiesScreen /> : null}
-            {tab === 'letters' ? <JobLettersScreen /> : null}
-            {tab === 'reports' ? <ReportsScreen /> : null}
-            {tab === 'settings' ? <SettingsScreen /> : null}
+            {tab === 'more' ? <MoreScreen /> : null}
           </Animated.View>
         </View>
         <Animated.View entering={SlideInDown.duration(320)}>

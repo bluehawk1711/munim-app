@@ -13,6 +13,8 @@ export const mobileColors = {
     muted: theme.light.mutedForeground,
     border: theme.light.border,
     primary: theme.light.primary,
+    accent: theme.light.accent,
+    accentForeground: theme.light.accentForeground,
     /** Text/icon color placed on top of `primary`. */
     onPrimary: theme.light.primaryForeground,
     success: theme.light.success,
