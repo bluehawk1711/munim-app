@@ -24,6 +24,7 @@ import {
   Section,
   colors,
 } from '../components/ui';
+import {useThemeStyles} from '../theme';
 
 type LineState = {
   productId: string;
@@ -35,6 +36,7 @@ type LineState = {
 const emptyLine = (): LineState => ({productId: '', productName: '', quantity: '1', price: '0'});
 
 export function BillingScreen() {
+  const styles = useThemeStyles(makeStyles);
   const {data: settings} = useAsync(async () => getSettings(await getCore()), []);
   const {data: list, loading, reload: reloadList} = useAsync(
     async () => listInvoices(await getCore(), {pageSize: 50}),
@@ -227,25 +229,26 @@ export function BillingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  lineBox: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 10,
-  },
-  lineRow: {flexDirection: 'row'},
-  total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
-  sectionTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
-  previewText: {
-    fontSize: 12,
-    color: colors.text,
-    fontFamily: 'monospace',
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
-  name: {fontSize: 15, fontWeight: '600', color: colors.text},
-  meta: {fontSize: 12, color: colors.muted, marginTop: 2},
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    lineBox: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 10,
+      marginBottom: 10,
+    },
+    lineRow: {flexDirection: 'row'},
+    total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
+    sectionTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
+    previewText: {
+      fontSize: 12,
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginBottom: 12,
+      lineHeight: 18,
+    },
+    row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+    name: {fontSize: 15, fontWeight: '600', color: colors.text},
+    meta: {fontSize: 12, color: colors.muted, marginTop: 2},
+  });

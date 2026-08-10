@@ -18,6 +18,7 @@ import {
   Screen,
   colors,
 } from '../components/ui';
+import {useThemeStyles} from '../theme';
 
 function toneFor(p: ProductWithMeta): 'success' | 'warning' | 'danger' | 'muted' {
   if (p.stock <= 0) {
@@ -30,6 +31,7 @@ function toneFor(p: ProductWithMeta): 'success' | 'warning' | 'danger' | 'muted'
 }
 
 export function ProductsScreen() {
+  const styles = useThemeStyles(makeStyles);
   const {data, error, loading, reload} = useAsync(async () => listAllProducts(await getCore()), []);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -183,10 +185,11 @@ export function ProductsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  row: {flexDirection: 'row', justifyContent: 'space-between'},
-  name: {fontSize: 15, fontWeight: '600', color: colors.text},
-  meta: {fontSize: 12, color: colors.muted, marginTop: 2},
-  stock: {fontSize: 14, fontWeight: '700', color: colors.text},
-  fab: {position: 'absolute', bottom: 24, left: 16, right: 16},
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    row: {flexDirection: 'row', justifyContent: 'space-between'},
+    name: {fontSize: 15, fontWeight: '600', color: colors.text},
+    meta: {fontSize: 12, color: colors.muted, marginTop: 2},
+    stock: {fontSize: 14, fontWeight: '700', color: colors.text},
+    fab: {position: 'absolute', bottom: 24, left: 16, right: 16},
+  });

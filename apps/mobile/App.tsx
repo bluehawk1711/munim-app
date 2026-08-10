@@ -3,11 +3,15 @@
  * Shares the SAME Neon database and business logic (@munim/core) as the web
  * and desktop apps. No API server.
  *
+ * Theming: `ThemeProvider` owns light/dark mode (system default, persisted
+ * override in Settings). The root consumes `useTheme()` so every screen
+ * re-renders with the active palette when the mode changes.
+ *
  * @format
  */
 
 import React, {useState} from 'react';
-import {Pressable, StatusBar, StyleSheet, Text, useColorScheme, View} from 'react-native';
+import {Pressable, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import Animated, {
   FadeIn,
@@ -26,6 +30,7 @@ import {
   LayoutGrid,
 } from 'lucide-react-native';
 import {colors, SafeScreen} from './src/components/ui';
+import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
@@ -44,7 +49,35 @@ const TABS: {key: Tab; label: string; icon: React.ComponentType<{size?: number; 
   {key: 'more', label: 'More', icon: LayoutGrid},
 ];
 
+const makeStyles = () =>
+  StyleSheet.create({
+    content: {flex: 1},
+    screen: {flex: 1},
+    tabBar: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingVertical: 6,
+      paddingBottom: 8,
+    },
+    tabItem: {flex: 1, alignItems: 'center', paddingVertical: 4, zIndex: 2},
+    iconWrap: {alignItems: 'center'},
+    tabLabel: {fontSize: 10, marginTop: 3, color: colors.muted, fontWeight: '600'},
+    tabLabelActive: {color: colors.primary, fontWeight: '700'},
+    indicator: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      width: 24,
+      height: 3,
+      borderRadius: 2,
+      backgroundColor: colors.primary,
+    },
+  });
+
 function TabBar({tab, onSelect}: {tab: Tab; onSelect: (tab: Tab) => void}) {
+  const styles = useThemeStyles(makeStyles);
   const [barWidth, setBarWidth] = React.useState(0);
   const indicatorX = useSharedValue(0);
   const activeIndex = Math.max(0, TABS.findIndex(t => t.key === tab));
@@ -91,13 +124,14 @@ function TabBar({tab, onSelect}: {tab: Tab; onSelect: (tab: Tab) => void}) {
   );
 }
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+function AppInner() {
+  const {mode} = useTheme();
+  const styles = useThemeStyles(makeStyles);
   const [tab, setTab] = useState<Tab>('home');
 
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
       <SafeScreen>
         <View style={styles.content}>
           <Animated.View
@@ -121,30 +155,10 @@ function App() {
   );
 }
 
-const styles = StyleSheet.create({
-  content: {flex: 1},
-  screen: {flex: 1},
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingVertical: 6,
-    paddingBottom: 8,
-  },
-  tabItem: {flex: 1, alignItems: 'center', paddingVertical: 4, zIndex: 2},
-  iconWrap: {alignItems: 'center'},
-  tabLabel: {fontSize: 10, marginTop: 3, color: colors.muted, fontWeight: '600'},
-  tabLabelActive: {color: colors.primary, fontWeight: '700'},
-  indicator: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    width: 24,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: colors.primary,
-  },
-});
-
-export default App;
+export default function App() {
+  return (
+    <ThemeProvider>
+      <AppInner />
+    </ThemeProvider>
+  );
+}

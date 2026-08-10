@@ -8,6 +8,7 @@ import {
   Settings as SettingsIcon,
 } from 'lucide-react-native';
 import {colors, Header, Screen} from '../components/ui';
+import {useThemeStyles} from '../theme';
 import {JobLettersScreen} from './JobLettersScreen';
 import {ReportsScreen} from './ReportsScreen';
 import {SettingsScreen} from './SettingsScreen';
@@ -27,6 +28,7 @@ const SECTIONS: {
 
 /** Back bar shown above a sub-screen opened from the More list. */
 function SectionView({children, onBack}: {children: React.ReactNode; onBack: () => void}) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <View style={{flex: 1}}>
       <View style={styles.backBar}>
@@ -41,6 +43,7 @@ function SectionView({children, onBack}: {children: React.ReactNode; onBack: () 
 }
 
 export function MoreScreen() {
+  const styles = useThemeStyles(makeStyles);
   const [section, setSection] = useState<Section | null>(null);
 
   if (section === 'letters') {
@@ -96,41 +99,42 @@ export function MoreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  group: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginHorizontal: 16,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  rowBorder: {
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  iconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.accent,
-  },
-  rowLabel: {fontSize: 15, fontWeight: '600', color: colors.text},
-  rowSubtitle: {fontSize: 12, color: colors.muted, marginTop: 1},
-  backBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingTop: 4,
-  },
-  backButton: {flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8, gap: 1},
-  backText: {fontSize: 16, fontWeight: '600', color: colors.primary},
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    group: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginHorizontal: 16,
+      overflow: 'hidden',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    rowBorder: {
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    iconWrap: {
+      width: 32,
+      height: 32,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    rowLabel: {fontSize: 15, fontWeight: '600', color: colors.text},
+    rowSubtitle: {fontSize: 12, color: colors.muted, marginTop: 1},
+    backBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 8,
+      paddingTop: 4,
+    },
+    backButton: {flexDirection: 'row', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8, gap: 1},
+    backText: {fontSize: 16, fontWeight: '600', color: colors.primary},
+  });

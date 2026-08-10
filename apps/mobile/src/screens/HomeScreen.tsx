@@ -5,8 +5,10 @@ import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {Badge, Card, ErrorBox, Header, Loading, Screen, StatBox, colors} from '../components/ui';
+import {useThemeStyles} from '../theme';
 
 export function HomeScreen() {
+  const styles = useThemeStyles(makeStyles);
   const {data, error, loading, reload} = useAsync(async () => getDashboard(await getCore()), []);
 
   return (
@@ -93,20 +95,21 @@ export function HomeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    paddingHorizontal: 16,
-  },
-  section: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-  invRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    grid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      paddingHorizontal: 16,
+    },
+    section: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+      marginHorizontal: 16,
+      marginTop: 18,
+      marginBottom: 10,
+    },
+    invRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+  });

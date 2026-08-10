@@ -1,11 +1,13 @@
 import React, {useEffect, useState} from 'react';
-import {Text, View} from 'react-native';
+import {Switch, Text, View} from 'react-native';
 import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
+import {useTheme} from '../theme';
 
 export function SettingsScreen() {
+  const {mode, toggle} = useTheme();
   const {data: settings, reload} = useAsync(async () => getSettings(await getCore()), []);
   const [url, setUrl] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
@@ -103,6 +105,27 @@ export function SettingsScreen() {
         ) : testResult === 'fail' ? (
           <Text style={{color: colors.danger, fontSize: 13, marginTop: 10, fontWeight: '600'}}>✗ Connection failed</Text>
         ) : null}
+      </Card>
+      <Card>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+          <View style={{flex: 1, paddingRight: 12}}>
+            <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>Dark mode</Text>
+            <Text style={{fontSize: 12, color: colors.muted, marginTop: 2}}>
+              Follows your system until you switch here
+            </Text>
+          </View>
+          <Switch
+            value={mode === 'dark'}
+            onValueChange={toggle}
+            trackColor={{true: colors.primary, false: colors.border}}
+            thumbColor="#ffffff"
+          />
+        </View>
       </Card>
       <Card>
         <Text style={{fontSize: 14, fontWeight: '700', marginBottom: 10, color: colors.text}}>Shop profile</Text>

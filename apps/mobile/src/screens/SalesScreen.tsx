@@ -19,8 +19,10 @@ import {
   Section,
   colors,
 } from '../components/ui';
+import {useThemeStyles} from '../theme';
 
 export function SalesScreen() {
+  const styles = useThemeStyles(makeStyles);
   const {data: products, reload: reloadProducts} = useAsync(async () => listAllProducts(await getCore()), []);
   const {data: recent, loading, reload: reloadRecent} = useAsync(
     async () => listInvoices(await getCore(), {pageSize: 20}),
@@ -137,9 +139,10 @@ export function SalesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
-  name: {fontSize: 15, fontWeight: '600', color: colors.text},
-  meta: {fontSize: 12, color: colors.muted, marginTop: 2},
-  total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+    name: {fontSize: 15, fontWeight: '600', color: colors.text},
+    meta: {fontSize: 12, color: colors.muted, marginTop: 2},
+    total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
+  });

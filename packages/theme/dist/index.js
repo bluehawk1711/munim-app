@@ -6,5 +6,5 @@
  *  - mobile imports `mobileColors` (React Native palette)
  */
 export { theme, radius } from "./tokens.js";
-export { mobileColors } from "./mobile.js";
+export { mobileColors, mobileColorsFor } from "./mobile.js";
 //# sourceMappingURL=index.js.map

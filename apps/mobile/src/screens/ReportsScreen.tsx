@@ -5,6 +5,7 @@ import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {Button, Card, Empty, ErrorBox, Header, Loading, Screen, Section, colors} from '../components/ui';
+import {useThemeStyles} from '../theme';
 
 const REPORT_OPTIONS: {key: ReportType; label: string}[] = [
   {key: 'daily', label: 'Daily Sales'},
@@ -17,6 +18,7 @@ const REPORT_OPTIONS: {key: ReportType; label: string}[] = [
 ];
 
 export function ReportsScreen() {
+  const styles = useThemeStyles(makeStyles);
   const [type, setType] = useState<ReportType>('monthly');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -66,14 +68,14 @@ export function ReportsScreen() {
                 value={startDate}
                 onChangeText={setStartDate}
                 placeholder="Start date"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={colors.inputPlaceholder}
               />
               <TextInput
                 style={[styles.input, {marginTop: 8}]}
                 value={endDate}
                 onChangeText={setEndDate}
                 placeholder="End date (optional)"
-                placeholderTextColor="#94a3b8"
+                placeholderTextColor={colors.inputPlaceholder}
               />
             </View>
           ) : null}
@@ -133,26 +135,27 @@ export function ReportsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  label: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5},
-  chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10},
-  chip: {paddingHorizontal: 14, paddingVertical: 9},
-  dateHint: {fontSize: 11, color: colors.muted, marginBottom: 4},
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: colors.text,
-    backgroundColor: colors.card,
-  },
-  productRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
-  name: {fontSize: 15, fontWeight: '600', color: colors.text},
-  meta: {fontSize: 12, color: colors.muted, marginTop: 2},
-  revenue: {fontSize: 15, fontWeight: '700', color: colors.text},
-  totals: {gap: 6},
-  totalLabel: {fontSize: 12, color: colors.muted, fontWeight: '600'},
-  totalValue: {fontSize: 20, fontWeight: '700', color: colors.text},
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    label: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5},
+    chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10},
+    chip: {paddingHorizontal: 14, paddingVertical: 9},
+    dateHint: {fontSize: 11, color: colors.muted, marginBottom: 4},
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+      color: colors.text,
+      backgroundColor: colors.card,
+    },
+    productRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+    name: {fontSize: 15, fontWeight: '600', color: colors.text},
+    meta: {fontSize: 12, color: colors.muted, marginTop: 2},
+    revenue: {fontSize: 15, fontWeight: '700', color: colors.text},
+    totals: {gap: 6},
+    totalLabel: {fontSize: 12, color: colors.muted, fontWeight: '600'},
+    totalValue: {fontSize: 20, fontWeight: '700', color: colors.text},
+  });

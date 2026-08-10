@@ -14,94 +14,96 @@ import {
 } from 'react-native';
 import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
-// Colors come from @munim/theme — the single source of truth for web,
-// desktop AND mobile (edit packages/theme/src/tokens.ts to restyle all apps).
-import {mobileColors} from '@munim/theme';
+// Colors come from @munim/theme (via the dynamic proxy in ../theme) — the
+// single source of truth for web, desktop AND mobile. The proxy resolves the
+// active mode's palette, so these tokens flip with dark mode automatically.
+import {colors, useThemeStyles} from '../theme';
 
-export const colors = mobileColors;
+export {colors};
 
-const styles = StyleSheet.create({
-  screen: {flex: 1, backgroundColor: colors.bg},
-  header: {paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12},
-  title: {fontSize: 22, fontWeight: '700', color: colors.text},
-  subtitle: {fontSize: 13, color: colors.muted, marginTop: 2},
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    marginHorizontal: 16,
-    marginBottom: 10,
-  },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonText: {color: colors.onPrimary, fontSize: 15, fontWeight: '600'},
-  buttonOutline: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  buttonOutlineText: {color: colors.text},
-  buttonDanger: {backgroundColor: colors.danger},
-  field: {marginBottom: 12},
-  label: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5},
-  input: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.card,
-  },
-  badge: {paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999},
-  badgeText: {fontSize: 11, fontWeight: '700'},
-  stat: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    flex: 1,
-  },
-  statLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
-  statValue: {fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 4},
-  row: {flexDirection: 'row', alignItems: 'center', paddingVertical: 10},
-  modalOverlay: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end'},
-  modalSheet: {
-    backgroundColor: colors.card,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 18,
-    maxHeight: '85%',
-  },
-  modalTitle: {fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 14},
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingVertical: 6,
-  },
-  tabItem: {flex: 1, alignItems: 'center', paddingVertical: 4},
-  tabLabel: {fontSize: 10, marginTop: 2, color: colors.muted, fontWeight: '600'},
-  tabLabelActive: {color: colors.primary},
-  section: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-  },
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    screen: {flex: 1, backgroundColor: colors.bg},
+    header: {paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12},
+    title: {fontSize: 22, fontWeight: '700', color: colors.text},
+    subtitle: {fontSize: 13, color: colors.muted, marginTop: 2},
+    card: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      marginHorizontal: 16,
+      marginBottom: 10,
+    },
+    button: {
+      backgroundColor: colors.primary,
+      borderRadius: 10,
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    buttonText: {color: colors.onPrimary, fontSize: 15, fontWeight: '600'},
+    buttonOutline: {
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    buttonOutlineText: {color: colors.text},
+    buttonDanger: {backgroundColor: colors.danger},
+    field: {marginBottom: 12},
+    label: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5},
+    input: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 15,
+      color: colors.text,
+      backgroundColor: colors.card,
+    },
+    badge: {paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999},
+    badgeText: {fontSize: 11, fontWeight: '700'},
+    stat: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      flex: 1,
+    },
+    statLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
+    statValue: {fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 4},
+    row: {flexDirection: 'row', alignItems: 'center', paddingVertical: 10},
+    modalOverlay: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end'},
+    modalSheet: {
+      backgroundColor: colors.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 18,
+      maxHeight: '85%',
+    },
+    modalTitle: {fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 14},
+    tabBar: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingVertical: 6,
+    },
+    tabItem: {flex: 1, alignItems: 'center', paddingVertical: 4},
+    tabLabel: {fontSize: 10, marginTop: 2, color: colors.muted, fontWeight: '600'},
+    tabLabelActive: {color: colors.primary},
+    section: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+      marginHorizontal: 16,
+      marginTop: 18,
+      marginBottom: 10,
+    },
+  });
 
 export function Screen({
   children,
@@ -110,10 +112,12 @@ export function Screen({
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
+  const styles = useThemeStyles(makeStyles);
   return <View style={[styles.screen, style]}>{children}</View>;
 }
 
 export function Header({title, subtitle}: {title: string; subtitle?: string}) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <View style={styles.header}>
       <Animated.Text entering={FadeInDown.duration(260)} style={styles.title}>
@@ -130,6 +134,7 @@ export function Header({title, subtitle}: {title: string; subtitle?: string}) {
 
 /** Animated section heading (Apple-style staggered entrance). */
 export function Section({title, index = 0}: {title: string; index?: number}) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <Animated.Text
       entering={FadeInDown.duration(260).delay(40 + index * 40)}
@@ -148,6 +153,7 @@ export function Card({
   style?: StyleProp<ViewStyle>;
   index?: number;
 }) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <Animated.View
       entering={FadeInDown.duration(260).delay(index * 50)}
@@ -167,6 +173,7 @@ type ButtonProps = {
 };
 
 export function Button({title, onPress, variant = 'primary', disabled, loading, style}: ButtonProps) {
+  const styles = useThemeStyles(makeStyles);
   const isOutline = variant === 'outline';
   const isDanger = variant === 'danger';
   return (
@@ -200,6 +207,7 @@ type FieldProps = {
 };
 
 export function Field({label, value, onChangeText, placeholder, keyboardType, style}: FieldProps) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <View style={[styles.field, style]}>
       <Text style={styles.label}>{label}</Text>
@@ -217,6 +225,7 @@ export function Field({label, value, onChangeText, placeholder, keyboardType, st
 }
 
 export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' | 'danger' | 'muted'}) {
+  const styles = useThemeStyles(makeStyles);
   const bg =
     tone === 'success'
       ? colors.successSoft
@@ -241,6 +250,7 @@ export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' |
 }
 
 export function StatBox({label, value, valueColor, index = 0}: {label: string; value: string; valueColor?: string; index?: number}) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <Animated.View entering={FadeInUp.duration(280).delay(index * 60)} style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -262,6 +272,7 @@ export function Row({
   valueColor?: string;
   onPress?: () => void;
 }) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <Pressable onPress={onPress} style={styles.row}>
       <Text style={{flex: 1, fontSize: 14, color: colors.text}} numberOfLines={1}>
@@ -314,6 +325,7 @@ export function ModalSheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.modalOverlay} onPress={onClose}>
@@ -327,6 +339,7 @@ export function ModalSheet({
 }
 
 export function SafeScreen({children}: {children: React.ReactNode}) {
+  const styles = useThemeStyles(makeStyles);
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       {children}

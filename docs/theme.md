@@ -20,7 +20,7 @@ package first because every app's `build`/`typecheck` task `dependsOn ^build`.)
 |---|---|---|
 | Web | `apps/web/src/app/globals.css` | `@import "@munim/theme/tokens.css"` — CSS custom properties (`--background`, `--primary`, …) + `--radius`; Tailwind v4 maps them via `@theme inline` |
 | Desktop | `apps/desktop/src/index.css` | Same `@import "@munim/theme/tokens.css"` |
-| Mobile | `apps/mobile/src/components/ui.tsx` | `import { mobileColors } from "@munim/theme"` — a hex palette mapped from the shared light tokens (RN can't read CSS variables) |
+| Mobile | `apps/mobile/src/theme.tsx` + `apps/mobile/src/components/ui.tsx` | `ui.tsx` re-exports a dynamic `colors` proxy (from `src/theme.tsx`, backed by `@munim/theme`'s `mobileColorsFor(mode)`) — the active mode's hex palette (RN can't read CSS variables) |
 
 ## Token anatomy
 
@@ -29,9 +29,10 @@ package first because every app's `build`/`typecheck` task `dependsOn ^build`.)
   success, warning, chart-1…5, sidebar…).
 - `radius` — shared border radius (`0.75rem`); apps derive `sm/md/lg/xl`
   from it.
-- `mobileColors` — the exact object shape the mobile screens already use
-  (`bg`, `card`, `text`, `muted`, `border`, `primary`, `success`, `danger`,
-  `warning`, plus soft-tints and `onPrimary`), derived from the light tokens.
+- `mobileColorsFor(mode)` — maps `theme.light` / `theme.dark` onto the exact
+  object shape the mobile screens use (`bg`, `card`, `text`, `muted`,
+  `border`, `primary`, `success`, `danger`, `warning`, plus soft-tints and
+  `onPrimary`). `mobileColors` is the light-mode shorthand (back-compat).
 
 ## Why hex?
 
@@ -45,9 +46,12 @@ bit-identical to what the apps rendered before).
 
 - Web + desktop toggle `.dark` on the root element; `tokens.css` supplies
   both `:root` and `.dark` variable sets.
-- Mobile is light-only today and consumes the light palette via
-  `mobileColors`. The `theme.dark` set is available for a future dark-mode
-  pass (would need `mobileColors` to become scheme-aware).
+- Mobile supports light AND dark. `apps/mobile/src/theme.tsx` owns the mode:
+  a `ThemeProvider` defaults to the system preference (`useColorScheme`),
+  persists an explicit override in AsyncStorage, and swaps the palette
+  (`mobileColorsFor(mode)`) before children render. Screens read the shared
+  `colors` proxy, so no per-screen theme code is needed — a Dark Mode switch
+  lives in the Settings screen.
 
 ## Reminders
 

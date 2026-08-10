@@ -27,8 +27,10 @@ import {
   Screen,
   colors,
 } from '../components/ui';
+import {useThemeStyles} from '../theme';
 
 export function PartiesScreen() {
+  const styles = useThemeStyles(makeStyles);
   const {data: parties, loading, reload: reloadParties} = useAsync(async () => getPartyBalances(await getCore()), []);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -301,14 +303,15 @@ export function PartiesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  ledgerTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
-  ledgerLine: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-});
+const makeStyles = () =>
+  StyleSheet.create({
+    ledgerTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
+    ledgerLine: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 6,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+  });
