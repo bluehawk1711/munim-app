@@ -1,0 +1,27 @@
+{
+  "name": "@munim/theme",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Munim shared theme — THE single source of truth for every color, radius and visual token used by the web, desktop and mobile apps. Edit src/tokens.ts, rebuild, and all 3 apps update.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tokens.css": "./dist/tokens.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/generate-css.mjs",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

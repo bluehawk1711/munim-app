@@ -26,6 +26,9 @@ importers:
       '@munim/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@munim/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@tailwindcss/vite':
         specifier: ^4.2.1
         version: 4.3.3(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))
@@ -123,6 +126,9 @@ importers:
       '@munim/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@munim/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@react-native-async-storage/async-storage':
         specifier: ^2.1.2
         version: 2.2.0(react-native@0.86.2(@babel/core@7.29.7)(@react-native-community/cli@20.1.0(typescript@6.0.3))(@react-native/jest-preset@0.86.2(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))
@@ -238,6 +244,9 @@ importers:
       '@munim/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@munim/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.14
         version: 1.1.23(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -381,6 +390,12 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+
+  packages/theme:
+    devDependencies:
+      typescript:
+        specifier: ^5.8.3
+        version: 5.8.3
 
 packages:
 

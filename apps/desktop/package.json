@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@munim/core": "workspace:*",
+    "@munim/theme": "workspace:*",
     "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/api": "2.11.1",
     "@tauri-apps/plugin-opener": "^2",

@@ -14,18 +14,11 @@ import {
 } from 'react-native';
 import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
+// Colors come from @munim/theme — the single source of truth for web,
+// desktop AND mobile (edit packages/theme/src/tokens.ts to restyle all apps).
+import {mobileColors} from '@munim/theme';
 
-export const colors = {
-  bg: '#f6f7fb',
-  card: '#ffffff',
-  text: '#0f172a',
-  muted: '#64748b',
-  border: '#e2e8f0',
-  primary: '#4f46e5',
-  success: '#059669',
-  danger: '#dc2626',
-  warning: '#d97706',
-};
+export const colors = mobileColors;
 
 const styles = StyleSheet.create({
   screen: {flex: 1, backgroundColor: colors.bg},
@@ -48,7 +41,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonText: {color: '#fff', fontSize: 15, fontWeight: '600'},
+  buttonText: {color: colors.onPrimary, fontSize: 15, fontWeight: '600'},
   buttonOutline: {
     backgroundColor: colors.card,
     borderWidth: 1,
@@ -189,7 +182,7 @@ export function Button({title, onPress, variant = 'primary', disabled, loading, 
         style,
       ]}>
       {loading ? (
-        <ActivityIndicator color={isOutline ? colors.text : '#fff'} />
+        <ActivityIndicator color={isOutline ? colors.text : colors.onPrimary} />
       ) : (
         <Text style={[styles.buttonText, isOutline && styles.buttonOutlineText]}>{title}</Text>
       )}
@@ -216,7 +209,7 @@ export function Field({label, value, onChangeText, placeholder, keyboardType, st
         placeholder={placeholder}
         keyboardType={keyboardType}
         style={styles.input}
-        placeholderTextColor="#94a3b8"
+        placeholderTextColor={colors.inputPlaceholder}
         autoCapitalize="none"
       />
     </View>
@@ -226,12 +219,12 @@ export function Field({label, value, onChangeText, placeholder, keyboardType, st
 export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' | 'danger' | 'muted'}) {
   const bg =
     tone === 'success'
-      ? '#d1fae5'
+      ? colors.successSoft
       : tone === 'warning'
-      ? '#fef3c7'
+      ? colors.warningSoft
       : tone === 'danger'
-      ? '#fee2e2'
-      : '#e2e8f0';
+      ? colors.dangerSoft
+      : colors.mutedSoft;
   const fg =
     tone === 'success'
       ? colors.success

@@ -20,6 +20,9 @@ This document records what exists, and **on which platforms** it is available (â
   SKU/invoice numbering, stock movements, khata/ledger math and `getReport` all live in core.
 - **Platform-specific rendering only.** PDF export and file dialogs are per-platform (browser print /
   jsPDF, Tauri download, mobile `Share`), but they all consume the same `BillDocument`.
+- **One theme.** All colors, radii and visual tokens live in `@munim/theme` (`packages/theme/src/tokens.ts`).
+  Web + desktop consume the generated `tokens.css`; mobile consumes `mobileColors`. See `docs/theme.md`.
+  â†’ Edit one file, restyle all 3 apps.
 
 ## Feature matrix
 

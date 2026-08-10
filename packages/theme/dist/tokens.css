@@ -1,0 +1,76 @@
+/* AUTO-GENERATED from packages/theme/src/tokens.ts — do not edit.
+   Change tokens there, then run `pnpm --filter @munim/theme build`. */
+:root {
+  --radius: 0.75rem;
+  --background: #fcfbf8;
+  --foreground: #0c0b09;
+  --card: #ffffff;
+  --card-foreground: #0c0b09;
+  --popover: #ffffff;
+  --popover-foreground: #0c0b09;
+  --primary: #846324;
+  --primary-foreground: #f9f8f7;
+  --secondary: #f3f0eb;
+  --secondary-foreground: #24211d;
+  --muted: #f5f2ee;
+  --muted-foreground: #7f7971;
+  --accent: #f7e9d6;
+  --accent-foreground: #4a371b;
+  --destructive: #e7000b;
+  --destructive-foreground: #fafafa;
+  --border: #e6e2dd;
+  --input: #e6e2dd;
+  --ring: #846324;
+  --success: #059669;
+  --warning: #d97706;
+  --chart-1: #9c7a3d;
+  --chart-2: #387e82;
+  --chart-3: #ca933e;
+  --chart-4: #d37040;
+  --chart-5: #d6455a;
+  --sidebar: #fbfaf9;
+  --sidebar-foreground: #13110f;
+  --sidebar-primary: #846324;
+  --sidebar-primary-foreground: #f9f8f7;
+  --sidebar-accent: #f7e9d6;
+  --sidebar-accent-foreground: #4a371b;
+  --sidebar-border: #e6e2dd;
+  --sidebar-ring: #846324;
+}
+
+.dark {
+  --background: #080705;
+  --foreground: #edebe7;
+  --card: #13110e;
+  --card-foreground: #edebe7;
+  --popover: #13110e;
+  --popover-foreground: #edebe7;
+  --primary: #b69255;
+  --primary-foreground: #0c0b09;
+  --secondary: #24211d;
+  --secondary-foreground: #edebe7;
+  --muted: #23211e;
+  --muted-foreground: #a29e98;
+  --accent: #372c1d;
+  --accent-foreground: #f2daba;
+  --destructive: #ff6467;
+  --destructive-foreground: #fafafa;
+  --border: #2b2825;
+  --input: #2b2825;
+  --ring: #b69255;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --chart-1: #b69255;
+  --chart-2: #4e9397;
+  --chart-3: #d79f4c;
+  --chart-4: #e57f4f;
+  --chart-5: #e45366;
+  --sidebar: #0e0d0b;
+  --sidebar-foreground: #edebe7;
+  --sidebar-primary: #b69255;
+  --sidebar-primary-foreground: #0c0b09;
+  --sidebar-accent: #2f281e;
+  --sidebar-accent-foreground: #f2daba;
+  --sidebar-border: #24211d;
+  --sidebar-ring: #b69255;
+}
