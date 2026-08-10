@@ -1,4 +1,19 @@
 {
   "name": "Munim",
-  "displayName": "Munim"
+  "displayName": "Munim",
+  "expo": {
+    "name": "Munim",
+    "slug": "munim",
+    "scheme": "munim",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "android": {
+      "package": "com.munim"
+    },
+    "ios": {
+      "bundleIdentifier": "com.munim"
+    },
+    "plugins": ["expo-dev-client"]
+  }
 }
