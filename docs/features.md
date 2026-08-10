@@ -102,16 +102,16 @@ plain drizzle output.
 | 13 | Settle advance | ✅ | ✅ | ❌ | Web + desktop; **mobile cannot settle an advance yet** |
 | 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; web/desktop can export (Excel/PDF/CSV), mobile view-only |
 | 15 | Report export (Excel / PDF / CSV) | ✅ | 🟡 | ❌ | Web: Excel+PDF; Desktop: CSV; Mobile: none (view only) |
-| 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ❌ | ✅ | 🟡 | Desktop has full shop profile + DB URL test; mobile has **shop name + DB URL only** |
-| 17 | Database connection (paste Neon URL, test, save) | ❌ | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars |
+| 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row |
+| 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings |
 
 ## Platform detail
 
 ### Web (`apps/web`) — Next.js, server + client
-- Views: dashboard, products, sales, catalog, invoices, billing, job-letter, parties, advances, reports
+- Views: dashboard, products, sales, catalog, invoices, billing, job-letter, parties, advances, reports, **settings**
 - Auth: login page + server-side API routes; DB access through `lib/db` + `@munim/core`
 - Exports: Excel + PDF (reports), jsPDF bill templates, job-letter PDF
-- No settings view (shop details come from the DB row; DB URL comes from env)
+- Settings: shop profile editor (name/address/phones/email/currency/low-stock threshold) via `GET/PUT /api/settings` + connection check; DB URL comes from env
 
 ### Desktop (`apps/desktop`) — Tauri + Vite
 - Pages: dashboard, products, sales, billing, parties, job-letters, **reports**, settings
@@ -133,7 +133,8 @@ plain drizzle output.
 4. **Mobile bill PDF** — would need a PDF renderer (e.g. `expo-print` / react-native-html-to-pdf)
    or keep text share.
 5. **Job-letter PDF on desktop/mobile** — web-only generator today.
-6. **Settings on web** — shop profile editing is desktop/mobile-only; web reads the same DB row.
+6. **Mobile bill PDF** — see #4; **web settings** shipped (shop profile editor) — the web app still
+   relies on env for the DB URL rather than a paste-in URL.
 7. **Report export parity** — give mobile a simple CSV/text export.
 
 ## How to add a feature globally

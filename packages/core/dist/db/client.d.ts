@@ -26,9 +26,10 @@ export declare function parseConnectionString(url: string): {
  * No API server required — every app imports this package.
  *
  * Requires one of:
- *   - DATABASE_URL  (postgres://user:pass@host/db — Basic auth)
+ *   - DATABASE_URL  (postgres://user:pass@host/db — sent via the
+ *     `neon-connection-string` header, the current Neon HTTP auth)
  *   - NEON_HOST + NEON_USER + NEON_PASSWORD
- *   - DATABASE_AUTH_TOKEN (Bearer auth, overrides Basic)
+ *   - DATABASE_AUTH_TOKEN (Bearer auth)
  */
 export declare function createDb(opts?: {
     databaseUrl?: string;

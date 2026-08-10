@@ -21,6 +21,7 @@ const VIEW_TITLES: Record<string, { title: string; subtitle: string }> = {
   advances: { title: "Advances", subtitle: "Who owes whom — given & taken" },
   reports: { title: "Reports", subtitle: "Generate & export reports" },
   catalog: { title: "Catalog", subtitle: "Manage colors & sizes" },
+  settings: { title: "Settings", subtitle: "Shop profile & shared database" },
 }
 
 export function AppTopbar() {

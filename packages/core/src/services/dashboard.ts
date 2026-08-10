@@ -72,7 +72,6 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
     db
       .select({
         count: sql<number>`count(*)::int`,
-        qty: sql<number>`coalesce(sum(quantity),0)::float8`,
         total: sql<number>`coalesce(sum(total),0)::float8`,
       })
       .from(schema.invoices),

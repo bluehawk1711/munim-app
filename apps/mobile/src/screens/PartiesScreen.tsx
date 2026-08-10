@@ -6,6 +6,8 @@ import {
   getPartyBalances,
   getPartyLedger,
   createAdvance,
+  listAdvances,
+  settleAdvance,
   recordPayment,
   formatDate,
 } from '@munim/core';
@@ -42,6 +44,7 @@ export function PartiesScreen() {
 
   const [ledger, setLedger] = useState<{lines: {id: string; date: Date; description: string; debit: number; credit: number; balance: number}[]; balance: number} | null>(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
+  const [openAdvances, setOpenAdvances] = useState<{id: string; direction: 'GIVEN' | 'TAKEN'; amount: number; date: Date}[] | null>(null);
 
   const selected = parties?.find(p => p.id === selectedId) ?? null;
 
@@ -49,11 +52,34 @@ export function PartiesScreen() {
     setSelectedId(party.id);
     setLedgerLoading(true);
     try {
-      setLedger(await getPartyLedger(await getCore(), party.id));
+      const core = await getCore();
+      const [ledgerData, advances] = await Promise.all([
+        getPartyLedger(core, party.id),
+        listAdvances(core, party.id),
+      ]);
+      setLedger(ledgerData);
+      setOpenAdvances(
+        advances
+          .filter(a => a.status === 'OPEN')
+          .map(a => ({id: a.id, direction: a.direction, amount: a.amount, date: a.date})),
+      );
     } catch {
       setLedger(null);
+      setOpenAdvances(null);
     } finally {
       setLedgerLoading(false);
+    }
+  }
+
+  async function handleSettleAdvance(id: string) {
+    try {
+      await settleAdvance(await getCore(), id);
+      reloadParties();
+      if (selected) {
+        void openLedger(selected);
+      }
+    } catch {
+      // keep for retry
     }
   }
 
@@ -203,6 +229,27 @@ export function PartiesScreen() {
                       }}
                     />
                   </View>
+                  {openAdvances && openAdvances.length > 0 ? (
+                    <View style={{gap: 6, marginTop: 4}}>
+                      <Text style={{fontSize: 11, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4}}>
+                        Open advances
+                      </Text>
+                      {openAdvances.map(a => (
+                        <View key={a.id} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
+                          <View style={{flex: 1}}>
+                            <Text style={{fontSize: 13, color: colors.text, fontWeight: '600'}}>
+                              {money(a.amount)}{' '}
+                              <Text style={{color: a.direction === 'GIVEN' ? colors.danger : colors.success, fontWeight: '400'}}>
+                                {a.direction === 'GIVEN' ? 'given' : 'taken'}
+                              </Text>
+                            </Text>
+                            <Text style={{fontSize: 11, color: colors.muted}}>{formatDate(a.date)}</Text>
+                          </View>
+                          <Button title="Settle" variant="outline" onPress={() => handleSettleAdvance(a.id)} />
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
             </Card>

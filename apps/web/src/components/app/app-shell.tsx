@@ -15,6 +15,7 @@ import { BillingView } from "@/views/billing-view"
 import { JobLetterView } from "@/views/job-letter-view"
 import { PartiesView } from "@/views/parties-view"
 import { AdvancesView } from "@/views/advances-view"
+import { SettingsView } from "@/views/settings-view"
 import { useAppStore } from "@/store/view-store"
 
 const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
@@ -28,6 +29,7 @@ const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
   "job-letter": JobLetterView,
   parties: PartiesView,
   advances: AdvancesView,
+  settings: SettingsView,
 }
 
 function ActiveView() {

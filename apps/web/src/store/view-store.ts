@@ -14,6 +14,7 @@ export type ViewKey =
   | "advances"
   | "reports"
   | "catalog"
+  | "settings"
 
 type AppState = {
   activeView: ViewKey

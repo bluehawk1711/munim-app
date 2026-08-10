@@ -10,7 +10,13 @@ export function SettingsScreen() {
   const [url, setUrl] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
   const [shopName, setShopName] = useState('');
+  const [shopAddress, setShopAddress] = useState('');
+  const [shopPhones, setShopPhones] = useState('');
+  const [shopEmail, setShopEmail] = useState('');
+  const [currency, setCurrency] = useState('INR');
+  const [lowStockThreshold, setLowStockThreshold] = useState('5');
   const [shopLoaded, setShopLoaded] = useState(false);
+  const [savingShop, setSavingShop] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
 
@@ -26,6 +32,11 @@ export function SettingsScreen() {
   useEffect(() => {
     if (settings && !shopLoaded) {
       setShopName(settings.shopName);
+      setShopAddress(settings.shopAddress ?? '');
+      setShopPhones((settings.shopPhones ?? []).join(', '));
+      setShopEmail(settings.shopEmail ?? '');
+      setCurrency(settings.currency);
+      setLowStockThreshold(String(settings.lowStockThreshold));
       setShopLoaded(true);
     }
   }, [settings, shopLoaded]);
@@ -52,11 +63,21 @@ export function SettingsScreen() {
   }
 
   async function handleSaveShop() {
+    setSavingShop(true);
     try {
-      await updateSettings(await getCore(), {shopName: shopName.trim() || 'My Shop'});
+      await updateSettings(await getCore(), {
+        shopName: shopName.trim() || 'My Shop',
+        shopAddress: shopAddress.trim() || undefined,
+        shopPhones: shopPhones.split(',').map(s => s.trim()).filter(Boolean),
+        shopEmail: shopEmail.trim() || undefined,
+        currency: currency.trim() || 'INR',
+        lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
+      });
       reload();
     } catch {
       // ignore
+    } finally {
+      setSavingShop(false);
     }
   }
 
@@ -84,8 +105,14 @@ export function SettingsScreen() {
         ) : null}
       </Card>
       <Card>
+        <Text style={{fontSize: 14, fontWeight: '700', marginBottom: 10, color: colors.text}}>Shop profile</Text>
         <Field label="Shop name (appears on bills)" value={shopName} onChangeText={setShopName} />
-        <Button title="Save shop name" onPress={handleSaveShop} />
+        <Field label="Address" value={shopAddress} onChangeText={setShopAddress} />
+        <Field label="Phones (comma separated)" value={shopPhones} onChangeText={setShopPhones} />
+        <Field label="Email" value={shopEmail} onChangeText={setShopEmail} />
+        <Field label="Currency code" value={currency} onChangeText={setCurrency} placeholder="INR" />
+        <Field label="Low-stock alert at" value={lowStockThreshold} onChangeText={setLowStockThreshold} keyboardType="numeric" placeholder="5" />
+        <Button title={savingShop ? 'Saving…' : 'Save shop profile'} onPress={handleSaveShop} loading={savingShop} />
       </Card>
     </Screen>
   );

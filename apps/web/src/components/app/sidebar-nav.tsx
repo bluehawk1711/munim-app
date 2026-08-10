@@ -11,6 +11,7 @@ import {
   FileText,
   Users,
   HandCoins,
+  Settings,
 } from "lucide-react"
 import { useAppStore, type ViewKey } from "@/store/view-store"
 import { cn } from "@/lib/utils"
@@ -57,6 +58,12 @@ const NAV_SECTIONS: {
     label: "Insights",
     items: [
       { key: "reports", label: "Reports", icon: FileBarChart, description: "Export & analyze" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { key: "settings", label: "Settings", icon: Settings, description: "Shop profile & database" },
     ],
   },
 ]

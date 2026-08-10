@@ -33,7 +33,6 @@ export async function getDashboard(db) {
         db
             .select({
             count: sql `count(*)::int`,
-            qty: sql `coalesce(sum(quantity),0)::float8`,
             total: sql `coalesce(sum(total),0)::float8`,
         })
             .from(schema.invoices),

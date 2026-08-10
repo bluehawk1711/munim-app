@@ -34,24 +34,6 @@ export function parseConnectionString(url: string): {
   };
 }
 
-// Cross-runtime base64 (no Buffer dependency — works in RN/Hermes too).
-const B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-function toBase64(input: string): string {
-  if (typeof btoa === "function") return btoa(input);
-  let out = "";
-  const bytes = new TextEncoder().encode(input);
-  for (let i = 0; i < bytes.length; i += 3) {
-    const b0 = bytes[i]!;
-    const b1 = bytes[i + 1];
-    const b2 = bytes[i + 2];
-    out += B64_CHARS[b0 >> 2];
-    out += B64_CHARS[((b0 & 3) << 4) | ((b1 ?? 0) >> 4)];
-    out += b1 === undefined ? "=" : B64_CHARS[((b1 & 15) << 2) | ((b2 ?? 0) >> 6)];
-    out += b2 === undefined ? "=" : B64_CHARS[b2 & 63];
-  }
-  return out;
-}
-
 /**
  * Creates the Drizzle client talking DIRECTLY to Neon's SQL-over-HTTP
  * endpoint (https://<host>/sql) using plain fetch. Because it is pure fetch +
@@ -62,9 +44,10 @@ function toBase64(input: string): string {
  * No API server required — every app imports this package.
  *
  * Requires one of:
- *   - DATABASE_URL  (postgres://user:pass@host/db — Basic auth)
+ *   - DATABASE_URL  (postgres://user:pass@host/db — sent via the
+ *     `neon-connection-string` header, the current Neon HTTP auth)
  *   - NEON_HOST + NEON_USER + NEON_PASSWORD
- *   - DATABASE_AUTH_TOKEN (Bearer auth, overrides Basic)
+ *   - DATABASE_AUTH_TOKEN (Bearer auth)
  */
 export function createDb(opts?: {
   databaseUrl?: string;
@@ -103,19 +86,30 @@ export function createDb(opts?: {
     );
   }
 
-  const authHeader = authToken
-    ? `Bearer ${authToken}`
-    : `Basic ${toBase64(`${resolvedUser}:${resolvedPassword}`)}`;
+  // Neon SQL-over-HTTP auth (2026): the FULL connection string goes in the
+  // `neon-connection-string` header. Sending an Authorization header alongside
+  // it is rejected ("missing authentication credentials: required password"),
+  // so the header is the single auth mechanism when a URL is available.
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (databaseUrl) {
+    headers["neon-connection-string"] = databaseUrl;
+  } else if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  } else if (resolvedUser && resolvedPassword) {
+    headers["neon-connection-string"] =
+      `postgresql://${encodeURIComponent(resolvedUser)}:${encodeURIComponent(resolvedPassword)}@${resolvedHost}`;
+  } else {
+    throw new Error(
+      "Munim core: no database credentials. Set DATABASE_URL (or NEON_HOST/USER/PASSWORD, or DATABASE_AUTH_TOKEN).",
+    );
+  }
 
   const endpoint = `https://${resolvedHost}/sql`;
 
   const callback: RemoteCallback = async (sql, params) => {
     const res = await doFetch(endpoint, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: authHeader,
-      },
+      headers,
       body: JSON.stringify({ query: sql, params }),
       cache: "no-store",
     });
@@ -125,17 +119,34 @@ export function createDb(opts?: {
       throw new Error(`Munim DB error ${res.status}: ${text.slice(0, 300)}`);
     }
 
-    const payload = (await res.json()) as
-      | Record<string, unknown>[]
-      | { count?: number }
-      | Record<string, unknown>;
+    type NeonRow = Record<string, unknown>;
+    type NeonResponse = {
+      fields?: { name: string }[];
+      rows?: NeonRow[];
+      rowCount?: number;
+      count?: number;
+    };
+    const payload = (await res.json()) as NeonResponse | NeonRow[];
 
-    // Neon HTTP returns an array of row objects for SELECT / RETURNING,
-    // and { count } for plain DML.
+    // Neon's SQL-over-HTTP endpoint returns { fields, rows: [...], rowCount }
+    // where rows are OBJECTS keyed by column name. drizzle's pg-proxy maps
+    // results POSITIONALLY (mapResultRow reads row[columnIndex]), so rows must
+    // be converted to positional arrays aligned with the fields array — object
+    // rows otherwise map to all-undefined values.
     if (Array.isArray(payload)) {
-      return { rows: payload };
+      // Legacy shape: bare array of object rows.
+      const fields = payload.length > 0 ? Object.keys(payload[0] as NeonRow) : [];
+      return { rows: payload.map((row) => fields.map((name) => row[name])) };
     }
-    return { rows: [], rowCount: typeof payload.count === "number" ? payload.count : undefined };
+
+    const fields = Array.isArray(payload.fields) ? payload.fields.map((f) => f.name) : [];
+    const objectRows = Array.isArray(payload.rows) ? payload.rows : [];
+    const rows = objectRows.map((row) => fields.map((name) => row[name]));
+    return {
+      rows,
+      rowCount: typeof payload.rowCount === "number" ? payload.rowCount : undefined,
+      count: typeof payload.count === "number" ? payload.count : undefined,
+    };
   };
 
   return drizzle(callback, { schema });
