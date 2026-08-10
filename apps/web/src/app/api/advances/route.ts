@@ -32,7 +32,7 @@ const advanceSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = advanceSchema.parse(body)
     const advance = await createAdvance(db, values)
     if (!advance) throw new AdvanceError("Failed to create advance", "CREATE_FAILED", 500)

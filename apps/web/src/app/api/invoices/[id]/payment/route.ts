@@ -17,7 +17,7 @@ const paymentSchema = z.object({
 export async function POST(request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = paymentSchema.parse(body)
     const invoice = await recordInvoicePayment(db, id, values)
     if (!invoice) throw new InvoiceError("Invoice not found", "NOT_FOUND", 404)

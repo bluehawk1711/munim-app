@@ -16,7 +16,7 @@ function materialize(): DbClient {
 
 export const db = new Proxy({} as DbClient, {
   get(_target, prop, receiver) {
-    return Reflect.get(materialize(), prop, receiver);
+    return Reflect.get(materialize(), prop, receiver) as DbClient[keyof DbClient];
   },
   set(_target, prop, value, receiver) {
     return Reflect.set(materialize(), prop, value, receiver);

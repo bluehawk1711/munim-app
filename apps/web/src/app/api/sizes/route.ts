@@ -18,8 +18,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    const name = nameSchema.parse(body.name)
+    const body: unknown = await request.json()
+    const { name } = z.object({ name: nameSchema }).parse(body)
     const size = await addSize(db, name)
     return NextResponse.json(size, { status: 201 })
   } catch (err) {

@@ -27,7 +27,7 @@ const paymentSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = paymentSchema.parse(body)
     const payment = await recordPayment(db, values)
     if (!payment) throw new AdvanceError("Failed to record payment", "CREATE_FAILED", 500)

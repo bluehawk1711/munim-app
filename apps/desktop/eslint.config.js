@@ -16,6 +16,14 @@ export default tseslint.config(
         ...globals.browser,
         ...globals.node,
       },
+      // Typed linting: the no-unsafe-* rules below need type info. Without
+      // `project`, ESLint crashed with "rule requires type information, but
+      // don't have parserOptions set". vite.config.ts lives in the composite
+      // tsconfig.node.json, so both projects are listed.
+      parserOptions: {
+        project: ["./tsconfig.json", "./tsconfig.node.json"],
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     plugins: {
       "react-hooks": reactHooks,

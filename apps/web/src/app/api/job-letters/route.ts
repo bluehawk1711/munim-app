@@ -24,7 +24,7 @@ const jobLetterSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = jobLetterSchema.parse(body)
     const letter = await saveJobLetter(db, values)
     return NextResponse.json(serializeLetter(letter), { status: 201 })

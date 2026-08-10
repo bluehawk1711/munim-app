@@ -33,7 +33,7 @@ const partySchema = z.object({
 export async function PUT(request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = partySchema.parse(body)
     const party = await updateParty(db, id, values)
     return NextResponse.json({ ...party, createdAt: party.createdAt.toISOString() })

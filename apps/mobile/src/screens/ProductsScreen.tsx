@@ -66,7 +66,7 @@ export function ProductsScreen() {
       setBuy('0');
       setSell('0');
       reload();
-    } catch (err) {
+    } catch {
       // surfaced by the caller UI in a future iteration; keep the modal open
     } finally {
       setSaving(false);
@@ -86,7 +86,7 @@ export function ProductsScreen() {
       setAdjusting(null);
       setAdjustQty('');
       reload();
-    } catch (err) {
+    } catch {
       // keep modal open on failure
     }
   }
@@ -95,7 +95,7 @@ export function ProductsScreen() {
     try {
       await deleteProduct(await getCore(), p.id);
       reload();
-    } catch (err) {
+    } catch {
       // ignore
     }
   }

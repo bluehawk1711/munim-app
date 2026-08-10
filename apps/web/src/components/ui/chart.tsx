@@ -1,5 +1,7 @@
 "use client"
 
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- Vendored shadcn chart component: recharts' Payload type exposes `any` (payload: any), so the tooltip/legend internals cannot be fully typed without reimplementing recharts' type layer. Sanctioned exception per AGENTS.md. */
+
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 

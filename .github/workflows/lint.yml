@@ -1,0 +1,37 @@
+name: Lint
+
+# Runs the Munim no-any/no-unknown typed ESLint rules (see root AGENTS.md) in CI.
+# All three apps (web, desktop, mobile) have `parserOptions.project` enabled, so
+# the @typescript-eslint/no-unsafe-* rules actually run instead of crashing.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint workspace
+        # turbo lint depends on ^build, so @munim/core builds first (typed
+        # linting needs the shared package's dist types).
+        run: pnpm lint

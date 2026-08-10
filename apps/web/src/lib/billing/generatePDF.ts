@@ -309,7 +309,7 @@ function drawEcommerceBill(
     doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
     doc.setFontSize(6.5);
     doc.setFont("helvetica", "italic");
-    const words = doc.splitTextToSize(bill.amountInWords, contentWidth - 20);
+    const words = doc.splitTextToSize(bill.amountInWords, contentWidth - 20) as string[];
     doc.text(words, margin + 10, wordsY);
   }
 }
@@ -538,7 +538,7 @@ function drawClassicJewelleryBill(
     doc.setTextColor(dark[0], dark[1], dark[2]);
     doc.setFontSize(8);
     doc.setFont("times", "italic");
-    const words = doc.splitTextToSize(bill.amountInWords, contentWidth - 20);
+    const words = doc.splitTextToSize(bill.amountInWords, contentWidth - 20) as string[];
     doc.text(words, margin + 12, wordsY);
   }
 

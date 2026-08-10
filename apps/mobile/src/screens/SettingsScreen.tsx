@@ -39,7 +39,7 @@ export function SettingsScreen() {
     try {
       await pingDatabase(createDb({databaseUrl: url.trim()}));
       setTestResult('ok');
-    } catch (err) {
+    } catch {
       setTestResult('fail');
     } finally {
       setTesting(false);
@@ -55,7 +55,7 @@ export function SettingsScreen() {
     try {
       await updateSettings(await getCore(), {shopName: shopName.trim() || 'My Shop'});
       reload();
-    } catch (err) {
+    } catch {
       // ignore
     }
   }

@@ -49,7 +49,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = saleSchema.parse(body)
     const invoice = await createSale(db, {
       productId: values.productId,

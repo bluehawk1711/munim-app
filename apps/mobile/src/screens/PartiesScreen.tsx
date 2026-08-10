@@ -17,7 +17,6 @@ import {
   Button,
   Card,
   Empty,
-  ErrorBox,
   Field,
   Header,
   Loading,
@@ -51,7 +50,7 @@ export function PartiesScreen() {
     setLedgerLoading(true);
     try {
       setLedger(await getPartyLedger(await getCore(), party.id));
-    } catch (err) {
+    } catch {
       setLedger(null);
     } finally {
       setLedgerLoading(false);
@@ -68,7 +67,7 @@ export function PartiesScreen() {
       setNewName('');
       reloadParties();
       void openLedger(party);
-    } catch (err) {
+    } catch {
       // keep modal open
     }
   }
@@ -89,7 +88,7 @@ export function PartiesScreen() {
       if (selected) {
         void openLedger(selected);
       }
-    } catch (err) {
+    } catch {
       // keep modal open
     }
   }
@@ -115,7 +114,7 @@ export function PartiesScreen() {
       if (selected) {
         void openLedger(selected);
       }
-    } catch (err) {
+    } catch {
       // keep for retry
     }
   }

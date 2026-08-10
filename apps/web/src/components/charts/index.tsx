@@ -176,7 +176,7 @@ export function TopProductsChart({ data }: { data: TopProduct[] }) {
                     {Number(value)} units
                   </span>
                   <span className="text-muted-foreground">
-                    {formatCurrency(Number(item?.payload?.revenue ?? 0))} revenue
+                    {formatCurrency(Number((item?.payload as { revenue?: number } | undefined)?.revenue ?? 0))} revenue
                   </span>
                 </div>
               )}

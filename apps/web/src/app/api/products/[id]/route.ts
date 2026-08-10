@@ -20,7 +20,7 @@ export async function GET(_request: Request, { params }: Params) {
 export async function PUT(request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = productSchema.parse(body)
     const product = await updateProduct(db, id, values)
     return NextResponse.json(serializeProduct(product as never))

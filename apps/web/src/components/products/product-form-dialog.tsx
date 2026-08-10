@@ -146,11 +146,11 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       const fd = new FormData()
       fd.append("file", file)
       const res = await fetch("/api/upload", { method: "POST", body: fd })
-      const body = await res.json().catch(() => null)
+      const body = (await res.json().catch(() => null)) as { error?: string; url?: string } | null
       if (!res.ok) {
         throw new Error(body?.error ?? "Upload failed")
       }
-      form.setValue("imageUrl", body.url, { shouldValidate: true })
+      form.setValue("imageUrl", body?.url ?? "", { shouldValidate: true })
       toast.success("Image uploaded")
     } catch (err) {
       toast.error("Upload failed", {

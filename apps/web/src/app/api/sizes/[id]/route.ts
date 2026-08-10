@@ -16,8 +16,8 @@ const nameSchema = z
 export async function PUT(request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const body = await request.json()
-    const name = nameSchema.parse(body.name)
+    const body: unknown = await request.json()
+    const { name } = z.object({ name: nameSchema }).parse(body)
 
     const existing = await db.select().from(schema.sizes).where(eq(schema.sizes.id, id))
     if (!existing[0]) return NextResponse.json({ error: "Size not found" }, { status: 404 })

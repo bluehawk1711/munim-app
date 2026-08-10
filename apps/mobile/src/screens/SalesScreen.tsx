@@ -64,7 +64,7 @@ export function SalesScreen() {
         reloadProducts();
         reloadRecent();
       }
-    } catch (err) {
+    } catch {
       // keep form for retry
     } finally {
       setSaving(false);

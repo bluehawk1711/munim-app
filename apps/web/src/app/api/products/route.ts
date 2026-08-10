@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = productSchema.parse(body)
     const product = await createProduct(db, values)
     return NextResponse.json(serializeProduct(product as never), { status: 201 })

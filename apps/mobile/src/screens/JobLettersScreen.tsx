@@ -42,7 +42,7 @@ export function JobLettersScreen() {
       setPosition('');
       setSalary('');
       reload();
-    } catch (err) {
+    } catch {
       // keep modal open
     }
   }
@@ -51,7 +51,7 @@ export function JobLettersScreen() {
     try {
       await deleteJobLetter(await getCore(), id);
       reload();
-    } catch (err) {
+    } catch {
       // ignore
     }
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { getSettings, updateSettings } from "@munim/core"
+import { getSettings, updateSettings, type ShopSettingsInput } from "@munim/core"
 
 export const dynamic = "force-dynamic"
 
@@ -11,8 +11,10 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const body = await request.json()
-    const settings = await updateSettings(db, body)
+    const body: unknown = await request.json()
+    // JSON boundary cast — updateSettings only picks the keys it knows; this is
+    // the single entry point (sanctioned exception, see AGENTS.md).
+    const settings = await updateSettings(db, body as ShopSettingsInput)
     return NextResponse.json(settings)
   } catch (err) {
     console.error("Update settings error:", err)

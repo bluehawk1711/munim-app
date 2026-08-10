@@ -4,7 +4,7 @@ import {getDashboard, formatDate} from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
-import {Badge, Card, Empty, ErrorBox, Header, Loading, Screen, StatBox, colors} from '../components/ui';
+import {Badge, Card, ErrorBox, Header, Loading, Screen, StatBox, colors} from '../components/ui';
 
 export function HomeScreen() {
   const {data, error, loading, reload} = useAsync(async () => getDashboard(await getCore()), []);

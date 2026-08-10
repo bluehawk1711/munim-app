@@ -12,7 +12,7 @@ type Params = { params: Promise<{ id: string }> }
 export async function PATCH(request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const body = await request.json()
+    const body: unknown = await request.json()
     const values = stockAdjustmentSchema.parse(body)
     const product = await adjustStock(db, id, values)
     return NextResponse.json(serializeProduct(product as never))

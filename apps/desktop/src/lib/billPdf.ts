@@ -115,7 +115,7 @@ export function downloadBillPdf(bill: BillDocument): void {
   doc.setFont("helvetica", "bold");
   doc.text("Amount in words:", margin, y);
   doc.setFont("helvetica", "normal");
-  const words = doc.splitTextToSize(bill.amountInWords, pageWidth - margin * 2);
+  const words = doc.splitTextToSize(bill.amountInWords, pageWidth - margin * 2) as string[];
   doc.text(words, margin, y + 16);
   y += 16 + words.length * 12 + 20;
 
