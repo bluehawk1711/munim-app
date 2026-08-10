@@ -42,11 +42,12 @@ jobs:
         run: pnpm --filter @munim/core build
 
       # `eas build` cannot prompt in --non-interactive mode, so the project must
-      # be linked first. `eas init --non-interactive` links (or verifies the
-      # link) using the EXPO_TOKEN secret — it never prompts in CI.
-      - name: Link EAS project
+      # be linked first. `--force` auto-creates the EAS project on the FIRST
+      # run (when it does not exist yet) and is a no-op once it does. It never
+      # prompts in CI because EXPO_TOKEN authenticates the session.
+      - name: Link (or create) EAS project
         working-directory: apps/mobile
-        run: eas init --non-interactive
+        run: eas init --force --non-interactive
 
       - name: EAS Android build
         working-directory: apps/mobile
