@@ -27,7 +27,7 @@ importers:
         specifier: ^4.2.1
         version: 4.3.3(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))
       '@tauri-apps/api':
-        specifier: ^2
+        specifier: 2.11.1
         version: 2.11.1
       '@tauri-apps/plugin-opener':
         specifier: ^2
