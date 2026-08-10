@@ -18,6 +18,7 @@
     "db:generate": "pnpm --filter @munim/core db:generate",
     "db:migrate": "pnpm --filter @munim/core db:migrate",
     "db:push": "pnpm --filter @munim/core db:push",
+    "db:smoke": "pnpm --filter @munim/core smoke",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
   },
   "devDependencies": {

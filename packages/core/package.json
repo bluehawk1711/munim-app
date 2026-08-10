@@ -22,7 +22,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "smoke": "esbuild scripts/smoke-test.mjs --bundle --platform=node --format=esm --outfile=scripts/.smoke-bundle.mjs && node scripts/.smoke-bundle.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.44.2",
@@ -32,6 +33,7 @@
     "@neondatabase/serverless": "^1.1.0",
     "@types/node": "^22.15.0",
     "drizzle-kit": "^0.31.1",
+    "esbuild": "^0.28.2",
     "typescript": "^5.8.3"
   }
 }

@@ -6,8 +6,11 @@
  * (DATABASE_URL from packages/core/.env), then deletes the test records.
  *
  * Usage (from packages/core):
- *   pnpm build            # ensure dist is current
- *   node scripts/smoke-test.mjs
+ *   pnpm smoke            # builds dist, bundles this script, runs it
+ *   (or from the repo root: pnpm db:smoke)
+ *
+ * The dist output uses extensionless ESM imports, so the script is bundled
+ * with esbuild before running (see the `smoke` script in package.json).
  *
  * Test records are prefixed `__smoke_` and removed in the cleanup phase, so
  * running this against a dev/prod Neon DB is safe-ish — but it DOES write to
@@ -133,6 +136,17 @@ async function run() {
     return `stock=${p.stock}`;
   });
   await test("listStockMovements", () => (productId ? core.listStockMovements(db, productId, 5).then((m) => `${m.length} movements`) : "skipped"));
+  await test("updateProduct", async () => {
+    if (!productId) return "skipped";
+    const p = await core.updateProduct(db, productId, { name: productName, color, size, sellingPrice: 950 });
+    return `price=${p.sellingPrice}`;
+  });
+  await test("seedProducts", async () => {
+    // No-op guard on a non-empty DB (returns success:false); on an empty
+    // scratch DB it seeds 7 sample products (cleaned up in the finally block).
+    const r = await core.seedProducts(db);
+    return `success=${r.success}, count=${r.count}`;
+  });
 
     // ── parties & khata ──
     await test("createParty", async () => {
@@ -144,7 +158,7 @@ async function run() {
   await test("updateParty", () => (partyId ? core.updateParty(db, partyId, { phone: "8888888888" }).then((p) => `phone=${p.phone}`) : "skipped"));
   await test("getPartyLedger", () => (partyId ? core.getPartyLedger(db, partyId).then((l) => `balance=${l.balance}`) : "skipped"));
   await test("getPartyBalances", () => core.getPartyBalances(db).then((a) => `${a.length} parties`));
-  await test("getReceivables/getPayables", () => core.getReceivables(db).then((r) => `recv=${r.length}`));
+  await test("getReceivables", () => core.getReceivables(db).then((r) => `recv=${r.length}`));
 
     // ── advances & payments (needs partyId) ──
     let advanceId = null;
@@ -157,10 +171,17 @@ async function run() {
   await test("createAdvance TAKEN", () => (partyId ? core.createAdvance(db, { partyId, direction: "TAKEN", amount: 500 }).then((a) => `amount=${a.amount}`) : "skipped"));
   await test("listAdvances", () => (partyId ? core.listAdvances(db, partyId).then((a) => `${a.length} advances`) : "skipped"));
   await test("settleAdvance", () => (advanceId ? core.settleAdvance(db, advanceId).then((a) => `status=${a.status}`) : "skipped"));
+  await test("deleteAdvance", async () => {
+    if (!partyId) return "skipped";
+    const a = await core.createAdvance(db, { partyId, direction: "TAKEN", amount: 10, note: "smoke-del" });
+    const r = await core.deleteAdvance(db, a.id);
+    return `success=${r.success}`;
+  });
   await test("recordPayment IN", () => (partyId ? core.recordPayment(db, { partyId, direction: "IN", amount: 300, method: "cash" }).then((p) => `amount=${p.amount}`) : "skipped"));
   await test("recordPayment OUT", () => (partyId ? core.recordPayment(db, { partyId, direction: "OUT", amount: 100, method: "upi" }).then((p) => `amount=${p.amount}`) : "skipped"));
   await test("listPayments", () => (partyId ? core.listPayments(db, partyId).then((p) => `${p.length} payments`) : "skipped"));
   await test("getPartyLedger after khata", () => (partyId ? core.getPartyLedger(db, partyId).then((l) => `balance=${l.balance}, lines=${l.lines.length}`) : "skipped"));
+  await test("getPayables", () => core.getPayables(db).then((p) => `pay=${p.length}`));
 
     // ── invoices / sales ──
     await test("createInvoice", async () => {
@@ -179,6 +200,11 @@ async function run() {
   await test("listInvoices", () => core.listInvoices(db, { search: partyName.slice(0, 12) }).then((r) => `${r.invoices.length} invoice(s)`));
   await test("getInvoice", () => (invoiceId ? core.getInvoice(db, invoiceId).then((i) => `${i?.items.length} item(s)`) : "skipped"));
   await test("recordInvoicePayment", () => (invoiceId ? core.recordInvoicePayment(db, invoiceId, { amount: 200, method: "upi" }).then((i) => `status=${i.status} paid=${i.amountPaid}`) : "skipped"));
+  await test("deleteInvoice", async () => {
+    if (!invoiceId) return "skipped";
+    const r = await core.deleteInvoice(db, invoiceId);
+    return `success=${r.success}`;
+  });
   await test("createSale", async () => {
     if (!productId) return "skipped";
     const inv = await core.createSale(db, { productId, quantity: 1, sellingPrice: 800, customerName: "Smoke Walk-in", paid: true, paymentMethod: "cash" });
@@ -211,6 +237,15 @@ async function run() {
       });
       return `total=${doc.total}`;
     });
+    await test("renderBillText", () => {
+      const doc = core.buildBillDocument({
+        shop: { name: "S", address: "A", phones: ["1"], email: "e" },
+        lines: [{ productName: "X", quantity: 1, price: 100 }],
+        billNo: "SMK-2",
+        customerName: "C",
+      });
+      return core.renderBillText(doc).includes("BILL NO: SMK-2") ? "has BILL NO" : "MISSING BILL NO";
+    });
   } finally {
     // ── cleanup (always runs, even if a check throws) ──
     console.log("── cleanup ──");
@@ -218,6 +253,10 @@ async function run() {
     if (letterId) await core.deleteJobLetter(db, letterId).catch(() => {});
     if (partyId) await core.deleteParty(db, partyId).catch(() => {});
     if (productId) await core.deleteProduct(db, productId).catch(() => {});
+    // If seedProducts seeded a fresh DB, remove its sample rows.
+    for (const n of ["Gold Necklace Set", "Silver Anklet", "Diamond Ring", "Pearl Earrings", "Cotton Kurti", "Silk Saree", "Brass Diya Set"]) {
+      await db.delete(schema.products).where(eq(schema.products.name, n)).catch(() => {});
+    }
     await del(schema.colors, color);
     await del(schema.sizes, size);
     await del(schema.categories, cat);
