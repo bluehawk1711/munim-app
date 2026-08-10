@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { schema } from "@munim/core"
-import { eq, sql } from "drizzle-orm"
+import { schema, eq, sql } from "@munim/core"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"

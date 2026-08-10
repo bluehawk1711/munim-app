@@ -11,6 +11,11 @@ export { createDb, getDb, pingDatabase, parseConnectionString, type DbClient } f
 export * as schema from "./db/schema";
 export type * from "./db/schema";
 
+/* Drizzle operators re-exported so every app uses the SAME instance as core
+ * (importing from their own node_modules created a duplicate-instance type
+ * mismatch when @neondatabase/serverless was added as a peer). */
+export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+
 /* Billing — shared bill/invoice generation (all 3 apps) */
 export * from "./billing";
 

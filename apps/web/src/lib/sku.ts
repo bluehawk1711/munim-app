@@ -1,7 +1,5 @@
-import { generateSku as coreSku, generateInvoiceNumber as coreInvoice } from "@munim/core";
+import { generateSku as coreSku, generateInvoiceNumber as coreInvoice, eq, schema } from "@munim/core";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
-import { schema } from "@munim/core";
 
 export async function generateSku(): Promise<string> {
   return coreSku(async (sku) => {
