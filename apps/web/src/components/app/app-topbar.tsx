@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { Menu, Search, ShoppingCart, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -73,8 +74,19 @@ export function AppTopbar() {
       </Sheet>
 
       <div className="flex flex-col leading-tight lg:min-w-[180px]">
-        <h1 className="text-base font-semibold tracking-tight">{meta.title}</h1>
-        <p className="hidden text-xs text-muted-foreground sm:block">{meta.subtitle}</p>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={meta.title}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="flex flex-col leading-tight"
+          >
+            <h1 className="text-base font-semibold tracking-tight">{meta.title}</h1>
+            <p className="hidden text-xs text-muted-foreground sm:block">{meta.subtitle}</p>
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Global search */}

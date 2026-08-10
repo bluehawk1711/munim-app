@@ -1,4 +1,5 @@
 import type { ElementType } from "react";
+import { motion } from "motion/react";
 import { Banknote, HandCoins, PackageSearch, TrendingUp, Wallet, AlertTriangle } from "lucide-react";
 import { getDashboard, formatDate } from "@munim/core";
 import { getCore } from "@/lib/core";
@@ -10,18 +11,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 function StatCard({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: string; icon: ElementType }) {
   return (
-    <Card>
-      <CardContent className="flex items-start justify-between p-4">
-        <div>
-          <p className="text-muted-foreground text-xs font-medium">{label}</p>
-          <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
-          {sub ? <p className="text-muted-foreground mt-1 text-xs">{sub}</p> : null}
-        </div>
-        <div className="bg-primary/10 text-primary rounded-lg p-2">
-          <Icon className="h-5 w-5" />
-        </div>
-      </CardContent>
-    </Card>
+    <motion.div
+      initial={{ opacity: 0, y: 14, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: "spring", stiffness: 240, damping: 22, mass: 0.8 }}
+      whileHover={{ y: -3 }}
+    >
+      <Card className="transition-shadow hover:shadow-md">
+        <CardContent className="flex items-start justify-between p-4">
+          <div>
+            <p className="text-muted-foreground text-xs font-medium">{label}</p>
+            <p className="mt-1 text-2xl font-bold tracking-tight">{value}</p>
+            {sub ? <p className="text-muted-foreground mt-1 text-xs">{sub}</p> : null}
+          </div>
+          <div className="bg-primary/10 text-primary rounded-lg p-2">
+            <Icon className="h-5 w-5" />
+          </div>
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 

@@ -12,6 +12,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 
 export const colors = {
@@ -99,6 +100,14 @@ const styles = StyleSheet.create({
   tabItem: {flex: 1, alignItems: 'center', paddingVertical: 4},
   tabLabel: {fontSize: 10, marginTop: 2, color: colors.muted, fontWeight: '600'},
   tabLabelActive: {color: colors.primary},
+  section: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    marginHorizontal: 16,
+    marginTop: 18,
+    marginBottom: 10,
+  },
 });
 
 export function Screen({
@@ -114,20 +123,45 @@ export function Screen({
 export function Header({title, subtitle}: {title: string; subtitle?: string}) {
   return (
     <View style={styles.header}>
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      <Animated.Text entering={FadeInDown.duration(260)} style={styles.title}>
+        {title}
+      </Animated.Text>
+      {subtitle ? (
+        <Animated.Text entering={FadeInDown.duration(260).delay(60)} style={styles.subtitle}>
+          {subtitle}
+        </Animated.Text>
+      ) : null}
     </View>
+  );
+}
+
+/** Animated section heading (Apple-style staggered entrance). */
+export function Section({title, index = 0}: {title: string; index?: number}) {
+  return (
+    <Animated.Text
+      entering={FadeInDown.duration(260).delay(40 + index * 40)}
+      style={styles.section}>
+      {title}
+    </Animated.Text>
   );
 }
 
 export function Card({
   children,
   style,
+  index = 0,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
+  index?: number;
 }) {
-  return <View style={[styles.card, style]}>{children}</View>;
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(260).delay(index * 50)}
+      style={[styles.card, style]}>
+      {children}
+    </Animated.View>
+  );
 }
 
 type ButtonProps = {
@@ -151,7 +185,7 @@ export function Button({title, onPress, variant = 'primary', disabled, loading, 
         isOutline && styles.buttonOutline,
         isDanger && styles.buttonDanger,
         (disabled || loading) && {opacity: 0.5},
-        pressed && {opacity: 0.85},
+        pressed && {transform: [{scale: 0.97}], opacity: 0.9},
         style,
       ]}>
       {loading ? (
@@ -213,14 +247,14 @@ export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' |
   );
 }
 
-export function StatBox({label, value, valueColor}: {label: string; value: string; valueColor?: string}) {
+export function StatBox({label, value, valueColor, index = 0}: {label: string; value: string; valueColor?: string; index?: number}) {
   return (
-    <View style={styles.stat}>
+    <Animated.View entering={FadeInUp.duration(280).delay(index * 60)} style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={[styles.statValue, valueColor ? {color: valueColor} : null]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
-    </View>
+    </Animated.View>
   );
 }
 

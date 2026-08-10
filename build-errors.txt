@@ -1,1 +1,4 @@
-no errors right now 
+FIXED — EAS build error (previous run):
+- Error: `eas init --non-interactive --idempotent` failed with "Nonexistent flag: --idempotent" (eas-cli does not ship that flag).
+- Fix: `.github/workflows/mobile-eas-build.yml` now runs `eas init --non-interactive` (verifies/links the project via EXPO_TOKEN, never prompts). actionlint passes clean.
+- To re-run: push to main or use Actions → Run workflow (requires EXPO_TOKEN secret).

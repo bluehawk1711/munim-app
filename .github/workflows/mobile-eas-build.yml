@@ -42,11 +42,11 @@ jobs:
         run: pnpm --filter @munim/core build
 
       # `eas build` cannot prompt in --non-interactive mode, so the project must
-      # be linked first. --idempotent makes this a no-op once app.json carries
-      # extra.eas.projectId. Requires the EXPO_TOKEN secret (Expo account).
+      # be linked first. `eas init --non-interactive` links (or verifies the
+      # link) using the EXPO_TOKEN secret — it never prompts in CI.
       - name: Link EAS project
         working-directory: apps/mobile
-        run: eas init --non-interactive --idempotent
+        run: eas init --non-interactive
 
       - name: EAS Android build
         working-directory: apps/mobile

@@ -16,6 +16,7 @@ import {
   ModalSheet,
   Row,
   Screen,
+  Section,
   colors,
 } from '../components/ui';
 
@@ -76,7 +77,7 @@ export function SalesScreen() {
       {!selected ? (
         <ErrorBox message="Add products in Products first, or set your database in Settings." />
       ) : (
-        <Card>
+        <Card index={0}>
           <Row label="Product" value={selected.name} onPress={() => setPickerOpen(true)} />
           <Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="numeric" />
           <Field label="Selling price" value={price} onChangeText={setPrice} keyboardType="numeric" />
@@ -86,7 +87,7 @@ export function SalesScreen() {
         </Card>
       )}
 
-      <Text style={styles.section}>Recent sales</Text>
+      <Section title="Recent sales" />
       {loading || !recent ? (
         <Loading />
       ) : recent.invoices.length === 0 ? (
@@ -96,8 +97,8 @@ export function SalesScreen() {
           data={recent.invoices}
           keyExtractor={item => item.id}
           contentContainerStyle={{paddingBottom: 90}}
-          renderItem={({item}) => (
-            <Card>
+          renderItem={({item, index}) => (
+            <Card index={index}>
               <View style={styles.row}>
                 <View style={{flex: 1}}>
                   <Text style={styles.name}>{item.invoiceNumber}</Text>
@@ -137,14 +138,6 @@ export function SalesScreen() {
 }
 
 const styles = StyleSheet.create({
-  section: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-  },
   row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
   name: {fontSize: 15, fontWeight: '600', color: colors.text},
   meta: {fontSize: 12, color: colors.muted, marginTop: 2},

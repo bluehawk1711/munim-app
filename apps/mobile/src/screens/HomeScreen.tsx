@@ -19,12 +19,13 @@ export function HomeScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
           <View style={styles.grid}>
-            <StatBox label="Total revenue" value={money(data.totalRevenue)} />
-            <StatBox label="This month" value={money(data.monthlyRevenue)} />
-            <StatBox label="Unpaid" value={money(data.unpaidAmount)} valueColor={colors.warning} />
-            <StatBox label="Receivables" value={money(data.receivables)} valueColor={colors.danger} />
-            <StatBox label="Payables" value={money(data.payables)} valueColor={colors.success} />
+            <StatBox index={0} label="Total revenue" value={money(data.totalRevenue)} />
+            <StatBox index={1} label="This month" value={money(data.monthlyRevenue)} />
+            <StatBox index={2} label="Unpaid" value={money(data.unpaidAmount)} valueColor={colors.warning} />
+            <StatBox index={3} label="Receivables" value={money(data.receivables)} valueColor={colors.danger} />
+            <StatBox index={4} label="Payables" value={money(data.payables)} valueColor={colors.success} />
             <StatBox
+              index={5}
               label="Low / out of stock"
               value={`${data.lowStockCount} / ${data.outOfStockCount}`}
               valueColor={data.lowStockCount > 0 ? colors.warning : colors.text}
@@ -37,8 +38,8 @@ export function HomeScreen() {
               <Text style={{color: colors.muted, fontSize: 13}}>No invoices yet</Text>
             </Card>
           ) : (
-            data.recentInvoices.map(inv => (
-              <Card key={inv.id}>
+            data.recentInvoices.map((inv, i) => (
+              <Card key={inv.id} index={i}>
                 <View style={styles.invRow}>
                   <View style={{flex: 1}}>
                     <Text style={{fontWeight: '600', color: colors.text, fontSize: 14}}>
@@ -66,8 +67,8 @@ export function HomeScreen() {
               <Text style={{color: colors.muted, fontSize: 13}}>No open advances</Text>
             </Card>
           ) : (
-            data.recentAdvances.map(adv => (
-              <Card key={adv.id}>
+            data.recentAdvances.map((adv, i) => (
+              <Card key={adv.id} index={i}>
                 <View style={styles.invRow}>
                   <Text style={{flex: 1, color: colors.text, fontSize: 14}}>
                     {adv.partyName ?? 'Party'}

@@ -10,6 +10,11 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
 
+  // Tauri serves the built app from a custom tauri:// (or http://tauri.localhost)
+  // protocol — absolute asset paths like /assets/... fail there and produce a
+  // blank window. Relative paths fix it for both dev and the packaged app.
+  base: "./",
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

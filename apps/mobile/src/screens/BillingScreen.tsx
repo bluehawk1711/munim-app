@@ -3,7 +3,6 @@ import {ScrollView, Share, StyleSheet, Text, View} from 'react-native';
 import {
   createInvoice,
   getSettings,
-  listAllProducts,
   listInvoices,
   buildBillDocument,
   renderBillText,
@@ -18,11 +17,11 @@ import {
   Button,
   Card,
   Empty,
-  ErrorBox,
   Field,
   Header,
   Loading,
   Screen,
+  Section,
   colors,
 } from '../components/ui';
 
@@ -37,7 +36,6 @@ const emptyLine = (): LineState => ({productId: '', productName: '', quantity: '
 
 export function BillingScreen() {
   const {data: settings} = useAsync(async () => getSettings(await getCore()), []);
-  const {data: products} = useAsync(async () => listAllProducts(await getCore()), []);
   const {data: list, loading, reload: reloadList} = useAsync(
     async () => listInvoices(await getCore(), {pageSize: 50}),
     [],
@@ -110,7 +108,7 @@ export function BillingScreen() {
         setLines([emptyLine()]);
         reloadList();
       }
-    } catch (err) {
+    } catch {
       // keep form for retry
     } finally {
       setSaving(false);
@@ -123,7 +121,7 @@ export function BillingScreen() {
     }
     try {
       await Share.share({message: renderBillText(preview)});
-    } catch (err) {
+    } catch {
       // user cancelled share
     }
   }
@@ -132,7 +130,7 @@ export function BillingScreen() {
     <Screen>
       <Header title="Billing" subtitle="Create an invoice — same shared bill as web & desktop" />
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}}>
-        <Card>
+        <Card index={0}>
           <Field label="Customer" value={customer} onChangeText={setCustomer} />
           {lines.map((line, index) => (
             <View key={index} style={styles.lineBox}>
@@ -191,21 +189,21 @@ export function BillingScreen() {
         </Card>
 
         {preview ? (
-          <Card>
+          <Card index={1}>
             <Text style={styles.sectionTitle}>Bill preview — {preview.billNo}</Text>
             <Text style={styles.previewText}>{renderBillText(preview)}</Text>
             <Button title="Share bill text" onPress={handleShareBill} />
           </Card>
         ) : null}
 
-        <Text style={styles.section}>Invoices</Text>
+        <Section title="Invoices" index={preview ? 2 : 1} />
         {loading || !list ? (
           <Loading />
         ) : list.invoices.length === 0 ? (
           <Empty text="No invoices yet" />
         ) : (
-          list.invoices.map(inv => (
-            <Card key={inv.id}>
+          list.invoices.map((inv, i) => (
+            <Card key={inv.id} index={3 + i}>
               <View style={styles.row}>
                 <View style={{flex: 1}}>
                   <Text style={styles.name}>{inv.invoiceNumber}</Text>
@@ -239,14 +237,6 @@ const styles = StyleSheet.create({
   },
   lineRow: {flexDirection: 'row'},
   total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
-  section: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 10,
-  },
   sectionTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
   previewText: {
     fontSize: 12,

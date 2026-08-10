@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
+import Animated, {FadeInUp} from 'react-native-reanimated';
 import {listAllProducts, createProduct, adjustStock, deleteProduct, type ProductWithMeta} from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
@@ -112,8 +113,8 @@ export function ProductsScreen() {
           keyExtractor={item => item.id}
           ListEmptyComponent={<Empty text="No products yet" />}
           contentContainerStyle={{paddingBottom: 90}}
-          renderItem={({item}) => (
-            <Card>
+          renderItem={({item, index}) => (
+            <Card index={index}>
               <View style={styles.row}>
                 <View style={{flex: 1}}>
                   <Text style={styles.name}>{item.name}</Text>
@@ -151,9 +152,9 @@ export function ProductsScreen() {
         />
       )}
 
-      <View style={styles.fab}>
+      <Animated.View entering={FadeInUp.duration(320)} style={styles.fab}>
         <Button title="+ Add product" onPress={() => setAddOpen(true)} />
-      </View>
+      </Animated.View>
 
       <ModalSheet visible={addOpen} title="Add product" onClose={() => setAddOpen(false)}>
         <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />

@@ -20,7 +20,11 @@ export function useAsync<T>(
     let cancelled = false;
     setLoading(true);
     setError(null);
-    loader()
+    // Promise.resolve().then(loader) — a synchronous throw from `loader`
+    // (e.g. missing DB URL) is captured by .catch instead of crashing the
+    // whole app; the screen shows its error state and stays navigable.
+    Promise.resolve()
+      .then(loader)
       .then(result => {
         if (!cancelled) {
           setData(result);

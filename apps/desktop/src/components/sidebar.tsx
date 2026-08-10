@@ -1,5 +1,7 @@
+import { motion } from "motion/react";
 import { LayoutDashboard, Package, ShoppingCart, FileText, Users, ScrollText, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { navigate } from "@/lib/navigation";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -15,9 +17,14 @@ export function Sidebar({ current }: { current: string }) {
   return (
     <aside className="bg-card flex w-56 shrink-0 flex-col border-r">
       <div className="flex h-14 items-center gap-2 border-b px-4">
-        <div className="bg-primary flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-primary-foreground">
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 260, damping: 18 }}
+          className="bg-primary flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-primary-foreground"
+        >
           M
-        </div>
+        </motion.div>
         <div className="leading-tight">
           <p className="text-sm font-semibold">Munim</p>
           <p className="text-muted-foreground text-[11px]">Shop Manager</p>
@@ -28,19 +35,33 @@ export function Sidebar({ current }: { current: string }) {
           const active = current === item.href;
           const Icon = item.icon;
           return (
-            <a
+            <button
               key={item.href}
-              href={item.href}
+              type="button"
+              onClick={() => navigate(item.href)}
+              aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "text-primary"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
-              <Icon className="h-4 w-4" />
-              {item.label}
-            </a>
+              {active && (
+                <motion.span
+                  layoutId="sidebar-active-pill"
+                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  className="bg-primary/12 absolute inset-0 rounded-md"
+                />
+              )}
+              <Icon
+                className={cn(
+                  "relative h-4 w-4 transition-transform duration-200 group-hover:scale-110",
+                  active && "text-primary",
+                )}
+              />
+              <span className="relative">{item.label}</span>
+            </button>
           );
         })}
       </nav>

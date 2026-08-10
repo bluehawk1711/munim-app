@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
+import Animated, {FadeInDown} from 'react-native-reanimated';
 import {
   createParty,
   getPartyBalances,
@@ -129,12 +130,14 @@ export function PartiesScreen() {
           data={parties}
           keyExtractor={item => item.id}
           ListHeaderComponent={
-            <Button title="+ Add party" onPress={() => setAddOpen(true)} style={{marginHorizontal: 16, marginBottom: 10}} />
+            <Animated.View entering={FadeInDown.duration(280)} style={{marginHorizontal: 16, marginBottom: 10}}>
+              <Button title="+ Add party" onPress={() => setAddOpen(true)} />
+            </Animated.View>
           }
           ListEmptyComponent={<Empty text="No parties yet — add customers, suppliers or workers" />}
           contentContainerStyle={{paddingBottom: 90}}
-          renderItem={({item}) => (
-            <Card>
+          renderItem={({item, index}) => (
+            <Card index={index}>
               <Row
                 label={`${item.name}${item.phone ? ` · ${item.phone}` : ''}`}
                 value={
@@ -209,7 +212,7 @@ export function PartiesScreen() {
       )}
 
       {ledger && selected ? (
-        <Card>
+        <Card index={1}>
           <Text style={styles.ledgerTitle}>Ledger — {selected.name}</Text>
           {ledgerLoading ? (
             <Loading />

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { AnimatePresence, motion } from "motion/react"
 import { SidebarNav, SidebarHeader, SidebarFooter } from "@/components/app/sidebar-nav"
 import { AppTopbar } from "@/components/app/app-topbar"
 import { SellProductDialog } from "@/components/sales/sell-product-dialog"
@@ -16,32 +17,36 @@ import { PartiesView } from "@/views/parties-view"
 import { AdvancesView } from "@/views/advances-view"
 import { useAppStore } from "@/store/view-store"
 
+const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
+  dashboard: DashboardView,
+  products: ProductsView,
+  sales: SalesView,
+  reports: ReportsView,
+  catalog: CatalogView,
+  invoices: InvoicesView,
+  billing: BillingView,
+  "job-letter": JobLetterView,
+  parties: PartiesView,
+  advances: AdvancesView,
+}
+
 function ActiveView() {
   const activeView = useAppStore((s) => s.activeView)
-  switch (activeView) {
-    case "dashboard":
-      return <DashboardView />
-    case "products":
-      return <ProductsView />
-    case "sales":
-      return <SalesView />
-    case "reports":
-      return <ReportsView />
-    case "catalog":
-      return <CatalogView />
-    case "invoices":
-      return <InvoicesView />
-    case "billing":
-      return <BillingView />
-    case "job-letter":
-      return <JobLetterView />
-    case "parties":
-      return <PartiesView />
-    case "advances":
-      return <AdvancesView />
-    default:
-      return <DashboardView />
-  }
+  const Component = VIEW_COMPONENTS[activeView] ?? DashboardView
+
+  return (
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={activeView}
+        initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
+        transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+      >
+        <Component />
+      </motion.div>
+    </AnimatePresence>
+  )
 }
 
 export function AppShell() {
@@ -64,7 +69,12 @@ export function AppShell() {
             <React.Suspense
               fallback={
                 <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-                  Loading…
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-primary/60" style={{ animationDelay: "0.2s" }} />
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-primary/30" style={{ animationDelay: "0.4s" }} />
+                    Loading…
+                  </div>
                 </div>
               }
             >
@@ -84,8 +94,6 @@ export function AppShell() {
           </footer>
         </div>
       </div>
-
-      {/* Global quick-sell dialog */}
       <SellProductDialog />
     </div>
   )

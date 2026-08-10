@@ -86,20 +86,24 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                   }}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
+                    "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
                     "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     active
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm"
-                      : "text-sidebar-foreground/80"
+                      ? "bg-sidebar-primary/10 text-sidebar-primary shadow-sm"
+                      : "text-sidebar-foreground/80 hover:text-sidebar-foreground"
                   )}
                 >
+                  {/* Active pill indicator */}
+                  {active && (
+                    <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-full bg-sidebar-primary transition-all duration-300" />
+                  )}
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className="flex flex-col items-start leading-tight">
                     <span>{item.label}</span>
                     <span
                       className={cn(
                         "text-[11px] font-normal",
-                        active ? "text-sidebar-primary-foreground/70" : "text-muted-foreground"
+                        active ? "text-sidebar-primary-foreground/60" : "text-muted-foreground"
                       )}
                     >
                       {item.description}
@@ -118,7 +122,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 export function SidebarHeader() {
   return (
     <div className="flex items-center gap-2.5 px-5 h-16 border-b border-sidebar-border">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm shadow-primary/20">
         <Boxes className="h-5 w-5" />
       </div>
       <div className="flex flex-col leading-tight">
