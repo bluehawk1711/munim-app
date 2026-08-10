@@ -2,15 +2,9 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
+import type { CatalogItem, CatalogKind } from "@munim/core"
 
-export type CatalogItem = {
-  id: string
-  name: string
-  createdAt: string
-  productCount: number
-}
-
-export type CatalogKind = "color" | "size"
+export type { CatalogItem, CatalogKind }
 
 export function useCatalog(kind: CatalogKind) {
   return useQuery({

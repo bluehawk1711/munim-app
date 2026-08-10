@@ -86,6 +86,8 @@ async function run() {
   let partyId = null;
   let invoiceId = null;
   let letterId = null;
+  const colorRenamed = S("__smoke_color_rn");
+  const extraSize = S("__smoke_size_2");
 
   try {
     // ── connection ──
@@ -110,6 +112,30 @@ async function run() {
   await test("addSize", () => core.addSize(db, size).then((c) => c.name));
   await test("addCategory", () => core.addCategory(db, cat).then((c) => c.name));
   await test("listMeta", () => core.listMeta(db).then((m) => `${m.colors.length} colors, ${m.sizes.length} sizes`));
+
+  // ── catalog CRUD (shared by web/desktop/mobile) ──
+  await test("catalog createCatalogItem color", () => core.createCatalogItem(db, "color", colorRenamed).then((c) => `id=${c.id.slice(0, 8)} name=${c.name} count=${c.productCount}`));
+  await test("catalog createCatalogItem size", () => core.createCatalogItem(db, "size", extraSize).then((c) => c.name));
+  await test("catalog listCatalogItems color", () => core.listCatalogItems(db, "color").then((a) => `${a.length} colors, contains=${a.some((c) => c.name === colorRenamed)}`));
+  await test("catalog listCatalogItems size", () => core.listCatalogItems(db, "size").then((a) => `${a.length} sizes`));
+  await test("catalog renameCatalogItem", async () => {
+    const list = await core.listCatalogItems(db, "color");
+    const item = list.find((c) => c.name === colorRenamed);
+    if (!item) return "skipped";
+    const r = await core.renameCatalogItem(db, "color", item.id, `${colorRenamed}-v2`);
+    return `name=${r.name}`;
+  });
+  await test("catalog deleteCatalogItem in-use guard", async () => {
+    const list = await core.listCatalogItems(db, "color");
+    const item = list.find((c) => c.name === color);
+    if (!item) return "skipped";
+    try {
+      await core.deleteCatalogItem(db, "color", item.id);
+      return "FAILED (should have thrown)";
+    } catch (e) {
+      return e?.code === "IN_USE" ? `blocked (${e.code})` : `unexpected: ${e?.message}`;
+    }
+  });
 
     // ── products & stock ──
     await test("createProduct", async () => {
@@ -258,7 +284,10 @@ async function run() {
       await db.delete(schema.products).where(eq(schema.products.name, n)).catch(() => {});
     }
     await del(schema.colors, color);
+    await del(schema.colors, colorRenamed);
+    await del(schema.colors, `${colorRenamed}-v2`);
     await del(schema.sizes, size);
+    await del(schema.sizes, extraSize);
     await del(schema.categories, cat);
   }
 

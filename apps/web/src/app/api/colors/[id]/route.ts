@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { schema, eq, sql } from "@munim/core"
+import { deleteCatalogItem, renameCatalogItem, ProductError } from "@munim/core"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -18,24 +18,14 @@ export async function PUT(request: Request, { params }: Params) {
     const { id } = await params
     const body: unknown = await request.json()
     const { name } = z.object({ name: nameSchema }).parse(body)
-
-    const existing = await db.select().from(schema.colors).where(eq(schema.colors.id, id))
-    if (!existing[0]) return NextResponse.json({ error: "Color not found" }, { status: 404 })
-
-    const dup = await db.select().from(schema.colors).where(eq(schema.colors.name, name))
-    if (dup[0] && dup[0].id !== id) {
-      return NextResponse.json({ error: `Color "${name}" already exists` }, { status: 409 })
-    }
-
-    const updated = await db
-      .update(schema.colors)
-      .set({ name })
-      .where(eq(schema.colors.id, id))
-      .returning()
-    return NextResponse.json(updated[0])
+    const updated = await renameCatalogItem(db, "color", id, name)
+    return NextResponse.json(updated)
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.issues[0]?.message ?? "Invalid input" }, { status: 400 })
+    }
+    if (err instanceof ProductError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
     }
     console.error("Update color error:", err)
     return NextResponse.json({ error: "Failed to update color" }, { status: 500 })
@@ -45,23 +35,11 @@ export async function PUT(request: Request, { params }: Params) {
 export async function DELETE(_request: Request, { params }: Params) {
   try {
     const { id } = await params
-    const color = await db.select().from(schema.colors).where(eq(schema.colors.id, id))
-    if (!color[0]) return NextResponse.json({ error: "Color not found" }, { status: 404 })
-
-    const inUse = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(schema.products)
-      .where(eq(schema.products.colorId, id))
-    if ((inUse[0]?.count ?? 0) > 0) {
-      return NextResponse.json(
-        { error: `Cannot delete "${color[0].name}" — it is used by ${inUse[0]?.count} product(s).` },
-        { status: 400 }
-      )
-    }
-
-    await db.delete(schema.colors).where(eq(schema.colors.id, id))
-    return NextResponse.json({ success: true })
+    return NextResponse.json(await deleteCatalogItem(db, "color", id))
   } catch (err) {
+    if (err instanceof ProductError) {
+      return NextResponse.json({ error: err.message }, { status: err.status })
+    }
     console.error("Delete color error:", err)
     return NextResponse.json({ error: "Failed to delete color" }, { status: 500 })
   }

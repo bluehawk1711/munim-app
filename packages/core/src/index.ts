@@ -24,8 +24,10 @@ export { numberToWords, amountInWords } from "./utils/numberToWords";
 export { generateSku, generateInvoiceNumber } from "./utils/codes";
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel } from "./utils/format";
 export { newId } from "./utils/id";
+export { swatchColor } from "./utils/swatch";
 
 /* Services */
+export * from "./services/catalog";
 export * from "./services/products";
 export * from "./services/invoices";
 export * from "./services/parties";

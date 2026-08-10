@@ -90,7 +90,7 @@ plain drizzle output.
 | 1 | Dashboard (revenue, receivables, payables, low stock, recent invoices/advances) | ✅ | ✅ | ✅ | Same `getDashboard` in core |
 | 2 | Products — list, search, create, edit, delete | ✅ | ✅ | ✅ | SKU auto-generated in core |
 | 3 | Stock — adjust (+/− with reason), low-stock/out-of-stock badges | ✅ | ✅ | ✅ | `adjustStock` + movements in core |
-| 4 | Catalog — colors & sizes management (add/rename/delete) | ✅ | ❌ | ❌ | **Web-only UI**; core has `addColor`/`addSize`/`listMeta` ready for the other apps |
+| 4 | Catalog — colors & sizes management (add/rename/delete) | ✅ | ✅ | ✅ | Shared `catalog.ts` service in core (`listCatalogItems`/`createCatalogItem`/`renameCatalogItem`/`deleteCatalogItem` with product-count guards); all three apps manage the same colors/sizes |
 | 5 | Sales — quick sale (product, qty, price, customer, paid/unpaid) | ✅ | ✅ | ✅ | `createSale` in core |
 | 6 | Billing / Invoice creation (line items, discount, delivery, paid-now) | ✅ | ✅ | ✅ | Shared `buildBillDocument`; web has richest form (date, party link, notes, templates) |
 | 7 | Invoice list — search, status filter, pagination | ✅ | 🟡 | 🟡 | Web has dedicated view with filters; desktop/mobile list inside Billing/Sales without search/filter |
@@ -114,28 +114,24 @@ plain drizzle output.
 - Settings: shop profile editor (name/address/phones/email/currency/low-stock threshold) via `GET/PUT /api/settings` + connection check; DB URL comes from env
 
 ### Desktop (`apps/desktop`) — Tauri + Vite
-- Pages: dashboard, products, sales, billing, parties, job-letters, **reports**, settings
+- Pages: dashboard, products, **catalog**, sales, billing, parties, job-letters, **reports**, settings
 - Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally
 - PDF: bill download via `lib/billPdf.ts`; CSV export on reports
 - Navigation: pushState SPA with motion transitions
 
 ### Mobile (`apps/mobile`) — React Native + Expo SDK 57
-- Screens: home, products, sales, billing, parties, letters, **reports**, settings
+- Screens: home, products, sales, billing, parties, letters, **catalog**, **reports**, settings (catalog + reports + letters open from the More tab)
 - Direct DB: same Neon fetch client (works on Hermes); URL stored in AsyncStorage
 - Share: bill as text via native `Share`; no PDF, no payment recording, no advance settle yet
 
 ## Known gaps & next steps
 
-1. **Catalog (colors/sizes) UI on desktop + mobile** — core is ready (`listMeta`, `addColor`,
-   `addSize`); only the management screens are missing.
-2. **Record invoice payment on mobile** — core `recordInvoicePayment` exists; needs a screen action.
-3. **Settle advance on mobile** — core `settleAdvance` exists; needs a screen action.
-4. **Mobile bill PDF** — would need a PDF renderer (e.g. `expo-print` / react-native-html-to-pdf)
+1. **Record invoice payment on mobile** — core `recordInvoicePayment` exists; needs a screen action.
+2. **Settle advance on mobile** — core `settleAdvance` exists; needs a screen action.
+3. **Mobile bill PDF** — would need a PDF renderer (e.g. `expo-print` / react-native-html-to-pdf)
    or keep text share.
-5. **Job-letter PDF on desktop/mobile** — web-only generator today.
-6. **Mobile bill PDF** — see #4; **web settings** shipped (shop profile editor) — the web app still
-   relies on env for the DB URL rather than a paste-in URL.
-7. **Report export parity** — give mobile a simple CSV/text export.
+4. **Job-letter PDF on desktop/mobile** — web-only generator today.
+5. **Report export parity** — give mobile a simple CSV/text export.
 
 ## How to add a feature globally
 

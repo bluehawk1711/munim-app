@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { addSize, listMeta, ProductError } from "@munim/core"
+import { createCatalogItem, listCatalogItems, ProductError } from "@munim/core"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -12,15 +12,14 @@ const nameSchema = z
   .transform((s) => s.trim())
 
 export async function GET() {
-  const meta = await listMeta(db)
-  return NextResponse.json(meta.sizes.map((name) => ({ id: name, name })))
+  return NextResponse.json(await listCatalogItems(db, "size"))
 }
 
 export async function POST(request: Request) {
   try {
     const body: unknown = await request.json()
     const { name } = z.object({ name: nameSchema }).parse(body)
-    const size = await addSize(db, name)
+    const size = await createCatalogItem(db, "size", name)
     return NextResponse.json(size, { status: 201 })
   } catch (err) {
     if (err instanceof z.ZodError) {

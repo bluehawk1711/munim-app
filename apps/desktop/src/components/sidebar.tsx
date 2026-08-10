@@ -1,11 +1,12 @@
 import { motion } from "motion/react";
-import { LayoutDashboard, Package, ShoppingCart, FileText, Users, ScrollText, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, Package, Palette, ShoppingCart, FileText, Users, ScrollText, BarChart3, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigate } from "@/lib/navigation";
 
 const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products", label: "Products & Stock", icon: Package },
+  { href: "/catalog", label: "Catalog", icon: Palette },
   { href: "/sales", label: "Sales", icon: ShoppingCart },
   { href: "/billing", label: "Billing / Invoices", icon: FileText },
   { href: "/parties", label: "Parties & Khata", icon: Users },

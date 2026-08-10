@@ -4,17 +4,19 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  Palette,
   ScrollText,
   Settings as SettingsIcon,
 } from 'lucide-react-native';
 import {colors, Header, Screen} from '../components/ui';
 import {useThemeStyles} from '../theme';
 import {sectionPress} from '../lib/haptics';
+import {CatalogScreen} from './CatalogScreen';
 import {JobLettersScreen} from './JobLettersScreen';
 import {ReportsScreen} from './ReportsScreen';
 import {SettingsScreen} from './SettingsScreen';
 
-type Section = 'letters' | 'reports' | 'settings';
+type Section = 'letters' | 'reports' | 'catalog' | 'settings';
 
 const SECTIONS: {
   key: Section;
@@ -24,6 +26,7 @@ const SECTIONS: {
 }[] = [
   {key: 'letters', label: 'Job Letters', subtitle: 'Offer letters for staff', icon: ScrollText},
   {key: 'reports', label: 'Reports', subtitle: 'Sales, stock & profit', icon: BarChart3},
+  {key: 'catalog', label: 'Catalog', subtitle: 'Colors & sizes for products', icon: Palette},
   {key: 'settings', label: 'Settings', subtitle: 'Database & shop profile', icon: SettingsIcon},
 ];
 
@@ -58,6 +61,13 @@ export function MoreScreen() {
     return (
       <SectionView onBack={() => setSection(null)}>
         <ReportsScreen />
+      </SectionView>
+    );
+  }
+  if (section === 'catalog') {
+    return (
+      <SectionView onBack={() => setSection(null)}>
+        <CatalogScreen />
       </SectionView>
     );
   }
