@@ -1,0 +1,95 @@
+name: Database migrations
+
+# Schema changes go through committed drizzle migrations — never `db:push` against
+# the live database.
+#
+#   drift-check  (every push/PR touching the schema)
+#     regenerates migrations from packages/core/src/db/schema.ts and FAILS if the
+#     committed packages/core/drizzle/ is out of date — so every schema change
+#     must ship with its migration files.
+#
+#   migrate  (main only)
+#     applies pending migrations to the shared Neon database using the
+#     DATABASE_URL secret. Requires the pnpm driver-resolution setup documented
+#     in docs/features.md ("Database tooling quirks"): @neondatabase/serverless is
+#     a devDependency of packages/core, which is what drizzle-kit resolves.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/core/src/db/schema.ts"
+      - "packages/core/drizzle/**"
+  pull_request:
+    paths:
+      - "packages/core/src/db/schema.ts"
+      - "packages/core/drizzle/**"
+  workflow_dispatch:
+
+concurrency:
+  group: db-migrate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift-check:
+    name: Migrations committed & in sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate migrations and fail on drift
+        working-directory: packages/core
+        run: |
+          pnpm exec drizzle-kit generate
+          git diff --exit-code -- drizzle/
+
+      - name: Show drift (fails the job with the missing migration)
+        if: failure()
+        run: git diff -- drizzle/
+
+  migrate:
+    name: Apply migrations to Neon
+    # main only — also covers workflow_dispatch from main. Never from PRs.
+    if: github.ref == 'refs/heads/main'
+    needs: drift-check
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply pending migrations
+        working-directory: packages/core
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not configured — add it to the repo or the 'production' environment."
+            exit 1
+          fi
+          pnpm exec drizzle-kit migrate

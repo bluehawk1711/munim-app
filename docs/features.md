@@ -64,6 +64,25 @@ So the connection string belongs in `packages/core/.env` (copy the keys from
 `.env.example`). Both `.env` and `packages/core/.env` are gitignored — never commit
 the real connection string.
 
+**3. Schema changes deploy via committed migrations, not `db:push`.**
+
+Production schema changes go through the `db-migrate` CI workflow
+(`.github/workflows/db-migrate.yml`):
+
+1. Edit `packages/core/src/db/schema.ts`.
+2. Run `pnpm db:generate` from the repo root — writes
+   `packages/core/drizzle/000N_*.sql` and updates `meta/`. **Commit everything
+   under `packages/core/drizzle/`.**
+3. CI enforces it: the **drift-check** job regenerates migrations and fails if
+   they aren't committed, and the **migrate** job (main only, uses the
+   `DATABASE_URL` GitHub secret) applies pending migrations to Neon.
+
+`pnpm db:push` is only for local scratch databases. The baseline migration
+(`0000_*.sql`) is intentionally idempotent (`CREATE TABLE/INDEX IF NOT EXISTS` +
+`DO` blocks around the FK `ADD CONSTRAINT`s) so the first `migrate` applies cleanly
+over the schema that `db:push` originally created — keep future migrations as
+plain drizzle output.
+
 ## Feature matrix
 
 | # | Feature | Web | Desktop | Mobile | Notes |

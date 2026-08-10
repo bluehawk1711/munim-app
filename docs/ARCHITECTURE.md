@@ -103,9 +103,20 @@ config (or a settings screen) — never hardcode.
 Migration commands (from `packages/core`):
 
 ```bash
-pnpm exec drizzle-kit generate   # write new migration SQL
-pnpm exec drizzle-kit push       # apply to a dev database (or use migrate)
+pnpm exec drizzle-kit generate   # write new migration SQL into ./drizzle
+pnpm exec drizzle-kit migrate    # apply pending migrations (what CI runs)
 ```
+
+Schema changes deploy through the **`db-migrate` GitHub Actions workflow**: edit
+`schema.ts` → `pnpm db:generate` → commit `packages/core/drizzle/**` → the
+`drift-check` job fails if migrations aren't committed, and the `migrate` job
+(main only, `DATABASE_URL` secret) applies them to Neon. **`db:push` is only for
+local scratch databases.** The baseline `0000_*.sql` is retrofitted to be
+idempotent (`IF NOT EXISTS` + `DO` blocks) because the live DB was originally
+created with `db:push` — future migrations stay plain drizzle output. One-time
+check after the first CI migrate: eyeball the log for skipped statements, since
+`IF NOT EXISTS` silently skips anything that already exists (a hidden schema
+divergence would only surface later).
 
 > ⚠️ **pnpm driver-resolution quirk** — drizzle-kit resolves the Postgres driver
 > and the `.env` file from the **config directory** (`packages/core`), not the

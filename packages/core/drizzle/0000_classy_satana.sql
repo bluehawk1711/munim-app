@@ -1,11 +1,11 @@
-CREATE TABLE "activity_logs" (
+CREATE TABLE IF NOT EXISTS "activity_logs" (
 	"id" text PRIMARY KEY NOT NULL,
 	"action" text NOT NULL,
 	"detail" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "advances" (
+CREATE TABLE IF NOT EXISTS "advances" (
 	"id" text PRIMARY KEY NOT NULL,
 	"party_id" text NOT NULL,
 	"direction" text NOT NULL,
@@ -16,21 +16,21 @@ CREATE TABLE "advances" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "categories" (
+CREATE TABLE IF NOT EXISTS "categories" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "categories_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "colors" (
+CREATE TABLE IF NOT EXISTS "colors" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "colors_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "invoice_items" (
+CREATE TABLE IF NOT EXISTS "invoice_items" (
 	"id" text PRIMARY KEY NOT NULL,
 	"invoice_id" text NOT NULL,
 	"product_id" text,
@@ -44,7 +44,7 @@ CREATE TABLE "invoice_items" (
 	"total" double precision DEFAULT 0 NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "invoices" (
+CREATE TABLE IF NOT EXISTS "invoices" (
 	"id" text PRIMARY KEY NOT NULL,
 	"invoice_number" text NOT NULL,
 	"party_id" text,
@@ -66,7 +66,7 @@ CREATE TABLE "invoices" (
 	CONSTRAINT "invoices_invoice_number_unique" UNIQUE("invoice_number")
 );
 --> statement-breakpoint
-CREATE TABLE "job_letters" (
+CREATE TABLE IF NOT EXISTS "job_letters" (
 	"id" text PRIMARY KEY NOT NULL,
 	"title" text NOT NULL,
 	"employee_name" text,
@@ -76,7 +76,7 @@ CREATE TABLE "job_letters" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "parties" (
+CREATE TABLE IF NOT EXISTS "parties" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"phone" text,
@@ -88,7 +88,7 @@ CREATE TABLE "parties" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "payments" (
+CREATE TABLE IF NOT EXISTS "payments" (
 	"id" text PRIMARY KEY NOT NULL,
 	"party_id" text,
 	"invoice_id" text,
@@ -100,7 +100,7 @@ CREATE TABLE "payments" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "products" (
+CREATE TABLE IF NOT EXISTS "products" (
 	"id" text PRIMARY KEY NOT NULL,
 	"sku" text NOT NULL,
 	"name" text NOT NULL,
@@ -119,7 +119,7 @@ CREATE TABLE "products" (
 	CONSTRAINT "products_sku_unique" UNIQUE("sku")
 );
 --> statement-breakpoint
-CREATE TABLE "settings" (
+CREATE TABLE IF NOT EXISTS "settings" (
 	"id" text PRIMARY KEY NOT NULL,
 	"shop_name" text DEFAULT 'My Shop' NOT NULL,
 	"shop_address" text,
@@ -131,14 +131,14 @@ CREATE TABLE "settings" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "sizes" (
+CREATE TABLE IF NOT EXISTS "sizes" (
 	"id" text PRIMARY KEY NOT NULL,
 	"name" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "sizes_name_unique" UNIQUE("name")
 );
 --> statement-breakpoint
-CREATE TABLE "stock_movements" (
+CREATE TABLE IF NOT EXISTS "stock_movements" (
 	"id" text PRIMARY KEY NOT NULL,
 	"product_id" text NOT NULL,
 	"type" text NOT NULL,
@@ -150,35 +150,106 @@ CREATE TABLE "stock_movements" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-ALTER TABLE "advances" ADD CONSTRAINT "advances_party_id_parties_id_fk" FOREIGN KEY ("party_id") REFERENCES "public"."parties"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_invoice_id_invoices_id_fk" FOREIGN KEY ("invoice_id") REFERENCES "public"."invoices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "invoices" ADD CONSTRAINT "invoices_party_id_parties_id_fk" FOREIGN KEY ("party_id") REFERENCES "public"."parties"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payments" ADD CONSTRAINT "payments_party_id_parties_id_fk" FOREIGN KEY ("party_id") REFERENCES "public"."parties"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "payments" ADD CONSTRAINT "payments_invoice_id_invoices_id_fk" FOREIGN KEY ("invoice_id") REFERENCES "public"."invoices"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "products" ADD CONSTRAINT "products_color_id_colors_id_fk" FOREIGN KEY ("color_id") REFERENCES "public"."colors"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "products" ADD CONSTRAINT "products_size_id_sizes_id_fk" FOREIGN KEY ("size_id") REFERENCES "public"."sizes"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "products" ADD CONSTRAINT "products_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "stock_movements" ADD CONSTRAINT "stock_movements_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "activity_logs_created_idx" ON "activity_logs" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "advances_party_idx" ON "advances" USING btree ("party_id");--> statement-breakpoint
-CREATE INDEX "advances_date_idx" ON "advances" USING btree ("date");--> statement-breakpoint
-CREATE INDEX "categories_name_idx" ON "categories" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "colors_name_idx" ON "colors" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "invoice_items_invoice_idx" ON "invoice_items" USING btree ("invoice_id");--> statement-breakpoint
-CREATE INDEX "invoices_party_idx" ON "invoices" USING btree ("party_id");--> statement-breakpoint
-CREATE INDEX "invoices_date_idx" ON "invoices" USING btree ("date");--> statement-breakpoint
-CREATE INDEX "invoices_status_idx" ON "invoices" USING btree ("status");--> statement-breakpoint
-CREATE UNIQUE INDEX "invoices_number_idx" ON "invoices" USING btree ("invoice_number");--> statement-breakpoint
-CREATE INDEX "job_letters_created_idx" ON "job_letters" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "parties_name_idx" ON "parties" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "payments_party_idx" ON "payments" USING btree ("party_id");--> statement-breakpoint
-CREATE INDEX "payments_invoice_idx" ON "payments" USING btree ("invoice_id");--> statement-breakpoint
-CREATE INDEX "payments_date_idx" ON "payments" USING btree ("date");--> statement-breakpoint
-CREATE INDEX "products_name_idx" ON "products" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "products_color_idx" ON "products" USING btree ("color_id");--> statement-breakpoint
-CREATE INDEX "products_size_idx" ON "products" USING btree ("size_id");--> statement-breakpoint
-CREATE INDEX "products_category_idx" ON "products" USING btree ("category_id");--> statement-breakpoint
-CREATE INDEX "sizes_name_idx" ON "sizes" USING btree ("name");--> statement-breakpoint
-CREATE INDEX "stock_movements_product_idx" ON "stock_movements" USING btree ("product_id");--> statement-breakpoint
-CREATE INDEX "stock_movements_created_idx" ON "stock_movements" USING btree ("created_at");
+DO $$
+BEGIN
+ALTER TABLE "advances" ADD CONSTRAINT "advances_party_id_parties_id_fk" FOREIGN KEY ("party_id") REFERENCES "public"."parties"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_invoice_id_invoices_id_fk" FOREIGN KEY ("invoice_id") REFERENCES "public"."invoices"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "invoice_items" ADD CONSTRAINT "invoice_items_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_party_id_parties_id_fk" FOREIGN KEY ("party_id") REFERENCES "public"."parties"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "payments" ADD CONSTRAINT "payments_party_id_parties_id_fk" FOREIGN KEY ("party_id") REFERENCES "public"."parties"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "payments" ADD CONSTRAINT "payments_invoice_id_invoices_id_fk" FOREIGN KEY ("invoice_id") REFERENCES "public"."invoices"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "products" ADD CONSTRAINT "products_color_id_colors_id_fk" FOREIGN KEY ("color_id") REFERENCES "public"."colors"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "products" ADD CONSTRAINT "products_size_id_sizes_id_fk" FOREIGN KEY ("size_id") REFERENCES "public"."sizes"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "products" ADD CONSTRAINT "products_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$
+BEGIN
+ALTER TABLE "stock_movements" ADD CONSTRAINT "stock_movements_product_id_products_id_fk" FOREIGN KEY ("product_id") REFERENCES "public"."products"("id") ON DELETE cascade ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "activity_logs_created_idx" ON "activity_logs" USING btree ("created_at");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "advances_party_idx" ON "advances" USING btree ("party_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "advances_date_idx" ON "advances" USING btree ("date");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "categories_name_idx" ON "categories" USING btree ("name");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "colors_name_idx" ON "colors" USING btree ("name");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invoice_items_invoice_idx" ON "invoice_items" USING btree ("invoice_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invoices_party_idx" ON "invoices" USING btree ("party_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invoices_date_idx" ON "invoices" USING btree ("date");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "invoices_status_idx" ON "invoices" USING btree ("status");
+--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "invoices_number_idx" ON "invoices" USING btree ("invoice_number");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "job_letters_created_idx" ON "job_letters" USING btree ("created_at");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "parties_name_idx" ON "parties" USING btree ("name");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_party_idx" ON "payments" USING btree ("party_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_invoice_idx" ON "payments" USING btree ("invoice_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "payments_date_idx" ON "payments" USING btree ("date");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "products_name_idx" ON "products" USING btree ("name");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "products_color_idx" ON "products" USING btree ("color_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "products_size_idx" ON "products" USING btree ("size_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "products_category_idx" ON "products" USING btree ("category_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "sizes_name_idx" ON "sizes" USING btree ("name");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "stock_movements_product_idx" ON "stock_movements" USING btree ("product_id");
+--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "stock_movements_created_idx" ON "stock_movements" USING btree ("created_at");
