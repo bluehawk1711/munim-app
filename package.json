@@ -1,0 +1,26 @@
+{
+  "name": "munim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Munim — shop management monorepo (stock, billing, advances/ledger) for web, desktop & mobile",
+  "packageManager": "pnpm@11.5.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@munim/web",
+    "dev:desktop": "turbo run dev --filter=@munim/desktop",
+    "dev:mobile": "turbo run dev --filter=@munim/mobile",
+    "build": "turbo run build",
+    "build:core": "turbo run build --filter=@munim/core",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @munim/core db:generate",
+    "db:migrate": "pnpm --filter @munim/core db:migrate",
+    "db:push": "pnpm --filter @munim/core db:push",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3",
+    "turbo": "^2.5.4",
+    "typescript": "^5.8.3"
+  }
+}

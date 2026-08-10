@@ -1,0 +1,51 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# next.js
+.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# turbo
+.turbo/
+
+# expo / react native
+.expo/
+expo-env.d.ts
+*.orig.*
+web-build/
+ios/
+android/
+
+# tauri / rust
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# misc
+.DS_Store
+*.pem
+dev.log
+server.log
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# drizzle
+packages/core/drizzle/meta/_journal.json.bak
+
+# editor
+.vscode/
+.idea/
