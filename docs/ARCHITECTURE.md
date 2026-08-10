@@ -107,6 +107,14 @@ pnpm exec drizzle-kit generate   # write new migration SQL
 pnpm exec drizzle-kit push       # apply to a dev database (or use migrate)
 ```
 
+> ⚠️ **pnpm driver-resolution quirk** — drizzle-kit resolves the Postgres driver
+> and the `.env` file from the **config directory** (`packages/core`), not the
+> workspace root. The driver (`@neondatabase/serverless`, a devDependency of
+> `packages/core` *and* the root) and `packages/core/.env` (`DATABASE_URL`) must
+> both be present, or you get the "please install either of 'pg', 'postgres'..."
+> and "Either connection \"url\" or \"host\"..." errors. Full write-up:
+> `docs/features.md` → **Database tooling quirks**.
+
 Rebuild core after changing its public API (consumers import from `dist/`):
 
 ```bash

@@ -24,6 +24,46 @@ This document records what exists, and **on which platforms** it is available (�
   Web + desktop consume the generated `tokens.css`; mobile consumes `mobileColors`. See `docs/theme.md`.
   → Edit one file, restyle all 3 apps.
 
+## Database tooling quirks (read before running `pnpm db:*`)
+
+`pnpm db:push` / `db:generate` / `db:studio` run `drizzle-kit` from
+`packages/core` (see root `package.json` → `db:push` → `pnpm --filter @munim/core`).
+Two pnpm-specific gotchas bite here — both cost real debugging time when they hit:
+
+**1. The Postgres driver must be resolvable from `packages/core`.**
+
+drizzle-kit needs a *real* Postgres driver to connect while pushing or introspecting
+the schema — the apps themselves do **not** (they talk to Neon via
+`drizzle-orm/pg-proxy` + plain `fetch`, so no driver ships to the runtime at all;
+see `docs/ARCHITECTURE.md` ADR-001). drizzle-kit `require()`s the driver relative to
+**the config file's directory** (`packages/core`), not from the workspace root.
+pnpm's strict `node_modules` layout means a driver declared only at the root or in a
+sibling package is **invisible** from there, producing:
+
+```
+To connect to Postgres database - please install either of 'pg', 'postgres',
+'@neondatabase/serverless' or '@vercel/postgres' drivers
+```
+
+Fix (current state): `@neondatabase/serverless` is a devDependency of **both**
+`packages/core` (so drizzle-kit resolves it from the config dir — verified with
+`require.resolve` from `packages/core`) and the workspace root (so tooling run from
+the root resolves it too). If that error ever returns after a dependency cleanup,
+check both declarations and re-run `pnpm install`.
+
+**2. `DATABASE_URL` must live in `packages/core/.env`.**
+
+drizzle-kit reads `.env` from the config file's directory — a root-only `.env` is
+ignored, producing:
+
+```
+Either connection "url" or "host", "database" are required for PostgreSQL database connection
+```
+
+So the connection string belongs in `packages/core/.env` (copy the keys from
+`.env.example`). Both `.env` and `packages/core/.env` are gitignored — never commit
+the real connection string.
+
 ## Feature matrix
 
 | # | Feature | Web | Desktop | Mobile | Notes |
