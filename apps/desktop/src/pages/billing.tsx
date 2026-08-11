@@ -95,6 +95,7 @@ export function BillingPage() {
   const [amountPaid, setAmountPaid] = useState("0");
   const [lines, setLines] = useState<LineState[]>([emptyLine()]);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [preview, setPreview] = useState<BillDocument | null>(null);
 
   const [payingInvoice, setPayingInvoice] = useState<InvoiceWithItems | null>(null);
@@ -177,19 +178,26 @@ export function BillingPage() {
     }
   }
 
-  async function handleDownload(inv: InvoiceWithItems) {
+  async function exportBill(doc: BillDocument) {
+    setExporting(true);
     try {
-      const shopForInvoice: BillShopDetails | null = inv.shopDetails
-        ? { name: inv.shopDetails.name, address: inv.shopDetails.address, phones: inv.shopDetails.phones, email: inv.shopDetails.email }
-        : shop;
-      if (!shopForInvoice) {
-        toast.error("Shop settings not loaded — open Settings first");
-        return;
-      }
-      downloadBillPdf(invoiceToBillDocument(inv, shopForInvoice, settings?.currency ?? "INR"));
+      await downloadBillPdf(doc);
     } catch (err) {
       toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setExporting(false);
     }
+  }
+
+  async function handleDownload(inv: InvoiceWithItems) {
+    const shopForInvoice: BillShopDetails | null = inv.shopDetails
+      ? { name: inv.shopDetails.name, address: inv.shopDetails.address, phones: inv.shopDetails.phones, email: inv.shopDetails.email }
+      : shop;
+    if (!shopForInvoice) {
+      toast.error("Shop settings not loaded — open Settings first");
+      return;
+    }
+    await exportBill(invoiceToBillDocument(inv, shopForInvoice, settings?.currency ?? "INR"));
   }
 
   async function handleRecordPayment() {
@@ -329,8 +337,8 @@ export function BillingPage() {
                       <p className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-bold">{money(preview.total)}</span></p>
                       <p className="mt-2 text-xs italic text-muted-foreground">{preview.amountInWords}</p>
                     </div>
-                    <Button className="w-full" onClick={() => downloadBillPdf(preview)}>
-                      <Download className="h-4 w-4" /> Download PDF
+                    <Button className="w-full" onClick={() => exportBill(preview)} disabled={exporting}>
+                      <Download className="h-4 w-4" /> {exporting ? "Generating…" : "Download PDF"}
                     </Button>
                   </>
                 ) : (
@@ -381,7 +389,7 @@ export function BillingPage() {
                                 <Wallet className="h-4 w-4" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon-sm" title="Download PDF" onClick={() => handleDownload(inv)}>
+                            <Button variant="ghost" size="icon-sm" title="Download PDF" onClick={() => handleDownload(inv)} disabled={exporting}>
                               <Download className="h-4 w-4" />
                             </Button>
                           </div>

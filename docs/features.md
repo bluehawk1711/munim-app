@@ -95,7 +95,7 @@ plain drizzle output.
 | 6 | Billing / Invoice creation (line items, discount, delivery, paid-now) | ✅ | ✅ | ✅ | Shared `buildBillDocument`; web has richest form (date, party link, notes, templates) |
 | 7 | Invoice list — search, status filter, pagination | ✅ | 🟡 | 🟡 | Web has dedicated view with filters; desktop/mobile list inside Billing/Sales without search/filter |
 | 8 | Record invoice payment (partial/full) | ✅ | ✅ | ✅ | Shared `recordInvoicePayment` in core; mobile has a Record-payment sheet on unpaid/partial invoices |
-| 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ✅ | Web: jsPDF templates; Desktop: `billPdf.ts`; Mobile: shared `renderBillHtml` (core) + `expo-print` → share PDF (text share kept as secondary) |
+| 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ✅ | Web: rich jsPDF templates; Desktop: shared `renderBillHtml` (core) via jsPDF `html()` → same look as mobile; Mobile: shared `renderBillHtml` + `expo-print` → share PDF (text share kept as secondary) |
 | 10 | Job letters — create, save, list, delete | ✅ | 🟡 | 🟡 | Web has the full rich form + gold-bordered **PDF**; desktop/mobile have basic create/list without PDF |
 | 11 | Parties & Khata — balances (due / owed), ledger, advances given/taken | ✅ | ✅ | ✅ | Full ledger on web + desktop; mobile shows balances + compact ledger |
 | 12 | Advances summary — "whom I gave money / whom I owe" dashboard | ✅ | 🟡 | 🟡 | Web has a dedicated Advances view; desktop/mobile surface it inside Parties |
@@ -117,7 +117,7 @@ plain drizzle output.
 ### Desktop (`apps/desktop`) — Tauri + Vite
 - Pages: dashboard, products, **catalog**, sales, billing, parties, job-letters, **reports**, settings
 - Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally
-- PDF: bill download via `lib/billPdf.ts`; CSV export on reports
+- PDF: bill download via `lib/billPdf.ts` (renders the shared `renderBillHtml` from core — identical layout to mobile); CSV export on reports
 - Navigation: pushState SPA with motion transitions
 
 ### Mobile (`apps/mobile`) — React Native + Expo SDK 57
@@ -128,8 +128,7 @@ plain drizzle output.
 ## Known gaps & next steps
 
 1. **Job-letter PDF on desktop/mobile** — web-only generator today.
-2. **Shared bill HTML/PDF renderer** — `renderBillHtml` (core) is used by mobile; web/desktop could
-   adopt it for a consistent print look instead of their jsPDF templates.
+2. **Web bill PDF** — web keeps its rich jsPDF templates (jewellery/e-commerce, 2-in-1, classic colors) by design; desktop + mobile now share the exact `renderBillHtml` markup from core for a consistent print look.
 
 ## How to add a feature globally
 
