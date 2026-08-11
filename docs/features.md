@@ -16,8 +16,9 @@ This document records what exists, and **on which platforms** it is available (�
 
 - **One database, one model.** Web, desktop and mobile read/write the same Neon database through
   `@munim/core`. A bill created on any platform is immediately visible on all three.
-- **Shared logic.** Bill/invoice generation (`buildBillDocument`, `renderBillText`, `amountInWords`),
-  SKU/invoice numbering, stock movements, khata/ledger math and `getReport` all live in core.
+- **Shared logic.** Bill/invoice generation (`buildBillDocument`, `renderBillText`, `renderBillHtml`),
+  job-letter generation (`JobLetterData`, `renderJobLetterHtml`, `jobLetterFromStored`), SKU/invoice
+  numbering, stock movements, khata/ledger math and `getReport` all live in core.
 - **Platform-specific rendering only.** PDF export and file dialogs are per-platform (browser print /
   jsPDF, Tauri download, mobile `Share`), but they all consume the same `BillDocument`.
 - **One theme.** All colors, radii and visual tokens live in `@munim/theme` (`packages/theme/src/tokens.ts`).
@@ -96,7 +97,7 @@ plain drizzle output.
 | 7 | Invoice list — search, status filter, pagination | ✅ | 🟡 | 🟡 | Web has dedicated view with filters; desktop/mobile list inside Billing/Sales without search/filter |
 | 8 | Record invoice payment (partial/full) | ✅ | ✅ | ✅ | Shared `recordInvoicePayment` in core; mobile has a Record-payment sheet on unpaid/partial invoices |
 | 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ✅ | Web: rich jsPDF templates; Desktop: shared `renderBillHtml` (core) via jsPDF `html()` → same look as mobile; Mobile: shared `renderBillHtml` + `expo-print` → share PDF (text share kept as secondary) |
-| 10 | Job letters — create, save, list, delete | ✅ | 🟡 | 🟡 | Web has the full rich form + gold-bordered **PDF**; desktop/mobile have basic create/list without PDF |
+| 10 | Job letters — create, save, list, delete + PDF | ✅ | ✅ | ✅ | Shared `JobLetterData` + `renderJobLetterHtml` (core); web has the full rich form + gold-bordered jsPDF PDF; desktop downloads the same shared HTML via jsPDF `html()`; mobile shares it via `expo-print` |
 | 11 | Parties & Khata — balances (due / owed), ledger, advances given/taken | ✅ | ✅ | ✅ | Full ledger on web + desktop; mobile shows balances + compact ledger |
 | 12 | Advances summary — "whom I gave money / whom I owe" dashboard | ✅ | 🟡 | 🟡 | Web has a dedicated Advances view; desktop/mobile surface it inside Parties |
 | 13 | Settle advance | ✅ | ✅ | ✅ | Shared `settleAdvance` in core; mobile has a Settle button per open advance in Parties |
@@ -117,17 +118,17 @@ plain drizzle output.
 ### Desktop (`apps/desktop`) — Tauri + Vite
 - Pages: dashboard, products, **catalog**, sales, billing, parties, job-letters, **reports**, settings
 - Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally
-- PDF: bill download via `lib/billPdf.ts` (renders the shared `renderBillHtml` from core — identical layout to mobile); CSV export on reports
+- PDF: bill download via `lib/billPdf.ts` + job-letter download via `lib/jobLetterPdf.ts` (both render the shared core HTML — identical layout to mobile); CSV export on reports
 - Navigation: pushState SPA with motion transitions
 
 ### Mobile (`apps/mobile`) — React Native + Expo SDK 57
 - Screens: home, products, sales, billing, parties, letters, **catalog**, **reports**, settings (catalog + reports + letters open from the More tab)
 - Direct DB: same Neon fetch client (works on Hermes); URL stored in AsyncStorage
-- Share: bill as **PDF** via shared `renderBillHtml` + `expo-print` (text share also available); invoice payment recording + advance settle included
+- Share: bill as **PDF** via shared `renderBillHtml` + job letter as **PDF** via shared `renderJobLetterHtml` + `expo-print` (text share also available for bills); invoice payment recording + advance settle included
 
 ## Known gaps & next steps
 
-1. **Job-letter PDF on desktop/mobile** — web-only generator today.
+1. **Web job-letter PDF vs shared HTML** — web keeps its gold-bordered jsPDF template; desktop + mobile render the shared `renderJobLetterHtml` from core, so the letter content is identical everywhere (only the renderer differs).
 2. **Web bill PDF** — web keeps its rich jsPDF templates (jewellery/e-commerce, 2-in-1, classic colors) by design; desktop + mobile now share the exact `renderBillHtml` markup from core for a consistent print look.
 
 ## How to add a feature globally

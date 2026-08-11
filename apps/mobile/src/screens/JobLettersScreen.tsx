@@ -1,6 +1,16 @@
 import React, {useState} from 'react';
-import {FlatList, Text, View} from 'react-native';
-import {saveJobLetter, listJobLetters, deleteJobLetter, formatDate} from '@munim/core';
+import {FlatList, Share, Text, View} from 'react-native';
+import * as Print from 'expo-print';
+import {
+  saveJobLetter,
+  listJobLetters,
+  deleteJobLetter,
+  getSettings,
+  jobLetterFromStored,
+  renderJobLetterHtml,
+  formatDate,
+  type JobLetter,
+} from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
@@ -20,6 +30,7 @@ import {
 
 export function JobLettersScreen() {
   const {data, loading, error, reload} = useAsync(async () => listJobLetters(await getCore(), 100), []);
+  const {data: settings} = useAsync(async () => getSettings(await getCore()), []);
 
   const [open, setOpen] = useState(false);
   const [employeeName, setEmployeeName] = useState('');
@@ -47,6 +58,22 @@ export function JobLettersScreen() {
     } catch {
       errorFeedback();
       // keep modal open
+    }
+  }
+
+  async function handleSharePdf(letter: JobLetter) {
+    try {
+      const company = settings
+        ? {name: settings.shopName, address: settings.shopAddress ?? '', email: settings.shopEmail ?? ''}
+        : undefined;
+      const data = jobLetterFromStored(letter.data, letter, company);
+      const {uri} = await Print.printToFileAsync({
+        html: renderJobLetterHtml(data),
+        base64: false,
+      });
+      await Share.share({url: uri, message: `Job letter — ${letter.employeeName ?? letter.title}`});
+    } catch {
+      // user cancelled share or print failed
     }
   }
 
@@ -92,7 +119,10 @@ export function JobLettersScreen() {
                     </Text>
                   ) : null}
                 </View>
-                <Button title="Delete" variant="danger" onPress={() => handleDelete(item.id)} />
+                <View style={{flexDirection: 'row', gap: 8}}>
+                  <Button title="Share PDF" variant="outline" onPress={() => handleSharePdf(item)} />
+                  <Button title="Delete" variant="danger" onPress={() => handleDelete(item.id)} />
+                </View>
               </View>
             </Card>
           )}

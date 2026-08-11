@@ -1,9 +1,19 @@
 import { useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
-import { saveJobLetter, listJobLetters, deleteJobLetter, formatDate } from "@munim/core";
+import { Plus, Trash2, Download } from "lucide-react";
+import {
+  saveJobLetter,
+  listJobLetters,
+  deleteJobLetter,
+  getSettings,
+  jobLetterFromStored,
+  formatDate,
+  type JobLetter,
+  type Settings,
+} from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
+import { downloadJobLetterPdf } from "@/lib/jobLetterPdf";
 import { toast } from "sonner";
 import { Button, Input, Label, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
 ;
@@ -12,9 +22,15 @@ import { Button, Input, Label, Card, CardContent, Dialog, DialogContent, DialogD
 ;
 ;
 ;
+;
+
+function companyFromSettings(s: Settings | null | undefined): { name: string; address: string; email: string } | undefined {
+  return s ? { name: s.shopName, address: s.shopAddress ?? "", email: s.shopEmail ?? "" } : undefined;
+}
 
 export function JobLettersPage() {
   const { data, loading, reload } = useAsync(() => listJobLetters(getCore(), 100), []);
+  const { data: settings } = useAsync(() => getSettings(getCore()), []);
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("Job Letter");
@@ -23,13 +39,10 @@ export function JobLettersPage() {
   const [monthlySalary, setMonthlySalary] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  async function handleSave() {
-    if (!employeeName.trim()) {
-      toast.error("Employee name is required");
-      return;
-    }
-    setSaving(true);
+  /** Persists the dialog fields, clears + reloads, toasts — returns success. */
+  async function persistLetter(): Promise<boolean> {
     try {
       await saveJobLetter(getCore(), {
         title: title.trim() || "Job Letter",
@@ -45,10 +58,61 @@ export function JobLettersPage() {
       setNotes("");
       reload();
       toast.success("Job letter saved");
+      return true;
     } catch (err) {
       toast.error("Failed to save", { description: err instanceof Error ? err.message : undefined });
+      return false;
+    }
+  }
+
+  async function handleSave() {
+    if (!employeeName.trim()) {
+      toast.error("Employee name is required");
+      return;
+    }
+    setSaving(true);
+    try {
+      await persistLetter();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSaveAndDownload() {
+    if (!employeeName.trim()) {
+      toast.error("Employee name is required");
+      return;
+    }
+    // Build the letter BEFORE persist clears the dialog fields.
+    const letterData = jobLetterFromStored(
+      { notes: notes.trim() },
+      {
+        employeeName: employeeName.trim(),
+        position: position.trim() || null,
+        monthlySalary: Number(monthlySalary) || 0,
+      },
+      companyFromSettings(settings),
+    );
+    setSaving(true);
+    try {
+      const saved = await persistLetter();
+      if (!saved) return;
+      await downloadJobLetterPdf(letterData);
+    } catch (err) {
+      toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDownload(letter: JobLetter) {
+    setExporting(true);
+    try {
+      await downloadJobLetterPdf(jobLetterFromStored(letter.data, letter, companyFromSettings(settings)));
+    } catch (err) {
+      toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -66,7 +130,7 @@ export function JobLettersPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-muted-foreground text-sm">Job / offer letters for staff — saved to the shared database.</p>
+        <p className="text-muted-foreground text-sm">Job / offer letters for staff — saved to the shared database. Download the gold-bordered PDF from any letter.</p>
         <Button onClick={() => setOpen(true)}>
           <Plus className="h-4 w-4" /> New letter
         </Button>
@@ -99,9 +163,14 @@ export function JobLettersPage() {
                     <TableCell className="text-right">{money(letter.monthlySalary)}</TableCell>
                     <TableCell>{formatDate(letter.createdAt)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(letter.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="icon-sm" title="Download PDF" onClick={() => handleDownload(letter)} disabled={exporting}>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon-sm" onClick={() => handleDelete(letter.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -115,7 +184,7 @@ export function JobLettersPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>New job letter</DialogTitle>
-            <DialogDescription>Basic details; the rich letter template lives in the web app.</DialogDescription>
+            <DialogDescription>Basic details; the full rich form lives in the web app.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
@@ -141,7 +210,8 @@ export function JobLettersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+            <Button variant="outline" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+            <Button onClick={handleSaveAndDownload} disabled={saving}>{saving ? "Working…" : "Save & Download PDF"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

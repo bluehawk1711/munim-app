@@ -288,6 +288,52 @@ async function run() {
         html.includes("TOTAL");
       return ok ? "has billNo + totals + discount" : "MISSING elements";
     });
+    await test("renderJobLetterHtml", () => {
+      const html = core.renderJobLetterHtml({
+        companyName: "Gold & Co <Jewellers>",
+        companyAddress: "Main Bazaar",
+        companyEmail: "gold@co.in",
+        employeeName: "Ravi Sharma",
+        employeeAddress: "12 Old City",
+        position: "Accountant",
+        joiningDate: "2026-08-11",
+        monthlySalary: 25000,
+        workingHoursDescription: "8 hours per day",
+        workingHoursFrom: "10:00 AM",
+        workingHoursTo: "07:00 PM",
+        timeFormat: "AM",
+        weeklyOff1: "Sunday",
+        weeklyOff2: "",
+        probationMonths: 3,
+        additionalTasks: "Reconcile daily cash",
+      });
+      const ok =
+        html.includes("&lt;Jewellers&gt;") && // escaped
+        html.includes("Ravi Sharma") &&
+        html.includes("Appointment &amp; Joining") &&
+        html.includes("11 August 2026") &&
+        html.includes("25,000") &&
+        html.includes("Reconcile daily cash") &&
+        html.includes("Authorized Signatory");
+      return ok ? "escaped + date + salary + words" : "MISSING elements";
+    });
+    await test("jobLetterFromStored merge", () => {
+      const d = core.jobLetterFromStored(
+        { notes: "from desktop", joiningDate: "2026-09-01" },
+        { employeeName: "Asha", position: "Cashier", monthlySalary: 15000 },
+        { name: "Munim Shop", address: "1 Main Rd", email: "s@shop.in" },
+      );
+      const ok =
+        d.employeeName === "Asha" &&
+        d.position === "Cashier" &&
+        d.monthlySalary === 15000 &&
+        d.companyName === "Munim Shop" &&
+        d.additionalTasks === "from desktop" &&
+        d.joiningDate === "2026-09-01" &&
+        d.probationMonths === 3 &&
+        d.weeklyOff1 === "Sunday";
+      return ok ? "sparse row + settings merged" : "MERGE FAILED";
+    });
   } finally {
     // ── cleanup (always runs, even if a check throws) ──
     console.log("── cleanup ──");

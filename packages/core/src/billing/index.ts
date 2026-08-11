@@ -9,3 +9,13 @@ export {
   type BillStatus,
   type BuildBillInput,
 } from "./billDocument";
+
+export {
+  defaultJobLetterData,
+  formatJoiningDate,
+  jobLetterFromStored,
+  renderJobLetterHtml,
+  type JobLetterCompanyFallback,
+  type JobLetterData,
+  type JobLetterRowLike,
+} from "./jobLetterDocument";
