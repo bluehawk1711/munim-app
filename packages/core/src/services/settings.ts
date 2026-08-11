@@ -12,6 +12,10 @@ export type ShopSettingsInput = {
   lowStockThreshold?: number;
   currency?: string;
   defaultTemplate?: Record<string, unknown>;
+  /** Accent theme name shared across all apps — persisted here so a change on
+   *  any platform syncs to the rest. Validated against the theme list in each
+   *  app layer (core stays dependency-free of @munim/theme). */
+  theme?: string;
 };
 
 /** Fetches settings, creating the singleton row on first use. */
@@ -41,6 +45,7 @@ export async function updateSettings(db: DbClient, input: ShopSettingsInput) {
       ...(input.lowStockThreshold !== undefined ? { lowStockThreshold: input.lowStockThreshold } : {}),
       ...(input.currency !== undefined ? { currency: input.currency } : {}),
       ...(input.defaultTemplate !== undefined ? { defaultTemplate: input.defaultTemplate } : {}),
+      ...(input.theme !== undefined ? { theme: input.theme } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.settings.id, SETTINGS_ID))

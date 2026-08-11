@@ -175,6 +175,8 @@ export const settings = pgTable("settings", {
     currency: text("currency").notNull().default("₹"),
     /** Default bill template settings applied to new bills. */
     defaultTemplate: json("default_template").$type().notNull().default({}),
+    /** Accent theme shared across web, desktop & mobile ("apple" | "ocean" | "forest" | "rose" | "midnight"). */
+    theme: text("theme").notNull().default("apple"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 export const activityLogs = pgTable("activity_logs", {

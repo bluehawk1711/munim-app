@@ -12,6 +12,7 @@ export type ShopSettings = {
   lowStockThreshold: number
   currency: string
   defaultTemplate: Record<string, unknown>
+  theme: string
   updatedAt: string
 }
 

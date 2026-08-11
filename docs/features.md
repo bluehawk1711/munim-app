@@ -105,7 +105,7 @@ plain drizzle output.
 | 15 | Report export (Excel / PDF / CSV) | ✅ | ✅ | ✅ | All three apps share `reportToCsv` (RFC-4180) for CSV; web also has Excel+PDF, mobile shares CSV via native Share |
 | 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row |
 | 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings |
-| 18 | Multiple color themes (Apple Gold / Ocean Blue / Forest Green / Rose Blush / Midnight Indigo) | ✅ | ✅ | ✅ | 5 curated themes in `@munim/theme` (`themes` + `[data-theme]` CSS blocks); pickers in Settings (all platforms) + topbar palette dropdown (web/desktop); light/dark applies to every theme |
+| 18 | Multiple color themes (Apple Gold / Ocean Blue / Forest Green / Rose Blush / Midnight Indigo) | ✅ | ✅ | ✅ | 5 curated themes in `@munim/theme` (`themes` + `[data-theme]` CSS blocks); pickers in Settings (all platforms) + topbar palette dropdown (web/desktop); light/dark applies to every theme. **The chosen theme syncs across all three apps via the shared `settings.theme` column** — each app writes the pick to Neon and pulls it on startup (the untouched default never clobbers a local preference on first load) |
 
 ## Platform detail
 

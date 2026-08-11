@@ -11,13 +11,22 @@
  * render, so inline `colors.*` usages and `useThemeStyles()` both pick up the
  * new values automatically.
  */
-import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import React, {createContext, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {useColorScheme} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {getSettings, updateSettings} from '@munim/core';
 import {mobileColorsFor, type MobileColors, type ThemeMode, type ThemeName} from '@munim/theme';
+import {getCore} from './lib/core';
 
 const MODE_KEY = 'munim.themeMode';
 const THEME_KEY = 'munim.accentTheme';
+
+const THEME_NAMES: readonly string[] = ['apple', 'ocean', 'forest', 'rose', 'midnight'];
+
+function isThemeName(value: string | null | undefined): value is ThemeName {
+  if (value === null || value === undefined) return false;
+  return THEME_NAMES.includes(value);
+}
 
 // Module-level palette backing the `colors` proxy. Reassigned on change.
 let currentColors: MobileColors = mobileColorsFor('light', 'apple');
@@ -76,19 +85,34 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   // null = not chosen yet → follow the system preference.
   const [preference, setPreference] = useState<ThemeMode | null>(null);
   const [themeName, setThemeNameState] = useState<ThemeName>('apple');
+  // Set once the user picks a theme THIS session — the DB pull is then skipped
+  // so a stale pre-change payload can't clobber the fresh local choice.
+  const userChangedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
-    Promise.all([
-      AsyncStorage.getItem(MODE_KEY),
-      AsyncStorage.getItem(THEME_KEY),
-    ]).then(([modeStored, themeStored]) => {
+    (async () => {
+      const [modeStored, themeStored] = await Promise.all([
+        AsyncStorage.getItem(MODE_KEY),
+        AsyncStorage.getItem(THEME_KEY),
+      ]);
       if (!active) return;
       if (modeStored === 'light' || modeStored === 'dark') setPreference(modeStored);
-      if (themeStored === 'apple' || themeStored === 'ocean' || themeStored === 'forest' || themeStored === 'rose' || themeStored === 'midnight') {
-        setThemeNameState(themeStored as ThemeName);
+      if (isThemeName(themeStored)) setThemeNameState(themeStored);
+      // Pull the shared theme from the settings row in Neon — syncs a pick made
+      // on web or desktop. Default never clobbers a local preference on first
+      // load after sync shipped (same rule as web/desktop).
+      try {
+        const row = await getSettings(await getCore());
+        if (!active || userChangedRef.current) return;
+        if (isThemeName(row.theme)) {
+          if (row.theme === 'apple' && themeStored) return;
+          setThemeNameState(row.theme);
+        }
+      } catch {
+        // DB not configured (or unreachable) — theme stays local-only.
       }
-    });
+    })();
     return () => {
       active = false;
     };
@@ -116,8 +140,19 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
         AsyncStorage.setItem(MODE_KEY, next).catch(() => {});
       },
       setThemeName: (next) => {
+        userChangedRef.current = true;
         setThemeNameState(next);
         AsyncStorage.setItem(THEME_KEY, next).catch(() => {});
+        // Mirror to the shared settings row — syncs to web & desktop.
+        // Fire-and-forget with a local-first catch: theming must never block on
+        // the DB or on the user configuring a connection string.
+        (async () => {
+          try {
+            await updateSettings(await getCore(), {theme: next});
+          } catch {
+            // DB not configured — local-only.
+          }
+        })().catch(() => {});
       },
     }),
     [mode, themeName, palette],

@@ -7,6 +7,10 @@ export type ShopSettingsInput = {
     lowStockThreshold?: number;
     currency?: string;
     defaultTemplate?: Record<string, unknown>;
+    /** Accent theme name shared across all apps — persisted here so a change on
+     *  any platform syncs to the rest. Validated against the theme list in each
+     *  app layer (core stays dependency-free of @munim/theme). */
+    theme?: string;
 };
 /** Fetches settings, creating the singleton row on first use. */
 export declare function getSettings(db: DbClient): Promise<{
@@ -19,6 +23,7 @@ export declare function getSettings(db: DbClient): Promise<{
     shopEmail: string | null;
     currency: string;
     defaultTemplate: Record<string, unknown>;
+    theme: string;
 }>;
 export declare function updateSettings(db: DbClient, input: ShopSettingsInput): Promise<{
     id: string;
@@ -29,6 +34,7 @@ export declare function updateSettings(db: DbClient, input: ShopSettingsInput): 
     lowStockThreshold: number;
     currency: string;
     defaultTemplate: Record<string, unknown>;
+    theme: string;
     updatedAt: Date;
 }>;
 //# sourceMappingURL=settings.d.ts.map

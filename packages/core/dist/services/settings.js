@@ -28,6 +28,7 @@ export async function updateSettings(db, input) {
         ...(input.lowStockThreshold !== undefined ? { lowStockThreshold: input.lowStockThreshold } : {}),
         ...(input.currency !== undefined ? { currency: input.currency } : {}),
         ...(input.defaultTemplate !== undefined ? { defaultTemplate: input.defaultTemplate } : {}),
+        ...(input.theme !== undefined ? { theme: input.theme } : {}),
         updatedAt: new Date(),
     })
         .where(eq(schema.settings.id, SETTINGS_ID))
