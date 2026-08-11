@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import { FileText, Zap, Loader2, Save, History, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, Separator, Badge } from "@munim/ui"
+
+
+
+
+
+
 import { useJobLetters, useSaveJobLetter } from "@/hooks/use-job-letters"
 import { useSettings } from "@/hooks/use-settings"
 import { generateJobLetterPDF } from "@/lib/billing/generatePDF"

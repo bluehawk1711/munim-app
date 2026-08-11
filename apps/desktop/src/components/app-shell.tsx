@@ -3,7 +3,8 @@ import { AnimatePresence, MotionConfig, motion } from "motion/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Sidebar } from "@/components/sidebar";
-import { Toaster } from "@/components/ui/sonner";
+import { Toaster } from "@munim/ui"
+;
 
 type AppShellProps = {
   current: string;

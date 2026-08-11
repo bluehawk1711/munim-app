@@ -1,11 +1,13 @@
 import React, {useMemo, useState} from 'react';
 import {ScrollView, Share, StyleSheet, Text, View} from 'react-native';
+import * as Print from 'expo-print';
 import {
   createInvoice,
   getSettings,
   listInvoices,
   buildBillDocument,
   renderBillText,
+  renderBillHtml,
   formatDate,
   type BillDocument,
 } from '@munim/core';
@@ -131,6 +133,21 @@ export function BillingScreen() {
     }
   }
 
+  async function handlePdf() {
+    if (!preview) {
+      return;
+    }
+    try {
+      const {uri} = await Print.printToFileAsync({
+        html: renderBillHtml(preview),
+        base64: false,
+      });
+      await Share.share({url: uri, message: `Bill ${preview.billNo} — ${preview.shop.name}`});
+    } catch {
+      // user cancelled share or print failed
+    }
+  }
+
   return (
     <Screen>
       <Header title="Billing" subtitle="Create an invoice — same shared bill as web & desktop" />
@@ -197,7 +214,10 @@ export function BillingScreen() {
           <Card index={1}>
             <Text style={styles.sectionTitle}>Bill preview — {preview.billNo}</Text>
             <Text style={styles.previewText}>{renderBillText(preview)}</Text>
-            <Button title="Share bill text" onPress={handleShareBill} />
+            <View style={{flexDirection: 'row', gap: 8}}>
+              <Button title="Share PDF" style={{flex: 1}} onPress={handlePdf} />
+              <Button title="Share text" variant="outline" style={{flex: 1}} onPress={handleShareBill} />
+            </View>
           </Card>
         ) : null}
 

@@ -2,11 +2,12 @@
 
 import * as React from "react"
 import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
+import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@munim/ui"
+
+
+
+
+
 import { useCreateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
@@ -17,13 +18,7 @@ import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+
 
 type LineItem = {
   productId?: string

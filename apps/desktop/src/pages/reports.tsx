@@ -4,13 +4,14 @@ import { getReport, reportToCsv, type ReportType } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money, formatDateTime } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
+;
+;
+;
+;
+;
+;
+;
 
 const REPORT_OPTIONS: {
   key: ReportType;

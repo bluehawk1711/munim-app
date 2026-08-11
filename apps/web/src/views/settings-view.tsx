@@ -5,12 +5,13 @@ import { motion } from "motion/react"
 import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Skeleton } from "@munim/ui"
+
+
+
+
+
+
 import { toast } from "sonner"
 
 type ShopSettings = {

@@ -272,6 +272,22 @@ async function run() {
       });
       return core.renderBillText(doc).includes("BILL NO: SMK-2") ? "has BILL NO" : "MISSING BILL NO";
     });
+    await test("renderBillHtml", () => {
+      const doc = core.buildBillDocument({
+        shop: { name: "S", address: "A", phones: ["1"], email: "e" },
+        lines: [{ productName: "X", quantity: 2, price: 100 }],
+        billNo: "SMK-3",
+        customerName: "C",
+        discount: 10,
+      });
+      const html = core.renderBillHtml(doc);
+      const ok =
+        html.includes("SMK-3") &&
+        html.includes("₹") &&
+        html.includes("Discount") &&
+        html.includes("TOTAL");
+      return ok ? "has billNo + totals + discount" : "MISSING elements";
+    });
   } finally {
     // ── cleanup (always runs, even if a check throws) ──
     console.log("── cleanup ──");

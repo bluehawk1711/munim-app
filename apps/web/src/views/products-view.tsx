@@ -12,18 +12,13 @@ import {
   Download,
   FileSpreadsheet,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, Skeleton, Badge } from "@munim/ui"
+
+
+
+
+
+
 import { ProductsTable } from "@/components/products/products-table"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"

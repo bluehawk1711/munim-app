@@ -1,6 +1,7 @@
 export {
   buildBillDocument,
   renderBillText,
+  renderBillHtml,
   type BillDocument,
   type BillLine,
   type BillLineInput,

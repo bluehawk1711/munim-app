@@ -5,9 +5,10 @@ import { getDashboard, formatDate } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
+;
+;
+;
 
 function StatCard({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: string; icon: ElementType }) {
   return (

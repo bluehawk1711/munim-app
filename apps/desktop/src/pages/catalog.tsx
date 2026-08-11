@@ -13,19 +13,13 @@ import {
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Button, Input, Label, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@munim/ui"
+;
+;
+;
+;
+;
+;
 
 type DialogState =
   | { kind: CatalogKind; mode: "add"; item?: undefined }

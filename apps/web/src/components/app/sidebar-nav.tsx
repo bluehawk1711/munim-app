@@ -110,7 +110,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
                     <span
                       className={cn(
                         "text-[11px] font-normal",
-                        active ? "text-sidebar-primary-foreground/60" : "text-muted-foreground"
+                        active ? "text-sidebar-primary/60" : "text-muted-foreground"
                       )}
                     >
                       {item.description}

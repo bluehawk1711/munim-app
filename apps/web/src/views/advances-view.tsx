@@ -12,27 +12,15 @@ import {
   TrendingDown,
   Wallet,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Badge, Skeleton, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@munim/ui"
+
+
+
+
+
+
+
+
 import { usePartyBalances, useCreateAdvance, useRecordPayment, useParties } from "@/hooks/use-parties"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"

@@ -2,16 +2,8 @@
 
 import * as React from "react"
 import { Loader2, Trash2, AlertTriangle } from "lucide-react"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@munim/ui"
+
 import { useDeleteProduct } from "@/hooks/use-products"
 import type { Product } from "@/lib/types"
 import { toast } from "sonner"

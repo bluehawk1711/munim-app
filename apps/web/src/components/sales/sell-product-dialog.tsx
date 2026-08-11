@@ -15,20 +15,14 @@ import {
   Package,
   X,
 } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Button, Separator, ScrollArea, Skeleton } from "@munim/ui"
+
+
+
+
+
+
+
 import { useProducts } from "@/hooks/use-products"
 import { useCreateSale } from "@/hooks/use-sales"
 import { saleSchema, type SaleFormValues } from "@/lib/validators"

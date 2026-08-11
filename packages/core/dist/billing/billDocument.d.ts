@@ -65,4 +65,10 @@ export declare function buildBillDocument(input: BuildBillInput): BillDocument;
  * BillDocument and keep the same numbers.
  */
 export declare function renderBillText(bill: BillDocument): string;
+/**
+ * HTML render of a bill — the shared, print-friendly markup used by the
+ * mobile app (expo-print) and available to any platform that prints HTML.
+ * Same numbers as `renderBillText` / jsPDF — one model, any renderer.
+ */
+export declare function renderBillHtml(bill: BillDocument): string;
 //# sourceMappingURL=billDocument.d.ts.map

@@ -15,16 +15,18 @@ import {
   RefreshCw,
   TrendingUp,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, Badge, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
+
+
+
+
+
+
+
+
 import { useReport } from "@/hooks/use-dashboard"
 import { exportReportToExcel, exportReportToPdf } from "@/lib/export"
+import { reportToCsv } from "@munim/core"
 import { formatCurrency, formatNumber, formatDateTime } from "@/lib/format"
 import type { ReportType } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -81,6 +83,25 @@ export function ReportsView() {
       toast.success("PDF report exported")
     } catch (e) {
       toast.error("PDF export failed", { description: e instanceof Error ? e.message : "Unknown error" })
+    }
+  }
+
+  async function handleCsv() {
+    if (!report || report.rows.length === 0) return
+    try {
+      const csv = reportToCsv(report)
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${report.type}-report.csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      toast.success("CSV report exported")
+    } catch (e) {
+      toast.error("CSV export failed", { description: e instanceof Error ? e.message : "Unknown error" })
     }
   }
 
@@ -163,6 +184,9 @@ export function ReportsView() {
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleCsv} disabled={!report || report.rows.length === 0 || isLoading} className="gap-1.5">
+                  <FileSpreadsheet className="h-4 w-4" /> CSV
+                </Button>
                 <Button variant="outline" size="sm" onClick={handleExcel} disabled={!report || isLoading} className="gap-1.5">
                   <FileSpreadsheet className="h-4 w-4" /> Excel
                 </Button>

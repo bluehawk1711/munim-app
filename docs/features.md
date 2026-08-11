@@ -95,13 +95,13 @@ plain drizzle output.
 | 6 | Billing / Invoice creation (line items, discount, delivery, paid-now) | ✅ | ✅ | ✅ | Shared `buildBillDocument`; web has richest form (date, party link, notes, templates) |
 | 7 | Invoice list — search, status filter, pagination | ✅ | 🟡 | 🟡 | Web has dedicated view with filters; desktop/mobile list inside Billing/Sales without search/filter |
 | 8 | Record invoice payment (partial/full) | ✅ | ✅ | ✅ | Shared `recordInvoicePayment` in core; mobile has a Record-payment sheet on unpaid/partial invoices |
-| 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ❌ | Web: jsPDF templates; Desktop: `billPdf.ts`; Mobile: **text share only** (`Share`) |
+| 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ✅ | Web: jsPDF templates; Desktop: `billPdf.ts`; Mobile: shared `renderBillHtml` (core) + `expo-print` → share PDF (text share kept as secondary) |
 | 10 | Job letters — create, save, list, delete | ✅ | 🟡 | 🟡 | Web has the full rich form + gold-bordered **PDF**; desktop/mobile have basic create/list without PDF |
 | 11 | Parties & Khata — balances (due / owed), ledger, advances given/taken | ✅ | ✅ | ✅ | Full ledger on web + desktop; mobile shows balances + compact ledger |
 | 12 | Advances summary — "whom I gave money / whom I owe" dashboard | ✅ | 🟡 | 🟡 | Web has a dedicated Advances view; desktop/mobile surface it inside Parties |
-| 13 | Settle advance | ✅ | ✅ | ❌ | Web + desktop; **mobile cannot settle an advance yet** |
-| 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; web/desktop can export (Excel/PDF/CSV), mobile view-only |
-| 15 | Report export (Excel / PDF / CSV) | ✅ | 🟡 | 🟡 | Web: Excel+PDF; Desktop: CSV (shared `reportToCsv`); Mobile: CSV via native Share |
+| 13 | Settle advance | ✅ | ✅ | ✅ | Shared `settleAdvance` in core; mobile has a Settle button per open advance in Parties |
+| 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; all three apps generate + export the same report |
+| 15 | Report export (Excel / PDF / CSV) | ✅ | ✅ | ✅ | All three apps share `reportToCsv` (RFC-4180) for CSV; web also has Excel+PDF, mobile shares CSV via native Share |
 | 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row |
 | 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings |
 
@@ -122,14 +122,13 @@ plain drizzle output.
 ### Mobile (`apps/mobile`) — React Native + Expo SDK 57
 - Screens: home, products, sales, billing, parties, letters, **catalog**, **reports**, settings (catalog + reports + letters open from the More tab)
 - Direct DB: same Neon fetch client (works on Hermes); URL stored in AsyncStorage
-- Share: bill as text via native `Share`; no PDF, no payment recording, no advance settle yet
+- Share: bill as **PDF** via shared `renderBillHtml` + `expo-print` (text share also available); invoice payment recording + advance settle included
 
 ## Known gaps & next steps
 
-1. **Settle advance on mobile** — core `settleAdvance` exists; needs a screen action.
-2. **Mobile bill PDF** — would need a PDF renderer (e.g. `expo-print` / react-native-html-to-pdf)
-   or keep text share.
-3. **Job-letter PDF on desktop/mobile** — web-only generator today.
+1. **Job-letter PDF on desktop/mobile** — web-only generator today.
+2. **Shared bill HTML/PDF renderer** — `renderBillHtml` (core) is used by mobile; web/desktop could
+   adopt it for a consistent print look instead of their jsPDF templates.
 
 ## How to add a feature globally
 

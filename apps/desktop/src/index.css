@@ -2,6 +2,9 @@
 @import "@munim/theme/tokens.css";
 @custom-variant dark (&:is(.dark *));
 
+/* Scan the shared UI kit so its utility classes compile in this app too */
+@source "../../../packages/ui/src";
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

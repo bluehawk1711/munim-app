@@ -3,8 +3,9 @@
 import * as React from "react"
 import { motion, useInView, useMotionValue, useSpring, useTransform } from "motion/react"
 import { cn } from "@/lib/utils"
-import { Card, CardContent } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent, Skeleton } from "@munim/ui"
+
+
 
 type StatCardProps = {
   title: string

@@ -1,3 +1,2 @@
 1. Web build working perfectly
-2. Desktop blank screen FIXED (two causes): (a) added `base: "./"` to apps/desktop/vite.config.ts — Tauri's tauri:// protocol cannot resolve absolute /assets paths (verified: built output uses ./assets/...); (b) useAsync called loader() synchronously, so a missing DB URL threw an UNCAUGHT error that blanked the whole app — now wrapped in Promise.resolve().then(loader) so pages show a graceful error state. CONFIRMED WORKING: desktop app now builds perfectly and runs (user-verified).
-3. Mobile: EAS workflow fixed (`eas init --non-interactive` without the nonexistent `--idempotent` flag). Reanimated v4 + react-native-worklets Babel plugin configured and verified. Mobile typecheck passes.
+2. Desktop working

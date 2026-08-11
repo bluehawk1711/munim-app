@@ -6,7 +6,7 @@ These rules are **mandatory**. Read them before touching any code.
 
 - **NEVER use `any`, `unknown`, `as any`, or `as unknown`** anywhere in this
   codebase. Not in apps, not in packages, not in tests, not in scripts.
-- They may be used **only** when *nothing else can possibly work* (e.g. an
+- They may be used **only** when _nothing else can possibly work_ (e.g. an
   untyped third-party boundary). In that single case you MUST:
   1. Add a `// eslint-disable-next-line` comment explaining exactly why, and
   2. Narrow the value with a runtime guard as close to the boundary as possible
@@ -59,12 +59,12 @@ These rules are **mandatory**. Read them before touching any code.
 
 Installed in `.agents/skills/`:
 
-| Skill | When to use |
-|---|---|
-| `tauri-v2` | Any Tauri desktop work (IPC, capabilities, config, plugins) |
-| `expo-dev-client`, `expo-tailwind-setup`, `expo-upgrade` | Mobile dev-build setup, styling, upgrades (apply to RN where relevant) |
-| `nextjs-app-router-patterns` | Next.js web app work (routes, caching, server/client split) |
-| `sqlite-database-expert` | DB discipline: parameterized queries, transactions, schema review (principles apply to our Postgres) |
+| Skill                                                    | When to use                                                                                          |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `tauri-v2`                                               | Any Tauri desktop work (IPC, capabilities, config, plugins)                                          |
+| `expo-dev-client`, `expo-tailwind-setup`, `expo-upgrade` | Mobile dev-build setup, styling, upgrades (apply to RN where relevant)                               |
+| `nextjs-app-router-patterns`                             | Next.js web app work (routes, caching, server/client split)                                          |
+| `sqlite-database-expert`                                 | DB discipline: parameterized queries, transactions, schema review (principles apply to our Postgres) |
 
 ## 6. Working agreements
 
@@ -76,7 +76,7 @@ Installed in `.agents/skills/`:
   finishing. Keep the whole repo typechecking clean.
 - After rebuilding `packages/core` (`tsc` in `packages/core`), consumers read
   the fresh `dist/` — rebuild core whenever its public API changes.
-- Commit messages describe the *why*, not just the *what*.
+- Commit messages describe the _why_, not just the _what_.
 - Mobile builds run through **EAS Build** (Android dev build = debug APK via
   `:app:assembleDebug`). Desktop builds run through GitHub Actions +
   `tauri-action`.

@@ -1,2 +1,2 @@
-export { buildBillDocument, renderBillText, } from "./billDocument";
+export { buildBillDocument, renderBillText, renderBillHtml, } from "./billDocument";
 //# sourceMappingURL=index.js.map

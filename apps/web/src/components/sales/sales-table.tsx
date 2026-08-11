@@ -19,15 +19,11 @@ import {
   Receipt,
   MoreHorizontal,
 } from "lucide-react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@munim/ui"
+
+
+
+
 import { EmptyState } from "@/components/app/shared"
 import { formatCurrency, formatDateTime } from "@/lib/format"
 import type { Sale } from "@/lib/types"

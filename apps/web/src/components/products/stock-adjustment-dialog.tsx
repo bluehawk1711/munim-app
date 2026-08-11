@@ -4,19 +4,13 @@ import * as React from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Plus, Minus, SlidersHorizontal } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Button, Textarea, Badge } from "@munim/ui"
+
+
+
+
+
+
 import { useAdjustStock } from "@/hooks/use-products"
 import { stockAdjustmentSchema, type StockAdjustmentValues } from "@/lib/validators"
 import type { Product } from "@/lib/types"

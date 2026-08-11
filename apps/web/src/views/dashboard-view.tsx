@@ -20,11 +20,12 @@ import { LoadingState, EmptyState } from "@/components/app/shared"
 import dynamic from "next/dynamic"
 const MonthlySalesChart = dynamic(() => import("@/components/charts").then((m) => m.MonthlySalesChart), { ssr: false })
 const StockDistributionChart = dynamic(() => import("@/components/charts").then((m) => m.StockDistributionChart), { ssr: false })
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badge, Separator, ScrollArea } from "@munim/ui"
+
+
+
+
+
 import { formatCurrency, formatNumber, formatDateTime, formatTimeAgo } from "@/lib/format"
 import { useSeedProducts } from "@/hooks/use-products"
 import { toast } from "sonner"

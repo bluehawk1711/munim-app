@@ -3,8 +3,9 @@
 import * as React from "react"
 import { motion } from "motion/react"
 import { cn } from "@/lib/utils"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, Badge } from "@munim/ui"
+
+
 import { getStockStatus, type StockStatus } from "@/lib/types"
 
 const STATUS_CONFIG: Record<

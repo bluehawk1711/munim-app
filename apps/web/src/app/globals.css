@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "@munim/theme/tokens.css";
 
+/* Scan the shared UI kit so its utility classes compile in this app too */
+@source "../../../packages/ui/src";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
