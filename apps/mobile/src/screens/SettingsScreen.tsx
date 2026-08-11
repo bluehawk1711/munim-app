@@ -1,10 +1,11 @@
 import React, {useEffect, useState} from 'react';
-import {Pressable, StyleSheet, Switch, Text, View} from 'react-native';
+import {Alert, Pressable, StyleSheet, Switch, Text, View} from 'react-native';
+import {KeyRound} from 'lucide-react-native';
 import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
-import {Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
+import {Badge, Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
 import {
   successFeedback,
   errorFeedback,
@@ -13,9 +14,16 @@ import {
   selectionTick,
 } from '../lib/haptics';
 import {useTheme} from '../theme';
+import {usePinLock} from '../lib/pin-provider';
 
 export function SettingsScreen() {
   const {mode, toggle, themeName, setThemeName} = useTheme();
+  const pin = usePinLock();
+  const [pinCurrent, setPinCurrent] = useState('');
+  const [pinNew, setPinNew] = useState('');
+  const [pinConfirm, setPinConfirm] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
   const {data: settings, reload} = useAsync(async () => getSettings(await getCore()), []);
   const [url, setUrl] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
@@ -106,6 +114,85 @@ export function SettingsScreen() {
     } finally {
       setSavingShop(false);
     }
+  }
+
+  async function handleChangePin() {
+    if (pinNew !== pinConfirm) {
+      setPinError('New PINs do not match.');
+      errorFeedback();
+      return;
+    }
+    setPinError(null);
+    setPinBusy(true);
+    const err = await pin.changePin(pinCurrent, pinNew);
+    setPinBusy(false);
+    if (err) {
+      setPinError(err);
+      errorFeedback();
+      return;
+    }
+    successFeedback();
+    setPinCurrent('');
+    setPinNew('');
+    setPinConfirm('');
+  }
+
+  async function handleDisablePin() {
+    setPinError(null);
+    setPinBusy(true);
+    const err = await pin.disable(pinCurrent);
+    setPinBusy(false);
+    if (err) {
+      setPinError(err);
+      errorFeedback();
+      return;
+    }
+    successFeedback();
+    setPinCurrent('');
+    setPinNew('');
+    setPinConfirm('');
+  }
+
+  async function handleEnablePin() {
+    if (pinNew !== pinConfirm) {
+      setPinError('PINs do not match.');
+      errorFeedback();
+      return;
+    }
+    setPinError(null);
+    setPinBusy(true);
+    const err = await pin.enable(pinNew);
+    setPinBusy(false);
+    if (err) {
+      setPinError(err);
+      errorFeedback();
+      return;
+    }
+    successFeedback();
+    setPinNew('');
+    setPinConfirm('');
+  }
+
+  function handleResetToTest() {
+    Alert.alert(
+      'Reset to test account?',
+      'This replaces your current PIN with 1234.',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: () => {
+            void pin.resetToTest().then(() => {
+              successFeedback();
+              setPinCurrent('');
+              setPinNew('');
+              setPinConfirm('');
+            });
+          },
+        },
+      ],
+    );
   }
 
   if (settings && !shopLoaded) {
@@ -218,6 +305,100 @@ export function SettingsScreen() {
             thumbColor="#ffffff"
           />
         </View>
+      </Card>
+      <Card>
+        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+          <KeyRound size={16} color={colors.primary} style={{marginRight: 6}} />
+          <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>App lock</Text>
+        </View>
+        <Text style={{fontSize: 12, color: colors.muted, lineHeight: 17, marginBottom: 10}}>
+          A 4-digit PIN unlocks this phone — stored locally (hashed), never sent to the database.
+        </Text>
+        <View style={{flexDirection: 'row', gap: 8, marginBottom: 12}}>
+          <Badge
+            text={pin.lockEnabled ? 'PIN lock enabled' : 'Lock disabled'}
+            tone={pin.lockEnabled ? 'success' : 'muted'}
+          />
+          {pin.isTestAccount ? <Badge text="Test account — PIN 1234" tone="warning" /> : null}
+        </View>
+        {pinError ? (
+          <Text style={{color: colors.danger, fontSize: 12, fontWeight: '600', marginBottom: 10}}>
+            {pinError}
+          </Text>
+        ) : null}
+        {pin.lockEnabled ? (
+          <>
+            <Field
+              label="Current PIN"
+              value={pinCurrent}
+              onChangeText={setPinCurrent}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+            />
+            <Field
+              label="New PIN"
+              value={pinNew}
+              onChangeText={setPinNew}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+            />
+            <Field
+              label="Confirm new PIN"
+              value={pinConfirm}
+              onChangeText={setPinConfirm}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+            />
+            <Button
+              title={pinBusy ? 'Saving…' : 'Change PIN'}
+              loading={pinBusy}
+              onPress={() => void handleChangePin()}
+            />
+            <View style={{flexDirection: 'row', gap: 8, marginTop: 10}}>
+              <Button
+                title="Disable lock"
+                variant="outline"
+                disabled={pinBusy}
+                onPress={() => void handleDisablePin()}
+                style={{flex: 1}}
+              />
+              <Button
+                title="Reset test"
+                variant="outline"
+                disabled={pinBusy}
+                onPress={() => handleResetToTest()}
+                style={{flex: 1}}
+              />
+            </View>
+          </>
+        ) : (
+          <>
+            <Field
+              label="New PIN"
+              value={pinNew}
+              onChangeText={setPinNew}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+            />
+            <Field
+              label="Confirm new PIN"
+              value={pinConfirm}
+              onChangeText={setPinConfirm}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={4}
+            />
+            <Button
+              title={pinBusy ? 'Saving…' : 'Enable lock'}
+              loading={pinBusy}
+              onPress={() => void handleEnablePin()}
+            />
+          </>
+        )}
       </Card>
       <Card>
         <Text style={{fontSize: 14, fontWeight: '700', marginBottom: 10, color: colors.text}}>Shop profile</Text>

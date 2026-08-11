@@ -5,7 +5,7 @@ import { motion } from "motion/react"
 import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe, Palette } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
-import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Skeleton } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Skeleton, PinSettingsCard } from "@munim/ui"
 
 
 
@@ -207,6 +207,9 @@ export function SettingsView() {
           <ThemeSwatches value={themeName} onChange={setThemeName} />
         </CardContent>
       </Card>
+
+      {/* App lock — 4-digit PIN, per-device */}
+      <PinSettingsCard />
 
       {/* Shared database */}
       <Card>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
+import { PinGate } from "@munim/ui";
 import { AppShell } from "@/components/app-shell";
 import { useCurrentPath } from "@/lib/navigation";
 import { DashboardPage } from "@/pages/dashboard";
@@ -30,19 +31,21 @@ export function App() {
   const current = useCurrentPath();
   const route = ROUTES.find((r) => r.path === current) ?? FALLBACK_ROUTE;
   return (
-    <AppShell current={route.path} title={route.title}>
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={route.path}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -8 }}
-          transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
-          className="h-full"
-        >
-          {route.element}
-        </motion.div>
-      </AnimatePresence>
-    </AppShell>
+    <PinGate>
+      <AppShell current={route.path} title={route.title}>
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={route.path}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+            className="h-full"
+          >
+            {route.element}
+          </motion.div>
+        </AnimatePresence>
+      </AppShell>
+    </PinGate>
   );
 }

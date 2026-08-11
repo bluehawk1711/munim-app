@@ -6,11 +6,7 @@ import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "sonner";
 import { ThemeSwatches, useAccentTheme } from "@/components/theme-swatches";
-import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from "@munim/ui"
-;
-;
-;
-;
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, PinSettingsCard } from "@munim/ui"
 
 export function SettingsPage() {
   const { data: settings, reload } = useAsync(() => getSettings(getCore()), []);
@@ -129,6 +125,8 @@ export function SettingsPage() {
           <ThemeSwatches value={themeName} onChange={setThemeName} />
         </CardContent>
       </Card>
+
+      <PinSettingsCard />
 
       <Card>
         <CardHeader>

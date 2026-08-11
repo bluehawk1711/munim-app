@@ -25,4 +25,6 @@ export * from "./components/table.js";
 export * from "./components/tabs.js";
 export * from "./components/textarea.js";
 export * from "./components/theme-swatches.js";
+export * from "./components/pin-gate.js";
+export * from "./components/pin-settings-card.js";
 //# sourceMappingURL=index.js.map

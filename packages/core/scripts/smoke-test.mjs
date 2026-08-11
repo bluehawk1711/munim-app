@@ -334,6 +334,29 @@ async function run() {
         d.weeklyOff1 === "Sunday";
       return ok ? "sparse row + settings merged" : "MERGE FAILED";
     });
+    await test("sha256Hex known vector", () => {
+      const hex = core.sha256Hex("abc");
+      return hex === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" ? "correct" : `WRONG ${hex}`;
+    });
+    await test("hashPin + verifyPin roundtrip", () => {
+      const hash = core.hashPin("2468");
+      const ok = core.isPinHash(hash) && core.verifyPin("2468", hash) && !core.verifyPin("2469", hash);
+      return ok ? "verified + rejected wrong digit" : "ROUNDTRIP FAILED";
+    });
+    await test("test account", () => {
+      const hash = core.hashPin(core.TEST_PIN);
+      const ok = core.TEST_PIN === "1234" && core.isTestPinHash(hash) && !core.isTestPinHash(core.hashPin("9999"));
+      return ok ? `PIN 1234 recognized` : "TEST ACCOUNT FAILED";
+    });
+    await test("pin validators", () => {
+      const ok =
+        core.isFourDigitPin("0000") &&
+        !core.isFourDigitPin("123") &&
+        !core.isFourDigitPin("12a4") &&
+        !core.isPinHash("nope") &&
+        !core.verifyPin("1234", "not-a-hash");
+      return ok ? "4-digit + hash shape enforced" : "VALIDATOR FAILED";
+    });
   } finally {
     // ── cleanup (always runs, even if a check throws) ──
     console.log("── cleanup ──");

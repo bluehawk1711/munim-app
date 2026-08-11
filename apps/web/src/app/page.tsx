@@ -1,5 +1,10 @@
 import { AppShell } from "@/components/app/app-shell";
+import { PinGate } from "@munim/ui";
 
 export default function Home() {
-  return <AppShell />;
+  return (
+    <PinGate>
+      <AppShell />
+    </PinGate>
+  );
 }

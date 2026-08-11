@@ -106,6 +106,7 @@ plain drizzle output.
 | 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row |
 | 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings |
 | 18 | Multiple color themes (Apple Gold / Ocean Blue / Forest Green / Rose Blush / Midnight Indigo) | ✅ | ✅ | ✅ | 5 curated themes in `@munim/theme` (`themes` + `[data-theme]` CSS blocks); pickers in Settings (all platforms) + topbar palette dropdown (web/desktop); light/dark applies to every theme. **The chosen theme syncs across all three apps via the shared `settings.theme` column** — each app writes the pick to Neon and pulls it on startup (the untouched default never clobbers a local preference on first load) |
+| 19 | App lock — 4-digit PIN login screen (test account 1234 pre-created) | ✅ | ✅ | ✅ | Per-device lock, no DB: web/desktop gate in `@munim/ui` (PinGate + PinSettingsCard, localStorage `munim.pin`); mobile `PinLockScreen` + Settings card (AsyncStorage). Hashing/verify live in `@munim/core` `security/pin.ts` (pure-TS SHA-256, works on Hermes). First launch auto-creates the **test account (PIN 1234)**; Settings can change/disable the PIN or reset to the test account; lock screen has a "Forgot PIN?" recovery that resets to 1234 |
 
 ## Platform detail
 

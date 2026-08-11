@@ -18,6 +18,7 @@ export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 /* Billing — shared bill/invoice generation (all 3 apps) */
 export * from "./billing";
+export * from "./security";
 
 /* Utils */
 export { numberToWords, amountInWords } from "./utils/numberToWords";

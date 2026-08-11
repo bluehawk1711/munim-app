@@ -211,10 +211,21 @@ type FieldProps = {
   onChangeText: (text: string) => void;
   placeholder?: string;
   keyboardType?: KeyboardTypeOptions;
+  secureTextEntry?: boolean;
+  maxLength?: number;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Field({label, value, onChangeText, placeholder, keyboardType, style}: FieldProps) {
+export function Field({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  secureTextEntry,
+  maxLength,
+  style,
+}: FieldProps) {
   const styles = useThemeStyles(makeStyles);
   return (
     <View style={[styles.field, style]}>
@@ -224,6 +235,8 @@ export function Field({label, value, onChangeText, placeholder, keyboardType, st
         onChangeText={onChangeText}
         placeholder={placeholder}
         keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
+        maxLength={maxLength}
         style={styles.input}
         placeholderTextColor={colors.inputPlaceholder}
         autoCapitalize="none"

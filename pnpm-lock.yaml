@@ -414,6 +414,9 @@ importers:
 
   packages/ui:
     dependencies:
+      '@munim/core':
+        specifier: workspace:*
+        version: link:../core
       '@munim/theme':
         specifier: workspace:*
         version: link:../theme

@@ -31,6 +31,7 @@ import {
 } from 'lucide-react-native';
 import {colors, SafeScreen} from './src/components/ui';
 import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
+import {PinProvider} from './src/lib/pin-provider';
 import {loadHapticsEnabled, selectionTick} from './src/lib/haptics';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
@@ -170,7 +171,9 @@ function AppInner() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppInner />
+      <PinProvider>
+        <AppInner />
+      </PinProvider>
     </ThemeProvider>
   );
 }
