@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Database, Save, CheckCircle2, XCircle, RotateCcw } from "lucide-react";
+import { Database, Save, CheckCircle2, XCircle, RotateCcw, Palette } from "lucide-react";
 import { createDb, getSettings, pingDatabase, updateSettings } from "@munim/core";
 import { getCore, resetCore } from "@/lib/core";
 import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "sonner";
+import { ThemeSwatches, useAccentTheme } from "@/components/theme-swatches";
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from "@munim/ui"
 ;
 ;
@@ -13,6 +14,7 @@ import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle } from "
 
 export function SettingsPage() {
   const { data: settings, reload } = useAsync(() => getSettings(getCore()), []);
+  const { themeName, setThemeName } = useAccentTheme();
 
   const [shopName, setShopName] = useState("");
   const [shopAddress, setShopAddress] = useState("");
@@ -114,6 +116,17 @@ export function SettingsPage() {
           <Button onClick={handleSaveShop}>
             <Save className="h-4 w-4" /> Save shop profile
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Palette className="h-4 w-4" /> Appearance
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ThemeSwatches value={themeName} onChange={setThemeName} />
         </CardContent>
       </Card>
 

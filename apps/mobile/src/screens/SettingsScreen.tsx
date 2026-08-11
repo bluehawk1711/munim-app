@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
-import {Switch, Text, View} from 'react-native';
+import {Pressable, StyleSheet, Switch, Text, View} from 'react-native';
 import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
+import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
@@ -9,11 +10,12 @@ import {
   errorFeedback,
   isHapticsEnabled,
   setHapticsEnabled,
+  selectionTick,
 } from '../lib/haptics';
 import {useTheme} from '../theme';
 
 export function SettingsScreen() {
-  const {mode, toggle} = useTheme();
+  const {mode, toggle, themeName, setThemeName} = useTheme();
   const {data: settings, reload} = useAsync(async () => getSettings(await getCore()), []);
   const [url, setUrl] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
@@ -151,6 +153,49 @@ export function SettingsScreen() {
         </View>
       </Card>
       <Card>
+        <Text style={{fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 2}}>
+          Color theme
+        </Text>
+        <Text style={{fontSize: 12, color: colors.muted, marginBottom: 12}}>
+          Each theme adapts to light &amp; dark mode
+        </Text>
+        <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10}}>
+          {themeNames.map(name => {
+            const [primary, accent] = themeSwatches[name];
+            const active = themeName === name;
+            const checkColor = themes[name][mode].primaryForeground;
+            return (
+              <Pressable
+                key={name}
+                accessibilityRole="button"
+                accessibilityLabel={`${themeLabels[name]} theme`}
+                onPress={() => {
+                  selectionTick();
+                  setThemeName(name);
+                }}
+                style={({pressed}) => [
+                  styles.swatchOption,
+                  {borderColor: colors.border},
+                  active && {borderColor: colors.primary, borderWidth: 2},
+                  pressed && {opacity: 0.7, transform: [{scale: 0.94}]},
+                ]}>
+                <View
+                  style={[
+                    styles.swatch,
+                    {backgroundColor: primary, borderColor: accent},
+                    active && styles.swatchActive,
+                  ]}>
+                  {active ? <Text style={[styles.swatchCheck, {color: checkColor}]}>✓</Text> : null}
+                </View>
+                <Text style={[styles.swatchLabel, {color: active ? colors.text : colors.muted}, active && {fontWeight: '700'}]}>
+                  {themeLabels[name]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Card>
+      <Card>
         <View
           style={{
             flexDirection: 'row',
@@ -187,3 +232,29 @@ export function SettingsScreen() {
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  swatchOption: {
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    width: '30%',
+    maxWidth: 104,
+  },
+  swatch: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  swatchActive: {
+    transform: [{scale: 1.08}],
+  },
+  swatchCheck: {fontSize: 15, fontWeight: '800'},
+  swatchLabel: {fontSize: 10, fontWeight: '600'},
+});

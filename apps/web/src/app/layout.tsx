@@ -38,6 +38,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Apply the stored color theme before first paint so a returning
+            user never sees a flash of the default (apple) theme. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("munim.theme");if(t&&["apple","ocean","forest","rose","midnight"].indexOf(t)>-1){document.documentElement.setAttribute("data-theme",t)}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

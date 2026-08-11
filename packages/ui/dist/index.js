@@ -24,4 +24,5 @@ export * from "./components/sonner.js";
 export * from "./components/table.js";
 export * from "./components/tabs.js";
 export * from "./components/textarea.js";
+export * from "./components/theme-swatches.js";
 //# sourceMappingURL=index.js.map

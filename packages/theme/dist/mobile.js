@@ -3,13 +3,15 @@
  *
  * RN cannot consume CSS variables, so this maps the theme tokens (light AND
  * dark — the same values web/desktop use) onto the `colors` object shape used
- * across the app's screens. Change a token in tokens.ts and the mobile app
- * updates too.
+ * across the app's screens. `mobileColorsFor(mode, themeName)` returns the
+ * palette for a theme (default "apple"); change a token in tokens.ts and the
+ * mobile app updates too.
  */
-import { theme } from "./tokens.js";
-/** Maps the shared tokens for a given mode onto the mobile palette. */
-export function mobileColorsFor(mode) {
-    const t = theme[mode];
+import { themes } from "./tokens.js";
+/** Maps the shared tokens for a given mode + theme onto the mobile palette. */
+export function mobileColorsFor(mode, themeName = "apple") {
+    const t = themes[themeName]?.[mode] ?? themes.apple[mode];
+    const softIsDark = mode === "dark";
     return {
         bg: t.background,
         card: t.card,
@@ -25,13 +27,13 @@ export function mobileColorsFor(mode) {
         danger: t.destructive,
         warning: t.warning,
         // Dark tints are low-luminance versions of the status hues.
-        successSoft: mode === "dark" ? "#0f3327" : "#d1fae5",
-        warningSoft: mode === "dark" ? "#3a2d11" : "#fef3c7",
-        dangerSoft: mode === "dark" ? "#401418" : "#fee2e2",
+        successSoft: softIsDark ? "#0f3327" : "#d1fae5",
+        warningSoft: softIsDark ? "#3a2d11" : "#fef3c7",
+        dangerSoft: softIsDark ? "#401418" : "#fee2e2",
         mutedSoft: t.border,
-        inputPlaceholder: mode === "dark" ? "#6f6d68" : "#9aa1ac",
+        inputPlaceholder: softIsDark ? "#6f6d68" : "#9aa1ac",
     };
 }
-/** Light palette — kept for back-compat; use `mobileColorsFor(mode)` for theming. */
-export const mobileColors = mobileColorsFor("light");
+/** Light palette — kept for back-compat; use `mobileColorsFor(mode, theme)` for theming. */
+export const mobileColors = mobileColorsFor("light", "apple");
 //# sourceMappingURL=mobile.js.map

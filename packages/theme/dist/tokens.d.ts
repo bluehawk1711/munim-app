@@ -3,12 +3,14 @@
  *
  * Edit this file, then run `pnpm --filter @munim/theme build` and every app
  * picks up the change:
- *   - web + desktop  consume `dist/tokens.css` (CSS custom properties)
- *   - mobile         consumes `mobileColors` (React Native can't read CSS vars,
- *                    and its color parser rejects oklch — so values are hex)
+ *   - web + desktop  consume `dist/tokens.css` (CSS custom properties, one
+ *                    `[data-theme="…"]` block per theme)
+ *   - mobile         consumes `mobileColorsFor(mode, themeName)`
  *
- * Values below are the Apple-neutral warm-silver/gold palette, converted from
- * the original oklch() definitions to hex so all three platforms can use them.
+ * Five themes ship out of the box. "apple" is the default (warm silver/gold);
+ * the others are curated alternatives (cool ocean blues, forest greens,
+ * rose pinks, midnight indigo). All values are hex so every platform can use
+ * them — the mobile color parser rejects oklch.
  */
 export declare const radius = "0.75rem";
 export interface ThemeTokens {
@@ -54,5 +56,12 @@ export interface Theme {
     light: ThemeTokens;
     dark: ThemeTokens;
 }
+export type ThemeName = "apple" | "ocean" | "forest" | "rose" | "midnight";
+export declare const themeNames: ThemeName[];
+export declare const themeLabels: Record<ThemeName, string>;
+/** Two-tone swatch used by the theme pickers (primary + accent). */
+export declare const themeSwatches: Record<ThemeName, [string, string]>;
+/** Back-compat alias — the default theme. */
 export declare const theme: Theme;
+export declare const themes: Record<ThemeName, Theme>;
 //# sourceMappingURL=tokens.d.ts.map

@@ -3,10 +3,11 @@
  *
  * RN cannot consume CSS variables, so this maps the theme tokens (light AND
  * dark — the same values web/desktop use) onto the `colors` object shape used
- * across the app's screens. Change a token in tokens.ts and the mobile app
- * updates too.
+ * across the app's screens. `mobileColorsFor(mode, themeName)` returns the
+ * palette for a theme (default "apple"); change a token in tokens.ts and the
+ * mobile app updates too.
  */
-import { type ThemeMode } from "./tokens.js";
+import { type ThemeMode, type ThemeName } from "./tokens.js";
 export interface MobileColors {
     bg: string;
     card: string;
@@ -31,8 +32,8 @@ export interface MobileColors {
     mutedSoft: string;
     inputPlaceholder: string;
 }
-/** Maps the shared tokens for a given mode onto the mobile palette. */
-export declare function mobileColorsFor(mode: ThemeMode): MobileColors;
-/** Light palette — kept for back-compat; use `mobileColorsFor(mode)` for theming. */
+/** Maps the shared tokens for a given mode + theme onto the mobile palette. */
+export declare function mobileColorsFor(mode: ThemeMode, themeName?: ThemeName): MobileColors;
+/** Light palette — kept for back-compat; use `mobileColorsFor(mode, theme)` for theming. */
 export declare const mobileColors: MobileColors;
 //# sourceMappingURL=mobile.d.ts.map

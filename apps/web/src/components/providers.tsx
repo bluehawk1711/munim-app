@@ -3,6 +3,7 @@
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { AccentThemeProvider } from "@/components/app/theme-picker"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(
@@ -25,7 +26,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <AccentThemeProvider>
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      </AccentThemeProvider>
     </NextThemesProvider>
   )
 }

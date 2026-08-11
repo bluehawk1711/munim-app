@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { motion } from "motion/react"
-import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe } from "lucide-react"
+import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe, Palette } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
 import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Skeleton } from "@munim/ui"
@@ -13,6 +13,7 @@ import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, C
 
 
 import { toast } from "sonner"
+import { ThemeSwatches, useAccentThemeContext } from "@/components/app/theme-picker"
 
 type ShopSettings = {
   shopName: string
@@ -34,6 +35,7 @@ function useShopSettings() {
 export function SettingsView() {
   const queryClient = useQueryClient()
   const { data: settings, isLoading } = useShopSettings()
+  const { themeName, setThemeName } = useAccentThemeContext()
 
   const [shopName, setShopName] = React.useState("")
   const [shopAddress, setShopAddress] = React.useState("")
@@ -188,6 +190,21 @@ export function SettingsView() {
               </Button>
             </>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Appearance — accent theme (works with light & dark mode) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Palette className="h-4 w-4" /> Appearance
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Pick a color theme — each adapts to both light and dark mode.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ThemeSwatches value={themeName} onChange={setThemeName} />
         </CardContent>
       </Card>
 
