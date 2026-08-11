@@ -13,6 +13,12 @@
       "skillPath": "skills/apple-design/SKILL.md",
       "computedHash": "0d19303902efa64eace10e6b183eb29ef3220d424c1a7fd1eafc52adde216932"
     },
+    "browser-act": {
+      "source": "browser-act/skills",
+      "sourceType": "github",
+      "skillPath": "browser-act/SKILL.md",
+      "computedHash": "3e3edc42bc0c7328ea3ecb91b16561f87c917e823de5a86a91fc1cfbf342d43d"
+    },
     "design-system": {
       "source": "nextlevelbuilder/ui-ux-pro-max-skill",
       "sourceType": "github",
