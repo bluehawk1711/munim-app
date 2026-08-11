@@ -65,8 +65,54 @@ Installed in `.agents/skills/`:
 | `expo-dev-client`, `expo-tailwind-setup`, `expo-upgrade` | Mobile dev-build setup, styling, upgrades (apply to RN where relevant)                               |
 | `nextjs-app-router-patterns`                             | Next.js web app work (routes, caching, server/client split)                                          |
 | `sqlite-database-expert`                                 | DB discipline: parameterized queries, transactions, schema review (principles apply to our Postgres) |
+| `browser-act`                                            | Verifying web UI in a real browser — click-through flows, dialogs, layout/rendering, console errors. ALWAYS use this skill for web UI testing (never guess from code alone). |
 
-## 6. Working agreements
+## 6. Browser testing (web UI) — use `browser-act`
+
+Whenever the web app needs verification (a button that "doesn't work", dialog
+layout, a flow, console errors), test it in a real browser with the
+[`browser-act`](.agents/skills/browser-act/SKILL.md) skill — its Python CLI is
+installed. Do not guess from code; get evidence.
+
+Workflow (session name is yours — create it, close it when done, never touch
+another conversation's session):
+
+```bash
+# 1. Ensure the dev server is running
+cd apps/web && npx next dev -p 3333
+
+# 2. Pick a browser, then open a session on it
+browser-act browser list
+browser-act --session <name> browser open <browser_id> http://localhost:3333/
+
+# 3. The PIN gate may appear (fresh profile → test account 1234):
+browser-act --session <name> state          # read indices, e.g. [1]=1, [2]=2, [3]=3, [4]=4
+browser-act --session <name> click 1 && browser-act --session <name> click 2 \
+  && browser-act --session <name> click 3 && browser-act --session <name> click 4
+
+# 4. Interact — indices are snapshots: re-run `state` after ANY navigation/click
+browser-act --session <name> state
+browser-act --session <name> click <index>
+browser-act --session <name> wait stable
+browser-act --session <name> state          # fresh indices after the page changed
+
+# 5. Verify & extract
+browser-act --session <name> get markdown
+browser-act --session <name> eval "document.querySelectorAll('[role=dialog]').length"
+
+# 6. Clean up
+browser-act session close <name>
+```
+
+Rules:
+- Element indices from `state` are only valid for that snapshot. After any
+  navigation, click, or re-render, run `state` again — never reuse old indices.
+- When the target isn't visible or multiple candidates match, inspect further
+  before acting; don't guess an index.
+- Fallback if `browser-act` is unavailable: Playwright Python CLI
+  (`playwright`, v1.58) is installed on this machine.
+
+## 7. Working agreements
 
 - Migrations are generated with `drizzle-kit generate` **from** `packages/core`
   and committed; never hand-edit migration SQL unless a comment explains why.
