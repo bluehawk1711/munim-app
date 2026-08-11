@@ -2,8 +2,11 @@
 @import "tw-animate-css";
 @import "@munim/theme/tokens.css";
 
-/* Scan the shared UI kit so its utility classes compile in this app too */
-@source "../../../packages/ui/src";
+/* Scan the shared UI kit so its utility classes compile in this app too.
+   Path is relative to THIS file (apps/web/src/app/) — four levels up to the
+   repo root. A shallower path silently skips the scan and the shared dialog /
+   sheet / dropdown classes (fixed, top-[50%], z-50, …) never get generated. */
+@source "../../../../packages/ui/src";
 
 @custom-variant dark (&:is(.dark *));
 
