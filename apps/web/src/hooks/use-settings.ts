@@ -13,6 +13,7 @@ export type ShopSettings = {
   currency: string
   defaultTemplate: Record<string, unknown>
   theme: string
+  mode: string
   updatedAt: string
 }
 

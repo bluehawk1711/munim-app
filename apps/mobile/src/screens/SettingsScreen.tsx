@@ -24,6 +24,9 @@ export function SettingsScreen() {
   const [pinConfirm, setPinConfirm] = useState('');
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
   const {data: settings, reload} = useAsync(async () => getSettings(await getCore()), []);
   const [url, setUrl] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
@@ -116,6 +119,27 @@ export function SettingsScreen() {
     }
   }
 
+  async function handleChangePassword() {
+    if (pwNew !== pwConfirm) {
+      setPinError('New passwords do not match.');
+      errorFeedback();
+      return;
+    }
+    setPinError(null);
+    setPinBusy(true);
+    const err = await pin.changePassword(pwCurrent, pwNew);
+    setPinBusy(false);
+    if (err) {
+      setPinError(err);
+      errorFeedback();
+      return;
+    }
+    successFeedback();
+    setPwCurrent('');
+    setPwNew('');
+    setPwConfirm('');
+  }
+
   async function handleChangePin() {
     if (pinNew !== pinConfirm) {
       setPinError('New PINs do not match.');
@@ -176,7 +200,7 @@ export function SettingsScreen() {
   function handleResetToTest() {
     Alert.alert(
       'Reset to test account?',
-      'This replaces your current PIN with 1234.',
+      'This replaces your credentials with test@munim.app / 1234 / PIN 1234.',
       [
         {text: 'Cancel', style: 'cancel'},
         {
@@ -188,11 +212,29 @@ export function SettingsScreen() {
               setPinCurrent('');
               setPinNew('');
               setPinConfirm('');
+              setPwCurrent('');
+              setPwNew('');
+              setPwConfirm('');
             });
           },
         },
       ],
     );
+  }
+
+  function handleLogOut() {
+    Alert.alert('Lock the app now?', 'You\'ll need your email, password and PIN to unlock.', [
+      {text: 'Cancel', style: 'cancel'},
+      {
+        text: 'Lock now',
+        style: 'destructive',
+        onPress: () => {
+          void pin.lockNow().then(() => {
+            successFeedback();
+          });
+        },
+      },
+    ]);
   }
 
   if (settings && !shopLoaded) {
@@ -312,14 +354,16 @@ export function SettingsScreen() {
           <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>App lock</Text>
         </View>
         <Text style={{fontSize: 12, color: colors.muted, lineHeight: 17, marginBottom: 10}}>
-          A 4-digit PIN unlocks this phone — stored locally (hashed), never sent to the database.
+          Sign in with your email + password, then a 4-digit PIN — stored locally (hashed), never
+          sent to the database. Your session is remembered on this device.
         </Text>
         <View style={{flexDirection: 'row', gap: 8, marginBottom: 12}}>
           <Badge
             text={pin.lockEnabled ? 'PIN lock enabled' : 'Lock disabled'}
             tone={pin.lockEnabled ? 'success' : 'muted'}
           />
-          {pin.isTestAccount ? <Badge text="Test account — PIN 1234" tone="warning" /> : null}
+          {pin.accountEmail ? <Badge text={pin.accountEmail} tone="muted" /> : null}
+          {pin.isTestAccount ? <Badge text="Test account — 1234" tone="warning" /> : null}
         </View>
         {pinError ? (
           <Text style={{color: colors.danger, fontSize: 12, fontWeight: '600', marginBottom: 10}}>
@@ -328,6 +372,36 @@ export function SettingsScreen() {
         ) : null}
         {pin.lockEnabled ? (
           <>
+            <Text style={{fontSize: 13, fontWeight: '700', color: colors.text, marginBottom: 4}}>
+              Change password
+            </Text>
+            <Field
+              label="Current password"
+              value={pwCurrent}
+              onChangeText={setPwCurrent}
+              secureTextEntry
+            />
+            <Field
+              label="New password"
+              value={pwNew}
+              onChangeText={setPwNew}
+              secureTextEntry
+            />
+            <Field
+              label="Confirm new password"
+              value={pwConfirm}
+              onChangeText={setPwConfirm}
+              secureTextEntry
+            />
+            <Button
+              title={pinBusy ? 'Saving…' : 'Change password'}
+              variant="outline"
+              loading={pinBusy}
+              onPress={() => void handleChangePassword()}
+            />
+            <Text style={{fontSize: 13, fontWeight: '700', color: colors.text, marginTop: 14, marginBottom: 4}}>
+              Change PIN
+            </Text>
             <Field
               label="Current PIN"
               value={pinCurrent}
@@ -366,7 +440,16 @@ export function SettingsScreen() {
                 style={{flex: 1}}
               />
               <Button
-                title="Reset test"
+                title="Log out"
+                variant="outline"
+                disabled={pinBusy}
+                onPress={() => handleLogOut()}
+                style={{flex: 1}}
+              />
+            </View>
+            <View style={{flexDirection: 'row', marginTop: 8}}>
+              <Button
+                title="Reset test account"
                 variant="outline"
                 disabled={pinBusy}
                 onPress={() => handleResetToTest()}

@@ -19,10 +19,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   )
 
+  // mode === null ("follow system") is the untouched default, so first paint
+  // must match the OS preference — defaultTheme="system" lets the next-themes
+  // inline script resolve it pre-hydration (no light flash on dark machines).
+  // An explicit stored mode is applied on mount by useAccentTheme.
   return (
     <NextThemesProvider
       attribute="class"
-      defaultTheme="light"
+      defaultTheme="system"
       enableSystem
       disableTransitionOnChange
     >

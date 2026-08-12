@@ -1,34 +1,48 @@
 "use client"
 
 /**
- * PIN lock gate — shared by the web and desktop apps so both lock screens are
- * pixel-identical.
+ * Login + PIN lock gate — shared by the web and desktop apps so both lock
+ * screens are pixel-identical.
  *
- * Storage is a single localStorage key (`munim.pin`):
- *   - absent          → first launch → the TEST account (PIN 1234) is
- *                       pre-created and the app is locked with it
- *   - "0"             → lock disabled (gate skips straight to children)
- *   - 64-char hash    → lock enabled; the stored value is SHA-256(salt + pin)
+ * Storage (per-device, never the shared database):
+ *   - `munim.pin`      localStorage  — PIN hash; absent = first launch,
+ *                                       "0" = lock disabled, else a 64-char hash
+ *   - `munim.email`    localStorage  — normalized (lowercased) account email
+ *   - `munim.password` localStorage  — hashed account password
+ *   - `munim.session`  cookie        — "1" while this device is unlocked, so a
+ *                                       refresh/navigation doesn't re-prompt
  *
- * The lock is per-device by design (like a banking-app lock): it never touches
- * the shared database, works offline, and each device keeps its own PIN.
- * `PinLockContext` lets Settings cards (inside the gate) change/disable/reset
- * the lock with live status.
+ * The login is two steps: email + password FIRST, then the 4-digit PIN. After
+ * a successful full login a session cookie is set (30 days), so users don't
+ * have to log in again on every refresh. "Log out / Lock now" in Settings
+ * clears the session and locks the app immediately.
  */
 import * as React from "react";
-import { Delete, Lock } from "lucide-react";
+import { Delete, Lock, Mail } from "lucide-react";
 import {
+  TEST_EMAIL,
+  TEST_PASSWORD,
   TEST_PIN,
+  hashPassword,
   hashPin,
+  isEmail,
   isFourDigitPin,
+  isPassword,
   isPinHash,
+  isTestPasswordHash,
   isTestPinHash,
+  verifyEmail,
+  verifyPassword,
   verifyPin,
 } from "@munim/core";
 import { cn } from "../lib/utils";
 
-const STORAGE_KEY = "munim.pin";
+const PIN_KEY = "munim.pin";
+const EMAIL_KEY = "munim.email";
+const PASSWORD_KEY = "munim.password";
+const SESSION_COOKIE = "munim.session";
 const DISABLED = "0";
+const SESSION_MAX_AGE_DAYS = 30;
 
 type PinStatus = "loading" | "locked" | "unlocked";
 
@@ -40,8 +54,15 @@ export type PinLockValue = {
   lockEnabled: boolean;
   /** True when the stored hash belongs to the pre-created test account. */
   isTestAccount: boolean;
-  /** Attempt an unlock. Returns true on success. */
+  /** Normalized account email (for display in Settings). */
+  accountEmail: string;
+  /** Verify the email + password step. Returns true on success. */
+  verifyCredentials: (email: string, password: string) => boolean;
+  /** Attempt the PIN step (after credentials pass). Returns true on success
+   *  and persists the unlocked session. */
   unlock: (pin: string) => boolean;
+  /** Change the account password. Returns an error message, or null. */
+  changePassword: (current: string, next: string) => string | null;
   /** Change the PIN. Returns an error message, or null on success. */
   changePin: (current: string, next: string) => string | null;
   /** Turn the lock off (requires the current PIN). Returns error or null. */
@@ -50,6 +71,8 @@ export type PinLockValue = {
   enable: (next: string) => string | null;
   /** Reset to the test account (1234) — the documented recovery path. */
   resetToTest: () => void;
+  /** Clear the session and lock the app now (Settings → Log out). */
+  lockNow: () => void;
 };
 
 const PinLockContext = React.createContext<PinLockValue | null>(null);
@@ -61,36 +84,75 @@ export function usePinLockContext(): PinLockValue {
   return ctx;
 }
 
-function readStoredPin(): string | null {
+/* ────────────────────────────────────────────────────────────────
+ * Storage helpers (localStorage + session cookie)
+ * ──────────────────────────────────────────────────────────────── */
+
+function readLocal(key: string): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(STORAGE_KEY);
+    return window.localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function writeStoredPin(value: string): void {
+function writeLocal(key: string, value: string): void {
   try {
-    window.localStorage.setItem(STORAGE_KEY, value);
+    window.localStorage.setItem(key, value);
   } catch {
     // Storage unavailable — the lock still works for this session.
   }
 }
 
+function readSession(): boolean {
+  if (typeof document === "undefined") return false;
+  try {
+    return document.cookie.split("; ").some((c) => c.startsWith(`${SESSION_COOKIE}=1`));
+  } catch {
+    return false;
+  }
+}
+
+function writeSession(active: boolean): void {
+  if (typeof document === "undefined") return;
+  try {
+    if (active) {
+      const maxAge = SESSION_MAX_AGE_DAYS * 24 * 60 * 60;
+      document.cookie = `${SESSION_COOKIE}=1; path=/; max-age=${maxAge}; samesite=lax`;
+    } else {
+      document.cookie = `${SESSION_COOKIE}=; path=/; max-age=0`;
+    }
+  } catch {
+    // Cookie unavailable — the lock still works for this session.
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────
+ * Lock state hook
+ * ──────────────────────────────────────────────────────────────── */
+
 function usePinLock(): PinLockValue {
   const [status, setStatus] = React.useState<PinStatus>("loading");
   const [lockEnabled, setLockEnabled] = React.useState(false);
   const [isTestAccount, setIsTestAccount] = React.useState(false);
+  const [accountEmail, setAccountEmail] = React.useState(TEST_EMAIL);
+
+  const seedTestCredentials = React.useCallback(() => {
+    writeLocal(EMAIL_KEY, TEST_EMAIL);
+    writeLocal(PASSWORD_KEY, hashPassword(TEST_PASSWORD));
+    setAccountEmail(TEST_EMAIL);
+    setIsTestAccount(true);
+  }, []);
 
   // Initialize once on mount (client only — SSR keeps "loading").
   React.useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = readStoredPin();
+    const stored = readLocal(PIN_KEY);
     if (stored === null) {
       // First launch → pre-create the test account.
-      writeStoredPin(hashPin(TEST_PIN));
-      setIsTestAccount(true);
+      writeLocal(PIN_KEY, hashPin(TEST_PIN));
+      seedTestCredentials();
       setLockEnabled(true);
       setStatus("locked");
       return;
@@ -103,42 +165,71 @@ function usePinLock(): PinLockValue {
     if (isPinHash(stored)) {
       setIsTestAccount(isTestPinHash(stored));
       setLockEnabled(true);
-      setStatus("locked");
+      // Back-compat: a device with a PIN but no email/password keys gets the
+      // test-account credentials seeded (its own PIN is preserved).
+      if (readLocal(EMAIL_KEY) === null) {
+        seedTestCredentials();
+      } else {
+        setAccountEmail(readLocal(EMAIL_KEY) ?? TEST_EMAIL);
+        setIsTestAccount(isTestPinHash(stored) && isTestPasswordHash(readLocal(PASSWORD_KEY) ?? ""));
+      }
+      // Session cookie → already unlocked on this device.
+      setStatus(readSession() ? "unlocked" : "locked");
       return;
     }
     // Corrupt value → recreate the test account.
-    writeStoredPin(hashPin(TEST_PIN));
-    setIsTestAccount(true);
+    writeLocal(PIN_KEY, hashPin(TEST_PIN));
+    seedTestCredentials();
     setLockEnabled(true);
     setStatus("locked");
+  }, [seedTestCredentials]);
+
+  const verifyCredentials = React.useCallback((email: string, password: string): boolean => {
+    const storedEmail = readLocal(EMAIL_KEY);
+    const storedPw = readLocal(PASSWORD_KEY);
+    if (storedEmail === null || storedPw === null || !isPasswordHash(storedPw)) return false;
+    return verifyEmail(email, storedEmail) && verifyPassword(password, storedPw);
   }, []);
 
   const unlock = React.useCallback((pin: string): boolean => {
-    const stored = readStoredPin();
+    const stored = readLocal(PIN_KEY);
     if (stored !== null && stored !== DISABLED && isPinHash(stored) && verifyPin(pin, stored)) {
+      writeSession(true);
       setStatus("unlocked");
       return true;
     }
     return false;
   }, []);
 
+  const changePassword = React.useCallback((current: string, next: string): string | null => {
+    if (!isPassword(next)) return "Password must be at least 4 characters.";
+    const storedPw = readLocal(PASSWORD_KEY);
+    if (storedPw === null || !isPasswordHash(storedPw) || !verifyPassword(current, storedPw)) {
+      return "Current password is incorrect.";
+    }
+    writeLocal(PASSWORD_KEY, hashPassword(next));
+    setIsTestAccount(false);
+    return null;
+  }, []);
+
   const changePin = React.useCallback((current: string, next: string): string | null => {
     if (!isFourDigitPin(next)) return "New PIN must be exactly 4 digits.";
-    const stored = readStoredPin();
+    const stored = readLocal(PIN_KEY);
     if (stored === null || stored === DISABLED || !isPinHash(stored) || !verifyPin(current, stored)) {
       return "Current PIN is incorrect.";
     }
-    writeStoredPin(hashPin(next));
+    writeLocal(PIN_KEY, hashPin(next));
     setIsTestAccount(false);
     return null;
   }, []);
 
   const disable = React.useCallback((current: string): string | null => {
-    const stored = readStoredPin();
+    const stored = readLocal(PIN_KEY);
     if (stored === null || stored === DISABLED || !isPinHash(stored) || !verifyPin(current, stored)) {
       return "Current PIN is incorrect.";
     }
-    writeStoredPin(DISABLED);
+    writeLocal(PIN_KEY, DISABLED);
+    writeSession(false);
     setLockEnabled(false);
     setStatus("unlocked");
     return null;
@@ -146,27 +237,50 @@ function usePinLock(): PinLockValue {
 
   const enable = React.useCallback((next: string): string | null => {
     if (!isFourDigitPin(next)) return "PIN must be exactly 4 digits.";
-    writeStoredPin(hashPin(next));
+    writeLocal(PIN_KEY, hashPin(next));
     setIsTestAccount(false);
     setLockEnabled(true);
     return null;
   }, []);
 
   const resetToTest = React.useCallback(() => {
-    writeStoredPin(hashPin(TEST_PIN));
-    setIsTestAccount(true);
+    writeLocal(PIN_KEY, hashPin(TEST_PIN));
+    seedTestCredentials();
     setLockEnabled(true);
     setStatus("unlocked");
+  }, [seedTestCredentials]);
+
+  const lockNow = React.useCallback(() => {
+    writeSession(false);
+    setStatus("locked");
   }, []);
 
   return React.useMemo(
-    () => ({ status, lockEnabled, isTestAccount, unlock, changePin, disable, enable, resetToTest }),
-    [status, lockEnabled, isTestAccount, unlock, changePin, disable, enable, resetToTest],
+    () => ({
+      status,
+      lockEnabled,
+      isTestAccount,
+      accountEmail,
+      verifyCredentials,
+      unlock,
+      changePassword,
+      changePin,
+      disable,
+      enable,
+      resetToTest,
+      lockNow,
+    }),
+    [status, lockEnabled, isTestAccount, accountEmail, verifyCredentials, unlock, changePassword, changePin, disable, enable, resetToTest, lockNow],
   );
 }
 
+// Local alias so the password-hash shape check reads naturally.
+function isPasswordHash(value: string | null | undefined): value is string {
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
+}
+
 /* ────────────────────────────────────────────────────────────────
- * Lock screen
+ * Login screen (two steps: email/password → PIN)
  * ──────────────────────────────────────────────────────────────── */
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
@@ -189,7 +303,11 @@ function PinDots({ filled }: { filled: number }) {
   );
 }
 
-function LockScreen({ lock }: { lock: PinLockValue }) {
+function LoginScreen({ lock }: { lock: PinLockValue }) {
+  const [step, setStep] = React.useState<"credentials" | "pin">("credentials");
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [formError, setFormError] = React.useState<string | null>(null);
   const [entry, setEntry] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const [shakeKey, setShakeKey] = React.useState(0);
@@ -200,6 +318,26 @@ function LockScreen({ lock }: { lock: PinLockValue }) {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, []);
+
+  function submitCredentials(e: React.FormEvent) {
+    e.preventDefault();
+    setFormError(null);
+    if (!isEmail(email)) {
+      setFormError("Enter a valid email address.");
+      return;
+    }
+    if (!isPassword(password)) {
+      setFormError("Password must be at least 4 characters.");
+      return;
+    }
+    if (!lock.verifyCredentials(email, password)) {
+      setFormError("Incorrect email or password.");
+      return;
+    }
+    setStep("pin");
+    setEntry("");
+    setError(null);
+  }
 
   function press(digit: string) {
     if (timerRef.current) return; // verifying — ignore keys
@@ -227,6 +365,10 @@ function LockScreen({ lock }: { lock: PinLockValue }) {
     setEntry((e) => e.slice(0, -1));
   }
 
+  const testHint = lock.isTestAccount
+    ? "test@munim.app / 1234"
+    : null;
+
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">
       <style>{`
@@ -237,73 +379,136 @@ function LockScreen({ lock }: { lock: PinLockValue }) {
         className="w-full max-w-sm rounded-3xl border bg-card p-8 shadow-xl shadow-black/5"
         style={{ animation: "munim-pin-enter 0.35s cubic-bezier(0.25,0.46,0.45,0.94)" }}
       >
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <Lock className="h-6 w-6" strokeWidth={2.2} />
-        </div>
-        <h1 className="text-center text-xl font-semibold tracking-tight">Enter your PIN</h1>
-        <p className="mt-1 text-center text-sm text-muted-foreground">
-          {lock.isTestAccount ? "Test account is active" : "Munim is locked"}
-        </p>
+        {step === "credentials" ? (
+          <>
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Mail className="h-6 w-6" strokeWidth={2.2} />
+            </div>
+            <h1 className="text-center text-xl font-semibold tracking-tight">Welcome back</h1>
+            <p className="mt-1 text-center text-sm text-muted-foreground">
+              {lock.isTestAccount ? "Test account is active" : "Sign in to unlock Munim"}
+            </p>
 
-        <div
-          key={shakeKey}
-          className="my-7"
-          style={shakeKey > 0 ? { animation: "munim-pin-shake 0.4s ease" } : undefined}
-        >
-          <PinDots filled={entry.length} />
-        </div>
+            <form onSubmit={submitCredentials} className="mt-6 space-y-3">
+              <div className="space-y-1.5">
+                <label htmlFor="login-email" className="text-xs font-medium text-muted-foreground">
+                  Email
+                </label>
+                <input
+                  id="login-email"
+                  type="email"
+                  autoComplete="username"
+                  placeholder="you@shop.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="login-password" className="text-xs font-medium text-muted-foreground">
+                  Password
+                </label>
+                <input
+                  id="login-password"
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                />
+              </div>
 
-        <div className="mb-4 h-5 text-center">
-          {error ? (
-            <span className="text-sm font-medium text-destructive">{error}</span>
-          ) : lock.isTestAccount ? (
-            <span className="text-xs text-muted-foreground">
-              Test account PIN is <span className="font-semibold text-foreground">1234</span>
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">&nbsp;</span>
-          )}
-        </div>
+              <div className="h-5 pt-1">
+                {formError ? (
+                  <span className="text-sm font-medium text-destructive">{formError}</span>
+                ) : testHint ? (
+                  <span className="text-xs text-muted-foreground">
+                    Test account — <span className="font-semibold text-foreground">{testHint}</span>
+                  </span>
+                ) : null}
+              </div>
 
-        <div className="mx-auto grid max-w-[240px] grid-cols-3 gap-2.5">
-          {KEYS.map((k) => (
-            <button
-              key={k}
-              type="button"
-              onClick={() => press(k)}
-              className="flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold transition-all duration-100 hover:bg-muted/80 active:scale-90"
+              <button
+                type="submit"
+                className="flex h-10 w-full items-center justify-center rounded-md bg-primary text-sm font-medium text-primary-foreground shadow-xs transition-all hover:bg-primary/90 active:scale-[0.98]"
+              >
+                Continue
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Lock className="h-6 w-6" strokeWidth={2.2} />
+            </div>
+            <h1 className="text-center text-xl font-semibold tracking-tight">Enter your PIN</h1>
+            <p className="mt-1 text-center text-sm text-muted-foreground">
+              {lock.isTestAccount ? "Test account PIN is 1234" : "Final security step"}
+            </p>
+
+            <div
+              key={shakeKey}
+              className="my-7"
+              style={shakeKey > 0 ? { animation: "munim-pin-shake 0.4s ease" } : undefined}
             >
-              {k}
-            </button>
-          ))}
-          <div /> {/* empty cell keeps the 3×4 grid */}
-          <button
-            type="button"
-            onClick={() => press("0")}
-            className="flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold transition-all duration-100 hover:bg-muted/80 active:scale-90"
-          >
-            0
-          </button>
-          <button
-            type="button"
-            onClick={backspace}
-            aria-label="Delete digit"
-            className="flex h-16 items-center justify-center rounded-2xl text-muted-foreground transition-all duration-100 hover:bg-muted/80 active:scale-90"
-          >
-            <Delete className="h-5 w-5" />
-          </button>
-        </div>
+              <PinDots filled={entry.length} />
+            </div>
 
-        {!lock.isTestAccount && (
-          <button
-            type="button"
-            onClick={() => {
-              lock.resetToTest();
-            }}
-            className="mx-auto mt-6 block text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-          >
-            Forgot PIN? Reset to the test account (1234)
-          </button>
+            <div className="mb-4 h-5 text-center">
+              {error ? <span className="text-sm font-medium text-destructive">{error}</span> : <span className="text-xs text-muted-foreground">&nbsp;</span>}
+            </div>
+
+            <div className="mx-auto grid max-w-[240px] grid-cols-3 gap-2.5">
+              {KEYS.map((k) => (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => press(k)}
+                  className="flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold transition-all duration-100 hover:bg-muted/80 active:scale-90"
+                >
+                  {k}
+                </button>
+              ))}
+              <div /> {/* empty cell keeps the 3×4 grid */}
+              <button
+                type="button"
+                onClick={() => press("0")}
+                className="flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold transition-all duration-100 hover:bg-muted/80 active:scale-90"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={backspace}
+                aria-label="Delete digit"
+                className="flex h-16 items-center justify-center rounded-2xl text-muted-foreground transition-all duration-100 hover:bg-muted/80 active:scale-90"
+              >
+                <Delete className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 flex items-center justify-center gap-4">
+              <button
+                type="button"
+                onClick={() => setStep("credentials")}
+                className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                ← Back
+              </button>
+              {!lock.isTestAccount && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    lock.resetToTest();
+                  }}
+                  className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  Forgot PIN? Reset to test account
+                </button>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -317,6 +522,6 @@ function LockScreen({ lock }: { lock: PinLockValue }) {
 export function PinGate({ children }: { children: React.ReactNode }) {
   const lock = usePinLock();
   if (lock.status === "loading") return null;
-  if (lock.status === "locked") return <LockScreen lock={lock} />;
+  if (lock.status === "locked") return <LoginScreen lock={lock} />;
   return <PinLockContext.Provider value={lock}>{children}</PinLockContext.Provider>;
 }

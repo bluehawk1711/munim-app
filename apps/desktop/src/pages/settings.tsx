@@ -5,12 +5,30 @@ import { getCore, resetCore } from "@/lib/core";
 import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "sonner";
-import { ThemeSwatches, useAccentTheme } from "@/components/theme-swatches";
-import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, PinSettingsCard } from "@munim/ui"
+import {
+  ThemeSelect,
+  useAccentTheme,
+  type ThemeMode,
+} from "@/components/theme-swatches";
+import {
+  Button,
+  Input,
+  Label,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  PinSettingsCard,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@munim/ui"
 
 export function SettingsPage() {
   const { data: settings, reload } = useAsync(() => getSettings(getCore()), []);
-  const { themeName, setThemeName } = useAccentTheme();
+  const { themeName, setThemeName, mode, setMode } = useAccentTheme();
 
   const [shopName, setShopName] = useState("");
   const [shopAddress, setShopAddress] = useState("");
@@ -121,8 +139,26 @@ export function SettingsPage() {
             <Palette className="h-4 w-4" /> Appearance
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <ThemeSwatches value={themeName} onChange={setThemeName} />
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Color theme</Label>
+              <ThemeSelect value={themeName} onChange={setThemeName} className="w-full" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Mode</Label>
+              <Select value={mode ?? "system"} onValueChange={(v) => setMode(v as ThemeMode)}>
+                <SelectTrigger className="h-8 w-full text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="light">Light</SelectItem>
+                  <SelectItem value="dark">Dark</SelectItem>
+                  <SelectItem value="system">System</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

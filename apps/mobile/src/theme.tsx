@@ -11,7 +11,7 @@
  * render, so inline `colors.*` usages and `useThemeStyles()` both pick up the
  * new values automatically.
  */
-import React, {createContext, useContext, useEffect, useMemo, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
 import {useColorScheme} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {getSettings, updateSettings} from '@munim/core';
@@ -109,6 +109,11 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
           if (row.theme === 'apple' && themeStored) return;
           setThemeNameState(row.theme);
         }
+        // Light/dark mode is shared too: pull the DB mode when the user hasn't
+        // picked one locally (local preference wins until they change it here).
+        if ((row.mode === 'light' || row.mode === 'dark') && !modeStored) {
+          setPreference(row.mode);
+        }
       } catch {
         // DB not configured (or unreachable) — theme stays local-only.
       }
@@ -121,6 +126,20 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   const mode: ThemeMode = preference ?? (system === 'dark' ? 'dark' : 'light');
   const palette = useMemo(() => mobileColorsFor(mode, themeName), [mode, themeName]);
 
+  // Persist a mode choice locally AND mirror it to the shared settings row so
+  // web & desktop follow. Fire-and-forget with a local-first catch: theming
+  // must never block on the DB or on the user configuring a connection string.
+  const persistMode = useCallback((next: ThemeMode) => {
+    AsyncStorage.setItem(MODE_KEY, next).catch(() => {});
+    (async () => {
+      try {
+        await updateSettings(await getCore(), {mode: next});
+      } catch {
+        // DB not configured — local-only.
+      }
+    })().catch(() => {});
+  }, []);
+
   // Sync the module-level palette DURING render so every child that reads the
   // shared `colors` proxy in this pass sees the same values as the context.
   currentColors = palette;
@@ -132,12 +151,12 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
       colors: palette,
       setMode: (next) => {
         setPreference(next);
-        AsyncStorage.setItem(MODE_KEY, next).catch(() => {});
+        persistMode(next);
       },
       toggle: () => {
         const next: ThemeMode = mode === 'dark' ? 'light' : 'dark';
         setPreference(next);
-        AsyncStorage.setItem(MODE_KEY, next).catch(() => {});
+        persistMode(next);
       },
       setThemeName: (next) => {
         userChangedRef.current = true;
@@ -155,7 +174,7 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
         })().catch(() => {});
       },
     }),
-    [mode, themeName, palette],
+    [mode, themeName, palette, persistMode],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

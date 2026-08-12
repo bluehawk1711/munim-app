@@ -2,12 +2,7 @@
 
 import * as React from "react"
 import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@munim/ui"
-
-
-
-
-
+import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@munim/ui"
 import { useCreateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
@@ -305,7 +300,16 @@ export function BillingView() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Select value={template} onValueChange={(v) => setTemplate(v as "jewellery" | "ecommerce")}>
+              <Select
+                value={template}
+                onValueChange={(v) => {
+                  const next = v as "jewellery" | "ecommerce"
+                  setTemplate(next)
+                  toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template", {
+                    description: "Applied to this bill",
+                  })
+                }}
+              >
                 <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="jewellery">Classic Jewellery</SelectItem>
@@ -313,31 +317,73 @@ export function BillingView() {
                 </SelectContent>
               </Select>
               {template === "jewellery" && (
-                <div className="flex items-center gap-1.5">
-                  {(["red", "yellow"] as const).map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setClassicColor(c)}
-                      aria-label={`${c} theme`}
-                      className={cn("h-6 w-6 rounded-full border-2 transition-all", c === "red" ? "bg-red-600" : "bg-yellow-500", classicColor === c ? "scale-110 border-foreground" : "border-transparent")}
-                    />
-                  ))}
-                </div>
+                <Select
+                  value={classicColor}
+                  onValueChange={(v) => {
+                    const next = v as "red" | "yellow"
+                    setClassicColor(next)
+                    toast.success(next === "red" ? "Red theme" : "Yellow theme", {
+                      description: "Bill accent color updated",
+                    })
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[150px] text-xs">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "h-3.5 w-3.5 rounded-full",
+                          classicColor === "red" ? "bg-red-600" : "bg-yellow-500"
+                        )}
+                      />
+                      {classicColor === "red" ? "Red theme" : "Yellow theme"}
+                    </span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="red">
+                      <span className="flex items-center gap-2">
+                        <span className="h-3.5 w-3.5 rounded-full bg-red-600" /> Red theme
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="yellow">
+                      <span className="flex items-center gap-2">
+                        <span className="h-3.5 w-3.5 rounded-full bg-yellow-500" /> Yellow theme
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               )}
-              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <input type="checkbox" checked={twoInOne} onChange={(e) => setTwoInOne(e.target.checked)} className="accent-amber-500" />
+              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={twoInOne}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                    setTwoInOne(next)
+                    toast.success(next ? "2-in-1 bill enabled" : "2-in-1 bill disabled")
+                  }}
+                  className="accent-amber-500"
+                />
                 2-in-1 bill
               </label>
               {twoInOne && (
-                <div className="flex items-center gap-2 text-xs">
-                  <label className="flex items-center gap-1 text-muted-foreground">
-                    <input type="radio" name="mode" checked={mode === "duplicate"} onChange={() => setMode("duplicate")} className="accent-amber-500" /> Duplicate
-                  </label>
-                  <label className="flex items-center gap-1 text-muted-foreground">
-                    <input type="radio" name="mode" checked={mode === "distinct"} onChange={() => setMode("distinct")} className="accent-amber-500" /> Separate
-                  </label>
-                </div>
+                <Select
+                  value={mode}
+                  onValueChange={(v) => {
+                    const next = v as "duplicate" | "distinct"
+                    setMode(next)
+                    toast.success(next === "duplicate" ? "Duplicate mode" : "Separate mode", {
+                      description: next === "duplicate" ? "Two identical bills on one page" : "Two different bills on one page",
+                    })
+                  }}
+                >
+                  <SelectTrigger className="h-8 w-[140px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="duplicate">Duplicate</SelectItem>
+                    <SelectItem value="distinct">Separate</SelectItem>
+                  </SelectContent>
+                </Select>
               )}
             </div>
           </div>
@@ -410,14 +456,17 @@ export function BillingView() {
       {/* Second bill — only when 2-in-1 "Separate" is selected */}
       {distinct && (
         <>
-          <Card className="border-amber-500/30 bg-amber-500/5">
+          <Card>
             <CardContent className="space-y-4 p-5">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                   <Receipt className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-semibold">Second Bill — separate</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-semibold">Second Bill — separate</h3>
+                    <Badge variant="secondary">Bill 2</Badge>
+                  </div>
                   <p className="text-xs text-muted-foreground">
                     A different customer &amp; items; printed on the bottom half of the 2-in-1 page.
                   </p>

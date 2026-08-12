@@ -1,13 +1,21 @@
 "use client"
 
 import * as React from "react"
+import { useTheme as useNextTheme } from "next-themes"
 import { themeNames, type ThemeName } from "@munim/theme"
-import { ThemeSwatches } from "@munim/ui"
+import { ThemeSelect, ThemeSwatches } from "@munim/ui"
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings"
 
-export { ThemeSwatches }
+export { ThemeSwatches, ThemeSelect }
 
 const STORAGE_KEY = "munim.theme"
+const MODE_KEY = "munim.themeMode"
+
+export type ThemeMode = "light" | "dark" | "system"
+
+function isThemeMode(value: string | null | undefined): value is ThemeMode {
+  return value === "light" || value === "dark" || value === "system"
+}
 
 function getStoredTheme(): ThemeName {
   if (typeof window === "undefined") return "apple"
@@ -15,24 +23,42 @@ function getStoredTheme(): ThemeName {
   return stored && themeNames.includes(stored) ? stored : "apple"
 }
 
+function getStoredMode(): ThemeMode | null {
+  if (typeof window === "undefined") return null
+  const stored = window.localStorage.getItem(MODE_KEY)
+  return isThemeMode(stored) ? stored : null
+}
+
 /**
- * Web accent-theme manager. next-themes owns light/dark (the `.dark` class);
- * this hook owns the `data-theme` attribute on <html>, which selects one of
- * the token blocks from @munim/theme/tokens.css. Persisted per browser.
+ * Web accent-theme + mode manager. next-themes owns the `.dark` class (via
+ * `setTheme`); this hook owns the `data-theme` attribute on <html> (accent
+ * theme) AND the persisted light/dark preference. Both are persisted locally
+ * (instant paint) and mirrored to the shared settings row in Neon, so a theme
+ * or mode picked on any platform syncs to the others.
  */
 function useAccentTheme() {
-  // Lazy-init from storage; SSR returns "apple" so server and client first
-  // paint match, then the effect applies the real stored theme to <html>.
+  const { setTheme: setNextTheme } = useNextTheme()
   const [themeName, setThemeNameState] = React.useState<ThemeName>(() => {
     if (typeof window === "undefined") return "apple"
     return getStoredTheme()
   })
+  // null = follow the system preference (or nothing stored yet).
+  const [mode, setModeState] = React.useState<ThemeMode | null>(() => getStoredMode())
 
-  // Apply the stored theme to <html> on mount (client hydration).
+  // Apply the stored theme + mode on mount / change (client hydration).
   React.useEffect(() => {
     window.document.documentElement.dataset.theme = themeName
     window.localStorage.setItem(STORAGE_KEY, themeName)
   }, [themeName])
+
+  React.useEffect(() => {
+    if (mode === null) {
+      setNextTheme("system")
+      return
+    }
+    window.localStorage.setItem(MODE_KEY, mode)
+    setNextTheme(mode)
+  }, [mode, setNextTheme])
 
   const setThemeName = React.useCallback((next: ThemeName) => {
     setThemeNameState(next)
@@ -40,55 +66,88 @@ function useAccentTheme() {
     window.localStorage.setItem(STORAGE_KEY, next)
   }, [])
 
-  return { themeName, setThemeName }
+  const setMode = React.useCallback((next: ThemeMode) => {
+    setModeState(next)
+    window.localStorage.setItem(MODE_KEY, next)
+    setNextTheme(next)
+  }, [setNextTheme])
+
+  return { themeName, setThemeName, mode, setMode }
 }
 
 /** Shared hook so Settings and the topbar stay in sync without prop drilling. */
 const AccentThemeContext = React.createContext<{
   themeName: ThemeName
   setThemeName: (t: ThemeName) => void
+  mode: ThemeMode | null
+  setMode: (m: ThemeMode) => void
 } | null>(null)
 
 export function AccentThemeProvider({ children }: { children: React.ReactNode }) {
-  const { themeName, setThemeName } = useAccentTheme()
+  const { themeName, setThemeName, mode, setMode } = useAccentTheme()
   const { data: settings } = useSettings()
   const updateSettings = useUpdateSettings()
-  // Theme last applied/written to the DB — lets the settings-refetch effect
+  // Values last applied/written to the DB — lets the settings-refetch effect
   // no-op instead of re-applying stale data over a fresh local choice.
-  const appliedRef = React.useRef<ThemeName | null>(null)
-  // Set once the user picks a theme THIS session — the DB pull is then skipped
-  // so a stale pre-change payload can't clobber the fresh local choice.
+  const appliedRef = React.useRef<{ theme: ThemeName | null; mode: ThemeMode | null }>({
+    theme: null,
+    mode: null,
+  })
+  // Set once the user picks a theme/mode THIS session — the DB pull is then
+  // skipped so a stale pre-change payload can't clobber the fresh local choice.
   const userChangedRef = React.useRef(false)
 
-  // Pull the shared (DB) theme on load — syncs a pick made on another device.
-  // Rule: the untouched default ("apple") never clobbers a local preference on
-  // first load after this sync shipped; once ANY device writes a non-default
-  // theme (or explicitly re-picks apple), the DB is authoritative everywhere.
+  // Pull the shared (DB) theme + mode on load — syncs a pick made on another
+  // device. Rule: the untouched defaults ("apple" / null) never clobber a local
+  // preference on first load after this sync shipped; once ANY device writes a
+  // non-default value, the DB is authoritative everywhere.
   React.useEffect(() => {
     const dbTheme = settings?.theme
-    if (!dbTheme || !themeNames.includes(dbTheme as ThemeName)) return
-    if (userChangedRef.current) return
-    const t = dbTheme as ThemeName
-    if (t === "apple" && window.localStorage.getItem(STORAGE_KEY)) return
-    if (appliedRef.current !== t) {
-      appliedRef.current = t
-      setThemeName(t)
+    if (dbTheme && themeNames.includes(dbTheme as ThemeName)) {
+      if (!userChangedRef.current) {
+        const t = dbTheme as ThemeName
+        if (t === "apple" && window.localStorage.getItem(STORAGE_KEY)) return
+        if (appliedRef.current.theme !== t) {
+          appliedRef.current.theme = t
+          setThemeName(t)
+        }
+      }
     }
-  }, [settings?.theme, setThemeName])
+    const dbMode = settings?.mode
+    if (isThemeMode(dbMode)) {
+      if (!userChangedRef.current) {
+        if (dbMode === "system" && window.localStorage.getItem(MODE_KEY)) return
+        if (appliedRef.current.mode !== dbMode) {
+          appliedRef.current.mode = dbMode
+          setMode(dbMode)
+        }
+      }
+    }
+  }, [settings?.theme, settings?.mode, setThemeName, setMode])
 
   const setThemeNameSynced = React.useCallback(
     (next: ThemeName) => {
       userChangedRef.current = true
-      appliedRef.current = next
+      appliedRef.current.theme = next
       setThemeName(next)
       updateSettings.mutate({ theme: next })
     },
     [setThemeName, updateSettings],
   )
 
+  const setModeSynced = React.useCallback(
+    (next: ThemeMode) => {
+      userChangedRef.current = true
+      appliedRef.current.mode = next
+      setMode(next)
+      updateSettings.mutate({ mode: next })
+    },
+    [setMode, updateSettings],
+  )
+
   const contextValue = React.useMemo(
-    () => ({ themeName, setThemeName: setThemeNameSynced }),
-    [themeName, setThemeNameSynced],
+    () => ({ themeName, setThemeName: setThemeNameSynced, mode, setMode: setModeSynced }),
+    [themeName, setThemeNameSynced, mode, setModeSynced],
   )
   return (
     <AccentThemeContext.Provider value={contextValue}>{children}</AccentThemeContext.Provider>

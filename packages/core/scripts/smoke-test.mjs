@@ -357,6 +357,29 @@ async function run() {
         !core.verifyPin("1234", "not-a-hash");
       return ok ? "4-digit + hash shape enforced" : "VALIDATOR FAILED";
     });
+    await test("email/password credentials", () => {
+      const emailHash = core.hashEmail(core.TEST_EMAIL);
+      const pwHash = core.hashPassword(core.TEST_PASSWORD);
+      const checks = [
+        core.TEST_EMAIL === "test@munim.app",
+        core.TEST_PASSWORD === "1234",
+        core.isEmail("a@b.co"),
+        !core.isEmail("not-an-email"),
+        core.isPassword("abcd"),
+        !core.isPassword("abc"),
+        core.isTestEmail("TEST@Munim.App"),
+        core.isTestPasswordHash(pwHash),
+        !core.isTestPasswordHash(core.hashPassword("9999")),
+        core.verifyPassword(core.TEST_PASSWORD, pwHash),
+        !core.verifyPassword("0000", pwHash),
+        core.verifyEmail("  TEST@Munim.App ", core.TEST_EMAIL),
+        !core.verifyEmail("other@munim.app", core.TEST_EMAIL),
+        core.isPasswordHash(pwHash),
+        core.isEmail("test@munim.app"),
+      ];
+      if (!checks.every(Boolean)) throw new Error("CREDENTIALS FAILED: " + checks.map(Boolean).join(","));
+      return "test credentials + hashing + validators ok";
+    });
   } finally {
     // ── cleanup (always runs, even if a check throws) ──
     console.log("── cleanup ──");

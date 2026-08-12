@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "mode" text DEFAULT 'system' NOT NULL;

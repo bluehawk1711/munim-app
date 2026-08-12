@@ -2,14 +2,14 @@
 
 import * as React from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { Menu, Search, ShoppingCart, Plus, X, Palette } from "lucide-react"
-import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@munim/ui"
+import { Menu, Search, ShoppingCart, Plus, X } from "lucide-react"
+import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@munim/ui"
 
 
 
 
 import { ThemeToggle } from "@/components/app/theme-toggle"
-import { ThemeSwatches, useAccentThemeContext } from "@/components/app/theme-picker"
+import { ThemeSelect, useAccentThemeContext } from "@/components/app/theme-picker"
 import { SidebarNav, SidebarHeader, SidebarFooter } from "@/components/app/sidebar-nav"
 import { useAppStore } from "@/store/view-store"
 
@@ -145,29 +145,14 @@ export function AppTopbar() {
         <Plus className="h-4 w-4" />
       </Button>
 
-      <ThemeDropdown />
+      <ThemeSelectInHeader />
       <ThemeToggle />
     </header>
   )
 }
 
-function ThemeDropdown() {
+/** Compact color-theme select — swatch on the left, label on the right. */
+function ThemeSelectInHeader() {
   const { themeName, setThemeName } = useAccentThemeContext()
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-9 w-9" aria-label="Change color theme">
-          <Palette className="h-4 w-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">
-          Color theme
-        </DropdownMenuLabel>
-        <div className="px-2 pb-2">
-          <ThemeSwatches value={themeName} onChange={setThemeName} />
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
+  return <ThemeSelect value={themeName} onChange={setThemeName} className="hidden sm:flex" />
 }

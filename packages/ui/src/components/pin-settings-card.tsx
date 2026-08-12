@@ -3,10 +3,11 @@
 /**
  * App-lock settings card — shared by the web and desktop Settings pages.
  * Consumes `usePinLockContext` (from PinGate) so status stays live: change the
- * PIN, disable/enable the lock, or reset to the pre-created test account.
+ * password or PIN, disable/enable the lock, log out (lock now), or reset to the
+ * pre-created test account.
  */
 import * as React from "react";
-import { KeyRound, ShieldCheck, ShieldOff, RotateCcw } from "lucide-react";
+import { KeyRound, LogOut, ShieldCheck, ShieldOff, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
 import { usePinLockContext } from "./pin-gate";
@@ -66,14 +67,20 @@ export function PinSettingsCard() {
   const [current, setCurrent] = React.useState("");
   const [newPin, setNewPin] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
+  const [pwCurrent, setPwCurrent] = React.useState("");
+  const [pwNew, setPwNew] = React.useState("");
+  const [pwConfirm, setPwConfirm] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const clear = () => {
     setCurrent("");
     setNewPin("");
     setConfirm("");
+    setPwCurrent("");
+    setPwNew("");
+    setPwConfirm("");
   };
 
-  async function handleChange() {
+  async function handleChangePin() {
     if (newPin !== confirm) {
       toast.error("New PINs do not match");
       return;
@@ -87,6 +94,22 @@ export function PinSettingsCard() {
     }
     clear();
     toast.success("PIN updated");
+  }
+
+  async function handleChangePassword() {
+    if (pwNew !== pwConfirm) {
+      toast.error("New passwords do not match");
+      return;
+    }
+    setBusy(true);
+    const err = lock.changePassword(pwCurrent, pwNew);
+    setBusy(false);
+    if (err) {
+      toast.error(err);
+      return;
+    }
+    clear();
+    toast.success("Password updated");
   }
 
   async function handleDisable() {
@@ -117,13 +140,25 @@ export function PinSettingsCard() {
     toast.success("App lock enabled");
   }
 
+  function handleLogOut() {
+    if (!window.confirm("Lock the app now? You'll need your email, password and PIN to unlock.")) {
+      return;
+    }
+    lock.lockNow();
+    toast.success("App locked");
+  }
+
   function handleResetToTest() {
-    if (!window.confirm("Reset to the test account (PIN 1234)? This replaces your current PIN.")) {
+    if (
+      !window.confirm(
+        "Reset to the test account (test@munim.app / 1234 / PIN 1234)? This replaces your current credentials."
+      )
+    ) {
       return;
     }
     lock.resetToTest();
     clear();
-    toast.success("Reset to test account — PIN 1234");
+    toast.success("Reset to test account");
   }
 
   // Persisted state — NOT the session status (after unlocking, status is
@@ -134,10 +169,11 @@ export function PinSettingsCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-sm">
-          <KeyRound className="h-4 w-4" /> App lock
+          <KeyRound className="h-4 w-4" /> App lock &amp; account
         </CardTitle>
         <CardDescription className="text-xs">
-          A 4-digit PIN unlocks this device — stored locally (hashed), never sent to the database.
+          Sign in with your email + password, then a 4-digit PIN. Stored locally (hashed), never sent
+          to the database. Your session is remembered on this device.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -151,26 +187,74 @@ export function PinSettingsCard() {
               <ShieldOff className="h-3 w-3" /> Lock disabled
             </Badge>
           )}
-          {lock.isTestAccount && (
-            <Badge variant="secondary">Test account — PIN 1234</Badge>
-          )}
+          <Badge variant="secondary" className="font-mono text-xs">
+            {lock.accountEmail}
+          </Badge>
+          {lock.isTestAccount && <Badge variant="secondary">Test account — 1234</Badge>}
         </div>
 
         {enabled ? (
           <>
-            <div className="space-y-2">
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-xs font-medium text-foreground">Change password</p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="pw-current">Current</Label>
+                  <Input
+                    id="pw-current"
+                    type="password"
+                    autoComplete="current-password"
+                    value={pwCurrent}
+                    onChange={(e) => setPwCurrent(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pw-new">New password</Label>
+                  <Input
+                    id="pw-new"
+                    type="password"
+                    autoComplete="new-password"
+                    value={pwNew}
+                    onChange={(e) => setPwNew(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="pw-confirm">Confirm</Label>
+                  <Input
+                    id="pw-confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    value={pwConfirm}
+                    onChange={(e) => setPwConfirm(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+              <Button onClick={handleChangePassword} disabled={busy} size="sm" variant="outline" className="gap-1.5">
+                <KeyRound className="h-3.5 w-3.5" /> Change password
+              </Button>
+            </div>
+
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-xs font-medium text-foreground">Change PIN</p>
               <PinFields current={current} newPin={newPin} confirm={confirm} onChange={(f, v) => {
                 if (f === "current") setCurrent(v);
                 if (f === "newPin") setNewPin(v);
                 if (f === "confirm") setConfirm(v);
               }} />
-              <Button onClick={handleChange} disabled={busy} size="sm" className="gap-1.5">
+              <Button onClick={handleChangePin} disabled={busy} size="sm" className="gap-1.5">
                 <KeyRound className="h-3.5 w-3.5" /> Change PIN
               </Button>
             </div>
+
             <div className="flex flex-wrap gap-2 border-t pt-4">
               <Button variant="outline" size="sm" onClick={handleDisable} disabled={busy} className="gap-1.5">
                 <ShieldOff className="h-3.5 w-3.5" /> Disable lock
+              </Button>
+              <Button variant="secondary" size="sm" onClick={handleLogOut} className="gap-1.5">
+                <LogOut className="h-3.5 w-3.5" /> Log out (lock now)
               </Button>
               <Button variant="ghost" size="sm" onClick={handleResetToTest} className="gap-1.5 text-muted-foreground">
                 <RotateCcw className="h-3.5 w-3.5" /> Reset to test account

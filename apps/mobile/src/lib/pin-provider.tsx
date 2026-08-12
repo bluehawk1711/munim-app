@@ -1,8 +1,9 @@
 /**
- * Mobile PIN-lock provider — owns the lock state for the whole app (mirrors
- * the web/desktop PinGate from @munim/ui). Renders the lock screen while the
- * app is locked and exposes unlock/change/disable/enable/reset via context so
- * the Settings screen can manage the lock with live status.
+ * Mobile login + PIN-lock provider — owns the lock state for the whole app
+ * (mirrors the web/desktop PinGate from @munim/ui). Renders the lock screen
+ * while the app is locked and exposes verify/unlock/change/disable/enable/
+ * reset/logout via context so the Settings screen can manage the lock with
+ * live status.
  */
 import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
 import {PinLockScreen} from '../screens/PinLockScreen';
@@ -13,11 +14,16 @@ export type PinContextValue = {
   /** True while the lock is PERSISTED-enabled (see PinSnapshot). */
   lockEnabled: boolean;
   isTestAccount: boolean;
+  /** Normalized account email (for display in Settings). */
+  accountEmail: string;
+  verifyCredentials: (email: string, password: string) => Promise<boolean>;
   unlock: (pinValue: string) => Promise<boolean>;
+  changePassword: (current: string, next: string) => Promise<string | null>;
   changePin: (current: string, next: string) => Promise<string | null>;
   disable: (current: string) => Promise<string | null>;
   enable: (next: string) => Promise<string | null>;
   resetToTest: () => Promise<void>;
+  lockNow: () => Promise<void>;
 };
 
 const PinContext = createContext<PinContextValue | null>(null);
@@ -32,6 +38,7 @@ export function PinProvider({children}: {children: React.ReactNode}) {
   const [status, setStatus] = useState<pin.PinStatus>('loading');
   const [lockEnabled, setLockEnabled] = useState(false);
   const [isTestAccount, setIsTestAccount] = useState(false);
+  const [accountEmail, setAccountEmail] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -42,6 +49,7 @@ export function PinProvider({children}: {children: React.ReactNode}) {
         setStatus(s.status);
         setLockEnabled(s.lockEnabled);
         setIsTestAccount(s.isTestAccount);
+        setAccountEmail(s.accountEmail);
       })
       .catch(() => {
         // Storage failure — fall back to unlocked so the app still opens.
@@ -59,10 +67,19 @@ export function PinProvider({children}: {children: React.ReactNode}) {
       status,
       lockEnabled,
       isTestAccount,
+      accountEmail,
+      verifyCredentials: async (email: string, password: string) => {
+        return pin.verifyCredentials(email, password);
+      },
       unlock: async (pinValue: string) => {
         const ok = await pin.unlockPin(pinValue);
         if (ok) setStatus('unlocked');
         return ok;
+      },
+      changePassword: async (current: string, next: string) => {
+        const err = await pin.changePassword(current, next);
+        if (err === null) setIsTestAccount(false);
+        return err;
       },
       changePin: async (current: string, next: string) => {
         const err = await pin.changePin(current, next);
@@ -90,9 +107,14 @@ export function PinProvider({children}: {children: React.ReactNode}) {
         setStatus(s.status);
         setLockEnabled(s.lockEnabled);
         setIsTestAccount(s.isTestAccount);
+        setAccountEmail(s.accountEmail);
+      },
+      lockNow: async () => {
+        await pin.lockNow();
+        setStatus('locked');
       },
     }),
-    [status, lockEnabled, isTestAccount],
+    [status, lockEnabled, isTestAccount, accountEmail],
   );
 
   if (status === 'loading') return null;

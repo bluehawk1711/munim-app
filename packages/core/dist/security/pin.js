@@ -1,19 +1,26 @@
 /**
- * 4-digit PIN lock — pure, platform-agnostic logic shared by web, desktop and
- * mobile.
+ * Login + 4-digit PIN lock — pure, platform-agnostic logic shared by web,
+ * desktop and mobile.
  *
- * Every device keeps its OWN lock locally (web/desktop: localStorage, mobile:
- * AsyncStorage) — this module never touches storage. It provides hashing,
- * verification, the pre-created test account, and input validators so all three
- * apps behave identically.
+ * Every device keeps its OWN credentials locally (web/desktop: localStorage,
+ * mobile: AsyncStorage) — this module never touches storage. It provides
+ * hashing, verification, the pre-created test account, and input validators so
+ * all three apps behave identically.
  *
- * The PIN is stored as a SHA-256 hash of a salted string (never plaintext, and
- * never the bare hash of the digits alone). SHA-256 is implemented in pure TS
- * here because Hermes (React Native) has no Web Crypto API — a dependency-free
- * implementation guarantees the same hash on every platform.
+ * The login is two steps: email + password first, then the 4-digit PIN. The
+ * password and PIN are stored as SHA-256 hashes of salted strings (never
+ * plaintext, and never the bare hash alone). The email is stored as-is
+ * (lowercased) — it is not secret and needs to be displayed in Settings.
+ * SHA-256 is implemented in pure TS here because Hermes (React Native) has no
+ * Web Crypto API — a dependency-free implementation guarantees the same hash
+ * on every platform.
  */
 /** Test account PIN — pre-created on first launch so the app is instantly usable. */
 export const TEST_PIN = "1234";
+/** Test account email — shown as the login hint on first launch. */
+export const TEST_EMAIL = "test@munim.app";
+/** Test account password — paired with the test email (and PIN 1234). */
+export const TEST_PASSWORD = "1234";
 /** Static salt so a stored hash is never the raw digest of the bare digits. */
 const SALT = "munim.pin.";
 /* ────────────────────────────────────────────────────────────────
@@ -137,6 +144,30 @@ export function sha256Hex(input) {
 export function hashPin(pin) {
     return sha256Hex(SALT + pin);
 }
+/** Hash a password for storage. Never store the password itself. */
+export function hashPassword(password) {
+    return sha256Hex(SALT + "password." + password);
+}
+/** Hash an email for storage (lowercased + trimmed before hashing). */
+export function hashEmail(email) {
+    return sha256Hex(SALT + "email." + normalizeEmail(email));
+}
+/** Lowercase + trim an email so comparisons are case-insensitive. */
+export function normalizeEmail(email) {
+    return email.trim().toLowerCase();
+}
+/** True for a plausible email address. */
+export function isEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+/** True when the password is long enough (min 4, like the PIN). */
+export function isPassword(value) {
+    return value.length >= 4 && value.length <= 128;
+}
+/** True for a well-formed stored hash (64 lowercase hex chars). */
+export function isPasswordHash(value) {
+    return isPinHash(value);
+}
 /** True for a well-formed stored hash (64 lowercase hex chars). */
 export function isPinHash(value) {
     return typeof value === "string" && /^[0-9a-f]{64}$/.test(value);
@@ -162,5 +193,31 @@ export function verifyPin(pin, hash) {
 /** True when the stored hash belongs to the pre-created test account. */
 export function isTestPinHash(hash) {
     return isPinHash(hash) && verifyPin(TEST_PIN, hash);
+}
+/** True when the password hash belongs to the test account. */
+export function isTestPasswordHash(hash) {
+    return isPasswordHash(hash) && verifyPassword(TEST_PASSWORD, hash);
+}
+/** True when the email matches the test account email. */
+export function isTestEmail(email) {
+    return normalizeEmail(email) === TEST_EMAIL;
+}
+/**
+ * Verify a password against a stored hash. Same constant-time-ish comparison
+ * as the PIN (fixed-length hex, XOR diff, no early exit).
+ */
+export function verifyPassword(password, hash) {
+    if (!isPasswordHash(hash))
+        return false;
+    const candidate = hashPassword(password);
+    let diff = 0;
+    for (let i = 0; i < candidate.length; i++) {
+        diff |= candidate.charCodeAt(i) ^ hash.charCodeAt(i);
+    }
+    return diff === 0;
+}
+/** Compare an entered email against the stored (normalized) email. */
+export function verifyEmail(email, storedEmail) {
+    return normalizeEmail(email) === normalizeEmail(storedEmail);
 }
 //# sourceMappingURL=pin.js.map

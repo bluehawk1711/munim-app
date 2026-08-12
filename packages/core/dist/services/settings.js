@@ -29,6 +29,7 @@ export async function updateSettings(db, input) {
         ...(input.currency !== undefined ? { currency: input.currency } : {}),
         ...(input.defaultTemplate !== undefined ? { defaultTemplate: input.defaultTemplate } : {}),
         ...(input.theme !== undefined ? { theme: input.theme } : {}),
+        ...(input.mode !== undefined ? { mode: input.mode } : {}),
         updatedAt: new Date(),
     })
         .where(eq(schema.settings.id, SETTINGS_ID))

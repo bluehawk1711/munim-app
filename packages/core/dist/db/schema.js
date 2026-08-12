@@ -177,6 +177,8 @@ export const settings = pgTable("settings", {
     defaultTemplate: json("default_template").$type().notNull().default({}),
     /** Accent theme shared across web, desktop & mobile ("apple" | "ocean" | "forest" | "rose" | "midnight"). */
     theme: text("theme").notNull().default("apple"),
+    /** Light/dark mode shared across apps ("light" | "dark" | "system"). */
+    mode: text("mode").notNull().default("system"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 export const activityLogs = pgTable("activity_logs", {

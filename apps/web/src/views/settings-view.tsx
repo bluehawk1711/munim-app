@@ -5,7 +5,7 @@ import { motion } from "motion/react"
 import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe, Palette } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
-import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Skeleton, PinSettingsCard } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, CardTitle, Badge, Skeleton, PinSettingsCard, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@munim/ui"
 
 
 
@@ -13,7 +13,11 @@ import { Button, Input, Label, Card, CardContent, CardDescription, CardHeader, C
 
 
 import { toast } from "sonner"
-import { ThemeSwatches, useAccentThemeContext } from "@/components/app/theme-picker"
+import {
+  ThemeSelect,
+  useAccentThemeContext,
+  type ThemeMode,
+} from "@/components/app/theme-picker"
 
 type ShopSettings = {
   shopName: string
@@ -35,7 +39,7 @@ function useShopSettings() {
 export function SettingsView() {
   const queryClient = useQueryClient()
   const { data: settings, isLoading } = useShopSettings()
-  const { themeName, setThemeName } = useAccentThemeContext()
+  const { themeName, setThemeName, mode, setMode } = useAccentThemeContext()
 
   const [shopName, setShopName] = React.useState("")
   const [shopAddress, setShopAddress] = React.useState("")
@@ -193,18 +197,27 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* Appearance — accent theme (works with light & dark mode) */}
+      {/* Appearance — accent theme + light/dark (shared across all apps) */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
             <Palette className="h-4 w-4" /> Appearance
           </CardTitle>
           <CardDescription className="text-xs">
-            Pick a color theme — each adapts to both light and dark mode.
+            Color theme &amp; light/dark mode — synced to desktop and mobile via the shared database.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ThemeSwatches value={themeName} onChange={setThemeName} />
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Color theme</Label>
+              <ThemeSelect value={themeName} onChange={setThemeName} className="w-full" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Mode</Label>
+              <SelectMode value={mode ?? "system"} onChange={setMode} />
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -274,5 +287,28 @@ export function SettingsView() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+const MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+]
+
+function SelectMode({ value, onChange }: { value: ThemeMode; onChange: (m: ThemeMode) => void }) {
+  return (
+    <Select value={value} onValueChange={(v) => onChange(v as ThemeMode)}>
+      <SelectTrigger className="h-8 w-full text-xs">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {MODE_OPTIONS.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }

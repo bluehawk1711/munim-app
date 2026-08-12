@@ -1,14 +1,10 @@
 import type { ReactNode } from "react";
 import { AnimatePresence, MotionConfig, motion } from "motion/react";
-import { Palette } from "lucide-react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Sidebar } from "@/components/sidebar";
-import { Toaster, Button, DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuTrigger } from "@munim/ui"
-;
-;
-;
-import { ThemeSwatches, useAccentTheme } from "@/components/theme-swatches";
+import { Toaster } from "@munim/ui";
+import { ThemeSelect, useAccentTheme } from "@/components/theme-swatches";
 
 type AppShellProps = {
   current: string;
@@ -17,6 +13,7 @@ type AppShellProps = {
 };
 
 export function AppShell({ current, title, children }: AppShellProps) {
+  const { themeName, setThemeName } = useAccentTheme();
   return (
     <ThemeProvider defaultTheme="system" storageKey="munim-desktop-theme">
       <MotionConfig reducedMotion="user">
@@ -39,7 +36,7 @@ export function AppShell({ current, title, children }: AppShellProps) {
               </AnimatePresence>
             </div>
             <div className="flex items-center gap-1.5">
-              <ThemeDropdown />
+              <ThemeSelect value={themeName} onChange={setThemeName} />
               <ModeToggle />
             </div>
           </header>
@@ -49,24 +46,5 @@ export function AppShell({ current, title, children }: AppShellProps) {
       </MotionConfig>
       <Toaster />
     </ThemeProvider>
-  );
-}
-
-function ThemeDropdown() {
-  const { themeName, setThemeName } = useAccentTheme();
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" aria-label="Change color theme">
-          <Palette className="h-[1.2rem] w-[1.2rem]" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="text-xs text-muted-foreground">Color theme</DropdownMenuLabel>
-        <div className="px-2 pb-2">
-          <ThemeSwatches value={themeName} onChange={setThemeName} />
-        </div>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

@@ -15,6 +15,13 @@
       "when": 1786456552191,
       "tag": "0001_flippant_meltdown",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786462334171,
+      "tag": "0002_tricky_khan",
+      "breakpoints": true
     }
   ]
 }

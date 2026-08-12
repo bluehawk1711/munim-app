@@ -16,6 +16,8 @@ export type ShopSettingsInput = {
    *  any platform syncs to the rest. Validated against the theme list in each
    *  app layer (core stays dependency-free of @munim/theme). */
   theme?: string;
+  /** Light/dark mode shared across all apps ("light" | "dark" | "system"). */
+  mode?: string;
 };
 
 /** Fetches settings, creating the singleton row on first use. */
@@ -46,6 +48,7 @@ export async function updateSettings(db: DbClient, input: ShopSettingsInput) {
       ...(input.currency !== undefined ? { currency: input.currency } : {}),
       ...(input.defaultTemplate !== undefined ? { defaultTemplate: input.defaultTemplate } : {}),
       ...(input.theme !== undefined ? { theme: input.theme } : {}),
+      ...(input.mode !== undefined ? { mode: input.mode } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.settings.id, SETTINGS_ID))

@@ -255,6 +255,8 @@ export const settings = pgTable(
     defaultTemplate: json("default_template").$type<Record<string, unknown>>().notNull().default({}),
     /** Accent theme shared across web, desktop & mobile ("apple" | "ocean" | "forest" | "rose" | "midnight"). */
     theme: text("theme").notNull().default("apple"),
+    /** Light/dark mode shared across apps ("light" | "dark" | "system"). */
+    mode: text("mode").notNull().default("system"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
 );
