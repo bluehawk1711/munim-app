@@ -21,6 +21,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   LedgerKindBadge,
+  KhataActionDialog,
 } from "@munim/ui";
 
 type PartyType = "CUSTOMER" | "SUPPLIER" | "WORKER" | "OTHER";
@@ -58,12 +59,10 @@ export function PartiesPage() {
 
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [advanceDirection, setAdvanceDirection] = useState<"GIVEN" | "TAKEN">("GIVEN");
-  const [advanceAmount, setAdvanceAmount] = useState("");
-  const [advanceNote, setAdvanceNote] = useState("");
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentDirection, setPaymentDirection] = useState<"IN" | "OUT">("IN");
-  const [paymentAmount, setPaymentAmount] = useState("");
+  const [dialogBusy, setDialogBusy] = useState(false);
 
   const selected = (parties ?? []).find((p) => p.id === selectedId) ?? null;
   const { data: ledger, reload: reloadLedger } = useAsync(
@@ -116,50 +115,44 @@ export function PartiesPage() {
     }
   }
 
-  async function handleAddAdvance() {
-    if (!selectedId) return;
-    const amount = Number(advanceAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Enter a positive amount");
-      return;
-    }
+  async function handleAddAdvance(amount: number, note: string) {
+    if (!selectedId || amount <= 0) return;
+    setDialogBusy(true);
     try {
       await createAdvance(getCore(), {
         partyId: selectedId,
         direction: advanceDirection,
         amount,
-        note: advanceNote.trim() || undefined,
+        note: note.trim() || undefined,
       });
       setAdvanceOpen(false);
-      setAdvanceAmount("");
-      setAdvanceNote("");
       refresh();
       toast.success(advanceDirection === "GIVEN" ? "Advance given recorded" : "Advance taken recorded");
     } catch (err) {
       toast.error("Failed to record advance", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setDialogBusy(false);
     }
   }
 
-  async function handleAddPayment() {
-    if (!selectedId) return;
-    const amount = Number(paymentAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Enter a positive amount");
-      return;
-    }
+  async function handleAddPayment(amount: number, note: string) {
+    if (!selectedId || amount <= 0) return;
+    setDialogBusy(true);
     try {
       await recordPayment(getCore(), {
         partyId: selectedId,
         direction: paymentDirection,
         amount,
         method: "cash",
+        note: note.trim() || undefined,
       });
       setPaymentOpen(false);
-      setPaymentAmount("");
       refresh();
       toast.success(paymentDirection === "IN" ? "Payment received" : "Payment made");
     } catch (err) {
       toast.error("Failed to record payment", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setDialogBusy(false);
     }
   }
 
@@ -432,51 +425,31 @@ export function PartiesPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={advanceOpen} onOpenChange={setAdvanceOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{advanceDirection === "GIVEN" ? "Advance given" : "Advance taken"}</DialogTitle>
-            <DialogDescription>
-              {advanceDirection === "GIVEN"
-                ? `Money you gave ${selected?.name ?? "this party"} (they owe you).`
-                : `Money you received from ${selected?.name ?? "this party"} (you owe them).`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="adv-amount">Amount</Label>
-              <Input id="adv-amount" type="number" min={0} value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="adv-note">Note</Label>
-              <Input id="adv-note" value={advanceNote} onChange={(e) => setAdvanceNote(e.target.value)} placeholder="e.g. raw material advance" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAdvanceOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddAdvance}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Advance given/taken — shared khata action dialog (web-identical) */}
+      <KhataActionDialog
+        key={advanceOpen ? `advance-${advanceDirection}` : "closed"}
+        open={advanceOpen}
+        onOpenChange={setAdvanceOpen}
+        title={advanceDirection === "GIVEN" ? "Advance given" : "Advance taken"}
+        subtitle={selected?.name}
+        balance={selected?.balance}
+        busy={dialogBusy}
+        confirmLabel="Save advance"
+        onConfirm={({ amount, note }) => void handleAddAdvance(amount, note)}
+      />
 
-      <Dialog open={paymentOpen} onOpenChange={setPaymentOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>{paymentDirection === "IN" ? "Money in" : "Money out"}</DialogTitle>
-            <DialogDescription>
-              {paymentDirection === "IN" ? `Received from ${selected?.name ?? "party"}.` : `Paid to ${selected?.name ?? "party"}.`}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="pay-amount">Amount</Label>
-            <Input id="pay-amount" type="number" min={0} value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddPayment}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Money in/out — shared khata action dialog */}
+      <KhataActionDialog
+        key={paymentOpen ? `payment-${paymentDirection}` : "closed"}
+        open={paymentOpen}
+        onOpenChange={setPaymentOpen}
+        title={paymentDirection === "IN" ? "Money in (received)" : "Money out (paid)"}
+        subtitle={selected?.name}
+        balance={selected?.balance}
+        busy={dialogBusy}
+        confirmLabel="Save payment"
+        onConfirm={({ amount, note }) => void handleAddPayment(amount, note)}
+      />
     </div>
   );
 }

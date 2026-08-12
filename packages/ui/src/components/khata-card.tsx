@@ -11,6 +11,7 @@
  */
 import * as React from "react";
 import { cn } from "../lib/utils";
+import { formatMoney } from "../lib/format";
 import { Badge } from "./badge";
 import { Button } from "./button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./card";
@@ -120,11 +121,3 @@ export function KhataCard<P extends KhataParty>({
   );
 }
 
-/** Local INR formatter so the shared component has no runtime deps on core. */
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    maximumFractionDigits: 0,
-  }).format(value);
-}

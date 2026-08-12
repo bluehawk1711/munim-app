@@ -6,16 +6,14 @@ import {
   Receipt,
   Plus,
   Trash2,
-  Loader2,
   IndianRupee,
   CheckCircle2,
   Clock,
   XCircle,
-  AlertTriangle,
   FileText,
   Printer,
 } from "lucide-react"
-import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, SummaryTile, InvoiceStatusBadge } from "@munim/ui"
+import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, RecordPaymentDialog, ConfirmDialog } from "@munim/ui"
 
 
 
@@ -41,7 +39,6 @@ export function InvoicesView() {
   const pagination = data?.pagination
 
   const [paying, setPaying] = React.useState<Invoice | null>(null)
-  const [payAmount, setPayAmount] = React.useState(0)
   const [deleting, setDeleting] = React.useState<Invoice | null>(null)
 
   const deleteInvoice = useDeleteInvoice()
@@ -49,7 +46,6 @@ export function InvoicesView() {
 
   function openPayment(inv: Invoice) {
     setPaying(inv)
-    setPayAmount(inv.total - inv.amountPaid)
   }
 
   async function confirmDelete() {
@@ -63,11 +59,11 @@ export function InvoicesView() {
     }
   }
 
-  async function confirmPayment() {
-    if (!paying || payAmount <= 0) return
+  async function confirmPayment(amount: number) {
+    if (!paying) return
     try {
-      await recordPayment.mutateAsync({ amount: payAmount, method: "cash" })
-      toast.success("Payment recorded", { description: `₹${payAmount.toLocaleString("en-IN")} received` })
+      await recordPayment.mutateAsync({ amount, method: "cash" })
+      toast.success("Payment recorded", { description: `${formatCurrency(amount)} received` })
       setPaying(null)
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : "Unknown error" })
@@ -207,64 +203,29 @@ export function InvoicesView() {
       )}
 
       {/* Payment dialog */}
-      <Dialog open={!!paying} onOpenChange={(open) => !open && setPaying(null)}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Record payment</DialogTitle>
-            <DialogDescription>
-              {paying?.invoiceNumber} · {paying?.customerName || "Walk-in customer"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="font-semibold tabular-nums">{paying ? formatCurrency(paying.total) : "—"}</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Already paid</p>
-                <p className="font-semibold tabular-nums">{paying ? formatCurrency(paying.amountPaid) : "—"}</p>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">Amount (₹)</label>
-              <Input type="number" min={0} value={payAmount || ""} onChange={(e) => setPayAmount(Number(e.target.value))} className="h-9" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaying(null)}>Cancel</Button>
-            <Button onClick={confirmPayment} disabled={recordPayment.isPending || payAmount <= 0}>
-              {recordPayment.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Confirm payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RecordPaymentDialog
+        key={paying?.id ?? "closed"}
+        open={!!paying}
+        onOpenChange={(open) => !open && setPaying(null)}
+        invoice={paying}
+        busy={recordPayment.isPending}
+        onConfirm={(amount) => void confirmPayment(amount)}
+      />
 
       {/* Delete dialog */}
-      <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <AlertDialogTitle>Delete invoice?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  <strong>{deleting?.invoiceNumber}</strong> will be removed and its stock restored.
-                </AlertDialogDescription>
-              </div>
-            </div>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} disabled={deleteInvoice.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              <Trash2 className="mr-1.5 h-4 w-4" /> Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Delete invoice?"
+        description={
+          <>
+            <strong>{deleting?.invoiceNumber}</strong> will be removed and its stock restored.
+          </>
+        }
+        confirmLabel="Delete"
+        busy={deleteInvoice.isPending}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   )
 }

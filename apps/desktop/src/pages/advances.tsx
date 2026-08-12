@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { HandCoins, ArrowUpRight, ArrowDownLeft, Plus, Loader2, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import {
   getPartyBalances,
   getReceivables,
@@ -14,25 +14,13 @@ import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "sonner";
 import {
-  Button,
   Card,
   CardContent,
   Skeleton,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Input,
-  Label,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
   SummaryTile,
   KhataCard,
+  QuickAdvanceRecord,
+  KhataActionDialog,
   type KhataActionKind,
 } from "@munim/ui";
 
@@ -55,7 +43,6 @@ export function AdvancesPage() {
 
   const [action, setAction] = useState<Action>(null);
   const [amount, setAmount] = useState(0);
-  const [note, setNote] = useState("");
   const [quickParty, setQuickParty] = useState("");
   const [quickKind, setQuickKind] = useState<"GIVEN" | "TAKEN">("GIVEN");
   const [saving, setSaving] = useState(false);
@@ -68,10 +55,9 @@ export function AdvancesPage() {
   function openAction(party: PartyBalance, kind: KhataActionKind) {
     setAction({ party, kind });
     setAmount(0);
-    setNote("");
   }
 
-  async function submitAction() {
+  async function submitAction(amount: number, note: string) {
     if (!action || amount <= 0) return;
     setSaving(true);
     try {
@@ -106,10 +92,9 @@ export function AdvancesPage() {
     if (!quickParty || amount <= 0) return;
     setSaving(true);
     try {
-      await createAdvance(getCore(), { partyId: quickParty, direction: quickKind, amount, note: note.trim() || undefined });
+      await createAdvance(getCore(), { partyId: quickParty, direction: quickKind, amount });
       toast.success(quickKind === "GIVEN" ? "Advance given" : "Advance received", { description: formatCurrency(amount) });
       setAmount(0);
-      setNote("");
       reload();
     } catch (err) {
       toast.error("Failed", { description: err instanceof Error ? err.message : undefined });
@@ -137,37 +122,17 @@ export function AdvancesPage() {
       </div>
 
       {/* Quick record */}
-      <Card className="border-primary/20 bg-primary/[0.03]">
-        <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
-          <div className="flex-1 space-y-1.5">
-            <Label className="text-xs">Party</Label>
-            <Select value={quickParty} onValueChange={setQuickParty}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Select party…" /></SelectTrigger>
-              <SelectContent>
-                {(data?.parties ?? []).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <Label className="text-xs">Type</Label>
-            <Select value={quickKind} onValueChange={(v) => setQuickKind(v as "GIVEN" | "TAKEN")}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="GIVEN">I gave advance (they owe me)</SelectItem>
-                <SelectItem value="TAKEN">I took advance (I owe them)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <Label className="text-xs">Amount (₹)</Label>
-            <Input type="number" min={0} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} className="h-9" />
-          </div>
-          <Button onClick={submitQuick} disabled={!quickParty || amount <= 0 || saving} className="h-9 gap-1.5">
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            Record
-          </Button>
-        </CardContent>
-      </Card>
+      <QuickAdvanceRecord
+        parties={data?.parties ?? []}
+        partyId={quickParty}
+        onPartyChange={setQuickParty}
+        kind={quickKind}
+        onKindChange={setQuickKind}
+        amount={amount}
+        onAmountChange={setAmount}
+        busy={saving}
+        onRecord={() => void submitQuick()}
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Receivables — money given out */}
@@ -195,37 +160,24 @@ export function AdvancesPage() {
       </div>
 
       {/* Action dialog */}
-      <Dialog open={!!action} onOpenChange={(open) => !open && setAction(null)}>
-        <DialogContent className="sm:max-w-[380px]">
-          <DialogHeader>
-            <DialogTitle>
-              {action?.kind === "GIVEN" ? "Give advance" : action?.kind === "TAKEN" ? "Take advance" : action?.kind === "PAYMENT_IN" ? "Receive payment" : "Make payment"}
-            </DialogTitle>
-            <DialogDescription>{action?.party.name}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3 text-sm">
-              <span className="text-muted-foreground">Current balance</span>
-              <span className="font-semibold">{action ? formatCurrency(action.party.balance) : "—"}</span>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Amount (₹)</Label>
-              <Input type="number" min={0} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} className="h-9" autoFocus />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Note (optional)</Label>
-              <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. gold purchase advance" className="h-9" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAction(null)}>Cancel</Button>
-            <Button onClick={submitAction} disabled={amount <= 0 || saving}>
-              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <HandCoins className="mr-1.5 h-4 w-4" />}
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <KhataActionDialog
+        key={action ? `${action.party.id}-${action.kind}` : "closed"}
+        open={!!action}
+        onOpenChange={(open) => !open && setAction(null)}
+        title={
+          action?.kind === "GIVEN"
+            ? "Give advance"
+            : action?.kind === "TAKEN"
+            ? "Take advance"
+            : action?.kind === "PAYMENT_IN"
+            ? "Receive payment"
+            : "Make payment"
+        }
+        subtitle={action?.party.name}
+        balance={action?.party.balance}
+        busy={saving}
+        onConfirm={({ amount: a, note }) => void submitAction(a, note)}
+      />
     </div>
   );
 }

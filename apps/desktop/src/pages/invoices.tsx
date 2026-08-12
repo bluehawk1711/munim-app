@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Receipt, Trash2, Loader2, IndianRupee, CheckCircle2, Clock, FileText, AlertTriangle } from "lucide-react";
+import { Search, Receipt, Trash2, IndianRupee, CheckCircle2, Clock, FileText } from "lucide-react";
 import {
   listInvoices,
   recordInvoicePayment,
@@ -22,14 +22,10 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   SummaryTile,
   InvoiceStatusBadge,
+  RecordPaymentDialog,
+  ConfirmDialog,
 } from "@munim/ui";
 
 type InvoiceRow = NonNullable<Awaited<ReturnType<typeof listInvoices>>>["invoices"][number];
@@ -53,13 +49,11 @@ export function InvoicesPage() {
   const pagination = data?.pagination;
 
   const [paying, setPaying] = useState<InvoiceRow | null>(null);
-  const [payAmount, setPayAmount] = useState(0);
   const [deleting, setDeleting] = useState<InvoiceRow | null>(null);
   const [saving, setSaving] = useState(false);
 
   function openPayment(inv: InvoiceRow) {
     setPaying(inv);
-    setPayAmount(inv.total - inv.amountPaid);
   }
 
   async function confirmDelete() {
@@ -74,12 +68,12 @@ export function InvoicesPage() {
     }
   }
 
-  async function confirmPayment() {
-    if (!paying || payAmount <= 0) return;
+  async function confirmPayment(amount: number) {
+    if (!paying) return;
     setSaving(true);
     try {
-      await recordInvoicePayment(getCore(), paying.id, { amount: payAmount, method: "cash" });
-      toast.success("Payment recorded", { description: `${formatCurrency(payAmount)} received` });
+      await recordInvoicePayment(getCore(), paying.id, { amount, method: "cash" });
+      toast.success("Payment recorded", { description: `${formatCurrency(amount)} received` });
       setPaying(null);
       reload();
     } catch (err) {
@@ -218,64 +212,29 @@ export function InvoicesPage() {
       )}
 
       {/* Payment dialog */}
-      <Dialog open={!!paying} onOpenChange={(open) => !open && setPaying(null)}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Record payment</DialogTitle>
-            <DialogDescription>
-              {paying?.invoiceNumber} · {paying?.customerName || "Walk-in customer"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Total</p>
-                <p className="font-semibold tabular-nums">{paying ? formatCurrency(paying.total) : "—"}</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3">
-                <p className="text-xs text-muted-foreground">Already paid</p>
-                <p className="font-semibold tabular-nums">{paying ? formatCurrency(paying.amountPaid) : "—"}</p>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">Amount (₹)</label>
-              <Input type="number" min={0} value={payAmount || ""} onChange={(e) => setPayAmount(Number(e.target.value))} className="h-9" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaying(null)}>Cancel</Button>
-            <Button onClick={confirmPayment} disabled={saving || payAmount <= 0}>
-              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              Confirm payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RecordPaymentDialog
+        key={paying?.id ?? "closed"}
+        open={!!paying}
+        onOpenChange={(open) => !open && setPaying(null)}
+        invoice={paying}
+        busy={saving}
+        onConfirm={(amount) => void confirmPayment(amount)}
+      />
 
       {/* Delete dialog */}
-      <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <DialogTitle>Delete invoice?</DialogTitle>
-                <DialogDescription>
-                  <strong>{deleting?.invoiceNumber}</strong> will be removed and its stock restored.
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={confirmDelete} className="gap-1.5">
-              <Trash2 className="h-4 w-4" /> Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="Delete invoice?"
+        description={
+          <>
+            <strong>{deleting?.invoiceNumber}</strong> will be removed and its stock restored.
+          </>
+        }
+        confirmLabel="Delete"
+        busy={saving}
+        onConfirm={() => void confirmDelete()}
+      />
     </div>
   );
 }

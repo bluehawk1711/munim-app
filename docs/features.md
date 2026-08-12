@@ -28,6 +28,12 @@ This document records what exists, and **on which platforms** it is available (�
   layout — Shop / Appearance / Security / Database). Any settings page change is made once and
   appears on both apps. The feature matrix below was last audited on **2026-08-12**: all 11 modules
   (dashboard → settings) exist as a full UI on web, desktop AND mobile (no ❌ rows).
+- **Shared workflow dialogs.** The money-movement dialogs live once in `@munim/ui` and are used by
+  both web and desktop: `RecordPaymentDialog` (invoice payment), `KhataActionDialog` (give/take
+  advance, receive/make payment — used by the Advances pages AND the desktop Parties page),
+  `ConfirmDialog` (destructive confirms like delete-invoice) and `QuickAdvanceRecord` (the Advances
+  quick-capture card). Parents keep the core calls + toasts; the dialogs own their form state
+  (amount resets to the outstanding balance / to 0 on open).
 
 ## Database tooling quirks (read before running `pnpm db:*`)
 

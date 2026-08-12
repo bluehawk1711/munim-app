@@ -1,0 +1,1 @@
+{"version":3,"file":"format.js","sourceRoot":"","sources":["../../src/lib/format.ts"],"names":[],"mappings":"AAAA;;;GAGG;AACH,MAAM,UAAU,WAAW,CAAC,KAAa;IACvC,OAAO,IAAI,IAAI,CAAC,YAAY,CAAC,OAAO,EAAE;QACpC,KAAK,EAAE,UAAU;QACjB,QAAQ,EAAE,KAAK;QACf,qBAAqB,EAAE,CAAC;KACzB,CAAC,CAAC,MAAM,CAAC,KAAK,CAAC,CAAC;AACnB,CAAC"}
