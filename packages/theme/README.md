@@ -33,8 +33,9 @@ tokens — commit it, and remember to commit it again whenever you change
 
 ## Mobile palette
 
-`src/mobile.ts` maps light tokens onto the shape the app already uses
-(`bg`, `card`, `text`, `muted`, `border`, `primary`, `success`, `danger`,
-`warning`, …). Badge soft-tints and the input placeholder are also defined
-there. Mobile is light-only today; the dark token set is available for a
-future dark-mode pass.
+`src/mobile.ts` exposes `mobileColorsFor(mode, themeName)` which maps the
+selected theme's light **or dark** tokens onto the shape the mobile screens
+use (`bg`, `card`, `text`, `muted`, `border`, `primary`, `success`, `danger`,
+`warning`, …) plus badge soft-tints and the input placeholder. Mobile supports
+light AND dark across all 5 themes (see `docs/theme.md`); `mobileColors`
+remains as the light-mode shorthand for back-compat.

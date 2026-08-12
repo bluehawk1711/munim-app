@@ -151,8 +151,14 @@ plain drizzle output.
 
 ## Known gaps & next steps
 
-1. **Web job-letter PDF vs shared HTML** — web keeps its gold-bordered jsPDF template; desktop + mobile render the shared `renderJobLetterHtml` from core, so the letter content is identical everywhere (only the renderer differs).
-2. **Web bill PDF vs shared renderBillHtml** — web keeps its rich jsPDF templates (jewellery/e-commerce, 2-in-1, classic colors); desktop + mobile share the exact `renderBillHtml` markup from core. Desktop now supports 2-in-1 sheets; the remaining difference is only the rasterizer/template styling.
+1. **Hindi language support (planned)** — see `docs/i18n-hindi.md` for the full plan:
+   typed en/hi dictionaries in a shared package, per-app providers, a `language`
+   setting synced via the shared settings row, Hindi number-to-words + Indian
+   digit grouping (lakh/crore), optional Devanagari numerals. Bills/letters stay
+   English by default. **Not yet shipped** — this row will become a feature row
+   once implemented.
+2. **Web job-letter PDF vs shared HTML** — web keeps its gold-bordered jsPDF template; desktop + mobile render the shared `renderJobLetterHtml` from core, so the letter content is identical everywhere (only the renderer differs).
+3. **Web bill PDF vs shared renderBillHtml** — web keeps its rich jsPDF templates (jewellery/e-commerce, 2-in-1, classic colors); desktop + mobile share the exact `renderBillHtml` markup from core. Desktop now supports 2-in-1 sheets; the remaining difference is only the rasterizer/template styling.
 
 ## How to add a feature globally
 

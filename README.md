@@ -9,8 +9,10 @@ database** that all three apps talk to directly:
 |---|---|---|
 | `apps/web` | Next.js 16 | Full management web app (migrated from stockPilot + job-and-bill-gen) |
 | `apps/desktop` | Tauri v2 + React 19 + Tailwind v4 + shadcn/ui | Native desktop app (scaffolded from `kitlib/tauri-app-template`) |
-| `apps/mobile` | React Native 0.86 + TypeScript | Android/iOS app (scaffolded from `react-native-community/template`) |
+| `apps/mobile` | React Native 0.86 + Expo SDK 57 dev client | Android/iOS app (scaffolded from `react-native-community/template`) |
 | `packages/core` | Drizzle ORM + Neon | **ALL schema + business logic** — imported by every app |
+| `packages/ui` | React + shadcn/ui primitives | **Shared UI kit** — web + desktop render the same components (dialogs, settings shell, bill options, PIN gate, …) |
+| `packages/theme` | Token file + CSS generator | **Single source of truth** for colors/radius — 5 themes × light/dark, consumed by all 3 apps |
 
 > All business logic — stock, sales, invoices/bills, job letters, parties,
 > advances (khata), payments, dashboard — lives **once** in `packages/core`
@@ -50,11 +52,13 @@ mobile (RN)    ─┘        ▲
 
 ```
 packages/core/        shared brain (schema, services, billing, utils) + migrations
+packages/ui/          shared UI kit (web + desktop render identically from here)
+packages/theme/       shared design tokens (5 themes × light/dark)
 apps/web/             Next.js management app
 apps/desktop/         Tauri v2 desktop app
 apps/mobile/          React Native app (bare RN) + eas.json
-.github/workflows/    desktop (tauri-action), mobile (EAS), web CI
-docs/                 PLAN.md (phases + features), ARCHITECTURE.md (decisions)
+.github/workflows/    desktop-build, mobile-eas-build, web, lint, db-migrate
+docs/                 PLAN.md, ARCHITECTURE.md, features.md (matrix), theme.md, i18n-hindi.md
 AGENTS.md             mandatory rules (no any/unknown, global types, reuse core)
 ```
 
@@ -90,8 +94,10 @@ cd apps/mobile && pnpm android            # set the connection string in the app
 | Workflow | Trigger | Result |
 |---|---|---|
 | `.github/workflows/desktop-build.yml` | push/tag | Windows NSIS installer via `tauri-action`, uploaded as artifact |
-| `.github/workflows/mobile-eas-build.yml` | manual / mobile changes | **Android dev build via EAS Build** (`eas build --profile development`) — needs `EXPO_TOKEN` secret |
+| `.github/workflows/mobile-eas-build.yml` | **manual** / mobile native changes | Android dev build via EAS Build (`eas build --profile development`) — needs `EXPO_TOKEN` secret |
 | `.github/workflows/web.yml` | push/PR | web typecheck + `next build` |
+| `.github/workflows/lint.yml` | push/PR | ESLint across the repo (typed no-any/no-unknown rules) |
+| `.github/workflows/db-migrate.yml` | push to main / manual | drift-check (migrations committed?) + apply pending Drizzle migrations to Neon |
 
 ## Rules & memory
 
@@ -99,4 +105,6 @@ Read **[AGENTS.md](AGENTS.md)** before contributing — it encodes hard rules:
 no `any`/`unknown`/`as any`/`as unknown` (with one documented exception),
 types defined once in core and never redefined, and all shared logic reused
 from `packages/core`. Architecture decisions and the phase plan live in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/PLAN.md`](docs/PLAN.md).
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/PLAN.md`](docs/PLAN.md),
+and the feature × platform matrix in [`docs/features.md`](docs/features.md).
+Hindi language support is planned in [`docs/i18n-hindi.md`](docs/i18n-hindi.md).

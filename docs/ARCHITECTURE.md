@@ -70,7 +70,57 @@ cached (`swatinem/rust-cache`), pnpm frozen install, artifacts uploaded.
 The bill model + generator (totals, amount-in-words via `numberToWords`, item
 snapshots, invoice numbering, formatting) moved from the web app into
 `packages/core/src/billing/`. All three apps render the same bill; each app
-keeps only a thin platform print/PDF adapter.
+keeps only a thin platform print/PDF adapter. Desktop + mobile render the exact
+shared `renderBillHtml` (jsPDF `html()` / `expo-print`); web keeps its rich
+jsPDF templates with identical content.
+
+### ADR-009 — Shared UI kit `packages/ui` for web + desktop
+**Status:** Accepted
+
+Web and desktop are treated as **one UI surface** (`AGENTS.md` §4b).
+Presentational building blocks used by more than one screen (stat tiles, status
+badges, khata cards, bill template options, record-payment / advance dialogs,
+settings shell, PIN gate, animated theme toggle, switch, skeleton, theme
+select) live in `packages/ui` and are consumed by BOTH apps — never forked.
+Mobile is platform-native (RN components) and is tracked separately in
+`docs/features.md`.
+
+### ADR-010 — Shared design tokens `packages/theme`
+**Status:** Accepted
+
+Every color/radius token lives once in `packages/theme/src/tokens.ts` (5
+curated themes × light+dark). Web + desktop import the generated
+`dist/tokens.css` (CSS custom properties, `[data-theme]` blocks); mobile reads
+a hex palette via `mobileColorsFor(mode, themeName)` because RN's color parser
+rejects `oklch()`/`oklab()`. See `docs/theme.md`.
+
+### ADR-011 — Theme + dark/light mode sync via the shared settings row
+**Status:** Accepted
+
+The `settings` table gained `theme` and `mode` columns. Each app writes its
+chosen theme/mode to Neon and pulls on startup; a device-local preference only
+wins when the DB row is untouched (defaults never clobber a local choice). The
+"force theme transition" flag is deliberately **device-local** (localStorage /
+AsyncStorage), not DB-synced, because it overrides the OS animation preference.
+
+### ADR-012 — Per-device 4-digit PIN app lock
+**Status:** Accepted
+
+Security is per-device and DB-free: `packages/core/src/security/pin.ts`
+(pure-TS SHA-256 — works on Hermes/browser/Node) hashes a salted PIN; web +
+desktop gate through `PinGate` in `@munim/ui` (localStorage `munim.pin`),
+mobile through its own `PinLockScreen` (AsyncStorage). Test account PIN: `1234`.
+Web adds a 30-day session cookie so the PIN isn't re-typed on every screen.
+
+### ADR-013 — Mobile EAS workflow is manual-only
+**Status:** Accepted
+
+`.github/workflows/mobile-eas-build.yml` is triggered **manually**
+(`workflow_dispatch`) — a new dev build is only needed when a **native
+library** changes (e.g. `expo-image-picker`, `@react-native-community/datetimepicker`).
+JS-only changes hot-reload through Metro, so pushing shouldn't burn an EAS
+build. Local builds remain available: `pnpm build:android` (debug APK) / 
+`pnpm build:android:release` via `scripts/build-android.mjs`.
 
 ## Security notes
 
@@ -138,6 +188,7 @@ pnpm --filter @munim/core build
 - `expo-dev-client`, `expo-tailwind-setup`, `expo-upgrade` — mobile dev builds / styling / upgrades
 - `nextjs-app-router-patterns` — web app work
 - `sqlite-database-expert` — DB discipline (parameterization, transactions)
+- `browser-act` — **mandatory for web UI verification** (real browser flows; see `AGENTS.md` §6)
 
 ## Repo map (quick reference)
 
@@ -146,8 +197,12 @@ pnpm --filter @munim/core build
 | `packages/core/src/db/schema.ts` | All tables (products, invoices, items, parties, advances, payments, job letters, settings, activity) |
 | `packages/core/src/services/*` | Business logic: products, invoices, parties, advances, payments, jobLetters, dashboard, settings, activity |
 | `packages/core/src/billing/*` | Shared bill/invoice generation (all 3 apps) |
+| `packages/core/src/security/*` | PIN hashing/verify (pure-TS SHA-256) |
+| `packages/ui/src/components/*` | Shared UI kit (web + desktop render from here) |
+| `packages/theme/src/tokens.ts` | Design tokens — 5 themes × light/dark (single source of truth) |
 | `apps/web/src/app/api/*` | Thin Next.js route adapters calling core services |
 | `apps/web/src/views/*` | Web UI screens |
 | `apps/desktop/src/pages/*` | Desktop screens (Tauri) |
 | `apps/mobile/src/screens/*` | Mobile screens (RN) |
-| `.github/workflows/*` | Desktop build + mobile EAS build CI |
+| `docs/features.md` | Feature × platform matrix (which app has what) |
+| `.github/workflows/*` | Desktop build + mobile EAS build + web + lint + db-migrate CI |

@@ -20,13 +20,24 @@ managed once here with `drizzle-kit`.
 ## Setup
 
 ```bash
-# 1. Set the shared connection string
-cp .env.example ../../.env   # then fill in DATABASE_URL from Neon
+# 1. Set the connection string — IMPORTANT: drizzle-kit reads .env from THIS
+#    directory (packages/core), not the workspace root.
+cp .env.example .env        # then fill in DATABASE_URL from Neon
 
 # 2. Push schema or run migrations
-pnpm --filter @munim/core db:push      # dev: sync schema to Neon
+pnpm --filter @munim/core db:push      # dev: sync schema to Neon (local scratch DBs only)
+pnpm --filter @munim/core db:generate  # write a new migration SQL into ./drizzle
 pnpm --filter @munim/core db:migrate   # prod: apply ./drizzle migrations
+
+# 3. Run the smoke tests (all services, in-process, no network)
+pnpm --filter @munim/core smoke
 ```
+
+> ⚠️ **pnpm driver-resolution quirk** — drizzle-kit resolves both the Postgres
+> driver (`@neondatabase/serverless`, a devDependency of this package AND the
+> root) and the `.env` file from the **config directory** (`packages/core`).
+> The root `.env` is ignored. Full write-up: `docs/features.md` → **Database
+> tooling quirks**.
 
 ## Usage
 

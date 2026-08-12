@@ -8,9 +8,16 @@ against the **shared Neon database** (no API server). Scaffolded from
 
 ## Screens
 
-Dashboard · Products & Stock · Sales · Billing/Invoices (shared bill generation
-+ jsPDF export) · Parties & Khata (advances given/taken, ledger) · Job Letters ·
-Settings (shop profile + database connection)
+Dashboard · Products & Stock (search, image upload, adjust with reason) ·
+Catalog (colors & sizes) · Sales (undo, date filter) · Billing (shared bill
+generation, templates / 2-in-1, PDF via shared `renderBillHtml`) · Invoices ·
+Parties & Khata (advances given/taken, ledger) · Advances · Job Letters (PDF) ·
+Reports (custom dates, CSV export) · Settings (Shop / Appearance / Security /
+Database — sectioned `SettingsShell` shared with web).
+
+Web and desktop are treated as **one UI surface**: screens are built from the
+shared `@munim/ui` component kit, so both apps stay pixel-identical (see
+`docs/features.md`).
 
 ## Development
 
