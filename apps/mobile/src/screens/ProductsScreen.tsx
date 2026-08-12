@@ -91,6 +91,7 @@ export function ProductsScreen() {
 
   const [adjusting, setAdjusting] = useState<ProductWithMeta | null>(null);
   const [adjustQty, setAdjustQty] = useState('');
+  const [adjustReason, setAdjustReason] = useState('');
 
   async function handleAdd() {
     if (!name.trim()) {
@@ -134,10 +135,14 @@ export function ProductsScreen() {
       return;
     }
     try {
-      await adjustStock(await getCore(), adjusting.id, {adjustment: qty});
+      await adjustStock(await getCore(), adjusting.id, {
+        adjustment: qty,
+        reason: adjustReason.trim() || undefined,
+      });
       successFeedback();
       setAdjusting(null);
       setAdjustQty('');
+      setAdjustReason('');
       reload();
     } catch {
       errorFeedback();
@@ -199,6 +204,7 @@ export function ProductsScreen() {
                       onPress={() => {
                         setAdjusting(item);
                         setAdjustQty('');
+                        setAdjustReason('');
                       }}
                     />
                     <Button title="Delete" variant="danger" onPress={() => handleDelete(item)} />
@@ -241,6 +247,13 @@ export function ProductsScreen() {
           onChangeText={setAdjustQty}
           keyboardType="numeric"
           placeholder="e.g. 10 or -2"
+        />
+        <Field
+          label="Reason (optional)"
+          value={adjustReason}
+          onChangeText={setAdjustReason}
+          multiline
+          placeholder="e.g. Restocked, damaged, returned…"
         />
         <Button title="Adjust" onPress={handleAdjust} />
       </ModalSheet>
