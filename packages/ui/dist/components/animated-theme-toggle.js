@@ -20,6 +20,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * https://developer.chrome.com/docs/web-platform/view-transitions/
  */
 import * as React from "react";
+import { Moon, Sun } from "lucide-react";
 import { cn } from "../lib/utils.js";
 const STYLE_ID = "munim-animated-theme-transition";
 const EXPO_OUT = "cubic-bezier(0.16, 1, 0.3, 1)";
@@ -144,16 +145,15 @@ export function AnimatedThemeToggle({ isDark, onToggle, start = "top-left", blur
             run();
         }
     }, [isDark, onToggle, start, blur]);
-    return (_jsxs("button", { type: "button", className: cn("size-10 cursor-pointer rounded-full bg-black p-0 transition-all duration-300 active:scale-95", className), onClick: handleToggle, "aria-label": ariaLabel, children: [_jsx("span", { className: "sr-only", children: "Toggle theme" }), _jsxs("svg", { viewBox: "0 0 240 240", fill: "none", xmlns: "http://www.w3.org/2000/svg", "aria-hidden": "true", className: "block size-full", children: [_jsxs("g", { style: {
-                            transformBox: "fill-box",
-                            transformOrigin: "center",
-                            transform: isDark ? "rotate(-180deg)" : "rotate(0deg)",
-                            transition: "transform 0.5s ease-in-out",
-                        }, children: [_jsx("path", { d: "M120 67.5C149.25 67.5 172.5 90.75 172.5 120C172.5 149.25 149.25 172.5 120 172.5", fill: "white" }), _jsx("path", { d: "M120 67.5C90.75 67.5 67.5 90.75 67.5 120C67.5 149.25 90.75 172.5 120 172.5", fill: "black" })] }), _jsx("path", { style: {
-                            transformBox: "fill-box",
-                            transformOrigin: "center",
-                            transform: isDark ? "rotate(180deg)" : "rotate(0deg)",
-                            transition: "transform 0.5s ease-in-out",
-                        }, d: "M120 3.75C55.5 3.75 3.75 55.5 3.75 120C3.75 184.5 55.5 236.25 120 236.25C184.5 236.25 236.25 184.5 236.25 120C236.25 55.5 184.5 3.75 120 3.75ZM120 214.5V172.5C90.75 172.5 67.5 149.25 67.5 120C67.5 90.75 90.75 67.5 120 67.5V25.5C172.5 25.5 214.5 67.5 214.5 120C214.5 172.5 172.5 214.5 120 214.5Z", fill: "white" })] })] }));
+    return (_jsxs("button", { type: "button", className: cn(
+        // Themed circle (not solid black) so it stays visible on dark surfaces:
+        // subtle border + tinted fill in both modes, gentle hover lift, press pop.
+        "relative size-10 cursor-pointer rounded-full border border-black/10 bg-white/90 p-0 text-zinc-800 shadow-sm backdrop-blur transition-all duration-300 hover:bg-white hover:shadow-md active:scale-95 dark:border-white/15 dark:bg-zinc-800/90 dark:text-zinc-100 dark:hover:bg-zinc-800", className), onClick: handleToggle, "aria-label": ariaLabel, children: [_jsx("span", { className: "sr-only", children: "Toggle theme" }), _jsxs("span", { className: "relative block size-full", children: [_jsx(Sun, { size: 20, "aria-hidden": "true", className: "absolute inset-0 m-auto text-amber-500 transition-all duration-500 ease-in-out motion-reduce:transform-none motion-reduce:transition-none", style: {
+                            opacity: isDark ? 0 : 1,
+                            transform: isDark ? "rotate(90deg) scale(0.4)" : "rotate(0deg) scale(1)",
+                        } }), _jsx(Moon, { size: 20, "aria-hidden": "true", className: "absolute inset-0 m-auto transition-all duration-500 ease-in-out motion-reduce:transform-none motion-reduce:transition-none", style: {
+                            opacity: isDark ? 1 : 0,
+                            transform: isDark ? "rotate(0deg) scale(1)" : "rotate(-90deg) scale(0.4)",
+                        } })] })] }));
 }
 //# sourceMappingURL=animated-theme-toggle.js.map
