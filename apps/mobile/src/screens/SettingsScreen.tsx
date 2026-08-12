@@ -1,11 +1,11 @@
 import React, {useEffect, useState} from 'react';
-import {Alert, Pressable, StyleSheet, Switch, Text, View} from 'react-native';
+import {Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
 import {KeyRound} from 'lucide-react-native';
 import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
-import {Badge, Button, Card, Field, Header, Loading, Screen, colors} from '../components/ui';
+import {Badge, Button, Card, Field, Header, Loading, Screen, Section, colors} from '../components/ui';
 import {
   successFeedback,
   errorFeedback,
@@ -40,6 +40,8 @@ export function SettingsScreen() {
   const [savingShop, setSavingShop] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
+  const scrollRef = React.useRef<ScrollView>(null);
+  const dbSectionY = React.useRef(0);
   // Lazy-init from the in-memory flag (loaded at app start) so the switch
   // never flashes the wrong state when re-entering the Settings section.
   const [haptics, setHaptics] = useState(() => isHapticsEnabled());
@@ -243,24 +245,31 @@ export function SettingsScreen() {
 
   return (
     <Screen>
-      <Header title="Settings" subtitle="Connect to the shared Neon database" />
-      <Card>
-        <Text style={{fontSize: 13, color: colors.muted, lineHeight: 19, marginBottom: 12}}>
-          Munim has no API server. This app talks directly to the same Neon Postgres database used by the
-          web and desktop apps. Paste your connection string below.
-        </Text>
-        <Field label="Neon connection string" value={url} onChangeText={setUrl} placeholder="postgresql://user:pass@host/db?sslmode=require" />
-        <View style={{flexDirection: 'row', gap: 10, marginTop: 4}}>
-          <Button title={testing ? 'Testing…' : 'Test'} variant="outline" onPress={handleTest} loading={testing} style={{flex: 1}} />
-          <Button title="Save URL" onPress={handleSaveUrl} style={{flex: 1}} />
-        </View>
-        {testResult === 'ok' ? (
-          <Text style={{color: colors.success, fontSize: 13, marginTop: 10, fontWeight: '600'}}>✓ Connected</Text>
-        ) : testResult === 'fail' ? (
-          <Text style={{color: colors.danger, fontSize: 13, marginTop: 10, fontWeight: '600'}}>✗ Connection failed</Text>
-        ) : null}
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}}>
+      <Header title="Settings" subtitle="Shop profile, appearance, security & database" />
+      {urlLoaded && !url.trim() ? (
+        <Pressable
+          onPress={() => scrollRef.current?.scrollTo({y: dbSectionY.current, animated: true})}
+          accessibilityRole="button"
+          style={({pressed}) => [styles.dbBanner, pressed && {opacity: 0.75}]}>
+          <Text style={styles.dbBannerTitle}>Database not connected</Text>
+          <Text style={styles.dbBannerSub}>
+            Tap to paste your Neon connection string
+          </Text>
+        </Pressable>
+      ) : null}
+      <Section title="Shop profile" />
+      <Card index={1}>
+        <Field label="Shop name (appears on bills)" value={shopName} onChangeText={setShopName} />
+        <Field label="Address" value={shopAddress} onChangeText={setShopAddress} />
+        <Field label="Phones (comma separated)" value={shopPhones} onChangeText={setShopPhones} />
+        <Field label="Email" value={shopEmail} onChangeText={setShopEmail} />
+        <Field label="Currency code" value={currency} onChangeText={setCurrency} placeholder="INR" />
+        <Field label="Low-stock alert at" value={lowStockThreshold} onChangeText={setLowStockThreshold} keyboardType="numeric" placeholder="5" />
+        <Button title={savingShop ? 'Saving…' : 'Save shop profile'} onPress={handleSaveShop} loading={savingShop} />
       </Card>
-      <Card>
+      <Section title="Appearance" index={1} />
+      <Card index={1}>
         <View
           style={{
             flexDirection: 'row',
@@ -281,7 +290,7 @@ export function SettingsScreen() {
           />
         </View>
       </Card>
-      <Card>
+      <Card index={2}>
         <Text style={{fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 2}}>
           Color theme
         </Text>
@@ -324,7 +333,7 @@ export function SettingsScreen() {
           })}
         </View>
       </Card>
-      <Card>
+      <Card index={3}>
         <View
           style={{
             flexDirection: 'row',
@@ -348,7 +357,8 @@ export function SettingsScreen() {
           />
         </View>
       </Card>
-      <Card>
+      <Section title="Security" index={2} />
+      <Card index={1}>
         <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
           <KeyRound size={16} color={colors.primary} style={{marginRight: 6}} />
           <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>App lock</Text>
@@ -483,21 +493,46 @@ export function SettingsScreen() {
           </>
         )}
       </Card>
-      <Card>
-        <Text style={{fontSize: 14, fontWeight: '700', marginBottom: 10, color: colors.text}}>Shop profile</Text>
-        <Field label="Shop name (appears on bills)" value={shopName} onChangeText={setShopName} />
-        <Field label="Address" value={shopAddress} onChangeText={setShopAddress} />
-        <Field label="Phones (comma separated)" value={shopPhones} onChangeText={setShopPhones} />
-        <Field label="Email" value={shopEmail} onChangeText={setShopEmail} />
-        <Field label="Currency code" value={currency} onChangeText={setCurrency} placeholder="INR" />
-        <Field label="Low-stock alert at" value={lowStockThreshold} onChangeText={setLowStockThreshold} keyboardType="numeric" placeholder="5" />
-        <Button title={savingShop ? 'Saving…' : 'Save shop profile'} onPress={handleSaveShop} loading={savingShop} />
+      <View
+        onLayout={e => {
+          dbSectionY.current = e.nativeEvent.layout.y;
+        }}>
+      <Section title="Database" index={3} />
+      <Card index={1}>
+        <Text style={{fontSize: 13, color: colors.muted, lineHeight: 19, marginBottom: 12}}>
+          Munim has no API server. This app talks directly to the same Neon Postgres database used by the
+          web and desktop apps. Paste your connection string below.
+        </Text>
+        <Field label="Neon connection string" value={url} onChangeText={setUrl} placeholder="postgresql://user:pass@host/db?sslmode=require" />
+        <View style={{flexDirection: 'row', gap: 10, marginTop: 4}}>
+          <Button title={testing ? 'Testing…' : 'Test'} variant="outline" onPress={handleTest} loading={testing} style={{flex: 1}} />
+          <Button title="Save URL" onPress={handleSaveUrl} style={{flex: 1}} />
+        </View>
+        {testResult === 'ok' ? (
+          <Text style={{color: colors.success, fontSize: 13, marginTop: 10, fontWeight: '600'}}>✓ Connected</Text>
+        ) : testResult === 'fail' ? (
+          <Text style={{color: colors.danger, fontSize: 13, marginTop: 10, fontWeight: '600'}}>✗ Connection failed</Text>
+        ) : null}
       </Card>
+      </View>
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  dbBanner: {
+    backgroundColor: colors.warningSoft,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.warning,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  dbBannerTitle: {fontSize: 13, fontWeight: '700', color: colors.warning},
+  dbBannerSub: {fontSize: 12, color: colors.muted, marginTop: 2},
   swatchOption: {
     alignItems: 'center',
     gap: 6,
