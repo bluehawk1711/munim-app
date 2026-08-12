@@ -1,10 +1,12 @@
 import React, {useMemo, useState} from 'react';
-import {Alert, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View} from 'react-native';
+import {Alert, FlatList, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View} from 'react-native';
 import * as Print from 'expo-print';
+import {ChevronDown} from 'lucide-react-native';
 import {
   createInvoice,
   getSettings,
   listInvoices,
+  listParties,
   buildBillDocument,
   renderBillText,
   renderBillHtml,
@@ -14,6 +16,7 @@ import {
   type BillClassicColor,
   type BillMode,
   type BillTemplateSettings,
+  type Party,
 } from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
@@ -27,6 +30,7 @@ import {
   Field,
   Header,
   Loading,
+  ModalSheet,
   Screen,
   Section,
   colors,
@@ -41,6 +45,88 @@ type LineState = {
 };
 
 const emptyLine = (): LineState => ({productId: '', productName: '', quantity: '1', price: '0'});
+
+const TYPE_LABELS: Record<string, string> = {
+  CUSTOMER: 'Customer',
+  SUPPLIER: 'Supplier',
+  WORKER: 'Worker',
+  OTHER: 'Other',
+};
+
+/** "Link to khata party" picker — same behaviour as web: selecting a party
+ * pre-fills the customer name/phone/address; "None (walk-in)" clears it. */
+function PartyPicker({
+  parties,
+  partyId,
+  selected,
+  onChange,
+}: {
+  parties: Party[] | null | undefined;
+  partyId: string;
+  selected: string;
+  onChange: (id: string, party?: Party) => void;
+}) {
+  const styles = useThemeStyles(makeStyles);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={({pressed}) => [styles.partyPicker, pressed && {opacity: 0.7}]}>
+        <View style={{flex: 1}}>
+          <Text style={styles.pickerLabel}>Link to khata party</Text>
+          <Text style={styles.pickerValue}>{selected || 'None (walk-in)'}</Text>
+        </View>
+        <ChevronDown size={18} color={colors.muted} />
+      </Pressable>
+      <ModalSheet visible={open} title="Select party" onClose={() => setOpen(false)}>
+        <FlatList
+          data={parties ?? []}
+          keyExtractor={item => item.id}
+          style={{maxHeight: 340}}
+          ListHeaderComponent={
+            <Pressable
+              onPress={() => {
+                selectionTick();
+                onChange('');
+                setOpen(false);
+              }}
+              style={({pressed}) => [
+                styles.pickRow,
+                partyId === '' && {backgroundColor: colors.mutedBg},
+                pressed && {backgroundColor: colors.mutedBg},
+              ]}>
+              <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}}>
+                None (walk-in)
+              </Text>
+            </Pressable>
+          }
+          ListEmptyComponent={<Empty text="No parties yet — add one from the Khata tab first" />}
+          renderItem={({item}) => (
+            <Pressable
+              onPress={() => {
+                selectionTick();
+                onChange(item.id, item);
+                setOpen(false);
+              }}
+              style={({pressed}) => [
+                styles.pickRow,
+                partyId === item.id && {backgroundColor: colors.mutedBg},
+                pressed && {backgroundColor: colors.mutedBg},
+              ]}>
+              <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}}>
+                {item.name}
+              </Text>
+              <Text style={{fontSize: 12, color: colors.muted}}>
+                {TYPE_LABELS[item.type] ?? item.type.toLowerCase()}
+              </Text>
+            </Pressable>
+          )}
+        />
+      </ModalSheet>
+    </>
+  );
+}
 
 /** Line-item editor shared by bill 1 and the 2-in-1 Separate bill 2. */
 function LineItemsEditor({
@@ -93,6 +179,7 @@ function LineItemsEditor({
 export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: settings} = useAsync(async () => getSettings(await getCore()), []);
+  const {data: parties} = useAsync(async () => listParties(await getCore()), []);
   const {data: list, loading, reload: reloadList} = useAsync(
     async () => listInvoices(await getCore(), {pageSize: 50}),
     [],
@@ -100,6 +187,11 @@ export function BillingScreen() {
 
   // ── Bill 1 ──────────────────────────────────────────────────────────────
   const [customer, setCustomer] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [partyId, setPartyId] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState('');
   const [discount, setDiscount] = useState('0');
   const [delivery, setDelivery] = useState('0');
   const [paid, setPaid] = useState('0');
@@ -113,6 +205,9 @@ export function BillingScreen() {
 
   // ── Bill 2 — only used in 2-in-1 "Separate" mode ───────────────────────
   const [secondCustomer, setSecondCustomer] = useState('');
+  const [secondCustomerPhone, setSecondCustomerPhone] = useState('');
+  const [secondCustomerAddress, setSecondCustomerAddress] = useState('');
+  const [secondPartyId, setSecondPartyId] = useState('');
   const [secondDiscount, setSecondDiscount] = useState('0');
   const [secondDelivery, setSecondDelivery] = useState('0');
   const [secondPaid, setSecondPaid] = useState('0');
@@ -188,11 +283,19 @@ export function BillingScreen() {
    * immediately share / export the bill they just created. */
   function resetForm() {
     setCustomer('');
+    setCustomerPhone('');
+    setCustomerAddress('');
+    setPartyId('');
+    setDate(new Date().toISOString().slice(0, 10));
+    setNotes('');
     setDiscount('0');
     setDelivery('0');
     setPaid('0');
     setLines([emptyLine()]);
     setSecondCustomer('');
+    setSecondCustomerPhone('');
+    setSecondCustomerAddress('');
+    setSecondPartyId('');
     setSecondDiscount('0');
     setSecondDelivery('0');
     setSecondPaid('0');
@@ -209,6 +312,11 @@ export function BillingScreen() {
       Alert.alert('Second bill needed', 'Separate mode needs at least one item in Bill 2.');
       return;
     }
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      errorFeedback();
+      Alert.alert('Invalid date', 'Use YYYY-MM-DD (e.g. 2026-08-12).');
+      return;
+    }
     setSaving(true);
     try {
       const shop = settings
@@ -216,8 +324,16 @@ export function BillingScreen() {
         : undefined;
       // Same template snapshot web saves — the options follow each invoice.
       const templateSettings: BillTemplateSettings = {template, classicColor, twoInOne, mode};
+      const shared = {
+        date: date || undefined,
+        notes: notes.trim() || undefined,
+      };
       const invoice = await createInvoice(await getCore(), {
         customerName: customer.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        customerAddress: customerAddress.trim() || undefined,
+        partyId: partyId || undefined,
+        ...shared,
         items,
         discount: Number(discount) || 0,
         deliveryCharge: Number(delivery) || 0,
@@ -236,6 +352,10 @@ export function BillingScreen() {
         try {
           const secondInvoice = await createInvoice(await getCore(), {
             customerName: secondCustomer.trim() || undefined,
+            customerPhone: secondCustomerPhone.trim() || undefined,
+            customerAddress: secondCustomerAddress.trim() || undefined,
+            partyId: secondPartyId || undefined,
+            ...shared,
             items: collectItems(secondLines),
             discount: Number(secondDiscount) || 0,
             deliveryCharge: Number(secondDelivery) || 0,
@@ -417,6 +537,28 @@ export function BillingScreen() {
 
         <Card index={1}>
           <Field label="Customer" value={customer} onChangeText={setCustomer} />
+          <Field label="Phone" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" />
+          <Field label="Address" value={customerAddress} onChangeText={setCustomerAddress} />
+          <PartyPicker
+            parties={parties}
+            partyId={partyId}
+            selected={parties?.find(p => p.id === partyId)?.name ?? ''}
+            onChange={(id, party) => {
+              setPartyId(id);
+              if (party) {
+                setCustomer(party.name);
+                setCustomerPhone(party.phone ?? '');
+                setCustomerAddress(party.address ?? '');
+              }
+            }}
+          />
+          <Field
+            label="Date (YYYY-MM-DD)"
+            value={date}
+            onChangeText={setDate}
+            placeholder="2026-08-12"
+            keyboardType="numbers-and-punctuation"
+          />
           <LineItemsEditor
             lines={lines}
             onChange={updateLine}
@@ -426,6 +568,7 @@ export function BillingScreen() {
           <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
           <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="numeric" />
           <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="numeric" />
+          <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
           <Text style={styles.total}>Total: {money(total)}</Text>
           <Button title={saving ? 'Saving…' : 'Create invoice'} onPress={handleCreate} loading={saving} />
         </Card>
@@ -437,6 +580,21 @@ export function BillingScreen() {
               <Badge text="Bill 2" tone="muted" />
             </View>
             <Field label="Customer" value={secondCustomer} onChangeText={setSecondCustomer} />
+            <Field label="Phone" value={secondCustomerPhone} onChangeText={setSecondCustomerPhone} keyboardType="phone-pad" />
+            <Field label="Address" value={secondCustomerAddress} onChangeText={setSecondCustomerAddress} />
+            <PartyPicker
+              parties={parties}
+              partyId={secondPartyId}
+              selected={parties?.find(p => p.id === secondPartyId)?.name ?? ''}
+              onChange={(id, party) => {
+                setSecondPartyId(id);
+                if (party) {
+                  setSecondCustomer(party.name);
+                  setSecondCustomerPhone(party.phone ?? '');
+                  setSecondCustomerAddress(party.address ?? '');
+                }
+              }}
+            />
             <LineItemsEditor
               lines={secondLines}
               onChange={updateSecondLine}
@@ -513,6 +671,27 @@ const makeStyles = () =>
       borderRadius: 12,
       padding: 10,
       marginBottom: 10,
+    },
+    partyPicker: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 12,
+      backgroundColor: colors.card,
+    },
+    pickerLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
+    pickerValue: {fontSize: 15, color: colors.text, marginTop: 2},
+    pickRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 4,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
     },
     lineRow: {flexDirection: 'row'},
     total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},

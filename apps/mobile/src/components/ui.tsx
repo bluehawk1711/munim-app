@@ -221,6 +221,8 @@ type FieldProps = {
   keyboardType?: KeyboardTypeOptions;
   secureTextEntry?: boolean;
   maxLength?: number;
+  /** Renders a taller multi-line textarea (notes / terms). */
+  multiline?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -232,6 +234,7 @@ export function Field({
   keyboardType,
   secureTextEntry,
   maxLength,
+  multiline,
   style,
 }: FieldProps) {
   const styles = useThemeStyles(makeStyles);
@@ -245,9 +248,10 @@ export function Field({
         keyboardType={keyboardType}
         secureTextEntry={secureTextEntry}
         maxLength={maxLength}
-        style={styles.input}
+        multiline={multiline}
+        style={[styles.input, multiline && {minHeight: 76, textAlignVertical: 'top', paddingTop: 10}]}
         placeholderTextColor={colors.inputPlaceholder}
-        autoCapitalize="none"
+        autoCapitalize={multiline ? 'sentences' : 'none'}
       />
     </View>
   );
