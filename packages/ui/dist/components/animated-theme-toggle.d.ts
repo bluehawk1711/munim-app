@@ -8,10 +8,13 @@
  * passes `isDark` + `onToggle`. That keeps each app's persistence and the
  * shared-DB theme/mode sync in the app layer while the animation lives here.
  *
- * Contract: the toggle drives the `light`/`dark` classes on <html> itself
- * (synchronously, so the View Transition captures the flip). Any host theme
- * system must use exactly those two class names — next-themes and the
- * desktop provider both do.
+ * Contract: the toggle drives the `light`/`dark` classes on BOTH <html> and
+ * <body> (synchronously, so the View Transition captures the flip). <html>
+ * is required for the ::view-transition pseudo-elements and the
+ * `[data-theme=x].dark` variable blocks; <body> covers any host CSS that
+ * happens to be scoped under `body.dark`. Both apps' theme systems
+ * (next-themes + the desktop provider) use exactly these two class names,
+ * so the flip is idempotent for either host.
  *
  * Original concept: Skiper UI (@gurvinder-singh02) — https://gxuri.me
  * Inspired by https://github.com/rudrodip/theme-toggle-effect
