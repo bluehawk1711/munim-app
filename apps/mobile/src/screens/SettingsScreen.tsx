@@ -6,6 +6,7 @@ import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {Badge, Button, Card, Field, Header, Loading, Screen, Section, colors} from '../components/ui';
+import {ThemeToggleButton} from '../components/theme-toggle';
 import {
   successFeedback,
   errorFeedback,
@@ -282,12 +283,7 @@ export function SettingsScreen() {
               Follows your system until you switch here
             </Text>
           </View>
-          <Switch
-            value={mode === 'dark'}
-            onValueChange={toggle}
-            trackColor={{true: colors.primary, false: colors.border}}
-            thumbColor="#ffffff"
-          />
+          <ThemeToggleButton isDark={mode === 'dark'} onToggle={toggle} />
         </View>
       </Card>
       <Card index={2}>
