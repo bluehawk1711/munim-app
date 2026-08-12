@@ -9,7 +9,6 @@ import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigg
 
 
 import { ThemeToggle } from "@/components/app/theme-toggle"
-import { ThemeSelect, useAccentThemeContext } from "@/components/app/theme-picker"
 import { SidebarNav, SidebarHeader, SidebarFooter } from "@/components/app/sidebar-nav"
 import { useAppStore } from "@/store/view-store"
 
@@ -145,14 +144,7 @@ export function AppTopbar() {
         <Plus className="h-4 w-4" />
       </Button>
 
-      <ThemeSelectInHeader />
       <ThemeToggle />
     </header>
   )
-}
-
-/** Compact color-theme select — swatch on the left, label on the right. */
-function ThemeSelectInHeader() {
-  const { themeName, setThemeName } = useAccentThemeContext()
-  return <ThemeSelect value={themeName} onChange={setThemeName} className="hidden sm:flex" />
 }

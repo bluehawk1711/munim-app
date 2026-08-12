@@ -1,25 +1,22 @@
-import { useMemo, useState } from "react";
-import { Plus, Search, Pencil, Trash2, PackagePlus } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Plus, Search, Pencil, Trash2, PackagePlus, UploadCloud, Image as ImageIcon, Loader2, X } from "lucide-react";
 import {
   listProducts,
   createProduct,
   updateProduct,
   deleteProduct,
   adjustStock,
+  uploadImageToCloudinary,
   type ProductWithMeta,
 } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { toast } from "sonner";
-import { Button, Input, Label, Badge, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
-;
-;
-;
-;
-;
-;
-;
+import { Button, Input, Label, Badge, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui";
+
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
 
 type FormState = {
   name: string;
@@ -27,6 +24,7 @@ type FormState = {
   size: string;
   category: string;
   barcode: string;
+  imageUrl: string;
   stock: string;
   purchasePrice: string;
   sellingPrice: string;
@@ -40,6 +38,7 @@ const EMPTY_FORM: FormState = {
   size: "",
   category: "",
   barcode: "",
+  imageUrl: "",
   stock: "0",
   purchasePrice: "0",
   sellingPrice: "0",
@@ -64,6 +63,8 @@ export function ProductsPage() {
   const [editing, setEditing] = useState<ProductWithMeta | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [adjusting, setAdjusting] = useState<ProductWithMeta | null>(null);
   const [adjustQty, setAdjustQty] = useState("");
@@ -85,6 +86,7 @@ export function ProductsPage() {
       size: p.sizeName ?? "",
       category: p.categoryName ?? "",
       barcode: p.barcode ?? "",
+      imageUrl: p.imageUrl ?? "",
       stock: String(p.stock),
       purchasePrice: String(p.purchasePrice),
       sellingPrice: String(p.sellingPrice),
@@ -92,6 +94,26 @@ export function ProductsPage() {
       notes: p.notes ?? "",
     });
     setFormOpen(true);
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file");
+      return;
+    }
+    setUploading(true);
+    try {
+      const url = await uploadImageToCloudinary(file, CLOUD_NAME ?? "", UPLOAD_PRESET ?? "");
+      setForm((f) => ({ ...f, imageUrl: url }));
+      toast.success("Image uploaded");
+    } catch (err) {
+      toast.error("Upload failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   }
 
   async function handleSave() {
@@ -107,6 +129,7 @@ export function ProductsPage() {
         size: form.size.trim() || "Standard",
         category: form.category.trim() || undefined,
         barcode: form.barcode.trim() || undefined,
+        imageUrl: form.imageUrl.trim() || undefined,
         stock: Math.max(0, Number(form.stock) || 0),
         purchasePrice: Math.max(0, Number(form.purchasePrice) || 0),
         sellingPrice: Math.max(0, Number(form.sellingPrice) || 0),
@@ -179,12 +202,15 @@ export function ProductsPage() {
       {error ? (
         <Card className="p-6 text-sm text-destructive">{error}</Card>
       ) : loading ? (
-        <p className="text-muted-foreground p-6 text-sm">Loading products…</p>
+        <Card>
+          <CardLoading rows={6} />
+        </Card>
       ) : (
         <Card>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Image</TableHead>
                 <TableHead>Product</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>Color / Size</TableHead>
@@ -205,6 +231,15 @@ export function ProductsPage() {
               ) : (
                 products.map((p) => (
                   <TableRow key={p.id}>
+                    <TableCell>
+                      {p.imageUrl ? (
+                        <img src={p.imageUrl} alt="" className="h-9 w-9 rounded-md border object-cover" />
+                      ) : (
+                        <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground">
+                          <ImageIcon className="h-4 w-4" />
+                        </div>
+                      )}
+                    </TableCell>
                     <TableCell className="max-w-56 truncate font-medium">{p.name}</TableCell>
                     <TableCell className="text-muted-foreground">{p.sku}</TableCell>
                     <TableCell className="text-muted-foreground">
@@ -248,6 +283,42 @@ export function ProductsPage() {
               <div className="space-y-1.5 sm:col-span-2">
                 <Label htmlFor="p-name">Name *</Label>
                 <Input id="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Product Image</Label>
+                <div className="flex items-center gap-3">
+                  {form.imageUrl ? (
+                    <img src={form.imageUrl} alt="Product preview" className="h-16 w-16 rounded-lg border object-cover" />
+                  ) : (
+                    <div className="bg-muted text-muted-foreground flex h-16 w-16 items-center justify-center rounded-lg border">
+                      <ImageIcon className="h-6 w-6" />
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploading}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="gap-1.5"
+                      >
+                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                        {uploading ? "Uploading…" : form.imageUrl ? "Replace image" : "Upload image"}
+                      </Button>
+                      {form.imageUrl && (
+                        <Button type="button" variant="ghost" size="icon" className="h-8 w-8" aria-label="Remove image" onClick={() => setForm({ ...form, imageUrl: "" })}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      JPG, PNG or WebP · up to 5 MB · hosted on Cloudinary
+                    </p>
+                  </div>
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-color">Color</Label>
@@ -316,6 +387,17 @@ export function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Shimmer loading rows for tables (premium alternative to pulse/text). */
+function CardLoading({ rows }: { rows: number }) {
+  return (
+    <div className="space-y-2 p-4">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-12 w-full" />
+      ))}
     </div>
   );
 }

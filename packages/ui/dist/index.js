@@ -8,6 +8,7 @@ export { cn } from "./lib/utils.js";
 export * from "./components/alert-dialog.js";
 export * from "./components/badge.js";
 export * from "./components/badge-variants.js";
+export * from "./components/bill-template-options.js";
 export * from "./components/button.js";
 export * from "./components/button-variants.js";
 export * from "./components/card.js";

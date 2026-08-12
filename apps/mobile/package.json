@@ -24,6 +24,7 @@
     "expo": "~57.0.11",
     "expo-dev-client": "~57.0.10",
     "expo-haptics": "~57.0.1",
+    "expo-image-picker": "~57.0.9",
     "expo-print": "~57.0.1",
     "lucide-react-native": "^1.30.0",
     "react": "19.2.3",

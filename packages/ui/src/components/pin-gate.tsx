@@ -370,26 +370,37 @@ function LoginScreen({ lock }: { lock: PinLockValue }) {
     : null;
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-background p-6">
+    <div
+      className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-background p-6"
+      style={{
+        background:
+          "radial-gradient(60rem 40rem at 15% -10%, color-mix(in srgb, var(--primary) 12%, transparent), transparent 60%), radial-gradient(50rem 36rem at 110% 110%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 55%)",
+      }}
+    >
       <style>{`
-        @keyframes munim-pin-enter { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes munim-pin-enter { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
         @keyframes munim-pin-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
+        .munim-gate-item { opacity: 0; animation: munim-pin-enter 0.45s cubic-bezier(0.25,0.46,0.45,0.94) forwards; }
+        .munim-gate-key { transition: transform 0.12s ease, background-color 0.15s ease; }
+        .munim-gate-key:hover { background-color: color-mix(in srgb, var(--muted) 85%, var(--foreground) 6%); }
+        .munim-gate-key:active { transform: scale(0.92); background-color: color-mix(in srgb, var(--muted) 75%, var(--foreground) 10%); }
       `}</style>
+      <div className="pointer-events-none absolute inset-x-0 top-0 mx-auto h-40 max-w-2xl rounded-b-full bg-primary/10 blur-3xl" />
       <div
-        className="w-full max-w-sm rounded-3xl border bg-card p-8 shadow-xl shadow-black/5"
-        style={{ animation: "munim-pin-enter 0.35s cubic-bezier(0.25,0.46,0.45,0.94)" }}
+        className="glass relative w-full max-w-sm rounded-[2rem] border bg-card/80 p-8 shadow-2xl shadow-black/10 backdrop-blur-2xl"
+        style={{ animation: "munim-pin-enter 0.45s cubic-bezier(0.25,0.46,0.45,0.94)" }}
       >
         {step === "credentials" ? (
           <>
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <div className="munim-gate-item mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-lg shadow-primary/10" style={{ animationDelay: "0.04s" }}>
               <Mail className="h-6 w-6" strokeWidth={2.2} />
             </div>
-            <h1 className="text-center text-xl font-semibold tracking-tight">Welcome back</h1>
-            <p className="mt-1 text-center text-sm text-muted-foreground">
+            <h1 className="munim-gate-item text-center text-xl font-semibold tracking-tight" style={{ animationDelay: "0.09s" }}>Welcome back</h1>
+            <p className="munim-gate-item mt-1 text-center text-sm text-muted-foreground" style={{ animationDelay: "0.14s" }}>
               {lock.isTestAccount ? "Test account is active" : "Sign in to unlock Munim"}
             </p>
 
-            <form onSubmit={submitCredentials} className="mt-6 space-y-3">
+            <form onSubmit={submitCredentials} className="munim-gate-item mt-6 space-y-3" style={{ animationDelay: "0.2s" }}>
               <div className="space-y-1.5">
                 <label htmlFor="login-email" className="text-xs font-medium text-muted-foreground">
                   Email
@@ -439,11 +450,11 @@ function LoginScreen({ lock }: { lock: PinLockValue }) {
           </>
         ) : (
           <>
-            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+            <div className="munim-gate-item mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-lg shadow-primary/10" style={{ animationDelay: "0.04s" }}>
               <Lock className="h-6 w-6" strokeWidth={2.2} />
             </div>
-            <h1 className="text-center text-xl font-semibold tracking-tight">Enter your PIN</h1>
-            <p className="mt-1 text-center text-sm text-muted-foreground">
+            <h1 className="munim-gate-item text-center text-xl font-semibold tracking-tight" style={{ animationDelay: "0.09s" }}>Enter your PIN</h1>
+            <p className="munim-gate-item mt-1 text-center text-sm text-muted-foreground" style={{ animationDelay: "0.14s" }}>
               {lock.isTestAccount ? "Test account PIN is 1234" : "Final security step"}
             </p>
 
@@ -459,13 +470,13 @@ function LoginScreen({ lock }: { lock: PinLockValue }) {
               {error ? <span className="text-sm font-medium text-destructive">{error}</span> : <span className="text-xs text-muted-foreground">&nbsp;</span>}
             </div>
 
-            <div className="mx-auto grid max-w-[240px] grid-cols-3 gap-2.5">
+            <div className="munim-gate-item mx-auto grid max-w-[240px] grid-cols-3 gap-2.5" style={{ animationDelay: "0.22s" }}>
               {KEYS.map((k) => (
                 <button
                   key={k}
                   type="button"
                   onClick={() => press(k)}
-                  className="flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold transition-all duration-100 hover:bg-muted/80 active:scale-90"
+                  className="munim-gate-key flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold shadow-sm"
                 >
                   {k}
                 </button>
@@ -474,7 +485,7 @@ function LoginScreen({ lock }: { lock: PinLockValue }) {
               <button
                 type="button"
                 onClick={() => press("0")}
-                className="flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold transition-all duration-100 hover:bg-muted/80 active:scale-90"
+                className="munim-gate-key flex h-16 items-center justify-center rounded-2xl bg-muted text-lg font-semibold shadow-sm"
               >
                 0
               </button>
@@ -482,13 +493,13 @@ function LoginScreen({ lock }: { lock: PinLockValue }) {
                 type="button"
                 onClick={backspace}
                 aria-label="Delete digit"
-                className="flex h-16 items-center justify-center rounded-2xl text-muted-foreground transition-all duration-100 hover:bg-muted/80 active:scale-90"
+                className="munim-gate-key flex h-16 items-center justify-center rounded-2xl text-muted-foreground shadow-sm"
               >
                 <Delete className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="mt-6 flex items-center justify-center gap-4">
+            <div className="munim-gate-item mt-6 flex items-center justify-center gap-4" style={{ animationDelay: "0.28s" }}>
               <button
                 type="button"
                 onClick={() => setStep("credentials")}

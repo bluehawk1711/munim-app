@@ -1,14 +1,12 @@
 import type { ElementType } from "react";
 import { motion } from "motion/react";
-import { Banknote, HandCoins, PackageSearch, TrendingUp, Wallet, AlertTriangle } from "lucide-react";
+import { Banknote, HandCoins, PackageSearch, TrendingUp, Wallet, AlertTriangle, Database, Settings } from "lucide-react";
 import { getDashboard, formatDate } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
-import { Badge, Card, CardContent, CardHeader, CardTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
-;
-;
-;
+import { navigate } from "@/lib/navigation";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui";
 
 function StatCard({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: string; icon: ElementType }) {
   return (
@@ -38,19 +36,58 @@ export function DashboardPage() {
   const { data, error, loading, reload } = useAsync(() => getDashboard(getCore()), []);
 
   if (error) {
+    const noConfig = error.includes("No database URL configured");
+    const host = error.match(/@([^/]+)/)?.[1] ?? null;
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <AlertTriangle className="text-destructive h-8 w-8" />
-        <p className="max-w-md text-sm text-muted-foreground">{error}</p>
-        <button onClick={reload} className="text-primary text-sm underline">
-          Retry
-        </button>
+        <div className="bg-destructive/10 text-destructive rounded-2xl p-4">
+          {noConfig ? <Database className="h-8 w-8" /> : <AlertTriangle className="h-8 w-8" />}
+        </div>
+        <p className="text-base font-semibold">
+          {noConfig ? "Database not configured" : "Couldn't load dashboard"}
+        </p>
+        <p className="text-muted-foreground max-w-md text-sm">
+          {noConfig
+            ? "Add your shared Neon connection string in Settings — the same one the web app uses."
+            : host
+              ? `Tried to reach ${host} but the query failed. Check the connection string in Settings.`
+              : error}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={reload}>
+            Retry
+          </Button>
+          <Button onClick={() => navigate("/settings")} className="gap-1.5">
+            <Settings className="h-4 w-4" /> Open Settings
+          </Button>
+        </div>
       </div>
     );
   }
 
   if (loading || !data) {
-    return <p className="text-muted-foreground p-8 text-sm">Loading dashboard…</p>;
+    return (
+      <div className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="space-y-2 p-4">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-7 w-32" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardContent className="space-y-2 p-4">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (

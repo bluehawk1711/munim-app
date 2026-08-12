@@ -7,17 +7,25 @@ import {
   Text,
   TextInput,
   View,
+  type DimensionValue,
   type KeyboardTypeOptions,
   type StyleProp,
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 // Colors come from @munim/theme (via the dynamic proxy in ../theme) — the
 // single source of truth for web, desktop AND mobile. The proxy resolves the
 // active mode's palette, so these tokens flip with dark mode automatically.
-import {colors, useThemeStyles} from '../theme';
+import {colors, useTheme, useThemeStyles} from '../theme';
 import {actionPress} from '../lib/haptics';
 
 export {colors};
@@ -308,10 +316,83 @@ export function Row({
   );
 }
 
-export function Loading() {
+/**
+ * Shimmer loading blocks — a soft highlight sweeps left-to-right (premium
+ * alternative to a spinner/pulse). Used by the list screens while data loads.
+ */
+function ShimmerBlock({
+  height,
+  width,
+  radius = 10,
+  style,
+}: {
+  height: number;
+  width?: DimensionValue;
+  radius?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const {mode} = useTheme();
+  const x = useSharedValue(-120);
+
+  React.useEffect(() => {
+    x.value = withRepeat(withTiming(320, {duration: 1500}), -1, false);
+  }, [x]);
+
+  const sweep = useAnimatedStyle(() => ({
+    transform: [{translateX: x.value}],
+  }));
+
   return (
-    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40}}>
-      <ActivityIndicator size="large" color={colors.primary} />
+    <View
+      style={[
+        {
+          height,
+          width: width ?? '100%',
+          borderRadius: radius,
+          backgroundColor: colors.mutedSoft,
+          overflow: 'hidden',
+        },
+        style,
+      ]}>
+      <Animated.View
+        style={[
+          {
+            position: 'absolute',
+            top: 0,
+            bottom: 0,
+            width: '55%',
+            backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.45)',
+            transform: [{skewX: '-18deg'}],
+          },
+          sweep,
+        ]}
+      />
+    </View>
+  );
+}
+
+/** Full list skeleton: header-ish lines + card-shaped placeholder rows. */
+export function Loading({rows = 5}: {rows?: number}) {
+  const styles = useThemeStyles(makeStyles);
+  return (
+    <View style={{padding: 16}}>
+      {Array.from({length: rows}).map((_, i) => (
+        <View
+          key={i}
+          style={[
+            styles.card,
+            {marginHorizontal: 0, marginBottom: 10, padding: 14, gap: 10},
+          ]}>
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+            <ShimmerBlock height={40} width={40} radius={8} />
+            <View style={{flex: 1, gap: 6}}>
+              <ShimmerBlock height={12} width="70%" />
+              <ShimmerBlock height={10} width="45%" />
+            </View>
+          </View>
+          <ShimmerBlock height={10} width="85%" />
+        </View>
+      ))}
     </View>
   );
 }

@@ -13,7 +13,7 @@ import {
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "sonner";
-import { Button, Input, Label, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@munim/ui"
+import { Button, Input, Label, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton } from "@munim/ui"
 ;
 ;
 ;
@@ -76,7 +76,9 @@ function CatalogCard({
         {error ? (
           <p className="px-4 py-6 text-center text-xs text-destructive">{error}</p>
         ) : loading ? (
-          <p className="px-4 py-6 text-center text-xs text-muted-foreground">Loading…</p>
+          <div className="space-y-2 p-4">
+            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+          </div>
         ) : items && items.length > 0 ? (
           <ul className="divide-y">
             {items.map((item) => (

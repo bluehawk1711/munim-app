@@ -26,6 +26,7 @@ export { generateSku, generateInvoiceNumber } from "./utils/codes";
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel } from "./utils/format";
 export { newId } from "./utils/id";
 export { swatchColor } from "./utils/swatch";
+export { uploadImageToCloudinary } from "./utils/cloudinary";
 
 /* Services */
 export * from "./services/catalog";

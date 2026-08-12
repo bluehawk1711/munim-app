@@ -49,6 +49,37 @@ for (const name of themeNames) {
   lines.push("}", "");
 }
 
+// ── Shared UI helpers (consumed by web + desktop, imported from tokens.css) ──
+
+lines.push(
+  `/* Left-to-right shimmer for loading skeletons (premium alternative to pulse) */`,
+  `@keyframes munim-shimmer {`,
+  `  0% { background-position: -200% 0; }`,
+  `  100% { background-position: 200% 0; }`,
+  `}`,
+  `.skeleton-shimmer {`,
+  `  background: linear-gradient(90deg, var(--border) 25%, var(--muted) 50%, var(--border) 75%);`,
+  `  background-size: 200% 100%;`,
+  `  animation: munim-shimmer 1.6s ease-in-out infinite;`,
+  `}`,
+  `.dark .skeleton-shimmer {`,
+  `  background: linear-gradient(90deg, var(--secondary) 25%, var(--border) 50%, var(--secondary) 75%);`,
+  `  background-size: 200% 100%;`,
+  `}`,
+  ``,
+  `/* Thin themed scrollbars everywhere (incl. dialog contents) */`,
+  `* {`,
+  `  scrollbar-width: thin;`,
+  `  scrollbar-color: var(--border) transparent;`,
+  `}`,
+  `*::-webkit-scrollbar { width: 8px; height: 8px; }`,
+  `*::-webkit-scrollbar-track { background: transparent; }`,
+  `*::-webkit-scrollbar-thumb { background: var(--border); border-radius: 9999px; }`,
+  `*::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }`,
+  `*::-webkit-scrollbar-corner { background: transparent; }`,
+  ``,
+);
+
 const outPath = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",

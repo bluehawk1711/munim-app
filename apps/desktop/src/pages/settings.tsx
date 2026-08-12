@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Database, Save, CheckCircle2, XCircle, RotateCcw, Palette } from "lucide-react";
+import { Database, Save, CheckCircle2, XCircle, RotateCcw, Palette, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { createDb, getSettings, pingDatabase, updateSettings } from "@munim/core";
 import { getCore, resetCore } from "@/lib/core";
 import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
@@ -39,7 +39,11 @@ export function SettingsPage() {
   const [loaded, setLoaded] = useState(false);
 
   const [dbUrl, setDbUrl] = useState(getSavedDatabaseUrl() ?? "");
+  const [showDbUrl, setShowDbUrl] = useState(false);
   const [testing, setTesting] = useState<"idle" | "testing" | "ok" | "fail">("idle");
+
+  // Masked host of the currently saved URL (shown instead of the raw string).
+  const savedHost = (getSavedDatabaseUrl() ?? "").match(/@([^/]+)/)?.[1] ?? null;
 
   useEffect(() => {
     if (settings && !loaded) {
@@ -176,8 +180,32 @@ export function SettingsPage() {
             Neon Postgres database used by the web app and mobile app. Paste your connection string:
           </p>
           <div className="space-y-1.5">
-            <Label htmlFor="st-db">Neon connection string (postgres://…)</Label>
-            <Input id="st-db" value={dbUrl} onChange={(e) => setDbUrl(e.target.value)} placeholder="postgresql://user:pass@host/db?sslmode=require" className="font-mono text-xs" />
+            <Label htmlFor="st-db">Neon connection string</Label>
+            <div className="relative">
+              <Input
+                id="st-db"
+                type={showDbUrl ? "text" : "password"}
+                value={dbUrl}
+                onChange={(e) => setDbUrl(e.target.value)}
+                placeholder="postgresql://user:pass@host/db?sslmode=require"
+                className="font-mono pr-10 text-xs"
+                autoComplete="off"
+              />
+              <button
+                type="button"
+                onClick={() => setShowDbUrl((v) => !v)}
+                aria-label={showDbUrl ? "Hide database URL" : "Show database URL"}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+              >
+                {showDbUrl ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              {savedHost
+                ? `Saved connection: ${savedHost} — stored on this device only.`
+                : "Hidden for security — the URL is stored on this device only."}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={handleTestConnection} disabled={testing === "testing"}>

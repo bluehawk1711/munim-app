@@ -4,7 +4,7 @@ import { getReport, reportToCsv, type ReportType } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money, formatDateTime } from "@/lib/format";
-import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
+import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Separator, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
 ;
 ;
 ;
@@ -155,7 +155,9 @@ export function ReportsPage() {
           </CardHeader>
           <CardContent className="p-0">
             {loading || !report ? (
-              <p className="text-muted-foreground p-6 text-sm">Loading report…</p>
+              <div className="space-y-2 p-4">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+              </div>
             ) : (
               <>
                 <Table>

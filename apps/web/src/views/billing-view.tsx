@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
 import { useCreateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
@@ -11,7 +11,6 @@ import { buildBillDocument, type BillDocument } from "@munim/core"
 import { generateBillPDF, type BillTemplateSettings } from "@/lib/billing/generatePDF"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
-import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 
 
@@ -68,10 +67,10 @@ export function BillingView() {
   const [discount, setDiscount] = React.useState(0)
   const [notes, setNotes] = React.useState("")
   const [amountPaid, setAmountPaid] = React.useState(0)
-  const [template, setTemplate] = React.useState<"jewellery" | "ecommerce">("jewellery")
-  const [classicColor, setClassicColor] = React.useState<"red" | "yellow">("red")
+  const [template, setTemplate] = React.useState<BillTemplate>("jewellery")
+  const [classicColor, setClassicColor] = React.useState<BillClassicColor>("red")
   const [twoInOne, setTwoInOne] = React.useState(false)
-  const [mode, setMode] = React.useState<"duplicate" | "distinct">("duplicate")
+  const [mode, setMode] = React.useState<BillMode>("duplicate")
 
   // Second bill — only used in 2-in-1 "Separate" mode.
   const [secondCustomerName, setSecondCustomerName] = React.useState("")
@@ -299,93 +298,34 @@ export function BillingView() {
                 <p className="text-xs text-muted-foreground">Template · {shop.shopName}</p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Select
-                value={template}
-                onValueChange={(v) => {
-                  const next = v as "jewellery" | "ecommerce"
-                  setTemplate(next)
-                  toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template", {
-                    description: "Applied to this bill",
-                  })
-                }}
-              >
-                <SelectTrigger className="h-8 w-[180px] text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="jewellery">Classic Jewellery</SelectItem>
-                  <SelectItem value="ecommerce">Modern E-commerce</SelectItem>
-                </SelectContent>
-              </Select>
-              {template === "jewellery" && (
-                <Select
-                  value={classicColor}
-                  onValueChange={(v) => {
-                    const next = v as "red" | "yellow"
-                    setClassicColor(next)
-                    toast.success(next === "red" ? "Red theme" : "Yellow theme", {
-                      description: "Bill accent color updated",
-                    })
-                  }}
-                >
-                  <SelectTrigger className="h-8 w-[150px] text-xs">
-                    <span className="flex items-center gap-2">
-                      <span
-                        className={cn(
-                          "h-3.5 w-3.5 rounded-full",
-                          classicColor === "red" ? "bg-red-600" : "bg-yellow-500"
-                        )}
-                      />
-                      {classicColor === "red" ? "Red theme" : "Yellow theme"}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="red">
-                      <span className="flex items-center gap-2">
-                        <span className="h-3.5 w-3.5 rounded-full bg-red-600" /> Red theme
-                      </span>
-                    </SelectItem>
-                    <SelectItem value="yellow">
-                      <span className="flex items-center gap-2">
-                        <span className="h-3.5 w-3.5 rounded-full bg-yellow-500" /> Yellow theme
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-              <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={twoInOne}
-                  onChange={(e) => {
-                    const next = e.target.checked
-                    setTwoInOne(next)
-                    toast.success(next ? "2-in-1 bill enabled" : "2-in-1 bill disabled")
-                  }}
-                  className="accent-amber-500"
-                />
-                2-in-1 bill
-              </label>
-              {twoInOne && (
-                <Select
-                  value={mode}
-                  onValueChange={(v) => {
-                    const next = v as "duplicate" | "distinct"
-                    setMode(next)
-                    toast.success(next === "duplicate" ? "Duplicate mode" : "Separate mode", {
-                      description: next === "duplicate" ? "Two identical bills on one page" : "Two different bills on one page",
-                    })
-                  }}
-                >
-                  <SelectTrigger className="h-8 w-[140px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="duplicate">Duplicate</SelectItem>
-                    <SelectItem value="distinct">Separate</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+            <BillTemplateOptions
+              template={template}
+              classicColor={classicColor}
+              twoInOne={twoInOne}
+              mode={mode}
+              onTemplate={(next) => {
+                setTemplate(next)
+                toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template", {
+                  description: "Applied to this bill",
+                })
+              }}
+              onClassicColor={(next) => {
+                setClassicColor(next)
+                toast.success(next === "red" ? "Red theme" : "Yellow theme", {
+                  description: "Bill accent color updated",
+                })
+              }}
+              onTwoInOne={(next) => {
+                setTwoInOne(next)
+                toast.success(next ? "2-in-1 bill enabled" : "2-in-1 bill disabled")
+              }}
+              onMode={(next) => {
+                setMode(next)
+                toast.success(next === "duplicate" ? "Duplicate mode" : "Separate mode", {
+                  description: next === "duplicate" ? "Two identical bills on one page" : "Two different bills on one page",
+                })
+              }}
+            />
           </div>
 
           <Separator />

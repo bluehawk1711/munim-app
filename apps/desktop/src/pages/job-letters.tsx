@@ -15,7 +15,7 @@ import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { downloadJobLetterPdf } from "@/lib/jobLetterPdf";
 import { toast } from "sonner";
-import { Button, Input, Label, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
 ;
 ;
 ;
@@ -151,7 +151,13 @@ export function JobLettersPage() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={6} className="text-muted-foreground text-center">Loading…</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={6} className="p-4">
+                    <div className="space-y-2">
+                      {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : !data || data.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-muted-foreground text-center">No job letters yet</TableCell></TableRow>
               ) : (

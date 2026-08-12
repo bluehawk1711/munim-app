@@ -15,7 +15,7 @@ import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { toast } from "sonner";
-import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
 ;
 ;
 ;
@@ -149,7 +149,13 @@ export function PartiesPage() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={2} className="text-muted-foreground text-center">Loading…</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={2} className="p-4">
+                    <div className="space-y-2">
+                      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : !parties || parties.length === 0 ? (
                 <TableRow><TableCell colSpan={2} className="text-muted-foreground text-center">No parties yet</TableCell></TableRow>
               ) : (

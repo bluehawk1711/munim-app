@@ -1,6 +1,9 @@
 name: Mobile Build (EAS — Android dev build)
 
 on:
+  # Manual only — a new Android dev build is only needed when a native module
+  # changes (e.g. adding expo-image-picker). Pure JS/UI changes don't need a
+  # rebuild because the dev client loads JS from Metro. Trigger via Actions.
   workflow_dispatch:
     inputs:
       profile:
@@ -9,9 +12,6 @@ on:
         default: "development"
         type: choice
         options: ["development", "preview", "release"]
-  push:
-    branches: [main]
-    paths: ["apps/mobile/**", "packages/core/**"]
 
 jobs:
   eas-build:

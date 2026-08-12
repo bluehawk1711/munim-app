@@ -5,7 +5,7 @@ import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { toast } from "sonner";
-import { Button, Input, Label, Badge, Card, CardContent, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
+import { Button, Input, Label, Badge, Card, CardContent, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
 ;
 ;
 ;
@@ -159,7 +159,13 @@ export function SalesPage() {
             </TableHeader>
             <TableBody>
               {loadingRecent ? (
-                <TableRow><TableCell colSpan={6} className="text-muted-foreground text-center">Loading…</TableCell></TableRow>
+                <TableRow>
+                  <TableCell colSpan={6} className="p-4">
+                    <div className="space-y-2">
+                      {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                    </div>
+                  </TableCell>
+                </TableRow>
               ) : !recent || recent.invoices.length === 0 ? (
                 <TableRow><TableCell colSpan={6} className="text-muted-foreground text-center">No sales yet</TableCell></TableRow>
               ) : (

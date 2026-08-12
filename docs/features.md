@@ -8,7 +8,7 @@ server**.
 This document records what exists, and **on which platforms** it is available (✅ = full UI,
 🟡 = partial / reduced UI, ❌ = not surfaced yet).
 
-> Last updated: 2026-08-10
+> Last updated: 2026-08-12
 
 ---
 
@@ -90,13 +90,14 @@ plain drizzle output.
 |---|---------|:---:|:-------:|:------:|-------|
 | 1 | Dashboard (revenue, receivables, payables, low stock, recent invoices/advances) | ✅ | ✅ | ✅ | Same `getDashboard` in core |
 | 2 | Products — list, search, create, edit, delete | ✅ | ✅ | ✅ | SKU auto-generated in core |
+| 2b | Product image upload (Cloudinary) + thumbnail in list | ✅ | ✅ | ✅ | Web: signed upload via `/api/upload` (server-side secret); desktop + mobile: shared `uploadImageToCloudinary` (unsigned upload preset — no secret on client). Mobile needs a dev-build rebuild after adding `expo-image-picker` |
 | 3 | Stock — adjust (+/− with reason), low-stock/out-of-stock badges | ✅ | ✅ | ✅ | `adjustStock` + movements in core |
 | 4 | Catalog — colors & sizes management (add/rename/delete) | ✅ | ✅ | ✅ | Shared `catalog.ts` service in core (`listCatalogItems`/`createCatalogItem`/`renameCatalogItem`/`deleteCatalogItem` with product-count guards); all three apps manage the same colors/sizes |
 | 5 | Sales — quick sale (product, qty, price, customer, paid/unpaid) | ✅ | ✅ | ✅ | `createSale` in core |
-| 6 | Billing / Invoice creation (line items, discount, delivery, paid-now) | ✅ | ✅ | ✅ | Shared `buildBillDocument`; web has richest form (date, party link, notes, templates) |
+| 6 | Billing / Invoice creation (line items, discount, delivery, paid-now, date, notes, party link) | ✅ | ✅ | ✅ | Shared `buildBillDocument`; the **template options row (template / classic color / 2-in-1 duplicate-separate) is one shared component** — `BillTemplateOptions` in `@munim/ui` — used by web AND desktop, so the two bill forms stay identical |
 | 7 | Invoice list — search, status filter, pagination | ✅ | 🟡 | 🟡 | Web has dedicated view with filters; desktop/mobile list inside Billing/Sales without search/filter |
 | 8 | Record invoice payment (partial/full) | ✅ | ✅ | ✅ | Shared `recordInvoicePayment` in core; mobile has a Record-payment sheet on unpaid/partial invoices |
-| 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ✅ | Web: rich jsPDF templates; Desktop: shared `renderBillHtml` (core) via jsPDF `html()` → same look as mobile; Mobile: shared `renderBillHtml` + `expo-print` → share PDF (text share kept as secondary) |
+| 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ✅ | Web: rich jsPDF templates; Desktop: shared `renderBillHtml` (core) via jsPDF `html()` — **2-in-1 sheets stack both bills on one A4 (accent strip for classic color)**; Mobile: shared `renderBillHtml` + `expo-print` → share PDF (text share kept as secondary) |
 | 10 | Job letters — create, save, list, delete + PDF | ✅ | ✅ | ✅ | Shared `JobLetterData` + `renderJobLetterHtml` (core); web has the full rich form + gold-bordered jsPDF PDF; desktop downloads the same shared HTML via jsPDF `html()`; mobile shares it via `expo-print` |
 | 11 | Parties & Khata — balances (due / owed), ledger, advances given/taken | ✅ | ✅ | ✅ | Full ledger on web + desktop; mobile shows balances + compact ledger |
 | 12 | Advances summary — "whom I gave money / whom I owe" dashboard | ✅ | 🟡 | 🟡 | Web has a dedicated Advances view; desktop/mobile surface it inside Parties |
@@ -104,9 +105,11 @@ plain drizzle output.
 | 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; all three apps generate + export the same report |
 | 15 | Report export (Excel / PDF / CSV) | ✅ | ✅ | ✅ | All three apps share `reportToCsv` (RFC-4180) for CSV; web also has Excel+PDF, mobile shares CSV via native Share |
 | 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row |
-| 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings |
-| 18 | Multiple color themes (Apple Gold / Ocean Blue / Forest Green / Rose Blush / Midnight Indigo) | ✅ | ✅ | ✅ | 5 curated themes in `@munim/theme` (`themes` + `[data-theme]` CSS blocks); pickers in Settings (all platforms) + topbar palette dropdown (web/desktop); light/dark applies to every theme. **The chosen theme syncs across all three apps via the shared `settings.theme` column** — each app writes the pick to Neon and pulls it on startup (the untouched default never clobbers a local preference on first load) |
-| 19 | App lock — 4-digit PIN login screen (test account 1234 pre-created) | ✅ | ✅ | ✅ | Per-device lock, no DB: web/desktop gate in `@munim/ui` (PinGate + PinSettingsCard, localStorage `munim.pin`); mobile `PinLockScreen` + Settings card (AsyncStorage). Hashing/verify live in `@munim/core` `security/pin.ts` (pure-TS SHA-256, works on Hermes). First launch auto-creates the **test account (PIN 1234)**; Settings can change/disable the PIN or reset to the test account; lock screen has a "Forgot PIN?" recovery that resets to 1234 |
+| 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings. Desktop URL field is **masked (password-style with show/hide eye)** — only the host is shown once saved; the dashboard shows a friendly "Open Settings" CTA when the DB isn't configured |
+| 18 | Multiple color themes (Apple Gold / Ocean Blue / Forest Green / Rose Blush / Midnight Indigo) | ✅ | ✅ | ✅ | 5 curated themes in `@munim/theme`; compact `ThemeSelect` lives in **Settings only** (web header keeps just the light/dark toggle); dark/light mode ALSO syncs via the shared `settings.mode` column. **The chosen theme + mode sync across all three apps** — each app writes to Neon and pulls on startup (the untouched default never clobbers a local preference on first load) |
+| 19 | App lock — 4-digit PIN login screen (test account 1234 pre-created) | ✅ | ✅ | ✅ | Per-device lock, no DB: web/desktop gate in `@munim/ui` (PinGate + PinSettingsCard, localStorage `munim.pin`); mobile `PinLockScreen` + Settings card (AsyncStorage). Two-step login (email+password → PIN) with a 30-day session cookie on web; hashing/verify live in `@munim/core` `security/pin.ts` (pure-TS SHA-256, works on Hermes). The web/desktop lock page is a **premium Apple-style glass screen** (gradient backdrop, blur, staggered entrance); Settings can change password/PIN, disable the lock, or reset to the test account |
+| 20 | Loading skeletons — shimmer (left-to-right sweep, not pulse) | ✅ | ✅ | ✅ | `.skeleton-shimmer` keyframes ship in the shared theme `tokens.css`; the shared `Skeleton` in `@munim/ui` uses it; desktop pages + mobile `Loading` (Reanimated sweep) render shimmer placeholder rows/cards |
+| 21 | Themed scrollbars (thin, matches theme; incl. inside dialogs) | ✅ | ✅ | — | Global thin themed scrollbars (`scrollbar-width` + `-webkit-scrollbar`) in the shared theme `tokens.css`; native mobile scrollbars are OS-styled |
 
 ## Platform detail
 
@@ -114,11 +117,13 @@ plain drizzle output.
 - Views: dashboard, products, sales, catalog, invoices, billing, job-letter, parties, advances, reports, **settings**
 - Auth: login page + server-side API routes; DB access through `lib/db` + `@munim/core`
 - Exports: Excel + PDF (reports), jsPDF bill templates, job-letter PDF
-- Settings: shop profile editor (name/address/phones/email/currency/low-stock threshold) via `GET/PUT /api/settings` + connection check; DB URL comes from env
+- Settings: shop profile editor (name/address/phones/email/currency/low-stock threshold) via `GET/PUT /api/settings` + connection check; DB URL comes from env; header shows only the light/dark toggle (color theme lives in Settings)
 
 ### Desktop (`apps/desktop`) — Tauri + Vite
 - Pages: dashboard, products, **catalog**, sales, billing, parties, job-letters, **reports**, settings
-- Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally
+- Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally (masked in Settings)
+- Billing: full web parity — `BillTemplateOptions` shared component (template/color/2-in-1), date, notes, second-bill section for Separate mode, 2-in-1 PDF sheet
+- Products: image upload (Cloudinary unsigned preset via `VITE_CLOUDINARY_*`) + thumbnail column
 - PDF: bill download via `lib/billPdf.ts` + job-letter download via `lib/jobLetterPdf.ts` (both render the shared core HTML — identical layout to mobile); CSV export on reports
 - Navigation: pushState SPA with motion transitions
 
@@ -126,11 +131,13 @@ plain drizzle output.
 - Screens: home, products, sales, billing, parties, letters, **catalog**, **reports**, settings (catalog + reports + letters open from the More tab)
 - Direct DB: same Neon fetch client (works on Hermes); URL stored in AsyncStorage
 - Share: bill as **PDF** via shared `renderBillHtml` + job letter as **PDF** via shared `renderJobLetterHtml` + `expo-print` (text share also available for bills); invoice payment recording + advance settle included
+- Products: image upload (picker via `expo-image-picker` + Cloudinary unsigned preset via `EXPO_PUBLIC_CLOUDINARY_*`) — **requires a dev-build rebuild** (native module added), builds are manual now
 
 ## Known gaps & next steps
 
 1. **Web job-letter PDF vs shared HTML** — web keeps its gold-bordered jsPDF template; desktop + mobile render the shared `renderJobLetterHtml` from core, so the letter content is identical everywhere (only the renderer differs).
-2. **Web bill PDF** — web keeps its rich jsPDF templates (jewellery/e-commerce, 2-in-1, classic colors) by design; desktop + mobile now share the exact `renderBillHtml` markup from core for a consistent print look.
+2. **Web bill PDF vs shared renderBillHtml** — web keeps its rich jsPDF templates (jewellery/e-commerce, 2-in-1, classic colors); desktop + mobile share the exact `renderBillHtml` markup from core. Desktop now supports 2-in-1 sheets; the remaining difference is only the rasterizer/template styling.
+3. **Mobile billing 2-in-1 + templates** — mobile's bill form is still the compact (customer + items + discount/paid) version; template/color/2-in-1 options are on web + desktop via `BillTemplateOptions` and can be ported to the mobile form next.
 
 ## How to add a feature globally
 
