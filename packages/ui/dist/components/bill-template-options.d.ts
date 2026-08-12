@@ -8,9 +8,8 @@
  * change (web + desktop both use sonner).
  */
 import * as React from "react";
-export type BillTemplate = "jewellery" | "ecommerce";
-export type BillClassicColor = "red" | "yellow";
-export type BillMode = "duplicate" | "distinct";
+import type { BillTemplate, BillClassicColor, BillMode } from "@munim/core";
+export type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings } from "@munim/core";
 export declare function BillTemplateOptions({ template, classicColor, twoInOne, mode, onTemplate, onClassicColor, onTwoInOne, onMode, className, }: {
     template: BillTemplate;
     classicColor: BillClassicColor;

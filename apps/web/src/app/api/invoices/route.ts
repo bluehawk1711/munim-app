@@ -69,8 +69,16 @@ const invoiceSchema = z.object({
       email: z.string(),
     })
     .optional(),
-  // JSON blob — sanctioned Record<string, unknown> exception (see AGENTS.md)
-  templateSettings: z.record(z.string(), z.unknown()).optional(),
+  // Bill template snapshot (template / classic color / 2-in-1) — validated
+  // against the shared BillTemplateSettings model instead of a JSON blob.
+  templateSettings: z
+    .object({
+      template: z.enum(["jewellery", "ecommerce"]),
+      classicColor: z.enum(["red", "yellow"]),
+      twoInOne: z.boolean(),
+      mode: z.enum(["duplicate", "distinct"]),
+    })
+    .optional(),
   amountPaid: z.coerce.number().min(0).optional(),
   paymentMethod: z.string().optional(),
 })

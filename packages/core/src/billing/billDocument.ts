@@ -9,6 +9,25 @@ import { amountInWords } from "../utils/numberToWords";
 
 export type BillStatus = "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
 
+/**
+ * Bill template settings — the shared model behind the template / classic
+ * color / 2-in-1 options. Lives in core (not the UI kit) so all three apps
+ * can type the saved `templateSettings` snapshot without importing a UI
+ * package. `@munim/ui` re-exports these for the web/desktop form.
+ */
+export type BillTemplate = "jewellery" | "ecommerce";
+export type BillClassicColor = "red" | "yellow";
+export type BillMode = "duplicate" | "distinct";
+
+export interface BillTemplateSettings {
+  template: BillTemplate;
+  classicColor: BillClassicColor;
+  /** 2-in-1: two bills on one sheet. */
+  twoInOne: boolean;
+  /** duplicate = same bill twice; distinct = a second, separate bill. */
+  mode: BillMode;
+}
+
 export interface BillShopDetails {
   name: string;
   address: string | null;

@@ -12,10 +12,12 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
-
-export type BillTemplate = "jewellery" | "ecommerce";
-export type BillClassicColor = "red" | "yellow";
-export type BillMode = "duplicate" | "distinct";
+// The template settings model lives in @munim/core (the global model all three
+// apps share) — imported here AND re-exported so the existing
+// `from "@munim/ui"` imports in web + desktop keep working while mobile types
+// from core directly.
+import type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings } from "@munim/core";
+export type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings } from "@munim/core";
 
 export function BillTemplateOptions({
   template,

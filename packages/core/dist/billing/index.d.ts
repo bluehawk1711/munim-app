@@ -1,3 +1,3 @@
-export { buildBillDocument, renderBillText, renderBillHtml, type BillDocument, type BillLine, type BillLineInput, type BillShopDetails, type BillStatus, type BuildBillInput, } from "./billDocument";
+export { buildBillDocument, renderBillText, renderBillHtml, type BillDocument, type BillLine, type BillLineInput, type BillShopDetails, type BillStatus, type BuildBillInput, type BillTemplate, type BillClassicColor, type BillMode, type BillTemplateSettings, } from "./billDocument";
 export { defaultJobLetterData, formatJoiningDate, jobLetterFromStored, renderJobLetterHtml, type JobLetterCompanyFallback, type JobLetterData, type JobLetterRowLike, } from "./jobLetterDocument";
 //# sourceMappingURL=index.d.ts.map

@@ -1,5 +1,6 @@
 import type { DbClient } from "../db/client";
 import * as schema from "../db/schema";
+import type { BillTemplateSettings } from "../billing";
 export declare class InvoiceError extends Error {
     code: string;
     status: number;
@@ -44,7 +45,8 @@ export type InvoiceInput = {
         phones: string[];
         email: string;
     };
-    templateSettings?: Record<string, unknown>;
+    /** Snapshot of the bill template settings (template / classic color / 2-in-1). */
+    templateSettings?: BillTemplateSettings;
     /** initial payment received */
     amountPaid?: number;
     paymentMethod?: string;
@@ -99,7 +101,7 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
             phones: string[];
             email: string;
         } | null;
-        templateSettings: Record<string, unknown> | null;
+        templateSettings: BillTemplateSettings | null;
         createdAt: Date;
         updatedAt: Date;
     }[];

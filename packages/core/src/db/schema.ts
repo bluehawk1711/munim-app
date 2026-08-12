@@ -8,6 +8,7 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { newId } from "../utils/id";
+import type { BillTemplateSettings } from "../billing";
 
 const id = () => text("id").primaryKey().$defaultFn(newId);
 
@@ -166,7 +167,7 @@ export const invoices = pgTable(
       email: string;
     }>(),
     /** Snapshot of the bill template settings (template, mode, classicColor, twoInOne…). */
-    templateSettings: json("template_settings").$type<Record<string, unknown>>(),
+    templateSettings: json("template_settings").$type<BillTemplateSettings | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

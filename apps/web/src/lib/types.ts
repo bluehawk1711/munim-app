@@ -1,6 +1,7 @@
 // Shared types for the Munim web app.
 // These mirror the domain types from @munim/core, kept in a flattened shape
 // the existing UI components already expect.
+import type { BillTemplateSettings } from "@munim/core"
 
 export type Product = {
   id: string
@@ -145,7 +146,7 @@ export type Invoice = {
   amountPaid: number
   notes: string | null
   shopDetails: { name: string; address: string; phones: string[]; email: string } | null
-  templateSettings: Record<string, unknown> | null
+  templateSettings: BillTemplateSettings | null
   createdAt: string
   items: InvoiceItem[]
 }

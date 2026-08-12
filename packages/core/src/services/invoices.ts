@@ -2,6 +2,7 @@ import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
 import type { DbClient } from "../db/client";
 import * as schema from "../db/schema";
 import { generateInvoiceNumber } from "../utils/codes";
+import type { BillTemplateSettings } from "../billing";
 import { getProduct } from "./products";
 import { logActivity } from "./activity";
 
@@ -124,7 +125,8 @@ export type InvoiceInput = {
   discount?: number;
   notes?: string;
   shopDetails?: { name: string; address: string; phones: string[]; email: string };
-  templateSettings?: Record<string, unknown>;
+  /** Snapshot of the bill template settings (template / classic color / 2-in-1). */
+  templateSettings?: BillTemplateSettings;
   /** initial payment received */
   amountPaid?: number;
   paymentMethod?: string;

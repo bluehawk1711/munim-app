@@ -8,6 +8,10 @@ export {
   type BillShopDetails,
   type BillStatus,
   type BuildBillInput,
+  type BillTemplate,
+  type BillClassicColor,
+  type BillMode,
+  type BillTemplateSettings,
 } from "./billDocument";
 
 export {

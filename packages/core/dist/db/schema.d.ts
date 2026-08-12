@@ -1,3 +1,4 @@
+import type { BillTemplateSettings } from "../billing";
 export declare const colors: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "colors";
     schema: undefined;
@@ -1179,7 +1180,7 @@ export declare const invoices: import("drizzle-orm/pg-core").PgTableWithColumns<
             tableName: "invoices";
             dataType: "json";
             columnType: "PgJson";
-            data: Record<string, unknown>;
+            data: BillTemplateSettings | null;
             driverParam: unknown;
             notNull: false;
             hasDefault: false;
@@ -1191,7 +1192,7 @@ export declare const invoices: import("drizzle-orm/pg-core").PgTableWithColumns<
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: Record<string, unknown>;
+            $type: BillTemplateSettings | null;
         }>;
         createdAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "created_at";

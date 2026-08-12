@@ -14,10 +14,10 @@ export type PartyInput = {
     notes?: string;
 };
 export declare function createParty(db: DbClient, input: PartyInput): Promise<{
+    notes: string | null;
     id: string;
     name: string;
     createdAt: Date;
-    notes: string | null;
     updatedAt: Date;
     type: "CUSTOMER" | "SUPPLIER" | "WORKER" | "OTHER";
     phone: string | null;

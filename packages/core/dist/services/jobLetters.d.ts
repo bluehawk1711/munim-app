@@ -7,13 +7,13 @@ export type JobLetterInput = {
     data: Record<string, unknown>;
 };
 export declare function saveJobLetter(db: DbClient, input: JobLetterInput): Promise<{
+    monthlySalary: number;
+    employeeName: string | null;
+    position: string | null;
     id: string;
     data: Record<string, unknown>;
     createdAt: Date;
     title: string;
-    employeeName: string | null;
-    position: string | null;
-    monthlySalary: number;
 }>;
 export declare function listJobLetters(db: DbClient, limit?: number): Promise<{
     id: string;
