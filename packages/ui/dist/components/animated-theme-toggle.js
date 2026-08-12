@@ -10,10 +10,13 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * passes `isDark` + `onToggle`. That keeps each app's persistence and the
  * shared-DB theme/mode sync in the app layer while the animation lives here.
  *
- * Contract: the toggle drives the `light`/`dark` classes on <html> itself
- * (synchronously, so the View Transition captures the flip). Any host theme
- * system must use exactly those two class names — next-themes and the
- * desktop provider both do.
+ * Contract: the toggle drives the `light`/`dark` classes on BOTH <html> and
+ * <body> (synchronously, so the View Transition captures the flip). <html>
+ * is required for the ::view-transition pseudo-elements and the
+ * `[data-theme=x].dark` variable blocks; <body> covers any host CSS that
+ * happens to be scoped under `body.dark`. Both apps' theme systems
+ * (next-themes + the desktop provider) use exactly these two class names,
+ * so the flip is idempotent for either host.
  *
  * Original concept: Skiper UI (@gurvinder-singh02) — https://gxuri.me
  * Inspired by https://github.com/rudrodip/theme-toggle-effect
@@ -111,6 +114,10 @@ export function AnimatedThemeToggle({ isDark, onToggle, start = "top-left", blur
     const handleToggle = React.useCallback(() => {
         const animationCss = createPolygonAnimation(start, blur);
         injectTransitionStyles(animationCss);
+        // Respect the OS/browser "reduce motion" preference: when animations are
+        // disabled (e.g. Windows "Animation effects" off) the wipe is skipped and
+        // the theme flips instantly instead. The wipe plays only when the OS
+        // allows animations.
         const prefersReduced = typeof window.matchMedia === "function" &&
             window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const targetDark = !isDark;
@@ -119,13 +126,19 @@ export function AnimatedThemeToggle({ isDark, onToggle, start = "top-left", blur
             // View Transition actually captures the change. Theme providers like
             // next-themes apply the class in a passive effect that runs AFTER the
             // transition's "new" snapshot is taken — without this, the wipe
-            // animates the old page onto the old page. Idempotent for both apps
-            // (both toggle `light`/`dark` on <html>); `onToggle` handles state,
+            // animates the old page onto the old page. Applied to BOTH <html> and
+            // <body> so dark mode sticks no matter which element the host CSS is
+            // scoped under; idempotent for both apps. `onToggle` handles state,
             // persistence and the shared-DB sync.
             if (typeof document !== "undefined") {
-                const root = document.documentElement;
-                root.classList.remove("light", "dark");
-                root.classList.add(targetDark ? "dark" : "light");
+                const flip = (el) => {
+                    if (!el)
+                        return;
+                    el.classList.remove("light", "dark");
+                    el.classList.add(targetDark ? "dark" : "light");
+                };
+                flip(document.documentElement);
+                flip(document.body);
             }
             onToggle();
         };
