@@ -35,6 +35,7 @@ import {
   Section,
   colors,
 } from '../components/ui';
+import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
 
 type LineState = {
@@ -190,7 +191,7 @@ export function BillingScreen() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [partyId, setPartyId] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => toYmd(new Date()));
   const [notes, setNotes] = useState('');
   const [discount, setDiscount] = useState('0');
   const [delivery, setDelivery] = useState('0');
@@ -286,7 +287,7 @@ export function BillingScreen() {
     setCustomerPhone('');
     setCustomerAddress('');
     setPartyId('');
-    setDate(new Date().toISOString().slice(0, 10));
+    setDate(toYmd(new Date()));
     setNotes('');
     setDiscount('0');
     setDelivery('0');
@@ -310,11 +311,6 @@ export function BillingScreen() {
     if (distinct && collectItems(secondLines).length === 0) {
       errorFeedback();
       Alert.alert('Second bill needed', 'Separate mode needs at least one item in Bill 2.');
-      return;
-    }
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      errorFeedback();
-      Alert.alert('Invalid date', 'Use YYYY-MM-DD (e.g. 2026-08-12).');
       return;
     }
     setSaving(true);
@@ -552,13 +548,7 @@ export function BillingScreen() {
               }
             }}
           />
-          <Field
-            label="Date (YYYY-MM-DD)"
-            value={date}
-            onChangeText={setDate}
-            placeholder="2026-08-12"
-            keyboardType="numbers-and-punctuation"
-          />
+          <DateField label="Date" value={date} onChange={setDate} />
           <LineItemsEditor
             lines={lines}
             onChange={updateLine}

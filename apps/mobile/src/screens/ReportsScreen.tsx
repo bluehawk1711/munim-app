@@ -1,10 +1,11 @@
 import React, {useState} from 'react';
-import {ScrollView, Share, StyleSheet, Text, TextInput, View} from 'react-native';
+import {ScrollView, Share, StyleSheet, Text, View} from 'react-native';
 import {getReport, reportToCsv, type ReportType} from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {Button, Card, Empty, ErrorBox, Header, Loading, Screen, Section, colors} from '../components/ui';
+import {DateField} from '../components/date-field';
 import {useThemeStyles} from '../theme';
 
 const REPORT_OPTIONS: {key: ReportType; label: string}[] = [
@@ -85,21 +86,8 @@ export function ReportsScreen() {
           </View>
           <View style={{marginTop: 4}}>
             <Text style={styles.label}>Date range (optional — applies to any report)</Text>
-            <Text style={styles.dateHint}>YYYY-MM-DD (e.g. 2026-01-01)</Text>
-            <TextInput
-              style={styles.input}
-              value={startDate}
-              onChangeText={setStartDate}
-              placeholder="Start date"
-              placeholderTextColor={colors.inputPlaceholder}
-            />
-            <TextInput
-              style={[styles.input, {marginTop: 8}]}
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="End date (optional)"
-              placeholderTextColor={colors.inputPlaceholder}
-            />
+            <DateField label="Start date" value={startDate} onChange={setStartDate} placeholder="Start date" />
+            <DateField label="End date" value={endDate} onChange={setEndDate} placeholder="End date (optional)" />
           </View>
           <View style={styles.exportRow}>
             <Button
@@ -176,19 +164,8 @@ const makeStyles = () =>
     label: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5},
     chips: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10},
     chip: {paddingHorizontal: 14, paddingVertical: 9},
-    dateHint: {fontSize: 11, color: colors.muted, marginBottom: 4},
     exportRow: {flexDirection: 'row', gap: 8, marginTop: 12},
     exportGrow: {flex: 1},
-    input: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 14,
-      color: colors.text,
-      backgroundColor: colors.card,
-    },
     productRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
     name: {fontSize: 15, fontWeight: '600', color: colors.text},
     meta: {fontSize: 12, color: colors.muted, marginTop: 2},
