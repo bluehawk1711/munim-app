@@ -1,108 +1,130 @@
-"use client"
-
-import * as React from "react"
+import { useState } from "react";
+import { HandCoins, ArrowUpRight, ArrowDownLeft, Plus, Loader2, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import {
-  HandCoins,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Plus,
-  Users,
-  Loader2,
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-} from "lucide-react"
-import { Button, Card, CardContent, Skeleton, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, KhataCard } from "@munim/ui"
+  getPartyBalances,
+  getReceivables,
+  getPayables,
+  listParties,
+  createAdvance,
+  recordPayment,
+  formatCurrency,
+  type PartyBalance,
+} from "@munim/core";
+import { getCore } from "@/lib/core";
+import { useAsync } from "@/lib/use-async";
+import { toast } from "sonner";
+import {
+  Button,
+  Card,
+  CardContent,
+  Skeleton,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  SummaryTile,
+  KhataCard,
+  type KhataActionKind,
+} from "@munim/ui";
 
+type Action = { party: PartyBalance; kind: KhataActionKind } | null;
 
+export function AdvancesPage() {
+  const { data, loading, reload } = useAsync(
+    async () => {
+      const db = getCore();
+      const [all, receivables, payables, parties] = await Promise.all([
+        getPartyBalances(db),
+        getReceivables(db),
+        getPayables(db),
+        listParties(db),
+      ]);
+      return { all, receivables, payables, parties };
+    },
+    [],
+  );
 
+  const [action, setAction] = useState<Action>(null);
+  const [amount, setAmount] = useState(0);
+  const [note, setNote] = useState("");
+  const [quickParty, setQuickParty] = useState("");
+  const [quickKind, setQuickKind] = useState<"GIVEN" | "TAKEN">("GIVEN");
+  const [saving, setSaving] = useState(false);
 
+  const receivables = data?.receivables ?? [];
+  const payables = data?.payables ?? [];
+  const totalReceivable = receivables.reduce((s, p) => s + p.balance, 0);
+  const totalPayable = payables.reduce((s, p) => s + Math.abs(p.balance), 0);
 
-
-
-
-import { usePartyBalances, useCreateAdvance, useRecordPayment, useParties } from "@/hooks/use-parties"
-import { useAppStore } from "@/store/view-store"
-import { formatCurrency } from "@/lib/format"
-import type { PartyBalance } from "@/lib/types"
-import { toast } from "sonner"
-
-type ActionKind = "GIVEN" | "TAKEN" | "PAYMENT_IN" | "PAYMENT_OUT"
-
-type Action = {
-  party: PartyBalance
-  kind: ActionKind
-} | null
-
-export function AdvancesView() {
-  const setView = useAppStore((s) => s.setView)
-  const { data, isLoading } = usePartyBalances()
-  const { data: allParties } = useParties()
-
-  const [action, setAction] = React.useState<Action>(null)
-  const [amount, setAmount] = React.useState(0)
-  const [note, setNote] = React.useState("")
-  const [quickParty, setQuickParty] = React.useState("")
-  const [quickKind, setQuickKind] = React.useState<"GIVEN" | "TAKEN">("GIVEN")
-
-  const createAdvance = useCreateAdvance()
-  const recordPayment = useRecordPayment()
-
-  const receivables = data?.receivables ?? []
-  const payables = data?.payables ?? []
-  const totalReceivable = receivables.reduce((s, p) => s + p.balance, 0)
-  const totalPayable = payables.reduce((s, p) => s + Math.abs(p.balance), 0)
-
-  function openAction(party: PartyBalance, kind: ActionKind) {
-    setAction({ party, kind })
-    setAmount(0)
-    setNote("")
+  function openAction(party: PartyBalance, kind: KhataActionKind) {
+    setAction({ party, kind });
+    setAmount(0);
+    setNote("");
   }
 
   async function submitAction() {
-    if (!action || amount <= 0) return
+    if (!action || amount <= 0) return;
+    setSaving(true);
     try {
+      const db = getCore();
       if (action.kind === "GIVEN" || action.kind === "TAKEN") {
-        await createAdvance.mutateAsync({ partyId: action.party.id, direction: action.kind, amount, note })
+        await createAdvance(db, { partyId: action.party.id, direction: action.kind, amount, note: note.trim() || undefined });
         toast.success(action.kind === "GIVEN" ? "Advance given" : "Advance received", {
           description: `${formatCurrency(amount)} · ${action.party.name}`,
-        })
+        });
       } else {
-        await recordPayment.mutateAsync({
+        await recordPayment(db, {
           partyId: action.party.id,
           direction: action.kind === "PAYMENT_IN" ? "IN" : "OUT",
           amount,
-          note,
-        })
+          method: "cash",
+          note: note.trim() || undefined,
+        });
         toast.success(action.kind === "PAYMENT_IN" ? "Payment received" : "Payment made", {
           description: `${formatCurrency(amount)} · ${action.party.name}`,
-        })
+        });
       }
-      setAction(null)
+      setAction(null);
+      reload();
     } catch (err) {
-      toast.error("Failed", { description: err instanceof Error ? err.message : "Unknown error" })
+      toast.error("Failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSaving(false);
     }
   }
 
   async function submitQuick() {
-    if (!quickParty || amount <= 0) return
+    if (!quickParty || amount <= 0) return;
+    setSaving(true);
     try {
-      await createAdvance.mutateAsync({ partyId: quickParty, direction: quickKind, amount, note })
-      toast.success(quickKind === "GIVEN" ? "Advance given" : "Advance received", { description: formatCurrency(amount) })
-      setAmount(0)
-      setNote("")
+      await createAdvance(getCore(), { partyId: quickParty, direction: quickKind, amount, note: note.trim() || undefined });
+      toast.success(quickKind === "GIVEN" ? "Advance given" : "Advance received", { description: formatCurrency(amount) });
+      setAmount(0);
+      setNote("");
+      reload();
     } catch (err) {
-      toast.error("Failed", { description: err instanceof Error ? err.message : "Unknown error" })
+      toast.error("Failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSaving(false);
     }
   }
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="grid gap-4 lg:grid-cols-2">
         <Card><CardContent className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</CardContent></Card>
         <Card><CardContent className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</CardContent></Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -122,7 +144,7 @@ export function AdvancesView() {
             <Select value={quickParty} onValueChange={setQuickParty}>
               <SelectTrigger className="h-9"><SelectValue placeholder="Select party…" /></SelectTrigger>
               <SelectContent>
-                {allParties?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                {(data?.parties ?? []).map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -140,8 +162,8 @@ export function AdvancesView() {
             <Label className="text-xs">Amount (₹)</Label>
             <Input type="number" min={0} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} className="h-9" />
           </div>
-          <Button onClick={submitQuick} disabled={!quickParty || amount <= 0 || createAdvance.isPending} className="h-9 gap-1.5">
-            {createAdvance.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          <Button onClick={submitQuick} disabled={!quickParty || amount <= 0 || saving} className="h-9 gap-1.5">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             Record
           </Button>
         </CardContent>
@@ -157,7 +179,7 @@ export function AdvancesView() {
           parties={receivables}
           emptyText="No receivables — you haven't given anyone money."
           onAction={openAction}
-          onViewAll={() => setView("parties")}
+          onViewAll={() => toast.info("Open a party in Parties & Khata to see its full ledger")}
         />
         {/* Payables — money owed to others */}
         <KhataCard
@@ -168,7 +190,7 @@ export function AdvancesView() {
           parties={payables}
           emptyText="No payables — you owe no one."
           onAction={openAction}
-          onViewAll={() => setView("parties")}
+          onViewAll={() => toast.info("Open a party in Parties & Khata to see its full ledger")}
         />
       </div>
 
@@ -197,13 +219,13 @@ export function AdvancesView() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAction(null)}>Cancel</Button>
-            <Button onClick={submitAction} disabled={amount <= 0 || createAdvance.isPending || recordPayment.isPending}>
-              {createAdvance.isPending || recordPayment.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <HandCoins className="mr-1.5 h-4 w-4" />}
+            <Button onClick={submitAction} disabled={amount <= 0 || saving}>
+              {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <HandCoins className="mr-1.5 h-4 w-4" />}
               Confirm
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

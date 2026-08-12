@@ -13,7 +13,7 @@ import {
   Loader2,
   Plus,
 } from "lucide-react"
-import { Button, Input, Card, CardContent, Skeleton, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@munim/ui"
+import { Button, Input, Card, CardContent, Skeleton, Badge, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, SummaryTile } from "@munim/ui"
 
 
 
@@ -95,10 +95,10 @@ export function SalesView() {
     <div className="space-y-4">
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard icon={Receipt} label="Total Sales" value={formatNumber(sales?.length ?? 0)} />
-        <SummaryCard icon={IndianRupee} label="Total Revenue" value={formatCurrency(totalRevenue)} accent="primary" />
-        <SummaryCard icon={ShoppingCart} label="Units Sold" value={formatNumber(totalQty)} />
-        <SummaryCard icon={TrendingUp} label="Avg. Sale Value" value={formatCurrency(avgSale)} />
+        <SummaryTile icon={Receipt} label="Total Sales" value={formatNumber(sales?.length ?? 0)} />
+        <SummaryTile icon={IndianRupee} label="Total Revenue" value={formatCurrency(totalRevenue)} accent="primary" />
+        <SummaryTile icon={ShoppingCart} label="Units Sold" value={formatNumber(totalQty)} />
+        <SummaryTile icon={TrendingUp} label="Avg. Sale Value" value={formatCurrency(avgSale)} />
       </div>
 
       {/* Toolbar */}
@@ -189,31 +189,5 @@ export function SalesView() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
-}
-
-function SummaryCard({
-  icon: Icon,
-  label,
-  value,
-  accent = "muted",
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  label: string
-  value: string
-  accent?: "primary" | "muted"
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${accent === "primary" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="truncate text-lg font-semibold">{value}</p>
-        </div>
-      </CardContent>
-    </Card>
   )
 }

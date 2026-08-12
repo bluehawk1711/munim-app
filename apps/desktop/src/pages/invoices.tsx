@@ -1,78 +1,97 @@
-"use client"
-
-import * as React from "react"
+import { useEffect, useState } from "react";
+import { Search, Receipt, Trash2, Loader2, IndianRupee, CheckCircle2, Clock, FileText, AlertTriangle } from "lucide-react";
 import {
-  Search,
-  Receipt,
-  Plus,
-  Trash2,
-  Loader2,
-  IndianRupee,
-  CheckCircle2,
-  Clock,
-  XCircle,
-  AlertTriangle,
-  FileText,
-  Printer,
-} from "lucide-react"
-import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, SummaryTile, InvoiceStatusBadge } from "@munim/ui"
+  listInvoices,
+  recordInvoicePayment,
+  deleteInvoice,
+  formatDate,
+  formatCurrency,
+  type InvoiceFilters,
+} from "@munim/core";
+import { getCore } from "@/lib/core";
+import { useAsync } from "@/lib/use-async";
+import { toast } from "sonner";
+import {
+  Button,
+  Input,
+  Card,
+  CardContent,
+  Skeleton,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  SummaryTile,
+  InvoiceStatusBadge,
+} from "@munim/ui";
 
+type InvoiceRow = NonNullable<Awaited<ReturnType<typeof listInvoices>>>["invoices"][number];
 
+export function InvoicesPage() {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<InvoiceFilters["status"]>("all");
+  const [page, setPage] = useState(1);
 
+  const { data, loading, reload } = useAsync(
+    () => listInvoices(getCore(), { search, status, page, pageSize: 15 }),
+    [search, status, page],
+  );
 
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, status]);
 
+  const invoices = data?.invoices ?? [];
+  const pagination = data?.pagination;
 
+  const [paying, setPaying] = useState<InvoiceRow | null>(null);
+  const [payAmount, setPayAmount] = useState(0);
+  const [deleting, setDeleting] = useState<InvoiceRow | null>(null);
+  const [saving, setSaving] = useState(false);
 
-
-import { useInvoices, useDeleteInvoice, useRecordPayment } from "@/hooks/use-invoices"
-import { useAppStore } from "@/store/view-store"
-import { formatCurrency, formatDate } from "@/lib/format"
-import type { Invoice } from "@/lib/types"
-import { toast } from "sonner"
-
-export function InvoicesView() {
-  const setView = useAppStore((s) => s.setView)
-  const [search, setSearch] = React.useState("")
-  const [status, setStatus] = React.useState("all")
-  const [page, setPage] = React.useState(1)
-
-  const { data, isLoading } = useInvoices({ search, status, page, pageSize: 15 })
-  const invoices = data?.invoices ?? []
-  const pagination = data?.pagination
-
-  const [paying, setPaying] = React.useState<Invoice | null>(null)
-  const [payAmount, setPayAmount] = React.useState(0)
-  const [deleting, setDeleting] = React.useState<Invoice | null>(null)
-
-  const deleteInvoice = useDeleteInvoice()
-  const recordPayment = useRecordPayment(paying?.id ?? "")
-
-  function openPayment(inv: Invoice) {
-    setPaying(inv)
-    setPayAmount(inv.total - inv.amountPaid)
+  function openPayment(inv: InvoiceRow) {
+    setPaying(inv);
+    setPayAmount(inv.total - inv.amountPaid);
   }
 
   async function confirmDelete() {
-    if (!deleting) return
+    if (!deleting) return;
     try {
-      await deleteInvoice.mutateAsync(deleting.id)
-      toast.success("Invoice deleted", { description: `${deleting.invoiceNumber} removed and stock restored.` })
-      setDeleting(null)
+      await deleteInvoice(getCore(), deleting.id);
+      toast.success("Invoice deleted", { description: `${deleting.invoiceNumber} removed and stock restored.` });
+      setDeleting(null);
+      reload();
     } catch (err) {
-      toast.error("Delete failed", { description: err instanceof Error ? err.message : "Unknown error" })
+      toast.error("Delete failed", { description: err instanceof Error ? err.message : undefined });
     }
   }
 
   async function confirmPayment() {
-    if (!paying || payAmount <= 0) return
+    if (!paying || payAmount <= 0) return;
+    setSaving(true);
     try {
-      await recordPayment.mutateAsync({ amount: payAmount, method: "cash" })
-      toast.success("Payment recorded", { description: `₹${payAmount.toLocaleString("en-IN")} received` })
-      setPaying(null)
+      await recordInvoicePayment(getCore(), paying.id, { amount: payAmount, method: "cash" });
+      toast.success("Payment recorded", { description: `${formatCurrency(payAmount)} received` });
+      setPaying(null);
+      reload();
     } catch (err) {
-      toast.error("Payment failed", { description: err instanceof Error ? err.message : "Unknown error" })
+      toast.error("Payment failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSaving(false);
     }
   }
+
+  const totalValue = invoices.reduce((s, i) => s + i.total, 0);
+  const unpaidValue = invoices.reduce((s, i) => s + (i.total - i.amountPaid), 0);
+  const collectedValue = invoices.reduce((s, i) => s + i.amountPaid, 0);
 
   return (
     <div className="space-y-4">
@@ -83,13 +102,13 @@ export function InvoicesView() {
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
-              onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+              onChange={(e) => setSearch(e.target.value)}
               placeholder="Search invoice #, customer…"
               className="h-9 pl-9"
               aria-label="Search invoices"
             />
           </div>
-          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
+          <Select value={status} onValueChange={(v) => setStatus(v as InvoiceFilters["status"])}>
             <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -102,20 +121,17 @@ export function InvoicesView() {
             </SelectContent>
           </Select>
         </div>
-        <Button onClick={() => setView("billing")} className="h-9 gap-1.5">
-          <Plus className="h-4 w-4" /> New Bill
-        </Button>
       </div>
 
       {/* Summary strip */}
       <div className="grid gap-3 sm:grid-cols-3">
-        <SummaryTile label="Total invoices" value={formatCurrency(invoices.reduce((s, i) => s + i.total, 0))} icon={Receipt} size="sm" />
-        <SummaryTile label="Unpaid balance" value={formatCurrency(invoices.reduce((s, i) => s + (i.total - i.amountPaid), 0))} icon={Clock} accent="amber" size="sm" />
-        <SummaryTile label="Collected" value={formatCurrency(invoices.reduce((s, i) => s + i.amountPaid, 0))} icon={CheckCircle2} accent="emerald" size="sm" />
+        <SummaryTile label="Total invoices" value={formatCurrency(totalValue)} icon={Receipt} size="sm" />
+        <SummaryTile label="Unpaid balance" value={formatCurrency(unpaidValue)} icon={Clock} accent="amber" size="sm" />
+        <SummaryTile label="Collected" value={formatCurrency(collectedValue)} icon={CheckCircle2} accent="emerald" size="sm" />
       </div>
 
       {/* List */}
-      {isLoading ? (
+      {loading ? (
         <Card>
           <CardContent className="space-y-2 p-4">
             {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
@@ -131,9 +147,6 @@ export function InvoicesView() {
               <p className="text-sm font-semibold">No invoices found</p>
               <p className="text-xs text-muted-foreground">Create your first bill to start tracking money.</p>
             </div>
-            <Button size="sm" onClick={() => setView("billing")} className="gap-1.5">
-              <Plus className="h-4 w-4" /> Create bill
-            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -141,7 +154,7 @@ export function InvoicesView() {
           <CardContent className="p-0">
             <div className="divide-y">
               {invoices.map((inv) => {
-                const outstanding = inv.total - inv.amountPaid
+                const outstanding = inv.total - inv.amountPaid;
                 return (
                   <div key={inv.id} className="flex flex-col gap-2 px-4 py-3 hover:bg-muted/30 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-center gap-3">
@@ -163,11 +176,9 @@ export function InvoicesView() {
                     <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-0.5">
                       <p className="text-sm font-semibold tabular-nums">{formatCurrency(inv.total)}</p>
                       {outstanding > 0 ? (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                          Due: {formatCurrency(outstanding)}
-                        </p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400">Due: {formatCurrency(outstanding)}</p>
                       ) : (
-                        <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <p className="flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
                           <CheckCircle2 className="h-3 w-3" /> Paid
                         </p>
                       )}
@@ -187,7 +198,7 @@ export function InvoicesView() {
                       </div>
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
 
@@ -233,8 +244,8 @@ export function InvoicesView() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPaying(null)}>Cancel</Button>
-            <Button onClick={confirmPayment} disabled={recordPayment.isPending || payAmount <= 0}>
-              {recordPayment.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            <Button onClick={confirmPayment} disabled={saving || payAmount <= 0}>
+              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Confirm payment
             </Button>
           </DialogFooter>
@@ -242,29 +253,29 @@ export function InvoicesView() {
       </Dialog>
 
       {/* Delete dialog */}
-      <AlertDialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
+      <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
                 <AlertTriangle className="h-5 w-5" />
               </div>
               <div>
-                <AlertDialogTitle>Delete invoice?</AlertDialogTitle>
-                <AlertDialogDescription>
+                <DialogTitle>Delete invoice?</DialogTitle>
+                <DialogDescription>
                   <strong>{deleting?.invoiceNumber}</strong> will be removed and its stock restored.
-                </AlertDialogDescription>
+                </DialogDescription>
               </div>
             </div>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} disabled={deleteInvoice.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              <Trash2 className="mr-1.5 h-4 w-4" /> Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={confirmDelete} className="gap-1.5">
+              <Trash2 className="h-4 w-4" /> Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  )
+  );
 }

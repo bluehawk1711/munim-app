@@ -1,0 +1,1 @@
+{"version":3,"file":"invoice-status-badge.d.ts","sourceRoot":"","sources":["../../src/components/invoice-status-badge.tsx"],"names":[],"mappings":"AAUA,MAAM,MAAM,aAAa,GAAG,OAAO,GAAG,QAAQ,GAAG,SAAS,GAAG,MAAM,CAAC;AAgBpE,wBAAgB,kBAAkB,CAAC,EAAE,MAAM,EAAE,EAAE;IAAE,MAAM,EAAE,aAAa,CAAA;CAAE,+BAMvE"}

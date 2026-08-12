@@ -1,0 +1,27 @@
+"use client";
+import { jsx as _jsx } from "react/jsx-runtime";
+/**
+ * Shared ledger-kind badge — the colored chip shown next to a ledger line
+ * (Advance given/taken, Bill, Paid us, We paid). Used by the web + desktop
+ * parties screens so both show the same mapping.
+ */
+import { cn } from "../lib/utils";
+import { Badge } from "./badge";
+const KIND_STYLES = {
+    ADVANCE_GIVEN: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    ADVANCE_TAKEN: "bg-red-500/15 text-red-600 dark:text-red-400",
+    INVOICE: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+    PAYMENT_IN: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    PAYMENT_OUT: "bg-red-500/15 text-red-600 dark:text-red-400",
+};
+const KIND_LABELS = {
+    ADVANCE_GIVEN: "Given",
+    ADVANCE_TAKEN: "Taken",
+    INVOICE: "Bill",
+    PAYMENT_IN: "Paid us",
+    PAYMENT_OUT: "We paid",
+};
+export function LedgerKindBadge({ kind }) {
+    return (_jsx(Badge, { className: cn("font-normal", KIND_STYLES[kind] ?? "bg-muted text-muted-foreground"), children: KIND_LABELS[kind] ?? kind }));
+}
+//# sourceMappingURL=ledger-kind-badge.js.map

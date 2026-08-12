@@ -93,14 +93,14 @@ plain drizzle output.
 | 2b | Product image upload (Cloudinary) + thumbnail in list | ✅ | ✅ | ✅ | Web: signed upload via `/api/upload` (server-side secret); desktop + mobile: shared `uploadImageToCloudinary` (unsigned upload preset — no secret on client). Mobile needs a dev-build rebuild after adding `expo-image-picker` |
 | 3 | Stock — adjust (+/− with reason), low-stock/out-of-stock badges | ✅ | ✅ | ✅ | `adjustStock` + movements in core |
 | 4 | Catalog — colors & sizes management (add/rename/delete) | ✅ | ✅ | ✅ | Shared `catalog.ts` service in core (`listCatalogItems`/`createCatalogItem`/`renameCatalogItem`/`deleteCatalogItem` with product-count guards); all three apps manage the same colors/sizes |
-| 5 | Sales — quick sale (product, qty, price, customer, paid/unpaid) | ✅ | ✅ | ✅ | `createSale` in core |
+| 5 | Sales — quick sale (product, qty, price, customer, paid/unpaid) | ✅ | ✅ | ✅ | `createSale` in core; web + desktop also share search, date-range filter, summary tiles and **undo sale** (stock restore via `deleteInvoice`) |
 | 6 | Billing / Invoice creation (line items, discount, delivery, paid-now, date, notes, party link) | ✅ | ✅ | ✅ | Shared `buildBillDocument`; the **template options row (template / classic color / 2-in-1 duplicate-separate) is one shared component** — `BillTemplateOptions` in `@munim/ui` — used by web AND desktop, so the two bill forms stay identical |
-| 7 | Invoice list — search, status filter, pagination | ✅ | 🟡 | 🟡 | Web has dedicated view with filters; desktop/mobile list inside Billing/Sales without search/filter |
+| 7 | Invoice list — search, status filter, pagination | ✅ | ✅ | 🟡 | Web + desktop share the same **Invoices page** (`invoices-view.tsx` / `pages/invoices.tsx`) built on shared `SummaryTile` + `InvoiceStatusBadge` from `@munim/ui` — search, status filter, summary strip, record-payment dialog, delete-with-stock-restore, pagination. Mobile still lists inside Billing/Sales |
 | 8 | Record invoice payment (partial/full) | ✅ | ✅ | ✅ | Shared `recordInvoicePayment` in core; mobile has a Record-payment sheet on unpaid/partial invoices |
 | 9 | Bill PDF generation (jewellery/e-commerce templates, 2-in-1, classic colors) | ✅ | ✅ | ✅ | Web: rich jsPDF templates; Desktop: shared `renderBillHtml` (core) via jsPDF `html()` — **2-in-1 sheets stack both bills on one A4 (accent strip for classic color)**; Mobile: shared `renderBillHtml` + `expo-print` → share PDF (text share kept as secondary) |
 | 10 | Job letters — create, save, list, delete + PDF | ✅ | ✅ | ✅ | Shared `JobLetterData` + `renderJobLetterHtml` (core); web has the full rich form + gold-bordered jsPDF PDF; desktop downloads the same shared HTML via jsPDF `html()`; mobile shares it via `expo-print` |
-| 11 | Parties & Khata — balances (due / owed), ledger, advances given/taken | ✅ | ✅ | ✅ | Full ledger on web + desktop; mobile shows balances + compact ledger |
-| 12 | Advances summary — "whom I gave money / whom I owe" dashboard | ✅ | 🟡 | 🟡 | Web has a dedicated Advances view; desktop/mobile surface it inside Parties |
+| 11 | Parties & Khata — balances (due / owed), ledger, advances given/taken | ✅ | ✅ | ✅ | Web + desktop share search + type filter (customer/supplier/worker/other), party type on create, delete party, and the shared `LedgerKindBadge` in ledger rows; mobile shows balances + compact ledger |
+| 12 | Advances summary — "whom I gave money / whom I owe" dashboard | ✅ | ✅ | 🟡 | Web + desktop share the same **Advances page** (`advances-view.tsx` / `pages/advances.tsx`) built on the shared `SummaryTile` + `KhataCard` from `@munim/ui` — summary tiles, quick record, receivables/payables khata cards with Collect/Pay/+Give/+Take. Mobile surfaces it inside Parties |
 | 13 | Settle advance | ✅ | ✅ | ✅ | Shared `settleAdvance` in core; mobile has a Settle button per open advance in Parties |
 | 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; all three apps generate + export the same report |
 | 15 | Report export (Excel / PDF / CSV) | ✅ | ✅ | ✅ | All three apps share `reportToCsv` (RFC-4180) for CSV; web also has Excel+PDF, mobile shares CSV via native Share |
@@ -120,7 +120,7 @@ plain drizzle output.
 - Settings: shop profile editor (name/address/phones/email/currency/low-stock threshold) via `GET/PUT /api/settings` + connection check; DB URL comes from env; header shows only the light/dark toggle (color theme lives in Settings)
 
 ### Desktop (`apps/desktop`) — Tauri + Vite
-- Pages: dashboard, products, **catalog**, sales, billing, parties, job-letters, **reports**, settings
+- Pages: dashboard, products, **catalog**, sales, billing, **invoices**, parties, **advances**, job-letters, **reports**, settings
 - Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally (masked in Settings)
 - Billing: full web parity — `BillTemplateOptions` shared component (template/color/2-in-1), date, notes, second-bill section for Separate mode, 2-in-1 PDF sheet
 - Products: image upload (Cloudinary unsigned preset via `VITE_CLOUDINARY_*`) + thumbnail column

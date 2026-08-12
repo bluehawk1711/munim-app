@@ -13,7 +13,7 @@ import {
   Mail,
   MapPin,
 } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Badge, Skeleton, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, Badge, Skeleton, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, LedgerKindBadge } from "@munim/ui"
 
 
 
@@ -230,7 +230,7 @@ function PartyLedger({ id, onBack }: { id: string; onBack: () => void }) {
                 <div key={line.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                      <KindBadge kind={line.kind} />
+                      <LedgerKindBadge kind={line.kind} />
                       <span className="truncate text-sm">{line.description}</span>
                     </div>
                     <p className="pl-1 text-xs text-muted-foreground">{formatDate(line.date)}</p>
@@ -275,24 +275,6 @@ function PartyLedger({ id, onBack }: { id: string; onBack: () => void }) {
       </Dialog>
     </div>
   )
-}
-
-function KindBadge({ kind }: { kind: string }) {
-  const styles: Record<string, string> = {
-    ADVANCE_GIVEN: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-    ADVANCE_TAKEN: "bg-red-500/15 text-red-600 dark:text-red-400",
-    INVOICE: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-    PAYMENT_IN: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-    PAYMENT_OUT: "bg-red-500/15 text-red-600 dark:text-red-400",
-  }
-  const labels: Record<string, string> = {
-    ADVANCE_GIVEN: "Given",
-    ADVANCE_TAKEN: "Taken",
-    INVOICE: "Bill",
-    PAYMENT_IN: "Paid us",
-    PAYMENT_OUT: "We paid",
-  }
-  return <Badge className={cn("font-normal", styles[kind] ?? "bg-muted text-muted-foreground")}>{labels[kind] ?? kind}</Badge>
 }
 
 function CreatePartyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
