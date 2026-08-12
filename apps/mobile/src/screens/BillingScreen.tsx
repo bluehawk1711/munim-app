@@ -101,6 +101,7 @@ export function BillingScreen() {
   // ── Bill 1 ──────────────────────────────────────────────────────────────
   const [customer, setCustomer] = useState('');
   const [discount, setDiscount] = useState('0');
+  const [delivery, setDelivery] = useState('0');
   const [paid, setPaid] = useState('0');
   const [lines, setLines] = useState<LineState[]>([emptyLine()]);
 
@@ -113,6 +114,7 @@ export function BillingScreen() {
   // ── Bill 2 — only used in 2-in-1 "Separate" mode ───────────────────────
   const [secondCustomer, setSecondCustomer] = useState('');
   const [secondDiscount, setSecondDiscount] = useState('0');
+  const [secondDelivery, setSecondDelivery] = useState('0');
   const [secondPaid, setSecondPaid] = useState('0');
   const [secondLines, setSecondLines] = useState<LineState[]>([emptyLine()]);
   const [secondPreview, setSecondPreview] = useState<BillDocument | null>(null);
@@ -126,12 +128,13 @@ export function BillingScreen() {
     () => lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [lines],
   );
-  const total = Math.max(0, subtotal - (Number(discount) || 0));
+  // Same totals math as web/desktop: subtotal − discount + delivery.
+  const total = Math.max(0, subtotal - (Number(discount) || 0) + (Number(delivery) || 0));
   const secondSubtotal = useMemo(
     () => secondLines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [secondLines],
   );
-  const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0));
+  const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0) + (Number(secondDelivery) || 0));
 
   function updateLine(index: number, patch: Partial<LineState>) {
     setLines(prev => prev.map((l, i) => (i === index ? {...l, ...patch} : l)));
@@ -186,10 +189,12 @@ export function BillingScreen() {
   function resetForm() {
     setCustomer('');
     setDiscount('0');
+    setDelivery('0');
     setPaid('0');
     setLines([emptyLine()]);
     setSecondCustomer('');
     setSecondDiscount('0');
+    setSecondDelivery('0');
     setSecondPaid('0');
     setSecondLines([emptyLine()]);
   }
@@ -215,6 +220,7 @@ export function BillingScreen() {
         customerName: customer.trim() || undefined,
         items,
         discount: Number(discount) || 0,
+        deliveryCharge: Number(delivery) || 0,
         amountPaid: Number(paid) || 0,
         paymentMethod: 'cash',
         shopDetails: shop,
@@ -232,6 +238,7 @@ export function BillingScreen() {
             customerName: secondCustomer.trim() || undefined,
             items: collectItems(secondLines),
             discount: Number(secondDiscount) || 0,
+            deliveryCharge: Number(secondDelivery) || 0,
             amountPaid: Number(secondPaid) || 0,
             paymentMethod: 'cash',
             shopDetails: shop,
@@ -417,6 +424,7 @@ export function BillingScreen() {
             onAdd={() => setLines(prev => [...prev, emptyLine()])}
           />
           <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
+          <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="numeric" />
           <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="numeric" />
           <Text style={styles.total}>Total: {money(total)}</Text>
           <Button title={saving ? 'Saving…' : 'Create invoice'} onPress={handleCreate} loading={saving} />
@@ -436,6 +444,7 @@ export function BillingScreen() {
               onAdd={() => setSecondLines(prev => [...prev, emptyLine()])}
             />
             <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="numeric" />
+            <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="numeric" />
             <Field label="Paid now" value={secondPaid} onChangeText={setSecondPaid} keyboardType="numeric" />
             <Text style={styles.total}>Bill 2 total: {money(secondTotal)}</Text>
           </Card>
