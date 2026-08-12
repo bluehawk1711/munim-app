@@ -23,20 +23,26 @@ export function ReportsScreen() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [active, setActive] = useState<ReportType>('monthly');
+  // Dates are committed on "Generate report" (like web/desktop) and apply to
+  // ANY report type — empty range falls back to the type's default period.
+  const [activeStart, setActiveStart] = useState('');
+  const [activeEnd, setActiveEnd] = useState('');
 
   const {data: report, loading, error, reload} = useAsync(
     async () =>
       getReport(
         await getCore(),
         active,
-        active === 'sold' && startDate ? startDate : undefined,
-        active === 'sold' && endDate ? endDate : undefined,
+        activeStart || undefined,
+        activeEnd || undefined,
       ),
-    [active],
+    [active, activeStart, activeEnd],
   );
 
   function generate() {
     setActive(type);
+    setActiveStart(startDate);
+    setActiveEnd(endDate);
   }
 
   async function handleShareCsv() {
@@ -77,26 +83,24 @@ export function ReportsScreen() {
               );
             })}
           </View>
-          {type === 'sold' ? (
-            <View style={{marginTop: 4}}>
-              <Text style={styles.label}>Date range</Text>
-              <Text style={styles.dateHint}>YYYY-MM-DD (e.g. 2026-01-01)</Text>
-              <TextInput
-                style={styles.input}
-                value={startDate}
-                onChangeText={setStartDate}
-                placeholder="Start date"
-                placeholderTextColor={colors.inputPlaceholder}
-              />
-              <TextInput
-                style={[styles.input, {marginTop: 8}]}
-                value={endDate}
-                onChangeText={setEndDate}
-                placeholder="End date (optional)"
-                placeholderTextColor={colors.inputPlaceholder}
-              />
-            </View>
-          ) : null}
+          <View style={{marginTop: 4}}>
+            <Text style={styles.label}>Date range (optional — applies to any report)</Text>
+            <Text style={styles.dateHint}>YYYY-MM-DD (e.g. 2026-01-01)</Text>
+            <TextInput
+              style={styles.input}
+              value={startDate}
+              onChangeText={setStartDate}
+              placeholder="Start date"
+              placeholderTextColor={colors.inputPlaceholder}
+            />
+            <TextInput
+              style={[styles.input, {marginTop: 8}]}
+              value={endDate}
+              onChangeText={setEndDate}
+              placeholder="End date (optional)"
+              placeholderTextColor={colors.inputPlaceholder}
+            />
+          </View>
           <View style={styles.exportRow}>
             <Button
               title={loading ? 'Generating…' : 'Generate report'}
