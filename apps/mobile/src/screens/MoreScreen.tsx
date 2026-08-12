@@ -1,22 +1,26 @@
 import React, {useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {
+  ArrowLeftRight,
   BarChart3,
   ChevronLeft,
   ChevronRight,
   Palette,
+  Receipt,
   ScrollText,
   Settings as SettingsIcon,
 } from 'lucide-react-native';
 import {colors, Header, Screen} from '../components/ui';
 import {useThemeStyles} from '../theme';
 import {sectionPress} from '../lib/haptics';
+import {AdvancesScreen} from './AdvancesScreen';
 import {CatalogScreen} from './CatalogScreen';
+import {InvoicesScreen} from './InvoicesScreen';
 import {JobLettersScreen} from './JobLettersScreen';
 import {ReportsScreen} from './ReportsScreen';
 import {SettingsScreen} from './SettingsScreen';
 
-type Section = 'letters' | 'reports' | 'catalog' | 'settings';
+type Section = 'letters' | 'reports' | 'catalog' | 'invoices' | 'advances' | 'settings';
 
 const SECTIONS: {
   key: Section;
@@ -24,6 +28,8 @@ const SECTIONS: {
   subtitle: string;
   icon: React.ComponentType<{size?: number; color?: string; strokeWidth?: number}>;
 }[] = [
+  {key: 'invoices', label: 'Invoices', subtitle: 'All bills & statuses', icon: Receipt},
+  {key: 'advances', label: 'Advances', subtitle: 'Whom I gave money, whom I owe', icon: ArrowLeftRight},
   {key: 'letters', label: 'Job Letters', subtitle: 'Offer letters for staff', icon: ScrollText},
   {key: 'reports', label: 'Reports', subtitle: 'Sales, stock & profit', icon: BarChart3},
   {key: 'catalog', label: 'Catalog', subtitle: 'Colors & sizes for products', icon: Palette},
@@ -68,6 +74,20 @@ export function MoreScreen() {
     return (
       <SectionView onBack={() => setSection(null)}>
         <CatalogScreen />
+      </SectionView>
+    );
+  }
+  if (section === 'invoices') {
+    return (
+      <SectionView onBack={() => setSection(null)}>
+        <InvoicesScreen />
+      </SectionView>
+    );
+  }
+  if (section === 'advances') {
+    return (
+      <SectionView onBack={() => setSection(null)}>
+        <AdvancesScreen />
       </SectionView>
     );
   }
