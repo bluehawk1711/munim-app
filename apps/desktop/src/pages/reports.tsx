@@ -25,7 +25,7 @@ const REPORT_OPTIONS: {
   { key: "yearly", label: "Yearly Sales", description: "This year", icon: Calendar },
   { key: "stock", label: "Product Stock", description: "All inventory", icon: Package },
   { key: "low_stock", label: "Low Stock", description: "Items to restock", icon: AlertTriangle },
-  { key: "sold", label: "Sold Products", description: "Custom date range", icon: ShoppingCart },
+  { key: "sold", label: "Sold Products", description: "Items sold in a period", icon: ShoppingCart },
 ];
 
 export function ReportsPage() {
@@ -42,7 +42,6 @@ export function ReportsPage() {
     [active?.type, active?.start, active?.end],
   );
 
-  const isCustomRange = type === "sold";
   const totals = report?.totals;
 
   function generate() {
@@ -101,7 +100,10 @@ export function ReportsPage() {
             })}
           </div>
 
-          {isCustomRange && (
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              Date range — optional, applies to any report type. Leave blank for the default period.
+            </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:max-w-md">
               <div className="space-y-1.5">
                 <Label htmlFor="startDate" className="text-xs">Start Date</Label>
@@ -112,7 +114,7 @@ export function ReportsPage() {
                 <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9" />
               </div>
             </div>
-          )}
+          </div>
 
           <div className="flex items-center gap-2">
             <Button onClick={generate} disabled={!type} className="gap-1.5">
