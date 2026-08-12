@@ -101,7 +101,7 @@ plain drizzle output.
 | # | Feature | Web | Desktop | Mobile | Notes |
 |---|---------|:---:|:-------:|:------:|-------|
 | 1 | Dashboard (revenue, receivables, payables, low stock, recent invoices/advances) | ✅ | ✅ | ✅ | Same `getDashboard` in core |
-| 2 | Products — list, search, create, edit, delete | ✅ | ✅ | 🟡 | SKU auto-generated in core. **Mobile: list, create, delete, adjust stock + image upload — but no search or edit yet** (web + desktop have both); tracked as a mobile gap |
+| 2 | Products — list, search, create, edit, delete | ✅ | ✅ | ✅ | SKU auto-generated in core. Mobile has search (name/SKU/color/size, client-side over the full list with a clear button) and a shared add/edit form (`updateProduct` on save) alongside create, delete, adjust stock + image upload |
 | 2b | Product image upload (Cloudinary) + thumbnail in list | ✅ | ✅ | ✅ | Web: signed upload via `/api/upload` (server-side secret); desktop + mobile: shared `uploadImageToCloudinary` (unsigned upload preset — no secret on client). Mobile uses `expo-image-picker` (native module — rebuild the dev build only when native deps change) |
 | 3 | Stock — adjust (+/− with reason), low-stock/out-of-stock badges | ✅ | ✅ | ✅ | `adjustStock` + movements in core (input supports `reason`). All three apps show a **Reason (optional)** multiline field on the adjust dialog and store it as the movement note (`e.g. Restocked, damaged, returned…`) |
 | 4 | Catalog — colors & sizes management (add/rename/delete) | ✅ | ✅ | ✅ | Shared `catalog.ts` service in core (`listCatalogItems`/`createCatalogItem`/`renameCatalogItem`/`deleteCatalogItem` with product-count guards); all three apps manage the same colors/sizes |

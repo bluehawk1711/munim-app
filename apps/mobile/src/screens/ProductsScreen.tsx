@@ -1,10 +1,12 @@
 import React, {useState} from 'react';
-import {FlatList, Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {FlatList, Image, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import Animated, {FadeInUp} from 'react-native-reanimated';
+import {Search, X} from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
   listAllProducts,
   createProduct,
+  updateProduct,
   adjustStock,
   deleteProduct,
   uploadImageToCloudinary,
@@ -46,7 +48,9 @@ export function ProductsScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data, error, loading, reload} = useAsync(async () => listAllProducts(await getCore()), []);
 
-  const [addOpen, setAddOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<ProductWithMeta | null>(null);
+  const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
@@ -93,13 +97,41 @@ export function ProductsScreen() {
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
 
-  async function handleAdd() {
+  function resetForm() {
+    setName('');
+    setColor('');
+    setSize('');
+    setImageUrl('');
+    setStock('0');
+    setBuy('0');
+    setSell('0');
+  }
+
+  function openAdd() {
+    setEditing(null);
+    resetForm();
+    setFormOpen(true);
+  }
+
+  function openEdit(p: ProductWithMeta) {
+    setEditing(p);
+    setName(p.name);
+    setColor(p.colorName ?? '');
+    setSize(p.sizeName ?? '');
+    setImageUrl(p.imageUrl ?? '');
+    setStock(String(p.stock));
+    setBuy(String(p.purchasePrice));
+    setSell(String(p.sellingPrice));
+    setFormOpen(true);
+  }
+
+  async function handleSave() {
     if (!name.trim()) {
       return;
     }
     setSaving(true);
     try {
-      await createProduct(await getCore(), {
+      const input = {
         name: name.trim(),
         color: color.trim() || 'Standard',
         size: size.trim() || 'Standard',
@@ -107,20 +139,20 @@ export function ProductsScreen() {
         stock: Math.max(0, Number(stock) || 0),
         purchasePrice: Math.max(0, Number(buy) || 0),
         sellingPrice: Math.max(0, Number(sell) || 0),
-      });
+      };
+      if (editing) {
+        await updateProduct(await getCore(), editing.id, input);
+      } else {
+        await createProduct(await getCore(), input);
+      }
       successFeedback();
-      setAddOpen(false);
-      setName('');
-      setColor('');
-      setSize('');
-      setImageUrl('');
-      setStock('0');
-      setBuy('0');
-      setSell('0');
+      setFormOpen(false);
+      setEditing(null);
+      resetForm();
       reload();
     } catch {
       errorFeedback();
-      // surfaced by the caller UI in a future iteration; keep the modal open
+      // keep the modal open on failure
     } finally {
       setSaving(false);
     }
@@ -160,18 +192,59 @@ export function ProductsScreen() {
     }
   }
 
+  const query = search.trim().toLowerCase();
+  const filtered = query
+    ? (data ?? []).filter(
+        p =>
+          p.name.toLowerCase().includes(query) ||
+          p.sku.toLowerCase().includes(query) ||
+          (p.colorName ?? '').toLowerCase().includes(query) ||
+          (p.sizeName ?? '').toLowerCase().includes(query),
+      )
+    : data;
+
   return (
     <Screen>
-      <Header title="Products & Stock" subtitle="Tap + to add, tap a product to adjust stock" />
+      <Header title="Products & Stock" subtitle="Search, add, edit & adjust stock" />
+      <View style={styles.searchWrap}>
+        <Search size={16} color={colors.muted} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search by name, SKU, color…"
+          placeholderTextColor={colors.inputPlaceholder}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {search ? (
+          <Pressable
+            onPress={() => setSearch('')}
+            style={styles.searchClear}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search">
+            <X size={16} color={colors.muted} />
+          </Pressable>
+        ) : null}
+      </View>
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
       ) : loading || !data ? (
         <Loading />
       ) : (
         <FlatList
-          data={data}
+          data={filtered}
           keyExtractor={item => item.id}
-          ListEmptyComponent={<Empty text="No products yet" />}
+          style={{flex: 1}}
+          keyboardShouldPersistTaps="handled"
+          ListEmptyComponent={
+            query ? (
+              <Empty text="No products match your search" />
+            ) : (
+              <Empty text="No products yet" />
+            )
+          }
           contentContainerStyle={{paddingBottom: 90}}
           renderItem={({item, index}) => (
             <Card index={index}>
@@ -197,7 +270,8 @@ export function ProductsScreen() {
                     tone={toneFor(item)}
                   />
                   <Text style={styles.stock}>{item.stock} in stock</Text>
-                  <View style={{flexDirection: 'row', gap: 8}}>
+                  <View style={styles.cardActions}>
+                    <Button title="Edit" variant="outline" onPress={() => openEdit(item)} />
                     <Button
                       title="Adjust"
                       variant="outline"
@@ -217,10 +291,13 @@ export function ProductsScreen() {
       )}
 
       <Animated.View entering={FadeInUp.duration(320)} style={styles.fab}>
-        <Button title="+ Add product" onPress={() => setAddOpen(true)} />
+        <Button title="+ Add product" onPress={openAdd} />
       </Animated.View>
 
-      <ModalSheet visible={addOpen} title="Add product" onClose={() => setAddOpen(false)}>
+      <ModalSheet
+        visible={formOpen}
+        title={editing ? `Edit product — ${editing.name}` : 'Add product'}
+        onClose={() => setFormOpen(false)}>
         <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
         <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
           {imageUrl ? (
@@ -234,7 +311,11 @@ export function ProductsScreen() {
         <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
         <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
         <Field label="Sell price" value={sell} onChangeText={setSell} keyboardType="numeric" />
-        <Button title={saving ? 'Saving…' : 'Save product'} onPress={handleAdd} loading={saving} />
+        <Button
+          title={saving ? 'Saving…' : editing ? 'Save changes' : 'Save product'}
+          onPress={handleSave}
+          loading={saving}
+        />
       </ModalSheet>
 
       <ModalSheet
@@ -269,6 +350,22 @@ const makeStyles = () =>
     meta: {fontSize: 12, color: colors.muted, marginTop: 2},
     stock: {fontSize: 14, fontWeight: '700', color: colors.text},
     fab: {position: 'absolute', bottom: 24, left: 16, right: 16},
+    searchWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 16,
+      marginBottom: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      paddingHorizontal: 12,
+      height: 40,
+    },
+    searchIcon: {marginRight: 8},
+    searchInput: {flex: 1, fontSize: 14, color: colors.text, paddingVertical: 0},
+    searchClear: {padding: 4},
+    cardActions: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end'},
     imagePicker: {
       height: 96,
       borderRadius: 12,
