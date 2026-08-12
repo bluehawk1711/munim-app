@@ -131,6 +131,145 @@ blast radius:
 
 ---
 
+## Translation guide — dukaan-style Hindi (v1)
+
+> The audience is a **dukaan-dār** (shopkeeper) who speaks everyday bazaar Hindi,
+> not textbook Hindi. The rule of thumb: **write the word the shopkeeper already
+> says out loud.** When in doubt, prefer the shorter, spoken word over the formal
+> one, and keep the English loanwords that are already part of bazaar Hindi.
+
+### Review of the strings already in this plan
+
+| String in the plan | Verdict | Note |
+|---|---|---|
+| बारह लाख चौंतीस हज़ार पाँच सौ सड़सठ (`1234567`) | ✅ correct | 67 = सड़सठ, 34 = चौंतीस — spot on Indian grouping |
+| करोड़ / लाख / हज़ार / सौ | ✅ correct | exact spoken units |
+| जनवरी, फ़रवरी…, सोमवार… | ✅ correct (minor) | drop the nukta: write **फरवरी** (many device fonts misrender फ़) |
+| जॉब लेटर | ✅ fine | loanword; नौकरी पत्र only for formal print |
+
+### The 10 golden words of dukaan Hindi
+
+| Word | Meaning | Use instead of |
+|---|---|---|
+| **बकाया** | unpaid / outstanding | शेष राशि, अवशेष |
+| **उधार** | credit (buy now, pay later) | ऋण |
+| **हिसाब** | account / ledger / settlement | लेखा, बहीखाता (formal) |
+| **एडवांस** | advance money | अग्रिम (formal) |
+| **दाम** | price | मूल्य (formal) |
+| **कमाई** | revenue / earnings | आय, राजस्व |
+| **मुनाफ़ा** | profit | लाभ (acceptable, but मुनाफ़ा is spoken) |
+| **ग्राहक** | customer | उपभोक्ता (formal) |
+| **स्टॉक** | stock | माल-भंडार (formal) |
+| **बिल** | bill / invoice | चालान (only for delivery notes) |
+
+### Style rules (write these into the dictionaries)
+
+1. **Verb-first imperatives** for actions — जोड़ें, बदलें, हटाएं, सेव करें,
+   रद्द करें, खोजें, बेचें, दर्ज करें. Never noun-phrases like "जोड़ने की क्रिया".
+2. **Keep the loanwords** — बिल, स्टॉक, सेल, रिपोर्ट, पेमेंट, डिस्काउंट,
+   कैटलॉग, साइज़, प्रोडक्ट, पार्टी, एडवांस, डेटाबेस. They are already Hindi.
+3. **Money direction is always लेना/देना** — "whom I gave money" is the core
+   of this app: हमें लेना है (they owe us) vs हमें देना है (we owe them).
+4. **One term per concept, everywhere** — pick बिल for invoices and never mix
+   in बिक्री/सेल or ग्राहक/कस्टमर. Consistency beats elegance.
+5. **Avoid Sanskrit-heavy words** no shopkeeper says: मूल्य → दाम,
+   उपभोक्ता → ग्राहक, राजस्व → कमाई, अवशेष → बकाया, भुगतान → पैसा/पेमेंट
+   (भुगतान stays only on printed bills as a legal word).
+6. **Latin digits by default** — `₹12,34,567` reads fine in Hindi mode.
+   Devanagari numerals (१२,३४,५६७) are the optional toggle, never the default.
+
+### Glossary — navigation & modules (the nav is the same in all 3 apps)
+
+| English (exact string) | Dukaan Hindi | Mobile-tab short form |
+|---|---|---|
+| Dashboard | डैशबोर्ड | होम |
+| Products | प्रोडक्ट | प्रोडक्ट |
+| Stock | स्टॉक | — |
+| Catalog | कैटलॉग (रंग और साइज़) | कैटलॉग |
+| Sales | सेल / बिक्री | सेल |
+| Billing / New Bill | नया बिल | बिल |
+| Invoices | बिल (इनवॉइस) | बिल |
+| Parties | पार्टी | पार्टी |
+| Khata | खाता | — |
+| Advances | एडवांस | एडवांस |
+| Job Letters | जॉब लेटर | लेटर |
+| Reports | रिपोर्ट | रिपोर्ट |
+| Settings | सेटिंग्स | सेटिंग्स |
+| More | और | और |
+
+### Glossary — actions & buttons
+
+| English | Dukaan Hindi |
+|---|---|
+| Add / Create | जोड़ें / बनाएं |
+| Edit / Rename | बदलें / नाम बदलें |
+| Delete / Remove | हटाएं |
+| Save | सेव करें |
+| Cancel / Close | रद्द करें / बंद करें |
+| Search | खोजें |
+| Sell | बेचें |
+| Record / Record payment | दर्ज करें / पेमेंट दर्ज करें |
+| Settle | हिसाब करें |
+| Confirm | पक्का करें |
+| Update | अपडेट करें |
+| Generate (report) | रिपोर्ट बनाएं |
+| Export / Download / Print / Share | एक्सपोर्ट / डाउनलोड / प्रिंट / शेयर करें |
+| Back / Next | वापस / आगे |
+| Loading… | लोड हो रहा है… |
+
+### Glossary — khata & money (the soul of Munim)
+
+| English (exact string) | Dukaan Hindi |
+|---|---|
+| We are owed (udhaar) | हमें लेना है (उधार) |
+| We owe (payable) | हमें देना है |
+| Net position | नेट हिसाब |
+| Advance given | एडवांस दिया |
+| Advance taken | एडवांस लिया |
+| Paid | पैसा मिला |
+| Partially paid | आधा पैसा मिला |
+| Unpaid / Outstanding | बकाया |
+| Given / Taken | दिया / लिया |
+| Paid us / We paid | पैसा मिला / हमने दिया |
+| Settled | हिसाब बराबर |
+| Balance / Total | बैलेंस / कुल |
+| Amount / Amount in words | राशि / राशि (शब्दों में) |
+| Discount / Delivery charge | छूट / डिलीवरी चार्ज |
+| Profit / Revenue | मुनाफ़ा / कमाई |
+
+### Glossary — forms & fields
+
+| English | Dukaan Hindi |
+|---|---|
+| Name / Phone / Address | नाम / फोन / पता |
+| Date / Notes | तारीख / नोट |
+| Reason | कारण |
+| Qty / Price | मात्रा / दाम |
+| Buy price / Sell price | खरीद दाम / बिक्री दाम |
+| Customer / Supplier / Worker | ग्राहक / सप्लायर / कर्मचारी |
+| Item / Walk-in | सामान / वॉक-इन (keep as-is) |
+| Employee name | कर्मचारी का नाम |
+| Shop profile | दुकान की जानकारी |
+| Dark mode / Haptics | डार्क मोड / वाइब्रेशन |
+
+### Dates, money & numerals (Phase C reference)
+
+| English format | Hindi format |
+|---|---|
+| 12 Aug 2026 | 12 अगस्त 2026 (Latin digits) / १२ अगस्त २०२६ (Devanagari) |
+| ₹12,34,567.50 | ₹12,34,567.50 → ₹१२,३४,५६७.५० (toggle) |
+| One hundred twenty rupees | एक सौ बीस रुपये (rupees → रुपये, paise → पैसे) |
+
+Months: जनवरी, फरवरी, मार्च, अप्रैल, मई, जून, जुलाई, अगस्त, सितंबर,
+अक्टूबर, नवंबर, दिसंबर · Days: सोमवार, मंगलवार, बुधवार, गुरुवार,
+शुक्रवार, शनिवार, रविवार.
+
+> **Layout warning (Phase E):** Hindi is ~20–40% longer than English. The mobile
+> tab bar and buttons are the tightest spots — the "mobile-tab short form"
+> column above is the escape hatch (होम, सेल, बिल, लेटर).
+
+---
+
 ## Phases
 
 ### Phase A — Infrastructure (no UI changes)
