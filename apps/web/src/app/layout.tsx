@@ -16,19 +16,55 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL
+
 export const metadata: Metadata = {
-  title: "StockPilot — Inventory & Sales Management",
+  title: {
+    default: "Munim — Shop Management",
+    template: "%s · Munim",
+  },
   description:
-    "A modern inventory and sales management system with real-time stock tracking, analytics, and one-click reporting.",
+    "Munim is a unified shop management suite for stock, sales, billing, khata (party advances), job letters, and reports — on web, desktop, and mobile over one shared database.",
   keywords: [
-    "inventory",
-    "sales",
+    "shop management",
+    "inventory management",
     "stock management",
+    "billing software",
+    "invoice generator",
+    "khata book",
+    "advance tracking",
+    "jewellery billing",
     "POS",
-    "analytics",
-    "Next.js",
+    "point of sale",
+    "reports",
+    "Munim",
   ],
-  authors: [{ name: "StockPilot" }],
+  authors: [{ name: "Munim" }],
+  applicationName: "Munim",
+  category: "Business",
+  ...(appUrl ? { metadataBase: new URL(appUrl) } : {}),
+  openGraph: {
+    type: "website",
+    siteName: "Munim",
+    title: "Munim — Shop Management",
+    description:
+      "Stock, billing, khata, and reports in one place — web, desktop, and mobile on a single shared database.",
+    images: [{ url: "/logo.svg", alt: "Munim logo" }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Munim — Shop Management",
+    description:
+      "Stock, billing, khata, and reports in one place — web, desktop, and mobile on a single shared database.",
+    images: ["/logo.svg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
+  icons: {
+    icon: "/logo.svg",
+  },
 };
 
 export default function RootLayout({

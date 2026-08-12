@@ -11,20 +11,7 @@ import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigg
 import { ThemeToggle } from "@/components/app/theme-toggle"
 import { SidebarNav, SidebarHeader, SidebarFooter } from "@/components/app/sidebar-nav"
 import { useAppStore } from "@/store/view-store"
-
-const VIEW_TITLES: Record<string, { title: string; subtitle: string }> = {
-  dashboard: { title: "Dashboard", subtitle: "Business overview & analytics" },
-  products: { title: "Products", subtitle: "Manage your inventory" },
-  sales: { title: "Sales", subtitle: "Record sales & view history" },
-  invoices: { title: "Invoices", subtitle: "All bills & payment statuses" },
-  billing: { title: "New Bill", subtitle: "Create a bill / invoice" },
-  "job-letter": { title: "Job Letters", subtitle: "Offer & joining letters" },
-  parties: { title: "Parties", subtitle: "Khata — customers, suppliers, workers" },
-  advances: { title: "Advances", subtitle: "Who owes whom — given & taken" },
-  reports: { title: "Reports", subtitle: "Generate & export reports" },
-  catalog: { title: "Catalog", subtitle: "Manage colors & sizes" },
-  settings: { title: "Settings", subtitle: "Shop profile & shared database" },
-}
+import { VIEW_TITLES } from "@/lib/view-titles"
 
 export function AppTopbar() {
   const activeView = useAppStore((s) => s.activeView)

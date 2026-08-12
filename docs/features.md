@@ -129,6 +129,7 @@ plain drizzle output.
 - Exports: Excel + PDF (reports), jsPDF bill templates, job-letter PDF
 - Settings: `SettingsShell` sectioned layout (Shop profile / Appearance / Security / Database) via `GET/PUT /api/settings` + connection check; DB URL comes from env; header shows only the light/dark toggle (color theme lives in Settings)
 - Header toggle: `AnimatedThemeToggle` (shared `@munim/ui`) — Skiper26 polygon wipe from top-left with blur; still syncs the mode through `setMode` → shared `settings.mode`
+- Navigation: the active tab is synced to the URL (`?view=…`, `pushState`) and restored on refresh; browser back/forward navigates between tabs; the document title updates per view (`<Title> · Munim`); SEO metadata (title template, description, Open Graph, Twitter card) is set in `layout.tsx`
 
 ### Desktop (`apps/desktop`) — Tauri + Vite
 - Pages: dashboard, products, **catalog**, sales, billing, **invoices**, parties, **advances**, job-letters, **reports**, settings
