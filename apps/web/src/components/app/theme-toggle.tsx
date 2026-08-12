@@ -1,11 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Moon, Sun } from "lucide-react"
 import { useTheme as useNextTheme } from "next-themes"
-import { Button } from "@munim/ui"
+import { AnimatedThemeToggle } from "@munim/ui"
 import { useAccentThemeContext } from "@/components/app/theme-picker"
-
 
 export function ThemeToggle() {
   const { resolvedTheme } = useNextTheme()
@@ -16,23 +14,16 @@ export function ThemeToggle() {
     () => false
   )
 
-  const isDark = resolvedTheme === "dark"
-  // When no explicit mode is stored, treat the resolved theme as the toggle target.
-  const next: "light" | "dark" = isDark ? "light" : "dark"
+  // The Skiper26 animated toggle — polygon wipe from top-left with blur.
+  // Fully controlled: next-themes resolves the current mode, `setMode`
+  // flips it and mirrors it to the shared settings row (cross-device sync).
+  const isDark = mounted && resolvedTheme === "dark"
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
+    <AnimatedThemeToggle
+      isDark={!!isDark}
+      onToggle={() => setMode(isDark ? "light" : "dark")}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      onClick={() => setMode(next)}
-      className="h-9 w-9"
-    >
-      {mounted && isDark ? (
-        <Sun className="h-4 w-4" />
-      ) : (
-        <Moon className="h-4 w-4" />
-      )}
-    </Button>
+    />
   )
 }
