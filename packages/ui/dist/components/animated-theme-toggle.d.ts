@@ -31,8 +31,12 @@ export type AnimatedThemeToggleProps = {
     start?: AnimatedThemeToggleStart;
     /** Blur reveal — default on. */
     blur?: boolean;
+    /** Play the wipe even when the OS reports reduced motion (e.g. Windows
+     *  "Animation effects" off). Off by default — reduced-motion users get an
+     *  instant flip unless they opt into the animation from Settings. */
+    forceTransition?: boolean;
     className?: string;
     "aria-label"?: string;
 };
-export declare function AnimatedThemeToggle({ isDark, onToggle, start, blur, className, "aria-label": ariaLabel, }: AnimatedThemeToggleProps): React.JSX.Element;
+export declare function AnimatedThemeToggle({ isDark, onToggle, start, blur, forceTransition, className, "aria-label": ariaLabel, }: AnimatedThemeToggleProps): React.JSX.Element;
 //# sourceMappingURL=animated-theme-toggle.d.ts.map

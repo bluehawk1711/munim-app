@@ -1,10 +1,11 @@
-import { AnimatedThemeToggle } from "@munim/ui";
+import { AnimatedThemeToggle, useForceThemeTransition } from "@munim/ui";
 import { useTheme } from "@/components/theme-provider";
 import { useAccentTheme } from "@/components/theme-swatches";
 
 export function ModeToggle() {
   const { theme } = useTheme();
   const { setMode } = useAccentTheme();
+  const forceTransition = useForceThemeTransition();
 
   const isDark =
     theme === "dark" ||
@@ -20,6 +21,7 @@ export function ModeToggle() {
       // inside the View Transition; `setMode` keeps state + localStorage + the
       // shared-DB sync.
       onToggle={() => setMode(isDark ? "light" : "dark")}
+      forceTransition={forceTransition}
     />
   );
 }

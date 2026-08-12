@@ -38,6 +38,10 @@ export type AnimatedThemeToggleProps = {
   start?: AnimatedThemeToggleStart;
   /** Blur reveal — default on. */
   blur?: boolean;
+  /** Play the wipe even when the OS reports reduced motion (e.g. Windows
+   *  "Animation effects" off). Off by default — reduced-motion users get an
+   *  instant flip unless they opt into the animation from Settings. */
+  forceTransition?: boolean;
   className?: string;
   "aria-label"?: string;
 };
@@ -46,10 +50,13 @@ const STYLE_ID = "munim-animated-theme-transition";
 const EXPO_OUT = "cubic-bezier(0.16, 1, 0.3, 1)";
 
 /** Polygon clip-path reveal from Skiper26, with `--expo-out` inlined so the
- * injected stylesheet has zero external dependencies. */
+ * injected stylesheet has zero external dependencies. When `force` is true the
+ * prefers-reduced-motion kill-switch is omitted — the JS side also bypasses
+ * the check, and without this the CSS would still cancel the animation. */
 function createPolygonAnimation(
   start: AnimatedThemeToggleStart,
   blur: boolean,
+  force: boolean,
 ): string {
   const clipPaths =
     start === "top-right"
@@ -114,12 +121,18 @@ function createPolygonAnimation(
         }
       }
 
+      ${
+        force
+          ? ""
+          : `
       @media (prefers-reduced-motion: reduce) {
         ::view-transition-group(root),
         ::view-transition-new(root),
         ::view-transition-old(root) {
           animation: none !important;
         }
+      }
+    `
       }
     `;
 }
@@ -140,18 +153,22 @@ export function AnimatedThemeToggle({
   onToggle,
   start = "top-left",
   blur = true,
+  forceTransition = false,
   className,
   "aria-label": ariaLabel = "Toggle theme",
 }: AnimatedThemeToggleProps) {
   const handleToggle = React.useCallback(() => {
-    const animationCss = createPolygonAnimation(start, blur);
+    const animationCss = createPolygonAnimation(start, blur, forceTransition);
     injectTransitionStyles(animationCss);
 
     // Respect the OS/browser "reduce motion" preference: when animations are
     // disabled (e.g. Windows "Animation effects" off) the wipe is skipped and
     // the theme flips instantly instead. The wipe plays only when the OS
-    // allows animations.
+    // allows animations — unless the user explicitly opted into forcing it
+    // from Settings (`forceTransition`), which bypasses the check so the
+    // animation runs on machines with reduced motion on.
     const prefersReduced =
+      !forceTransition &&
       typeof window.matchMedia === "function" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -192,7 +209,7 @@ export function AnimatedThemeToggle({
     } else {
       run();
     }
-  }, [isDark, onToggle, start, blur]);
+  }, [isDark, onToggle, start, blur, forceTransition]);
 
   return (
     <button

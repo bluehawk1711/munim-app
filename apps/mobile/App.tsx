@@ -33,6 +33,7 @@ import {colors, SafeScreen} from './src/components/ui';
 import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
 import {PinProvider} from './src/lib/pin-provider';
 import {loadHapticsEnabled, selectionTick} from './src/lib/haptics';
+import {loadForceTransition} from './src/lib/force-transition';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
@@ -137,9 +138,10 @@ function AppInner() {
   const styles = useThemeStyles(makeStyles);
   const [tab, setTab] = useState<Tab>('home');
 
-  // Restore the persisted haptics preference before any feedback can fire.
+  // Restore persisted preferences before any feedback/animation can fire.
   React.useEffect(() => {
     loadHapticsEnabled().catch(() => {});
+    loadForceTransition().catch(() => {});
   }, []);
 
   return (

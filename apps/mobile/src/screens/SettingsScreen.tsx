@@ -14,6 +14,10 @@ import {
   setHapticsEnabled,
   selectionTick,
 } from '../lib/haptics';
+import {
+  isForceTransitionEnabled,
+  setForceTransitionEnabled,
+} from '../lib/force-transition';
 import {useTheme} from '../theme';
 import {usePinLock} from '../lib/pin-provider';
 
@@ -43,13 +47,17 @@ export function SettingsScreen() {
   const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
   const scrollRef = React.useRef<ScrollView>(null);
   const dbSectionY = React.useRef(0);
-  // Lazy-init from the in-memory flag (loaded at app start) so the switch
-  // never flashes the wrong state when re-entering the Settings section.
+  // Lazy-init from the in-memory flags (loaded at app start) so the switches
+  // never flash the wrong state when re-entering the Settings section.
   const [haptics, setHaptics] = useState(() => isHapticsEnabled());
+  const [forceTransition, setForceTransition] = useState(() =>
+    isForceTransitionEnabled(),
+  );
 
   // Still sync once in case the app-start load resolved after mount.
   useEffect(() => {
     setHaptics(isHapticsEnabled());
+    setForceTransition(isForceTransitionEnabled());
   }, []);
 
   useEffect(() => {
@@ -284,6 +292,34 @@ export function SettingsScreen() {
             </Text>
           </View>
           <ThemeToggleButton isDark={mode === 'dark'} onToggle={toggle} />
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: 12,
+            paddingTop: 12,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+          }}>
+          <View style={{flex: 1, paddingRight: 12}}>
+            <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>
+              Force theme transition
+            </Text>
+            <Text style={{fontSize: 12, color: colors.muted, marginTop: 2}}>
+              Play the transition even when animations are off — this device only
+            </Text>
+          </View>
+          <Switch
+            value={forceTransition}
+            onValueChange={value => {
+              setForceTransition(value);
+              void setForceTransitionEnabled(value);
+            }}
+            trackColor={{true: colors.primary, false: colors.border}}
+            thumbColor="#ffffff"
+          />
         </View>
       </Card>
       <Card index={2}>

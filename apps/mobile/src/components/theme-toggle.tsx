@@ -14,7 +14,8 @@
  * - Sun is amber-500 (#f59e0b, same as the web icon); Moon is `colors.text`
  *   so it flips with the mode like the web/desktop icons do.
  * - Press pop + selection haptic (respects the Settings haptics toggle);
- *   reduced-motion users get an instant flip, no spin.
+ *   reduced-motion users get an instant flip, no spin — unless "Force theme
+ *   transition" is enabled in Settings, which plays the spin anyway.
  */
 import React, {useEffect} from 'react';
 import {Pressable, StyleSheet} from 'react-native';
@@ -28,6 +29,7 @@ import Animated, {
 import {Moon, Sun} from 'lucide-react-native';
 import {colors, useThemeStyles} from '../theme';
 import {selectionTick} from '../lib/haptics';
+import {isForceTransitionEnabled} from '../lib/force-transition';
 
 const makeStyles = () =>
   StyleSheet.create({
@@ -59,7 +61,9 @@ export function ThemeToggleButton({
   size?: number;
 }) {
   const styles = useThemeStyles(makeStyles);
-  const reduceMotion = useReducedMotion();
+  // Respect the OS reduced-motion preference UNLESS the user opted into
+  // forcing the transition from Settings.
+  const reduceMotion = useReducedMotion() && !isForceTransitionEnabled();
   // 0 = light, 1 = dark; drives the crossfade + spin.
   const progress = useSharedValue(isDark ? 1 : 0);
   // Read at render time (outside the worklets) so reanimated captures the

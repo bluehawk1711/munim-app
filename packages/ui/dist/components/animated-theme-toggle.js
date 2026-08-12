@@ -28,8 +28,10 @@ import { cn } from "../lib/utils.js";
 const STYLE_ID = "munim-animated-theme-transition";
 const EXPO_OUT = "cubic-bezier(0.16, 1, 0.3, 1)";
 /** Polygon clip-path reveal from Skiper26, with `--expo-out` inlined so the
- * injected stylesheet has zero external dependencies. */
-function createPolygonAnimation(start, blur) {
+ * injected stylesheet has zero external dependencies. When `force` is true the
+ * prefers-reduced-motion kill-switch is omitted — the JS side also bypasses
+ * the check, and without this the CSS would still cancel the animation. */
+function createPolygonAnimation(start, blur, force) {
     const clipPaths = start === "top-right"
         ? {
             darkFrom: "polygon(150% -71%, 250% 71%, 250% 71%, 150% -71%)",
@@ -90,6 +92,9 @@ function createPolygonAnimation(start, blur) {
         }
       }
 
+      ${force
+        ? ""
+        : `
       @media (prefers-reduced-motion: reduce) {
         ::view-transition-group(root),
         ::view-transition-new(root),
@@ -97,6 +102,7 @@ function createPolygonAnimation(start, blur) {
           animation: none !important;
         }
       }
+    `}
     `;
 }
 function injectTransitionStyles(css) {
@@ -110,15 +116,18 @@ function injectTransitionStyles(css) {
     }
     el.textContent = css;
 }
-export function AnimatedThemeToggle({ isDark, onToggle, start = "top-left", blur = true, className, "aria-label": ariaLabel = "Toggle theme", }) {
+export function AnimatedThemeToggle({ isDark, onToggle, start = "top-left", blur = true, forceTransition = false, className, "aria-label": ariaLabel = "Toggle theme", }) {
     const handleToggle = React.useCallback(() => {
-        const animationCss = createPolygonAnimation(start, blur);
+        const animationCss = createPolygonAnimation(start, blur, forceTransition);
         injectTransitionStyles(animationCss);
         // Respect the OS/browser "reduce motion" preference: when animations are
         // disabled (e.g. Windows "Animation effects" off) the wipe is skipped and
         // the theme flips instantly instead. The wipe plays only when the OS
-        // allows animations.
-        const prefersReduced = typeof window.matchMedia === "function" &&
+        // allows animations — unless the user explicitly opted into forcing it
+        // from Settings (`forceTransition`), which bypasses the check so the
+        // animation runs on machines with reduced motion on.
+        const prefersReduced = !forceTransition &&
+            typeof window.matchMedia === "function" &&
             window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         const targetDark = !isDark;
         const run = () => {
@@ -157,7 +166,7 @@ export function AnimatedThemeToggle({ isDark, onToggle, start = "top-left", blur
         else {
             run();
         }
-    }, [isDark, onToggle, start, blur]);
+    }, [isDark, onToggle, start, blur, forceTransition]);
     return (_jsxs("button", { type: "button", className: cn(
         // Themed circle (not solid black) so it stays visible on dark surfaces:
         // subtle border + tinted fill in both modes, gentle hover lift, press pop.

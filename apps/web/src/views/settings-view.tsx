@@ -18,7 +18,10 @@ import {
   Skeleton,
   PinSettingsCard,
   SettingsShell,
+  Switch,
   type SettingsSection,
+  setForceThemeTransition,
+  useForceThemeTransition,
   usePinLockContext,
   Select,
   SelectContent,
@@ -61,6 +64,7 @@ export function SettingsView() {
   const { data: settings, isLoading } = useShopSettings()
   const { themeName, setThemeName, mode, setMode } = useAccentThemeContext()
   const pin = usePinLockContext()
+  const forceTransition = useForceThemeTransition()
 
   const [section, setSection] = React.useState<string>("shop")
 
@@ -282,6 +286,20 @@ export function SettingsView() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Force theme transition</Label>
+                <p className="text-xs text-muted-foreground">
+                  Play the wipe animation even when your system has reduced motion enabled. Applies
+                  on this device only.
+                </p>
+              </div>
+              <Switch
+                checked={forceTransition}
+                onCheckedChange={setForceThemeTransition}
+                aria-label="Force theme transition"
+              />
             </div>
           </CardContent>
         </Card>

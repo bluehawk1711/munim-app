@@ -2,12 +2,13 @@
 
 import * as React from "react"
 import { useTheme as useNextTheme } from "next-themes"
-import { AnimatedThemeToggle } from "@munim/ui"
+import { AnimatedThemeToggle, useForceThemeTransition } from "@munim/ui"
 import { useAccentThemeContext } from "@/components/app/theme-picker"
 
 export function ThemeToggle() {
   const { resolvedTheme } = useNextTheme()
   const { setMode } = useAccentThemeContext()
+  const forceTransition = useForceThemeTransition()
   const mounted = React.useSyncExternalStore(
     () => () => {},
     () => true,
@@ -23,6 +24,7 @@ export function ThemeToggle() {
     <AnimatedThemeToggle
       isDark={!!isDark}
       onToggle={() => setMode(isDark ? "light" : "dark")}
+      forceTransition={forceTransition}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     />
   )
