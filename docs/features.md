@@ -24,6 +24,10 @@ This document records what exists, and **on which platforms** it is available (�
 - **One theme.** All colors, radii and visual tokens live in `@munim/theme` (`packages/theme/src/tokens.ts`).
   Web + desktop consume the generated `tokens.css`; mobile consumes `mobileColors`. See `docs/theme.md`.
   → Edit one file, restyle all 3 apps.
+- **One settings layout.** Web + desktop share `SettingsShell` in `@munim/ui` (sectioned sidebar
+  layout — Shop / Appearance / Security / Database). Any settings page change is made once and
+  appears on both apps. The feature matrix below was last audited on **2026-08-12**: all 11 modules
+  (dashboard → settings) exist as a full UI on web, desktop AND mobile (no ❌ rows).
 
 ## Database tooling quirks (read before running `pnpm db:*`)
 
@@ -104,7 +108,7 @@ plain drizzle output.
 | 13 | Settle advance | ✅ | ✅ | ✅ | Shared `settleAdvance` in core; mobile has a Settle button per open advance in Parties |
 | 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; all three apps generate + export the same report |
 | 15 | Report export (Excel / PDF / CSV) | ✅ | ✅ | ✅ | All three apps share `reportToCsv` (RFC-4180) for CSV; web also has Excel+PDF, mobile shares CSV via native Share |
-| 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row |
+| 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row. Web + desktop share the **`SettingsShell`** from `@munim/ui` — an Apple-style **sectioned layout** (Shop profile / Appearance / Security / Database sidebar nav, collapsing to chips on narrow screens) so both settings pages are pixel-identical; each section also shows a live status badge (e.g. Security shows “Locked/Off”) |
 | 17 | Database connection (paste Neon URL, test, save) | 🟡 | ✅ | ✅ | Desktop + mobile store the URL locally; web reads env vars + has a connection check in Settings. Desktop URL field is **masked (password-style with show/hide eye)** — only the host is shown once saved; the dashboard shows a friendly "Open Settings" CTA when the DB isn't configured |
 | 18 | Multiple color themes (Apple Gold / Ocean Blue / Forest Green / Rose Blush / Midnight Indigo) | ✅ | ✅ | ✅ | 5 curated themes in `@munim/theme`; compact `ThemeSelect` lives in **Settings only** (web header keeps just the light/dark toggle); dark/light mode ALSO syncs via the shared `settings.mode` column. **The chosen theme + mode sync across all three apps** — each app writes to Neon and pulls on startup (the untouched default never clobbers a local preference on first load) |
 | 19 | App lock — 4-digit PIN login screen (test account 1234 pre-created) | ✅ | ✅ | ✅ | Per-device lock, no DB: web/desktop gate in `@munim/ui` (PinGate + PinSettingsCard, localStorage `munim.pin`); mobile `PinLockScreen` + Settings card (AsyncStorage). Two-step login (email+password → PIN) with a 30-day session cookie on web; hashing/verify live in `@munim/core` `security/pin.ts` (pure-TS SHA-256, works on Hermes). The web/desktop lock page is a **premium Apple-style glass screen** (gradient backdrop, blur, staggered entrance); Settings can change password/PIN, disable the lock, or reset to the test account |
@@ -117,11 +121,12 @@ plain drizzle output.
 - Views: dashboard, products, sales, catalog, invoices, billing, job-letter, parties, advances, reports, **settings**
 - Auth: login page + server-side API routes; DB access through `lib/db` + `@munim/core`
 - Exports: Excel + PDF (reports), jsPDF bill templates, job-letter PDF
-- Settings: shop profile editor (name/address/phones/email/currency/low-stock threshold) via `GET/PUT /api/settings` + connection check; DB URL comes from env; header shows only the light/dark toggle (color theme lives in Settings)
+- Settings: `SettingsShell` sectioned layout (Shop profile / Appearance / Security / Database) via `GET/PUT /api/settings` + connection check; DB URL comes from env; header shows only the light/dark toggle (color theme lives in Settings)
 
 ### Desktop (`apps/desktop`) — Tauri + Vite
 - Pages: dashboard, products, **catalog**, sales, billing, **invoices**, parties, **advances**, job-letters, **reports**, settings
 - Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally (masked in Settings)
+- Settings: same shared `SettingsShell` sectioned layout as web (Shop profile / Appearance / Security / Database) — the URL field is masked (password-style with show/hide eye); only the host is shown once saved
 - Billing: full web parity — `BillTemplateOptions` shared component (template/color/2-in-1), date, notes, second-bill section for Separate mode, 2-in-1 PDF sheet
 - Products: image upload (Cloudinary unsigned preset via `VITE_CLOUDINARY_*`) + thumbnail column
 - PDF: bill download via `lib/billPdf.ts` + job-letter download via `lib/jobLetterPdf.ts` (both render the shared core HTML — identical layout to mobile); CSV export on reports
