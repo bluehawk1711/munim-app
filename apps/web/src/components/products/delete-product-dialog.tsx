@@ -6,7 +6,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 import { useDeleteProduct } from "@/hooks/use-products"
 import type { Product } from "@/lib/types"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 type Props = {
   open: boolean

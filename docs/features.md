@@ -42,6 +42,12 @@ This document records what exists, and **on which platforms** it is available (�
   mobile uses `ModalSheet` with `dismissable={false}` while testing. Desktop pings through
   `createAppDb()` (Tauri HTTP plugin — the webview's own fetch is CORS-blocked by Neon), mobile
   through `createDb()` (native fetch has no CORS).
+- **Self-contained toasts — never raw `sonner`.** `toast.success/error/info` and the `<Toaster />`
+  live in `@munim/ui` (`components/sonner.tsx`), backed by a tiny module store + `useSyncExternalStore`.
+  Apps must import `toast` from `@munim/ui` — never `from "sonner"` — because sonner's `toast()`
+  dispatches to a module-level store that the `<Toaster />` subscribes to, and pnpm's per-workspace
+  copies split that store (toasts silently no-op). The self-contained version makes the split
+  impossible. Verified 2026-08-16 in both web and desktop dev.
 - **Shared workflow dialogs.** The money-movement dialogs live once in `@munim/ui` and are used by
   both web and desktop: `RecordPaymentDialog` (invoice payment), `KhataActionDialog` (give/take
   advance, receive/make payment — used by the Advances pages AND the desktop Parties page),

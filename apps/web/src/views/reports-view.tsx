@@ -31,7 +31,7 @@ import { reportToCsv } from "@munim/core"
 import { formatCurrency, formatNumber, formatDateTime, formatWeight } from "@/lib/format"
 import type { ReportType } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 const REPORT_OPTIONS: {
   key: ReportType

@@ -37,7 +37,7 @@ import { useAppStore } from "@/store/view-store"
 import { formatDate } from "@/lib/format"
 import { LOW_STOCK_THRESHOLD } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 const PAGE_SIZE = 8
 

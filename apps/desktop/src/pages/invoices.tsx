@@ -10,7 +10,7 @@ import {
 } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import {
   Button,
   Input,

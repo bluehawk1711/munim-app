@@ -26,7 +26,7 @@ import { useSales, useUndoSale } from "@/hooks/use-sales"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency, formatNumber } from "@/lib/format"
 import type { Sale } from "@/lib/types"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 type RangeKey = "all" | "today" | "7d" | "30d" | "month" | "year"
 

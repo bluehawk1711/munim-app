@@ -31,7 +31,7 @@ import { useAppStore } from "@/store/view-store"
 import { consumePendingSellProduct } from "@/lib/pending-sell"
 import { formatCurrency } from "@/lib/format"
 import type { Product, Sale } from "@/lib/types"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 // Cap how many search results render at once; the search narrows this down.
 const MAX_RESULTS = 200

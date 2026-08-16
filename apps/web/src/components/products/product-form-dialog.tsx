@@ -16,7 +16,7 @@ import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
 import { productSchema, type ProductFormValues } from "@/lib/validators"
 import type { Product } from "@/lib/types"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 const DEFAULT_COLORS = ["Black", "White", "Navy", "Blue", "Red", "Green", "Grey", "Brown", "Olive", "Silver", "Teal", "Amber"]
 const DEFAULT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standard", "30", "32", "34", "36", "8", "9", "10", "11"]

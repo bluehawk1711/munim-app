@@ -33,7 +33,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badg
 
 import { formatCurrency, formatNumber, formatDateTime, formatTimeAgo } from "@/lib/format"
 import { useSeedProducts } from "@/hooks/use-products"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 export function DashboardView() {
   const { data, isLoading, isError, refetch } = useDashboard()

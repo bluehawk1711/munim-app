@@ -14,7 +14,7 @@ import { usePartyBalances, useCreateAdvance, useRecordPayment, useParties } from
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
 import type { PartyBalance } from "@/lib/types"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 type ActionKind = "GIVEN" | "TAKEN" | "PAYMENT_IN" | "PAYMENT_OUT"
 

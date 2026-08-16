@@ -14,7 +14,7 @@ import {
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import {
   Button, Input, Label, Card, CardContent, CardHeader, CardTitle, Skeleton,
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,

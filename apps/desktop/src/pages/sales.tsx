@@ -4,7 +4,7 @@ import { createSale, listInvoices, listAllProducts, deleteInvoice, formatDate, f
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import {
   Button, Input, Label, Badge, Card, CardContent, CardHeader, CardTitle, Skeleton,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,

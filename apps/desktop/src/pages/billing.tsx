@@ -5,6 +5,7 @@ import {
   getSettings,
   listAllProducts,
   listInvoices,
+  listParties,
   recordInvoicePayment,
   buildBillDocument,
   type BillDocument,
@@ -15,7 +16,7 @@ import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money, formatDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import {
   Button,
   Input,
@@ -59,12 +60,13 @@ type LineState = {
   sku: string;
   color: string;
   size: string;
+  description: string;
   quantity: string;
   price: string;
 };
 
 function emptyLine(): LineState {
-  return { productId: "", productName: "", sku: "", color: "", size: "", quantity: "1", price: "0" };
+  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", quantity: "1", price: "0" };
 }
 
 function settingsToShop(s: Awaited<ReturnType<typeof getSettings>>): BillShopDetails {
@@ -108,6 +110,7 @@ function invoiceToBillDocument(inv: InvoiceWithItems, shop: BillShopDetails, cur
 export function BillingPage() {
   const { data: settings } = useAsync(() => getSettings(getCore()), []);
   const { data: allProducts } = useAsync(() => listAllProducts(getCore()), []);
+  const { data: parties } = useAsync(() => listParties(getCore()), []);
   const { data: list, loading: loadingList, reload: reloadList } = useAsync(
     () => listInvoices(getCore(), { pageSize: 100 }),
     [],
@@ -117,6 +120,7 @@ export function BillingPage() {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [customerAddress, setCustomerAddress] = useState("");
+  const [partyId, setPartyId] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState("0");
@@ -134,6 +138,7 @@ export function BillingPage() {
   const [secondCustomerName, setSecondCustomerName] = useState("");
   const [secondCustomerPhone, setSecondCustomerPhone] = useState("");
   const [secondCustomerAddress, setSecondCustomerAddress] = useState("");
+  const [secondPartyId, setSecondPartyId] = useState("");
   const [secondDiscount, setSecondDiscount] = useState("0");
   const [secondDeliveryCharge, setSecondDeliveryCharge] = useState("0");
   const [secondAmountPaid, setSecondAmountPaid] = useState("0");
@@ -192,6 +197,7 @@ export function BillingPage() {
         sku: l.sku.trim() || undefined,
         color: l.color.trim() || undefined,
         size: l.size.trim() || undefined,
+        description: l.description.trim() || undefined,
         quantity: Number(l.quantity) || 0,
         price: Number(l.price) || 0,
       }))
@@ -202,6 +208,7 @@ export function BillingPage() {
     setCustomerName("");
     setCustomerPhone("");
     setCustomerAddress("");
+    setPartyId("");
     setDiscount("0");
     setDeliveryCharge("0");
     setAmountPaid("0");
@@ -209,6 +216,7 @@ export function BillingPage() {
     setSecondCustomerName("");
     setSecondCustomerPhone("");
     setSecondCustomerAddress("");
+    setSecondPartyId("");
     setSecondDiscount("0");
     setSecondDeliveryCharge("0");
     setSecondAmountPaid("0");
@@ -249,6 +257,7 @@ export function BillingPage() {
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
+        partyId: partyId && partyId !== "__none" ? partyId : undefined,
         items,
         discount: Number(discount) || 0,
         deliveryCharge: Number(deliveryCharge) || 0,
@@ -270,6 +279,7 @@ export function BillingPage() {
             customerName: secondCustomerName.trim(),
             customerPhone: secondCustomerPhone.trim() || undefined,
             customerAddress: secondCustomerAddress.trim() || undefined,
+            partyId: secondPartyId && secondPartyId !== "__none" ? secondPartyId : undefined,
             items: lineItems(secondLines),
             discount: Number(secondDiscount) || 0,
             deliveryCharge: Number(secondDeliveryCharge) || 0,
@@ -402,9 +412,12 @@ export function BillingPage() {
                     discount={discount}
                     delivery={deliveryCharge}
                     paid={amountPaid}
+                    partyId={partyId}
+                    parties={parties}
                     onName={setCustomerName}
                     onPhone={setCustomerPhone}
                     onAddress={setCustomerAddress}
+                    onParty={setPartyId}
                     onDiscount={setDiscount}
                     onDelivery={setDeliveryCharge}
                     onPaid={setAmountPaid}
@@ -455,9 +468,12 @@ export function BillingPage() {
                       discount={secondDiscount}
                       delivery={secondDeliveryCharge}
                       paid={secondAmountPaid}
+                      partyId={secondPartyId}
+                      parties={parties}
                       onName={setSecondCustomerName}
                       onPhone={setSecondCustomerPhone}
                       onAddress={setSecondCustomerAddress}
+                      onParty={setSecondPartyId}
                       onDiscount={setSecondDiscount}
                       onDelivery={setSecondDeliveryCharge}
                       onPaid={setSecondAmountPaid}
@@ -612,6 +628,8 @@ export function BillingPage() {
   );
 }
 
+type PartyOption = { id: string; name: string; phone: string | null; address: string | null };
+
 function BillFields({
   name,
   phone,
@@ -619,9 +637,12 @@ function BillFields({
   discount,
   delivery,
   paid,
+  partyId,
+  parties,
   onName,
   onPhone,
   onAddress,
+  onParty,
   onDiscount,
   onDelivery,
   onPaid,
@@ -633,14 +654,26 @@ function BillFields({
   discount: string;
   delivery: string;
   paid: string;
+  partyId: string;
+  parties: PartyOption[] | null | undefined;
   onName: (v: string) => void;
   onPhone: (v: string) => void;
   onAddress: (v: string) => void;
+  onParty: (v: string) => void;
   onDiscount: (v: string) => void;
   onDelivery: (v: string) => void;
   onPaid: (v: string) => void;
   idPrefix: string;
 }) {
+  function pickParty(id: string) {
+    onParty(id);
+    const p = parties?.find((x) => x.id === id);
+    if (!p) return;
+    if (p.name) onName(p.name);
+    if (p.phone) onPhone(p.phone);
+    if (p.address) onAddress(p.address);
+  }
+
   return (
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="space-y-1.5">
@@ -666,6 +699,22 @@ function BillFields({
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-paid`}>Paid now</Label>
         <Input id={`${idPrefix}-paid`} type="number" min={0} value={paid} onChange={(e) => onPaid(e.target.value)} />
+      </div>
+      <div className="space-y-1.5 sm:col-span-3">
+        <Label htmlFor={`${idPrefix}-party`}>Link to khata party</Label>
+        <Select value={partyId} onValueChange={pickParty}>
+          <SelectTrigger id={`${idPrefix}-party`} className="w-full">
+            <SelectValue placeholder="None (walk-in)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none">None (walk-in)</SelectItem>
+            {parties?.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
@@ -708,6 +757,12 @@ function LineItemsEditor({
           <div className="min-w-40 flex-1 space-y-1.5">
             <Label>Or type item name</Label>
             <Input value={line.productName} onChange={(e) => update(index, { productName: e.target.value })} />
+            <Input
+              value={line.description}
+              onChange={(e) => update(index, { description: e.target.value })}
+              placeholder="Description (optional)"
+              className="h-8 text-xs"
+            />
           </div>
           <div className="w-20 space-y-1.5">
             <Label>Qty</Label>

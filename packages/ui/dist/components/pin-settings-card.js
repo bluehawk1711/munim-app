@@ -8,7 +8,8 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  */
 import * as React from "react";
 import { KeyRound, LogOut, ShieldCheck, ShieldOff, RotateCcw } from "lucide-react";
-import { toast } from "sonner";
+// Same-module toast as <Toaster /> — never import from "sonner" directly (see sonner.tsx).
+import { toast } from "./sonner.js";
 import { cn } from "../lib/utils";
 import { usePinLockContext } from "./pin-gate";
 import { Button } from "./button";

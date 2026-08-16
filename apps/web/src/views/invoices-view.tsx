@@ -26,7 +26,7 @@ import { useInvoices, useDeleteInvoice, useRecordPayment } from "@/hooks/use-inv
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency, formatDate } from "@/lib/format"
 import type { Invoice } from "@/lib/types"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 export function InvoicesView() {
   const setView = useAppStore((s) => s.setView)

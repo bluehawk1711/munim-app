@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@munim/ui"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 import {
   ThemeSelect,
   useAccentThemeContext,

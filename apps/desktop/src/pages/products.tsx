@@ -17,7 +17,7 @@ import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money, formatWeight } from "@/lib/format";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, BarcodeSvg, BarcodeLookupInput, LabelPrintDialog, ProductDetailsDialog } from "@munim/ui";
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;

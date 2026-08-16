@@ -14,7 +14,7 @@ import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { downloadJobLetterPdf } from "@/lib/jobLetterPdf";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import { Button, Input, Label, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
 ;
 ;

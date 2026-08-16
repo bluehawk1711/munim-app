@@ -4,7 +4,7 @@ import { getSettings, pingDatabase, updateSettings } from "@munim/core";
 import { createAppDb, getCore, resetCore } from "@/lib/core";
 import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import {
   ThemeSelect,
   useAccentTheme,

@@ -11,7 +11,7 @@ import { buildBillDocument, type BillDocument } from "@munim/core"
 import { generateBillPDF, type BillTemplateSettings } from "@/lib/billing/generatePDF"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 
 type LineItem = {

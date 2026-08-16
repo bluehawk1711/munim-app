@@ -33,7 +33,7 @@ import { useAppStore } from "@/store/view-store"
 import { formatCurrency, formatDate } from "@/lib/format"
 import type { Party } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 const TYPE_LABELS: Record<Party["type"], string> = {
   CUSTOMER: "Customer",

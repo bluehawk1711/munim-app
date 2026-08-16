@@ -15,7 +15,7 @@ import { useAdjustStock } from "@/hooks/use-products"
 import { stockAdjustmentSchema, type StockAdjustmentValues } from "@/lib/validators"
 import type { Product } from "@/lib/types"
 import { formatNumber } from "@/lib/format"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 type Props = {
   open: boolean

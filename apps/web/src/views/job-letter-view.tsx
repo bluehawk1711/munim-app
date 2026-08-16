@@ -14,7 +14,7 @@ import { useSettings } from "@/hooks/use-settings"
 import { generateJobLetterPDF } from "@/lib/billing/generatePDF"
 import type { JobLetterData } from "@/lib/billing/types"
 import { formatDate } from "@/lib/format"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 const WEEK_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
 const HOURS = Array.from({ length: 12 }, (_, i) => (i + 1).toString().padStart(2, "0"))

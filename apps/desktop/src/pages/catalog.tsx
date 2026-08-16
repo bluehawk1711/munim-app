@@ -12,7 +12,7 @@ import {
 } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
-import { toast } from "sonner";
+import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton } from "@munim/ui"
 ;
 ;

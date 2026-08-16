@@ -35,7 +35,7 @@ import { downloadLabelPdf, printLabelHtml } from "@/lib/label-pdf"
 import { formatCurrency, formatDate, formatWeight } from "@/lib/format"
 import { apiFetch } from "@/lib/api-client"
 import type { Product, StockStatus } from "@/lib/types"
-import { toast } from "sonner"
+import { toast } from "@munim/ui"
 
 export function ProductsView() {
   const globalSearch = useAppStore((s) => s.globalSearch)
