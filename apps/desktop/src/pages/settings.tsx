@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Database, Save, CheckCircle2, XCircle, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
-import { createDb, getSettings, pingDatabase, updateSettings } from "@munim/core";
-import { getCore, resetCore } from "@/lib/core";
+import { getSettings, pingDatabase, updateSettings } from "@munim/core";
+import { createAppDb, getCore, resetCore } from "@/lib/core";
 import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "sonner";
@@ -100,7 +100,9 @@ export function SettingsPage() {
     }
     setTesting("testing");
     try {
-      const testDb = createDb({ databaseUrl: url });
+      // Must use the platform fetch (Tauri HTTP plugin in the webview) — the
+      // webview's own fetch is CORS-blocked by Neon and would always fail.
+      const testDb = createAppDb(url);
       await pingDatabase(testDb);
       setTesting("ok");
     } catch (err) {

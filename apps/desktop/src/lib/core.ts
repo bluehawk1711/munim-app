@@ -13,6 +13,24 @@ function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+/**
+ * The Tauri webview's own fetch is CORS-blocked for Neon's SQL-over-HTTP
+ * endpoint (no Access-Control-Allow-Origin), which surfaced as
+ * "Failed query: …" / "Connection failed" everywhere the webview's fetch was
+ * used. @tauri-apps/plugin-http runs the request in Rust — no CORS — so it is
+ * used inside Tauri; plain-browser dev (which can't reach Neon anyway) falls
+ * back to global fetch.
+ */
+function resolveFetchImpl(): typeof fetch {
+  return isTauri() ? (tauriFetch as unknown as typeof fetch) : globalThis.fetch;
+}
+
+/** Creates a Drizzle client for an explicit URL with the platform fetch (same
+ * CORS fix as getCore). Used by the Settings connection test. */
+export function createAppDb(databaseUrl: string): DbClient {
+  return createDb({ databaseUrl, fetchImpl: resolveFetchImpl() });
+}
+
 /** Lazily creates the shared Drizzle client (fetch → Neon, no API server). */
 export function getCore(): DbClient {
   if (!client) {
@@ -22,15 +40,7 @@ export function getCore(): DbClient {
         "No database URL configured. Add one in Settings (or set it in apps/desktop/.env).",
       );
     }
-    // The Tauri webview's own fetch is CORS-blocked for Neon's SQL-over-HTTP
-    // endpoint (no Access-Control-Allow-Origin), which surfaced as
-    // "Failed query: …" on the dashboard. @tauri-apps/plugin-http runs the
-    // request in Rust — no CORS — so it is used inside Tauri; plain-browser
-    // dev (which can't reach Neon anyway) falls back to global fetch.
-    client = createDb({
-      databaseUrl,
-      fetchImpl: isTauri() ? tauriFetch : globalThis.fetch,
-    });
+    client = createAppDb(databaseUrl);
   }
   return client;
 }

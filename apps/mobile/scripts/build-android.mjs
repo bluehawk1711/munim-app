@@ -12,7 +12,7 @@
  * Prerequisites: JDK 17+ and the Android SDK (ANDROID_HOME or local.properties).
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { chmodSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -52,6 +52,17 @@ if (!existsSync(androidDir)) {
 const gradlew = win32 ? "gradlew.bat" : "./gradlew";
 const task = isRelease ? ":app:assembleRelease" : ":app:assembleDebug";
 console.log(`\n→ Running Gradle ${task} (first run downloads Gradle 9.3.1 + deps — be patient)…\n`);
+
+// On Linux/macOS the Gradle wrapper needs the exec bit; git may not preserve
+// it (checked out from Windows), which shows up in CI as `spawnSync ./gradlew
+// EACCES`. Make it executable defensively before running.
+if (!win32) {
+  try {
+    chmodSync(join(androidDir, "gradlew"), 0o755);
+  } catch {
+    // ignore — the file may already be executable
+  }
+}
 
 const status = run(gradlew, [task], androidDir);
 if (status !== 0) {
