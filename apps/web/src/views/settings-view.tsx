@@ -262,7 +262,7 @@ export function SettingsView() {
               <SunMoon className="h-4 w-4" /> Appearance
             </CardTitle>
             <CardDescription className="text-xs">
-              Color theme &amp; light/dark mode — synced to desktop and mobile via the shared database.
+              Color theme &amp; light/dark mode — chosen per device (stored locally, never synced across apps).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

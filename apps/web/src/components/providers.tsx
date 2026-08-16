@@ -30,8 +30,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      {/* QueryClientProvider must wrap AccentThemeProvider — the accent theme
-          hook reads/writes the shared settings row via react-query. */}
+      {/* QueryClientProvider wraps the app for react-query data hooks;
+          AccentThemeProvider is now purely local (per-device theme/mode). */}
       <QueryClientProvider client={queryClient}>
         <AccentThemeProvider>{children}</AccentThemeProvider>
       </QueryClientProvider>

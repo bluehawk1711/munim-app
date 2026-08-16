@@ -17,7 +17,7 @@ export function ThemeToggle() {
 
   // The Skiper26 animated toggle — polygon wipe from top-left with blur.
   // Fully controlled: next-themes resolves the current mode, `setMode`
-  // flips it and mirrors it to the shared settings row (cross-device sync).
+  // flips it and persists it locally (per-device — no cross-platform sync).
   const isDark = mounted && resolvedTheme === "dark"
 
   return (

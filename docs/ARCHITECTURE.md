@@ -95,13 +95,22 @@ a hex palette via `mobileColorsFor(mode, themeName)` because RN's color parser
 rejects `oklch()`/`oklab()`. See `docs/theme.md`.
 
 ### ADR-011 — Theme + dark/light mode sync via the shared settings row
-**Status:** Accepted
+**Status:** **Superseded** by ADR-011b (device-local themes)
 
-The `settings` table gained `theme` and `mode` columns. Each app writes its
-chosen theme/mode to Neon and pulls on startup; a device-local preference only
-wins when the DB row is untouched (defaults never clobber a local choice). The
-"force animation play" flag is deliberately **device-local** (localStorage /
-AsyncStorage), not DB-synced, because it overrides the OS animation preference.
+Originally the `settings` table gained `theme` and `mode` columns and every app
+wrote its chosen theme/mode to Neon and pulled on startup. That cross-platform
+sync was **removed**: it caused the dark-mode accent to fall back to the default
+(Apple Gold) when a stale row value clobbered the freshly selected theme.
+
+**ADR-011b — Theme + dark/light mode are device-local** (Accepted)
+
+Each app now persists its theme/mode choice **locally only** — web/desktop in
+localStorage (`munim.theme` / `munim.themeMode`, desktop `munim-desktop-*`),
+mobile in AsyncStorage (`munim.accentTheme` / `munim.themeMode`) — and never
+reads or writes the shared `settings` row for them. The `settings.theme` /
+`settings.mode` columns remain in the schema for compatibility but are unused.
+The "force animation play" flag stays **device-local** (localStorage /
+AsyncStorage), as it overrides the OS animation preference.
 
 ### ADR-012 — Per-device 4-digit PIN app lock
 **Status:** Accepted

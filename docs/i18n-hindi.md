@@ -2,8 +2,10 @@
 
 > **Status:** Planned (not shipped) · **Target:** `hi-IN` (Devanagari) + English.
 > Follows the monorepo's established patterns: **shared logic in `packages/core`,
-> shared UI in `@munim/ui`, and sync via the shared `settings` row** (exactly how
-> theme + dark/light mode sync today — see `docs/ARCHITECTURE.md` ADR-011).
+> shared UI in `@munim/ui`, and sync via the shared `settings` row** — except
+> appearance (theme + dark/light mode), which is deliberately **device-local**
+> (see `docs/ARCHITECTURE.md` ADR-011b); a language preference should be handled
+> the same per-device way.
 
 ---
 

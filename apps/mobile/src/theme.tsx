@@ -11,12 +11,10 @@
  * render, so inline `colors.*` usages and `useThemeStyles()` both pick up the
  * new values automatically.
  */
-import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react';
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
 import {useColorScheme} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {getSettings, updateSettings} from '@munim/core';
 import {mobileColorsFor, type MobileColors, type ThemeMode, type ThemeName} from '@munim/theme';
-import {getCore} from './lib/core';
 
 const MODE_KEY = 'munim.themeMode';
 const THEME_KEY = 'munim.accentTheme';
@@ -85,9 +83,6 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   // null = not chosen yet → follow the system preference.
   const [preference, setPreference] = useState<ThemeMode | null>(null);
   const [themeName, setThemeNameState] = useState<ThemeName>('apple');
-  // Set once the user picks a theme THIS session — the DB pull is then skipped
-  // so a stale pre-change payload can't clobber the fresh local choice.
-  const userChangedRef = useRef(false);
 
   useEffect(() => {
     let active = true;
@@ -99,24 +94,6 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
       if (!active) return;
       if (modeStored === 'light' || modeStored === 'dark') setPreference(modeStored);
       if (isThemeName(themeStored)) setThemeNameState(themeStored);
-      // Pull the shared theme from the settings row in Neon — syncs a pick made
-      // on web or desktop. Default never clobbers a local preference on first
-      // load after sync shipped (same rule as web/desktop).
-      try {
-        const row = await getSettings(await getCore());
-        if (!active || userChangedRef.current) return;
-        if (isThemeName(row.theme)) {
-          if (row.theme === 'apple' && themeStored) return;
-          setThemeNameState(row.theme);
-        }
-        // Light/dark mode is shared too: pull the DB mode when the user hasn't
-        // picked one locally (local preference wins until they change it here).
-        if ((row.mode === 'light' || row.mode === 'dark') && !modeStored) {
-          setPreference(row.mode);
-        }
-      } catch {
-        // DB not configured (or unreachable) — theme stays local-only.
-      }
     })();
     return () => {
       active = false;
@@ -126,18 +103,9 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
   const mode: ThemeMode = preference ?? (system === 'dark' ? 'dark' : 'light');
   const palette = useMemo(() => mobileColorsFor(mode, themeName), [mode, themeName]);
 
-  // Persist a mode choice locally AND mirror it to the shared settings row so
-  // web & desktop follow. Fire-and-forget with a local-first catch: theming
-  // must never block on the DB or on the user configuring a connection string.
+  // Persist a mode choice locally only — per-device, never synced via the DB.
   const persistMode = useCallback((next: ThemeMode) => {
     AsyncStorage.setItem(MODE_KEY, next).catch(() => {});
-    (async () => {
-      try {
-        await updateSettings(await getCore(), {mode: next});
-      } catch {
-        // DB not configured — local-only.
-      }
-    })().catch(() => {});
   }, []);
 
   // Sync the module-level palette DURING render so every child that reads the
@@ -159,19 +127,8 @@ export function ThemeProvider({children}: {children: React.ReactNode}) {
         persistMode(next);
       },
       setThemeName: (next) => {
-        userChangedRef.current = true;
         setThemeNameState(next);
         AsyncStorage.setItem(THEME_KEY, next).catch(() => {});
-        // Mirror to the shared settings row — syncs to web & desktop.
-        // Fire-and-forget with a local-first catch: theming must never block on
-        // the DB or on the user configuring a connection string.
-        (async () => {
-          try {
-            await updateSettings(await getCore(), {theme: next});
-          } catch {
-            // DB not configured — local-only.
-          }
-        })().catch(() => {});
       },
     }),
     [mode, themeName, palette, persistMode],

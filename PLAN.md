@@ -150,8 +150,9 @@ munim/
 
 ### 6. Settings (all apps)
 - Shop/business profile (name, address, phone, email, currency, low-stock threshold)
-- Appearance: 5 color themes + light/dark (theme AND mode sync via the shared
-  `settings` row), "force animation play" toggle (device-local)
+- Appearance: 5 color themes + light/dark (theme AND mode are **device-local** —
+  localStorage / AsyncStorage only, never the shared `settings` row), "force
+  animation play" toggle (device-local)
 - Security: 4-digit PIN app lock (per-device; test account 1234)
 - Database: Neon connection string (desktop/mobile local + masked; web from env)
 - Web + desktop share the `SettingsShell` sectioned layout; mobile mirrors it as

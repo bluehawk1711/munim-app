@@ -12,11 +12,11 @@ export type ShopSettingsInput = {
   lowStockThreshold?: number;
   currency?: string;
   defaultTemplate?: Record<string, unknown>;
-  /** Accent theme name shared across all apps — persisted here so a change on
-   *  any platform syncs to the rest. Validated against the theme list in each
-   *  app layer (core stays dependency-free of @munim/theme). */
+  /** Accent theme name. LEGACY: the apps used to sync theme/mode through this
+   *  row; that was removed (theme + mode are now per-device, stored locally).
+   *  The columns are kept for compatibility but no app reads or writes them. */
   theme?: string;
-  /** Light/dark mode shared across all apps ("light" | "dark" | "system"). */
+  /** Light/dark mode ("light" | "dark" | "system"). LEGACY — see `theme`. */
   mode?: string;
 };
 
