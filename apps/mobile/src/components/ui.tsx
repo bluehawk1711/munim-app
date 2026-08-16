@@ -425,16 +425,30 @@ export function ModalSheet({
   title,
   onClose,
   children,
+  dismissable = true,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /** When false the sheet cannot be dismissed (no back button, no overlay
+   *  tap) — used for in-flight operations like the DB connection test. */
+  dismissable?: boolean;
 }) {
   const styles = useThemeStyles(makeStyles);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.modalOverlay} onPress={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => {
+        if (dismissable) onClose();
+      }}>
+      <Pressable
+        style={styles.modalOverlay}
+        onPress={() => {
+          if (dismissable) onClose();
+        }}>
         <Pressable style={styles.modalSheet} onPress={() => {}}>
           <Text style={styles.modalTitle}>{title}</Text>
           {children}

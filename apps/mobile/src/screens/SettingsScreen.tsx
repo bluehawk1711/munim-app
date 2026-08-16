@@ -1,11 +1,11 @@
 import React, {useEffect, useState} from 'react';
-import {Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
+import {ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
 import {KeyRound} from 'lucide-react-native';
 import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
 import {useAsync} from '../lib/use-async';
-import {Badge, Button, Card, Field, Header, Loading, Screen, Section, colors} from '../components/ui';
+import {Badge, Button, Card, Field, Header, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
 import {ThemeToggleButton} from '../components/theme-toggle';
 import {
   successFeedback,
@@ -43,8 +43,11 @@ export function SettingsScreen() {
   const [lowStockThreshold, setLowStockThreshold] = useState('5');
   const [shopLoaded, setShopLoaded] = useState(false);
   const [savingShop, setSavingShop] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<'idle' | 'ok' | 'fail'>('idle');
+  // DB connection test modal: opens first, stays open (non-dismissible) while
+  // the ping is in flight, then flips to ok / fail with the error message.
+  const [testOpen, setTestOpen] = useState(false);
+  const [testState, setTestState] = useState<'testing' | 'ok' | 'fail'>('testing');
+  const [testError, setTestError] = useState<string | null>(null);
   const scrollRef = React.useRef<ScrollView>(null);
   const dbSectionY = React.useRef(0);
   // Lazy-init from the in-memory flags (loaded at app start) so the switches
@@ -81,32 +84,42 @@ export function SettingsScreen() {
     }
   }, [settings, shopLoaded]);
 
-  async function handleTest() {
-    if (!url.trim()) {
-      return;
-    }
-    setTesting(true);
-    setTestResult('idle');
+  /** Runs the ping once, flipping the modal between loading → ok / fail. */
+  async function runConnectionTest(connectionUrl: string): Promise<boolean> {
+    setTestState('testing');
+    setTestError(null);
     try {
-      await pingDatabase(createDb({databaseUrl: url.trim()}));
+      await pingDatabase(createDb({databaseUrl: connectionUrl}));
       successFeedback();
-      setTestResult('ok');
-    } catch {
+      setTestState('ok');
+      return true;
+    } catch (err) {
       errorFeedback();
-      setTestResult('fail');
-    } finally {
-      setTesting(false);
+      setTestState('fail');
+      setTestError(err instanceof Error ? err.message : 'Connection failed');
+      return false;
     }
   }
 
-  async function handleSaveUrl() {
-    try {
-      await saveDatabaseUrl(url);
-      successFeedback();
-    } catch {
-      errorFeedback();
+  function handleTest() {
+    if (!url.trim()) {
+      return;
     }
-    setTestResult('idle');
+    // Open the modal first so the loading state is visible immediately, then
+    // ping. The sheet can't be dismissed while the test is in flight.
+    setTestOpen(true);
+    void runConnectionTest(url.trim());
+  }
+
+  async function handleSaveUrl() {
+    if (!url.trim()) {
+      return;
+    }
+    setTestOpen(true);
+    const ok = await runConnectionTest(url.trim());
+    if (ok) {
+      await saveDatabaseUrl(url);
+    }
   }
 
   async function handleSaveShop() {
@@ -549,17 +562,75 @@ export function SettingsScreen() {
         </Text>
         <Field label="Neon connection string" value={url} onChangeText={setUrl} placeholder="postgresql://user:pass@host/db?sslmode=require" />
         <View style={{flexDirection: 'row', gap: 10, marginTop: 4}}>
-          <Button title={testing ? 'Testing…' : 'Test'} variant="outline" onPress={handleTest} loading={testing} style={{flex: 1}} />
-          <Button title="Save URL" onPress={handleSaveUrl} style={{flex: 1}} />
+          <Button title="Test" variant="outline" onPress={handleTest} style={{flex: 1}} />
+          <Button title="Save URL" onPress={() => void handleSaveUrl()} style={{flex: 1}} />
         </View>
-        {testResult === 'ok' ? (
-          <Text style={{color: colors.success, fontSize: 13, marginTop: 10, fontWeight: '600'}}>✓ Connected</Text>
-        ) : testResult === 'fail' ? (
-          <Text style={{color: colors.danger, fontSize: 13, marginTop: 10, fontWeight: '600'}}>✗ Connection failed</Text>
-        ) : null}
       </Card>
       </View>
       </ScrollView>
+
+      <ModalSheet
+        visible={testOpen}
+        title={
+          testState === 'testing'
+            ? 'Testing connection'
+            : testState === 'ok'
+              ? 'Connected'
+              : 'Connection failed'
+        }
+        onClose={() => setTestOpen(false)}
+        dismissable={testState !== 'testing'}>
+        {testState === 'testing' ? (
+          <View style={{alignItems: 'center', paddingVertical: 18, gap: 12}}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={{color: colors.muted, fontSize: 13, textAlign: 'center'}}>
+              Contacting the database…
+            </Text>
+          </View>
+        ) : (
+          <>
+            {testState === 'ok' ? (
+              <Text
+                style={{
+                  color: colors.success,
+                  fontSize: 14,
+                  fontWeight: '600',
+                  textAlign: 'center',
+                }}>
+                ✓ The database responded successfully.
+              </Text>
+            ) : (
+              <>
+                <Text style={{color: colors.danger, fontSize: 13, textAlign: 'center'}}>
+                  Could not reach the database. Check the connection string and try again.
+                </Text>
+                {testError ? (
+                  <Text
+                    style={{
+                      color: colors.danger,
+                      fontSize: 12,
+                      marginTop: 8,
+                      textAlign: 'center',
+                    }}>
+                    {testError}
+                  </Text>
+                ) : null}
+              </>
+            )}
+            <View style={{flexDirection: 'row', gap: 10, marginTop: 16}}>
+              {testState === 'fail' ? (
+                <Button
+                  title="Try again"
+                  variant="outline"
+                  onPress={() => void runConnectionTest(url.trim())}
+                  style={{flex: 1}}
+                />
+              ) : null}
+              <Button title="Close" onPress={() => setTestOpen(false)} style={{flex: 1}} />
+            </View>
+          </>
+        )}
+      </ModalSheet>
     </Screen>
   );
 }

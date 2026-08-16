@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Database, Save, CheckCircle2, XCircle, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
+import { Database, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
 import { getSettings, pingDatabase, updateSettings } from "@munim/core";
 import { createAppDb, getCore, resetCore } from "@/lib/core";
 import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
@@ -18,6 +18,8 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConnectionTestDialog,
+  type ConnectionTestState,
   PinSettingsCard,
   SettingsShell,
   Switch,
@@ -58,7 +60,9 @@ export function SettingsPage() {
 
   const [dbUrl, setDbUrl] = useState(() => getSavedDatabaseUrl() ?? "");
   const [showDbUrl, setShowDbUrl] = useState(false);
-  const [testing, setTesting] = useState<"idle" | "testing" | "ok" | "fail">("idle");
+  const [testOpen, setTestOpen] = useState(false);
+  const [testState, setTestState] = useState<ConnectionTestState>("testing");
+  const [testError, setTestError] = useState<string | undefined>();
 
   // Masked host of the currently saved URL (shown instead of the raw string).
   const savedHost = (getSavedDatabaseUrl() ?? "").match(/@([^/]+)/)?.[1] ?? null;
@@ -92,30 +96,51 @@ export function SettingsPage() {
     }
   }
 
+  /** Runs the ping once, flipping the modal between loading → ok / fail. */
+  async function runConnectionTest(url: string): Promise<boolean> {
+    setTestState("testing");
+    setTestError(undefined);
+    try {
+      // Must use the platform fetch (Tauri HTTP plugin in the webview) — the
+      // webview's own fetch is CORS-blocked by Neon and would always fail.
+      const testDb = createAppDb(url);
+      await pingDatabase(testDb);
+      setTestState("ok");
+      return true;
+    } catch (err) {
+      setTestState("fail");
+      setTestError(err instanceof Error ? err.message : "Connection failed");
+      return false;
+    }
+  }
+
   async function handleTestConnection() {
     const url = dbUrl.trim();
     if (!url) {
       toast.error("Enter a database URL first");
       return;
     }
-    setTesting("testing");
-    try {
-      // Must use the platform fetch (Tauri HTTP plugin in the webview) — the
-      // webview's own fetch is CORS-blocked by Neon and would always fail.
-      const testDb = createAppDb(url);
-      await pingDatabase(testDb);
-      setTesting("ok");
-    } catch (err) {
-      setTesting("fail");
-      toast.error("Connection failed", { description: err instanceof Error ? err.message : undefined });
-    }
+    // Open the modal first so the loading state is visible immediately, then
+    // ping. The dialog can't be dismissed while the test is in flight.
+    setTestOpen(true);
+    await runConnectionTest(url);
   }
 
-  function handleSaveUrl() {
-    saveDatabaseUrl(dbUrl);
-    resetCore();
-    setTesting("idle");
-    toast.success("Database URL saved — reconnect with the new URL");
+  async function handleSaveUrl() {
+    const url = dbUrl.trim();
+    if (!url) {
+      toast.error("Enter a database URL first");
+      return;
+    }
+    setTestOpen(true);
+    const ok = await runConnectionTest(url);
+    if (ok) {
+      saveDatabaseUrl(url);
+      resetCore();
+      toast.success("Database URL saved — reconnect with the new URL");
+    } else {
+      toast.error("Not saved — connection failed");
+    }
   }
 
   const sections: SettingsSection[] = [
@@ -256,6 +281,13 @@ export function SettingsPage() {
               Munim has no API server — this desktop app connects <strong>directly</strong> to the shared
               Neon Postgres database used by the web app and mobile app. Paste your connection string:
             </p>
+            <ConnectionTestDialog
+              open={testOpen}
+              onOpenChange={setTestOpen}
+              state={testState}
+              error={testError}
+              onRetry={() => void runConnectionTest(dbUrl.trim())}
+            />
             <div className="space-y-1.5">
               <Label htmlFor="st-db">Neon connection string</Label>
               <div className="relative">
@@ -285,8 +317,8 @@ export function SettingsPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" onClick={handleTestConnection} disabled={testing === "testing"}>
-                {testing === "testing" ? "Testing…" : "Test connection"}
+              <Button variant="outline" onClick={handleTestConnection} disabled={testState === "testing"}>
+                {testState === "testing" ? "Testing…" : "Test connection"}
               </Button>
               <Button onClick={handleSaveUrl}>
                 <Save className="h-4 w-4" /> Save URL
@@ -295,16 +327,6 @@ export function SettingsPage() {
                 <RotateCcw className="h-4 w-4" /> Reset client
               </Button>
             </div>
-            {testing === "ok" && (
-              <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-4 w-4" /> Connected successfully.
-              </p>
-            )}
-            {testing === "fail" && (
-              <p className="flex items-center gap-2 text-sm text-destructive">
-                <XCircle className="h-4 w-4" /> Connection failed — check the URL.
-              </p>
-            )}
           </CardContent>
         </Card>
       )}

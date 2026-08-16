@@ -36,6 +36,12 @@ This document records what exists, and **on which platforms** it is available (�
   only serialize Dates — they never re-implement business logic. Audited 2026-08-16: zero raw
   `fetch()` calls in mobile/desktop app code, and every `/api/*` route imports its logic from
   `@munim/core` (`lib/db` + core functions only).
+- **Connection test modal (desktop + mobile).** Test / Save URL opens a modal that **cannot be
+  dismissed while the ping is in flight** — it shows a loading state, then flips to success or a
+  failure panel with the exact error. Desktop uses the shared `ConnectionTestDialog` in `@munim/ui`;
+  mobile uses `ModalSheet` with `dismissable={false}` while testing. Desktop pings through
+  `createAppDb()` (Tauri HTTP plugin — the webview's own fetch is CORS-blocked by Neon), mobile
+  through `createDb()` (native fetch has no CORS).
 - **Shared workflow dialogs.** The money-movement dialogs live once in `@munim/ui` and are used by
   both web and desktop: `RecordPaymentDialog` (invoice payment), `KhataActionDialog` (give/take
   advance, receive/make payment — used by the Advances pages AND the desktop Parties page),
