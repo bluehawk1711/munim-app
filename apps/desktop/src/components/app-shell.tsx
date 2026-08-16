@@ -5,7 +5,6 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Sidebar } from "@/components/sidebar";
 import { Toaster } from "@munim/ui";
-import { ThemeSelect, useAccentTheme } from "@/components/theme-swatches";
 
 type AppShellProps = {
   current: string;
@@ -14,7 +13,6 @@ type AppShellProps = {
 };
 
 export function AppShell({ current, title, children }: AppShellProps) {
-  const { themeName, setThemeName } = useAccentTheme();
   return (
     <ThemeProvider defaultTheme="system" storageKey="munim-desktop-theme">
       <MotionConfig reducedMotion="user">
@@ -37,7 +35,8 @@ export function AppShell({ current, title, children }: AppShellProps) {
               </AnimatePresence>
             </div>
             <div className="flex items-center gap-1.5">
-              <ThemeSelect value={themeName} onChange={setThemeName} />
+              {/* Color themes live in Settings only — the header keeps just
+                  the light/dark toggle (same as web). */}
               <ModeToggle />
             </div>
           </header>
