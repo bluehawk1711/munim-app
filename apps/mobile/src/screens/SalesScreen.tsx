@@ -187,7 +187,8 @@ export function SalesScreen() {
       <ModalSheet
         visible={paying !== null}
         title={`Record payment — ${paying?.invoiceNumber ?? ''}`}
-        onClose={() => setPaying(null)}>
+        onClose={() => setPaying(null)}
+        dismissable={!payingNow}>
         {paying ? (
           <>
             <Text style={styles.meta}>

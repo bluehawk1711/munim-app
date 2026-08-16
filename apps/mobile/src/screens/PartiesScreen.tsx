@@ -45,6 +45,7 @@ export function PartiesScreen() {
   const [paymentDirection, setPaymentDirection] = useState<'IN' | 'OUT'>('IN');
   const [paymentAmount, setPaymentAmount] = useState('');
 
+  const [saving, setSaving] = useState(false);
   const [ledger, setLedger] = useState<{lines: {id: string; date: Date; description: string; debit: number; credit: number; balance: number}[]; balance: number} | null>(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [openAdvances, setOpenAdvances] = useState<{id: string; direction: 'GIVEN' | 'TAKEN'; amount: number; date: Date}[] | null>(null);
@@ -92,6 +93,7 @@ export function PartiesScreen() {
     if (!newName.trim()) {
       return;
     }
+    setSaving(true);
     try {
       const party = await createParty(await getCore(), {name: newName.trim()});
       successFeedback();
@@ -102,6 +104,8 @@ export function PartiesScreen() {
     } catch {
       errorFeedback();
       // keep modal open
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -113,6 +117,7 @@ export function PartiesScreen() {
     if (!value || value <= 0) {
       return;
     }
+    setSaving(true);
     try {
       await createAdvance(await getCore(), {partyId: selectedId, direction, amount: value});
       successFeedback();
@@ -125,6 +130,8 @@ export function PartiesScreen() {
     } catch {
       errorFeedback();
       // keep modal open
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -136,6 +143,7 @@ export function PartiesScreen() {
     if (!value || value <= 0) {
       return;
     }
+    setSaving(true);
     try {
       await recordPayment(await getCore(), {
         partyId: selectedId,
@@ -153,6 +161,8 @@ export function PartiesScreen() {
     } catch {
       errorFeedback();
       // keep for retry
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -291,12 +301,12 @@ export function PartiesScreen() {
         </Card>
       ) : null}
 
-      <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)}>
+      <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)} dismissable={!saving}>
         <Field label="Name" value={newName} onChangeText={setNewName} placeholder="e.g. Ramesh (supplier)" />
         <Button title="Add" onPress={handleAddParty} />
       </ModalSheet>
 
-      <ModalSheet visible={advanceOpen} title={direction === 'GIVEN' ? 'Advance given' : 'Advance taken'} onClose={() => setAdvanceOpen(false)}>
+      <ModalSheet visible={advanceOpen} title={direction === 'GIVEN' ? 'Advance given' : 'Advance taken'} onClose={() => setAdvanceOpen(false)} dismissable={!saving}>
         <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
         <Button title="Save advance" onPress={handleAdvance} />
       </ModalSheet>
@@ -304,7 +314,8 @@ export function PartiesScreen() {
       <ModalSheet
         visible={paymentOpen}
         title={paymentDirection === 'IN' ? 'Money in (received)' : 'Money out (paid)'}
-        onClose={() => setPaymentOpen(false)}>
+        onClose={() => setPaymentOpen(false)}
+        dismissable={!saving}>
         <Field label="Amount" value={paymentAmount} onChangeText={setPaymentAmount} keyboardType="numeric" />
         <Button title="Record payment" onPress={handlePayment} />
       </ModalSheet>

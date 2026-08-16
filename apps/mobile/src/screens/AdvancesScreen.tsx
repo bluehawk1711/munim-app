@@ -394,7 +394,7 @@ export function AdvancesScreen() {
       </ModalSheet>
 
       {/* Action sheet (Collect / Pay / +Give / +Take) */}
-      <ModalSheet visible={!!action} title={actionTitle} onClose={() => setAction(null)}>
+      <ModalSheet visible={!!action} title={actionTitle} onClose={() => setAction(null)} dismissable={!busy}>
         {action ? (
           <>
             <View style={styles.actionParty}>

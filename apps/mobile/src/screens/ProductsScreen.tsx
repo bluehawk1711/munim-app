@@ -149,6 +149,7 @@ export function ProductsScreen() {
   const [adjusting, setAdjusting] = useState<ProductWithMeta | null>(null);
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
+  const [adjustBusy, setAdjustBusy] = useState(false);
 
   function resetForm() {
     setName('');
@@ -226,6 +227,7 @@ export function ProductsScreen() {
     if (!qty) {
       return;
     }
+    setAdjustBusy(true);
     try {
       await adjustStock(await getCore(), adjusting.id, {
         adjustment: qty,
@@ -239,6 +241,8 @@ export function ProductsScreen() {
     } catch {
       errorFeedback();
       // keep modal open on failure
+    } finally {
+      setAdjustBusy(false);
     }
   }
 
@@ -448,7 +452,8 @@ export function ProductsScreen() {
       <ModalSheet
         visible={formOpen}
         title={editing ? `Edit product — ${editing.name}` : 'Add product'}
-        onClose={() => setFormOpen(false)}>
+        onClose={() => setFormOpen(false)}
+        dismissable={!saving && !uploading}>
         <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
         <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
           {imageUrl ? (
@@ -474,7 +479,8 @@ export function ProductsScreen() {
       <ModalSheet
         visible={adjusting !== null}
         title={`Adjust stock — ${adjusting?.name ?? ''}`}
-        onClose={() => setAdjusting(null)}>
+        onClose={() => setAdjusting(null)}
+        dismissable={!adjustBusy}>
         <Field
           label="Quantity (+/−)"
           value={adjustQty}
@@ -495,7 +501,8 @@ export function ProductsScreen() {
       <ModalSheet
         visible={labelOpen}
         title={`Print label — ${labelTarget?.name ?? ''}`}
-        onClose={() => setLabelOpen(false)}>
+        onClose={() => setLabelOpen(false)}
+        dismissable={!labelBusy}>
         {labelTarget?.barcode ? <BarcodeChip value={labelTarget.barcode} /> : null}
         <Text style={styles.meta}>
           {labelTarget?.sku}

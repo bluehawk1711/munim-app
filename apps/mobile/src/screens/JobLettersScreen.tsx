@@ -36,11 +36,13 @@ export function JobLettersScreen() {
   const [employeeName, setEmployeeName] = useState('');
   const [position, setPosition] = useState('');
   const [salary, setSalary] = useState('');
+  const [saving, setSaving] = useState(false);
 
   async function handleSave() {
     if (!employeeName.trim()) {
       return;
     }
+    setSaving(true);
     try {
       await saveJobLetter(await getCore(), {
         title: 'Job Letter',
@@ -58,6 +60,8 @@ export function JobLettersScreen() {
     } catch {
       errorFeedback();
       // keep modal open
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -129,11 +133,11 @@ export function JobLettersScreen() {
         />
       )}
 
-      <ModalSheet visible={open} title="New job letter" onClose={() => setOpen(false)}>
+      <ModalSheet visible={open} title="New job letter" onClose={() => setOpen(false)} dismissable={!saving}>
         <Field label="Employee name" value={employeeName} onChangeText={setEmployeeName} />
         <Field label="Position" value={position} onChangeText={setPosition} />
         <Field label="Monthly salary" value={salary} onChangeText={setSalary} keyboardType="numeric" />
-        <Button title="Save" onPress={handleSave} />
+        <Button title={saving ? 'Saving…' : 'Save'} onPress={handleSave} loading={saving} />
       </ModalSheet>
     </Screen>
   );

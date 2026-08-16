@@ -187,7 +187,8 @@ export function CatalogScreen() {
       <ModalSheet
         visible={editor !== null}
         title={editor?.mode === 'rename' ? `Rename ${kindLabel}` : `Add ${kindLabel}`}
-        onClose={() => setEditor(null)}>
+        onClose={() => setEditor(null)}
+        dismissable={!saving}>
         <Field
           label="Name"
           value={name}

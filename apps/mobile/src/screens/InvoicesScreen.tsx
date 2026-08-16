@@ -295,7 +295,8 @@ export function InvoicesScreen() {
       <ModalSheet
         visible={!!paying}
         title={paying ? `Record payment — ${paying.invoiceNumber}` : ''}
-        onClose={() => setPaying(null)}>
+        onClose={() => setPaying(null)}
+        dismissable={!payBusy}>
         {paying ? (
           <>
             <View style={styles.paySummary}>
@@ -328,7 +329,8 @@ export function InvoicesScreen() {
       <ModalSheet
         visible={!!deleting}
         title={deleting ? `Delete ${deleting.invoiceNumber}?` : ''}
-        onClose={() => setDeleting(null)}>
+        onClose={() => setDeleting(null)}
+        dismissable={!deleteBusy}>
         <Text style={styles.deleteNote}>
           This invoice will be removed and its stock restored — the same as deleting it on web or
           desktop.
