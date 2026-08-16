@@ -158,7 +158,7 @@ plain drizzle output.
 - Direct DB: same Neon fetch client (works on Hermes); URL stored in AsyncStorage
 - Share: bill as **PDF** via shared `renderBillHtml` + job letter as **PDF** via shared `renderJobLetterHtml` + `expo-print` (text share also available for bills); invoice payment recording + advance settle included
 - Products: image upload (picker via `expo-image-picker` + Cloudinary unsigned preset via `EXPO_PUBLIC_CLOUDINARY_*`); weight (mg) field; inline barcode (`react-native-svg` `SvgXml` of the shared core SVG); **camera barcode scanning** (`expo-camera`) + manual barcode search; **Generate missing barcodes**; **label PDF share** (`expo-print` of the shared `renderLabelSheetHtml`)
-- Native modules on mobile: `expo-image-picker`, `@react-native-community/datetimepicker` and **`expo-camera`** — **adding any native module requires a dev-build rebuild**; builds are manual now (EAS workflow is manual)
+- Native modules on mobile: `expo-image-picker`, `@react-native-community/datetimepicker` and **`expo-camera`** — **adding any native module requires a dev-build rebuild**; builds are manual now (`mobile-build.yml` builds the APK directly with Gradle — no EAS)
 
 ## Known gaps & next steps
 

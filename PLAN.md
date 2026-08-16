@@ -84,8 +84,10 @@ munim/
 - Screens: Home, Products, Sales, Billing, Parties, Letters, Catalog, Reports,
   Invoices, Advances, Settings (all overflow sections from the More tab)
 - `eas.json`: development (dev-client APK), preview (release APK), release (AAB)
-- `.github/workflows/mobile-eas-build.yml` — EAS Android dev build (**manual
-  trigger only** — a new build is only needed when a native dependency changes)
+- `.github/workflows/mobile-build.yml` — Android APK built directly with Gradle,
+  **no EAS** (**manual trigger only** — a new build is only needed when a native
+  dependency changes). `debug` variant = dev-client shell (Metro); `release` =
+  bundled-JS APK (debug-signed)
 - Local builds: `pnpm build:android` / `pnpm build:android:release` via
   `scripts/build-android.mjs`
 

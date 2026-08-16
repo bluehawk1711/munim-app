@@ -57,7 +57,7 @@ packages/theme/       shared design tokens (5 themes × light/dark)
 apps/web/             Next.js management app
 apps/desktop/         Tauri v2 desktop app
 apps/mobile/          React Native app (bare RN) + eas.json
-.github/workflows/    desktop-build, mobile-eas-build, web, lint, db-migrate
+.github/workflows/    desktop-build, mobile-build, web, lint, db-migrate
 docs/                 PLAN.md, ARCHITECTURE.md, features.md (matrix), theme.md, i18n-hindi.md
 AGENTS.md             mandatory rules (no any/unknown, global types, reuse core)
 ```
@@ -94,7 +94,7 @@ cd apps/mobile && pnpm android            # set the connection string in the app
 | Workflow | Trigger | Result |
 |---|---|---|
 | `.github/workflows/desktop-build.yml` | push/tag | Windows NSIS installer via `tauri-action`, uploaded as artifact |
-| `.github/workflows/mobile-eas-build.yml` | **manual** / mobile native changes | Android dev build via EAS Build (`eas build --profile development`) — needs `EXPO_TOKEN` secret |
+| `.github/workflows/mobile-build.yml` | **manual** / mobile native changes | Android APK built directly with Gradle (no EAS): `debug` dev-client shell or `release` APK with bundled JS, uploaded as an artifact |
 | `.github/workflows/web.yml` | push/PR | web typecheck + `next build` |
 | `.github/workflows/lint.yml` | push/PR | ESLint across the repo (typed no-any/no-unknown rules) |
 | `.github/workflows/db-migrate.yml` | push to main / manual | drift-check (migrations committed?) + apply pending Drizzle migrations to Neon |

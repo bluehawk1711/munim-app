@@ -100,9 +100,11 @@ npx eas-cli build --platform android --profile preview   # release APK
 npx eas-cli build --platform android --profile release   # store AAB
 ```
 
-CI: `.github/workflows/mobile-eas-build.yml` runs `eas build --platform
-android --profile development` on push/manual and needs the `EXPO_TOKEN`
-secret.
+CI: `.github/workflows/mobile-build.yml` (manual) builds the APK directly
+with Gradle — no EAS required. Choose `debug` (dev-client shell, loads JS from
+Metro) or `release` (bundled JS, debug-signed) and grab the APK from the
+Actions artifact. Needs JDK 17 + Android SDK on the runner (both set up by the
+workflow).
 
 ## Monorepo notes
 

@@ -1,0 +1,68 @@
+name: Mobile Build (Android APK — direct Gradle, no EAS)
+
+on:
+  # Manual only — a new Android build is only needed when a native module
+  # changes (e.g. adding expo-image-picker) or you want a fresh APK artifact.
+  # Pure JS/UI changes don't need a rebuild because the dev client loads JS
+  # from Metro. Trigger via Actions → "Run workflow".
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "APK variant"
+        required: false
+        default: "debug"
+        type: choice
+        options:
+          - "debug"   # dev-client shell — loads JS from Metro (pnpm start)
+          - "release" # self-contained APK with bundled JS (debug-signed)
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # The shared packages build before the app (same `dependsOn ^build`
+      # convention as turbo). JDK 17+ is required by apps/mobile's local
+      # build script (build-android.mjs).
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # Accepts Android SDK licenses and sets ANDROID_HOME so the Gradle
+      # wrapper can resolve the SDK without a local.properties file.
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build debug APK (dev client — loads JS from Metro)
+        if: inputs.variant != 'release'
+        working-directory: apps/mobile
+        run: pnpm build:android
+
+      - name: Build release APK (bundled JS, debug-signed)
+        if: inputs.variant == 'release'
+        working-directory: apps/mobile
+        run: pnpm build:android:release
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: munim-mobile-${{ inputs.variant || 'debug' }}-apk
+          path: apps/mobile/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error

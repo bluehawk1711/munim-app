@@ -112,10 +112,11 @@ desktop gate through `PinGate` in `@munim/ui` (localStorage `munim.pin`),
 mobile through its own `PinLockScreen` (AsyncStorage). Test account PIN: `1234`.
 Web adds a 30-day session cookie so the PIN isn't re-typed on every screen.
 
-### ADR-013 — Mobile EAS workflow is manual-only
+### ADR-013 — Mobile build is manual-only (direct Gradle, no EAS)
 **Status:** Accepted
 
-`.github/workflows/mobile-eas-build.yml` is triggered **manually**
+`.github/workflows/mobile-build.yml` is triggered **manually** and builds the
+Android APK directly with Gradle (no EAS)
 (`workflow_dispatch`) — a new dev build is only needed when a **native
 library** changes (e.g. `expo-image-picker`, `@react-native-community/datetimepicker`).
 JS-only changes hot-reload through Metro, so pushing shouldn't burn an EAS
