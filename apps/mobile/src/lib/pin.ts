@@ -111,8 +111,10 @@ export async function initializePin(): Promise<PinSnapshot> {
 
 /** Verify the email + password step. */
 export async function verifyCredentials(email: string, password: string): Promise<boolean> {
-  const storedEmail = await getStored(EMAIL_KEY);
-  const storedPw = await getStored(PASSWORD_KEY);
+  const [storedEmail, storedPw] = await Promise.all([
+    getStored(EMAIL_KEY),
+    getStored(PASSWORD_KEY),
+  ]);
   if (storedEmail === null || storedPw === null || !isPasswordHash(storedPw)) return false;
   return verifyEmail(email, storedEmail) && verifyPassword(password, storedPw);
 }

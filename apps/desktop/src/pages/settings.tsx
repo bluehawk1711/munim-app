@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Database, Save, CheckCircle2, XCircle, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
 import { createDb, getSettings, pingDatabase, updateSettings } from "@munim/core";
 import { getCore, resetCore } from "@/lib/core";
@@ -52,9 +52,11 @@ export function SettingsPage() {
   const [shopEmail, setShopEmail] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
-  const [loaded, setLoaded] = useState(false);
+  // Only guards one-time population of the form from settings — a ref avoids
+  // a pointless re-render (its value is never read in JSX).
+  const loadedRef = useRef(false);
 
-  const [dbUrl, setDbUrl] = useState(getSavedDatabaseUrl() ?? "");
+  const [dbUrl, setDbUrl] = useState(() => getSavedDatabaseUrl() ?? "");
   const [showDbUrl, setShowDbUrl] = useState(false);
   const [testing, setTesting] = useState<"idle" | "testing" | "ok" | "fail">("idle");
 
@@ -62,16 +64,16 @@ export function SettingsPage() {
   const savedHost = (getSavedDatabaseUrl() ?? "").match(/@([^/]+)/)?.[1] ?? null;
 
   useEffect(() => {
-    if (settings && !loaded) {
+    if (settings && !loadedRef.current) {
+      loadedRef.current = true;
       setShopName(settings.shopName);
       setShopAddress(settings.shopAddress ?? "");
       setShopPhones(settings.shopPhones.join(", "));
       setShopEmail(settings.shopEmail ?? "");
       setCurrency(settings.currency);
       setLowStockThreshold(String(settings.lowStockThreshold));
-      setLoaded(true);
     }
-  }, [settings, loaded]);
+  }, [settings]);
 
   async function handleSaveShop() {
     try {

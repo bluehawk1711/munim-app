@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 const partySchema = z.object({
   name: z.string().min(1, "Name is required").max(120),
   phone: z.string().max(40).optional().or(z.literal("")),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  email: z.email("Invalid email").optional().or(z.literal("")),
   address: z.string().max(300).optional().or(z.literal("")),
   type: z.enum(["CUSTOMER", "SUPPLIER", "WORKER", "OTHER"]).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),

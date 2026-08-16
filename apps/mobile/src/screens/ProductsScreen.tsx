@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {
   FlatList,
   Image,
@@ -92,7 +92,9 @@ export function ProductsScreen() {
 
   // Camera scanning
   const [scanOpen, setScanOpen] = useState(false);
-  const [scanning, setScanning] = useState(false);
+  // Re-entry guard for handleScanDetected — never read in JSX, so a ref
+  // avoids a pointless re-render while scanning.
+  const scanningRef = useRef(false);
   const [scanMsg, setScanMsg] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
 
@@ -256,8 +258,8 @@ export function ProductsScreen() {
   }
 
   async function handleScanDetected(code: string) {
-    if (scanning) return;
-    setScanning(true);
+    if (scanningRef.current) return;
+    scanningRef.current = true;
     setScanMsg('');
     try {
       const product = await findProductByBarcode(await getCore(), code);
@@ -273,7 +275,7 @@ export function ProductsScreen() {
       errorFeedback();
       setScanMsg('Lookup failed — check your database connection');
     } finally {
-      setScanning(false);
+      scanningRef.current = false;
     }
   }
 

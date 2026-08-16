@@ -7,9 +7,8 @@ import type { DashboardStats } from "@/lib/types"
 export const dynamic = "force-dynamic"
 
 export async function GET() {
-  const data = await getDashboard(db)
-  // Real receivables/payables come from the party ledger (advances + unpaid invoices)
-  const balances = await getPartyBalances(db)
+  // Both queries are independent — run them in parallel.
+  const [data, balances] = await Promise.all([getDashboard(db), getPartyBalances(db)])
   const receivables = balances.filter((b) => b.balance > 0.001).reduce((s, b) => s + b.balance, 0)
   const payables = balances.filter((b) => b.balance < -0.001).reduce((s, b) => s + Math.abs(b.balance), 0)
 

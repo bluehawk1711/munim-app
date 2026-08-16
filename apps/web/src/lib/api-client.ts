@@ -26,28 +26,30 @@ export async function apiFetch<T>(url: string, opts: FetchOptions = {}): Promise
     cache: "no-store",
   })
 
-  if (res.ok) {
-    const contentType = res.headers.get("content-type") ?? ""
-    const isJson = contentType.includes("application/json")
-    return (isJson ? await res.json() : await res.text()) as T
+  // Check status before consuming the body so a failed response is never
+  // parsed as the success type.
+  if (!res.ok) {
+    let message = `Request failed with status ${res.status}`
+    let details: unknown
+    try {
+      const contentType = res.headers.get("content-type") ?? ""
+      if (contentType.includes("application/json")) {
+        const body: unknown = await res.json()
+        if (body && typeof body === "object" && "error" in body) {
+          const err = (body as { error?: unknown }).error
+          if (typeof err === "string" && err) message = err
+        }
+        details = body
+      } else {
+        details = await res.text()
+      }
+    } catch {
+      // ignore body parse errors — fall back to the status message
+    }
+    throw new ApiError(message, res.status, details)
   }
 
-  let message = `Request failed with status ${res.status}`
-  let details: unknown
-  try {
-    const contentType = res.headers.get("content-type") ?? ""
-    if (contentType.includes("application/json")) {
-      const body: unknown = await res.json()
-      if (body && typeof body === "object" && "error" in body) {
-        const err = (body as { error?: unknown }).error
-        if (typeof err === "string" && err) message = err
-      }
-      details = body
-    } else {
-      details = await res.text()
-    }
-  } catch {
-    // ignore body parse errors — fall back to the status message
-  }
-  throw new ApiError(message, res.status, details)
+  const contentType = res.headers.get("content-type") ?? ""
+  const isJson = contentType.includes("application/json")
+  return (isJson ? await res.json() : await res.text()) as T
 }

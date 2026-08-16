@@ -8,7 +8,7 @@ server**.
 This document records what exists, and **on which platforms** it is available (✅ = full UI,
 🟡 = partial / reduced UI, ❌ = not surfaced yet).
 
-> Last updated: 2026-08-15
+> Last updated: 2026-08-16
 
 ---
 
@@ -26,10 +26,16 @@ This document records what exists, and **on which platforms** it is available (�
   → Edit one file, restyle all 3 apps.
 - **One settings layout.** Web + desktop share `SettingsShell` in `@munim/ui` (sectioned sidebar
   layout — Shop / Appearance / Security / Database). Any settings page change is made once and
-  appears on both apps. The feature matrix below was last audited on **2026-08-12**: all 11 modules
+  appears on both apps. The feature matrix below was last audited on **2026-08-16**: all 11 modules
   (dashboard → settings) exist on all three platforms (no ❌ rows, and no 🟡 feature rows — the
   only 🟡 left, row 17 web, is a deliberate platform difference: the browser can't hold a DB
   connection string, so web reads it from env while desktop + mobile store it locally).
+- **No per-platform fetch/data logic.** Every read/write goes through the same `@munim/core`
+  service functions: mobile + desktop call them directly via their `getCore()` (Neon fetch client);
+  web calls them inside thin `/api/*` server routes (the browser can't hold a DB connection) that
+  only serialize Dates — they never re-implement business logic. Audited 2026-08-16: zero raw
+  `fetch()` calls in mobile/desktop app code, and every `/api/*` route imports its logic from
+  `@munim/core` (`lib/db` + core functions only).
 - **Shared workflow dialogs.** The money-movement dialogs live once in `@munim/ui` and are used by
   both web and desktop: `RecordPaymentDialog` (invoice payment), `KhataActionDialog` (give/take
   advance, receive/make payment — used by the Advances pages AND the desktop Parties page),

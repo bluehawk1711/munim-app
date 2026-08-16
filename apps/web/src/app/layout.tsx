@@ -18,6 +18,17 @@ const geistMono = Geist_Mono({
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL
 
+// NEXT_PUBLIC_APP_URL may be unset or malformed in some environments; a
+// throwing `new URL()` here would crash the layout at render time.
+let appUrlBase: URL | undefined
+if (appUrl) {
+  try {
+    appUrlBase = new URL(appUrl)
+  } catch {
+    appUrlBase = undefined
+  }
+}
+
 export const metadata: Metadata = {
   title: {
     default: "Munim — Shop Management",
@@ -42,7 +53,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Munim" }],
   applicationName: "Munim",
   category: "Business",
-  ...(appUrl ? { metadataBase: new URL(appUrl) } : {}),
+  ...(appUrlBase ? { metadataBase: appUrlBase } : {}),
   openGraph: {
     type: "website",
     siteName: "Munim",
