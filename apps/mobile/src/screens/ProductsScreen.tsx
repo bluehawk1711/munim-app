@@ -26,6 +26,7 @@ import {
   findProductByBarcode,
   getSettings,
   uploadImageToCloudinary,
+  uploadImageToCloudinarySigned,
   barcodeSvg,
   buildProductLabel,
   renderLabelSheetHtml,
@@ -33,6 +34,7 @@ import {
   type ProductWithMeta,
 } from '@munim/core';
 import {getCore} from '../lib/core';
+import {getSavedAppSetup} from '../lib/app-config';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
@@ -124,11 +126,17 @@ export function ProductsScreen() {
     const asset = result.assets[0];
     setUploading(true);
     try {
-      const url = await uploadImageToCloudinary(
-        {uri: asset.uri, name: asset.fileName ?? `product-${Date.now()}.jpg`, type: asset.mimeType ?? 'image/jpeg'},
-        CLOUD_NAME,
-        UPLOAD_PRESET,
-      );
+      const file = {
+        uri: asset.uri,
+        name: asset.fileName ?? `product-${Date.now()}.jpg`,
+        type: asset.mimeType ?? 'image/jpeg',
+      };
+      // Onboarding credentials (signed upload) take priority; the legacy
+      // env-var unsigned preset is the fallback for existing installs.
+      const setup = await getSavedAppSetup();
+      const url = setup?.cloudinary
+        ? await uploadImageToCloudinarySigned(file, setup.cloudinary)
+        : await uploadImageToCloudinary(file, CLOUD_NAME, UPLOAD_PRESET);
       setImageUrl(url);
       successFeedback();
     } catch {

@@ -23,6 +23,9 @@ export declare const TEST_EMAIL = "test@munim.app";
 export declare const TEST_PASSWORD = "1234";
 /** SHA-256 of a UTF-8 string, as 64 lowercase hex chars. */
 export declare function sha256Hex(input: string): string;
+/** SHA-1 of a UTF-8 string, as 40 lowercase hex chars. Pure TS — works on
+ * Hermes, the Tauri webview and Node (used for Cloudinary signed uploads). */
+export declare function sha1Hex(input: string): string;
 /** Hash a 4-digit PIN for storage. Never store the PIN itself. */
 export declare function hashPin(pin: string): string;
 /** Hash a password for storage. Never store the password itself. */

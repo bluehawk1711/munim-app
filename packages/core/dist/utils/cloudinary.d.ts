@@ -1,18 +1,15 @@
-/**
- * Cloudinary unsigned upload — safe for CLIENT apps (Tauri webview, React
- * Native) because no secret is involved: an unsigned upload preset is public
- * by design (folder restrictions, etc. can be enforced in the preset).
- *
- * The web app keeps its existing server-side signed upload (/api/upload);
- * this helper is for the desktop + mobile apps that have no API server.
- *
- * Accepts either a browser Blob/File or a React Native picker file
- * ({ uri, name, type }) so the exact same helper works on both.
- */
 export type CloudinaryUploadFile = Blob | {
     uri: string;
     name?: string;
     type?: string;
 };
+export type CloudinaryCredentials = {
+    cloudName: string;
+    apiKey: string;
+    apiSecret: string;
+};
 export declare function uploadImageToCloudinary(file: CloudinaryUploadFile, cloudName: string, uploadPreset: string): Promise<string>;
+/** Signed upload — uses the account API key + secret, no preset required.
+ *  This is the path the onboarding credentials feed into. */
+export declare function uploadImageToCloudinarySigned(file: CloudinaryUploadFile, creds: CloudinaryCredentials): Promise<string>;
 //# sourceMappingURL=cloudinary.d.ts.map

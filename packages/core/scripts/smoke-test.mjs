@@ -454,6 +454,14 @@ async function run() {
       const hex = core.sha256Hex("abc");
       return hex === "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad" ? "correct" : `WRONG ${hex}`;
     });
+    await test("sha1Hex known vector", () => {
+      const abc = core.sha1Hex("abc");
+      const multi = core.sha1Hex("a".repeat(100));
+      return abc === "a9993e364706816aba3e25717850c26c9cd0d89d" &&
+        multi === "7f9000257a4918d7072655ea468540cdcbd42e0c"
+        ? "single + multi-block correct"
+        : `WRONG ${abc.slice(0, 8)}/${multi.slice(0, 8)}`;
+    });
     await test("hashPin + verifyPin roundtrip", () => {
       const hash = core.hashPin("2468");
       const ok = core.isPinHash(hash) && core.verifyPin("2468", hash) && !core.verifyPin("2469", hash);

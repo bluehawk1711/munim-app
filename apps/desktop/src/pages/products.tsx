@@ -9,11 +9,13 @@ import {
   backfillBarcodes,
   findProductByBarcode,
   uploadImageToCloudinary,
+  uploadImageToCloudinarySigned,
   buildProductLabel,
   type ProductWithMeta,
   type ProductLabel,
 } from "@munim/core";
 import { getCore } from "@/lib/core";
+import { getSavedCloudinary } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
 import { money, formatWeight } from "@/lib/format";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
@@ -121,7 +123,12 @@ export function ProductsPage() {
     }
     setUploading(true);
     try {
-      const url = await uploadImageToCloudinary(file, CLOUD_NAME ?? "", UPLOAD_PRESET ?? "");
+      // Onboarding credentials (signed upload) take priority; the legacy
+      // env-var unsigned preset is the fallback for existing installs.
+      const stored = getSavedCloudinary();
+      const url = stored
+        ? await uploadImageToCloudinarySigned(file, stored)
+        : await uploadImageToCloudinary(file, CLOUD_NAME ?? "", UPLOAD_PRESET ?? "");
       setForm((f) => ({ ...f, imageUrl: url }));
       toast.success("Image uploaded");
     } catch (err) {

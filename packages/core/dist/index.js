@@ -22,7 +22,7 @@ export { normalizeBarcode, isEan13, ean13CheckDigit, generateEan13, barcodeSvg, 
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format";
 export { newId } from "./utils/id";
 export { swatchColor } from "./utils/swatch";
-export { uploadImageToCloudinary } from "./utils/cloudinary";
+export { uploadImageToCloudinary, uploadImageToCloudinarySigned, } from "./utils/cloudinary";
 /* Services */
 export * from "./services/catalog";
 export * from "./services/products";

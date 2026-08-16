@@ -137,6 +137,63 @@ export function sha256Hex(input) {
     }
     return [h0, h1, h2, h3, h4, h5, h6, h7].map(toHex).join("");
 }
+/** SHA-1 of a UTF-8 string, as 40 lowercase hex chars. Pure TS — works on
+ * Hermes, the Tauri webview and Node (used for Cloudinary signed uploads). */
+export function sha1Hex(input) {
+    const bytes = utf8Bytes(input);
+    const bitLen = (bytes.length << 3) >>> 0;
+    const padded = bytes.concat([0x80]);
+    while (padded.length % 64 !== 56)
+        padded.push(0);
+    // 64-bit length field — messages here are tiny so the high word is always 0.
+    padded.push(0, 0, 0, 0, (bitLen >>> 24) & 0xff, (bitLen >>> 16) & 0xff, (bitLen >>> 8) & 0xff, bitLen & 0xff);
+    let h0 = 0x67452301;
+    let h1 = 0xefcdab89;
+    let h2 = 0x98badcfe;
+    let h3 = 0x10325476;
+    let h4 = 0xc3d2e1f0;
+    const w = new Array(80).fill(0);
+    for (let i = 0; i < padded.length; i += 64) {
+        for (let t = 0; t < 16; t++) {
+            const o = i + t * 4;
+            w[t] =
+                (((padded[o] ?? 0) << 24) | ((padded[o + 1] ?? 0) << 16) | ((padded[o + 2] ?? 0) << 8) | (padded[o + 3] ?? 0)) >>> 0;
+        }
+        for (let t = 16; t < 80; t++) {
+            // SHA-1 schedule: ROTL1(w[t-3] ^ w[t-8] ^ w[t-14] ^ w[t-16]) ≡ ROTR31(...)
+            w[t] = rotr(((w[t - 3] ?? 0) ^ (w[t - 8] ?? 0) ^ (w[t - 14] ?? 0) ^ (w[t - 16] ?? 0)) >>> 0, 31);
+        }
+        let a = h0;
+        let b = h1;
+        let c = h2;
+        let d = h3;
+        let e = h4;
+        for (let t = 0; t < 80; t++) {
+            const f = t < 20
+                ? (b & c) | (~b & d)
+                : t < 40
+                    ? b ^ c ^ d
+                    : t < 60
+                        ? (b & c) | (b & d) | (c & d)
+                        : b ^ c ^ d;
+            const k = t < 20 ? 0x5a827999 : t < 40 ? 0x6ed9eba1 : t < 60 ? 0x8f1bbcdc : 0xca62c1d6;
+            // ROTL(a, 5) ≡ ROTR(a, 27)
+            const temp = (rotr(a, 27) + f + e + (k >>> 0) + (w[t] ?? 0)) >>> 0;
+            e = d;
+            d = c;
+            // ROTL(b, 30) ≡ ROTR(b, 2)
+            c = rotr(b, 2);
+            b = a;
+            a = temp;
+        }
+        h0 = (h0 + a) >>> 0;
+        h1 = (h1 + b) >>> 0;
+        h2 = (h2 + c) >>> 0;
+        h3 = (h3 + d) >>> 0;
+        h4 = (h4 + e) >>> 0;
+    }
+    return [h0, h1, h2, h3, h4].map(toHex).join("");
+}
 /* ────────────────────────────────────────────────────────────────
  * PIN API
  * ──────────────────────────────────────────────────────────────── */

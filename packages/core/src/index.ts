@@ -36,7 +36,12 @@ export {
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format";
 export { newId } from "./utils/id";
 export { swatchColor } from "./utils/swatch";
-export { uploadImageToCloudinary } from "./utils/cloudinary";
+export {
+  uploadImageToCloudinary,
+  uploadImageToCloudinarySigned,
+  type CloudinaryCredentials,
+  type CloudinaryUploadFile,
+} from "./utils/cloudinary";
 
 /* Services */
 export * from "./services/catalog";

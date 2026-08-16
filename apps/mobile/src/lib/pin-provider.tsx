@@ -7,6 +7,9 @@
  */
 import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
 import {PinLockScreen} from '../screens/PinLockScreen';
+import {OnboardingScreen} from '../screens/OnboardingScreen';
+import {ResetConfigScreen} from '../screens/ResetConfigScreen';
+import {getSavedAppSetup} from './app-config';
 import * as pin from './pin';
 
 export type PinContextValue = {
@@ -34,29 +37,38 @@ export function usePinLock(): PinContextValue {
   return ctx;
 }
 
+type SetupPhase = 'checking' | 'onboarding' | 'reset' | 'gate';
+
 export function PinProvider({children}: {children: React.ReactNode}) {
   const [status, setStatus] = useState<pin.PinStatus>('loading');
   const [lockEnabled, setLockEnabled] = useState(false);
   const [isTestAccount, setIsTestAccount] = useState(false);
   const [accountEmail, setAccountEmail] = useState('');
+  const [phase, setPhase] = useState<SetupPhase>('checking');
 
   useEffect(() => {
     let active = true;
-    pin
-      .initializePin()
-      .then(s => {
-        if (!active) return;
-        setStatus(s.status);
-        setLockEnabled(s.lockEnabled);
-        setIsTestAccount(s.isTestAccount);
-        setAccountEmail(s.accountEmail);
-      })
-      .catch(() => {
+    void (async () => {
+      // Setup gate: first launch (no saved DB URL) → onboarding flow first.
+      const setup = await getSavedAppSetup();
+      if (!active) return;
+      setPhase(setup ? 'gate' : 'onboarding');
+      let s: pin.PinSnapshot;
+      try {
+        s = await pin.initializePin();
+      } catch {
         // Storage failure — fall back to unlocked so the app still opens.
         if (!active) return;
         setStatus('unlocked');
         setLockEnabled(false);
-      });
+        return;
+      }
+      if (!active) return;
+      setStatus(s.status);
+      setLockEnabled(s.lockEnabled);
+      setIsTestAccount(s.isTestAccount);
+      setAccountEmail(s.accountEmail);
+    })();
     return () => {
       active = false;
     };
@@ -117,7 +129,33 @@ export function PinProvider({children}: {children: React.ReactNode}) {
     [status, lockEnabled, isTestAccount, accountEmail],
   );
 
-  if (status === 'loading') return null;
-  if (status === 'locked') return <PinLockScreen lock={value} />;
+  if (phase === 'checking' || status === 'loading') return null;
+  if (phase === 'onboarding') {
+    return (
+      <OnboardingScreen
+        onComplete={() => {
+          setPhase('gate');
+          // Re-check the lock now that setup exists (fresh install: locked).
+          void pin.initializePin().then(s => {
+            setStatus(s.status);
+            setLockEnabled(s.lockEnabled);
+            setIsTestAccount(s.isTestAccount);
+            setAccountEmail(s.accountEmail);
+          });
+        }}
+      />
+    );
+  }
+  if (phase === 'reset') {
+    return (
+      <ResetConfigScreen
+        onCleared={() => setPhase('onboarding')}
+        onCancel={() => setPhase('gate')}
+      />
+    );
+  }
+  if (status === 'locked') {
+    return <PinLockScreen lock={value} onOpenConnectionSettings={() => setPhase('reset')} />;
+  }
   return <PinContext.Provider value={value}>{children}</PinContext.Provider>;
 }

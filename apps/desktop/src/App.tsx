@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { AnimatePresence, LazyMotion, domMax } from "motion/react";
 import * as m from "motion/react-m";
+import { pingDatabase } from "@munim/core";
 import { PinGate } from "@munim/ui";
+import { createAppDb } from "@/lib/core";
 import { AppShell } from "@/components/app-shell";
 import { useCurrentPath } from "@/lib/navigation";
 import { DashboardPage } from "@/pages/dashboard";
@@ -36,7 +38,13 @@ export function App() {
   const current = useCurrentPath();
   const route = ROUTES.find((r) => r.path === current) ?? FALLBACK_ROUTE;
   return (
-    <PinGate>
+    <PinGate
+      onboarding
+      pingDatabase={async (url) => {
+        // Same platform-fetch path as getCore() (Tauri HTTP plugin → no CORS).
+        await pingDatabase(createAppDb(url));
+      }}
+    >
       <LazyMotion features={domMax}>
         <AppShell current={route.path} title={route.title}>
           <AnimatePresence mode="wait" initial={false}>

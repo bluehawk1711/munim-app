@@ -1,9 +1,11 @@
 /**
  * Mobile login + PIN lock screen — shown by PinProvider while the app is
  * locked. Two steps: email + password FIRST, then the 4-digit PIN. Apple-style:
- * dot indicators, big numpad, springy shake on a wrong PIN, and haptic feedback
- * (tick per digit, error buzz on failure, success ding on unlock). Mirrors the
- * web/desktop lock screen from @munim/ui.
+ * dot indicators, a real (hidden) PIN input overlaid on the dots — no keypad
+ * buttons — springy shake on a wrong PIN, and haptic feedback (tick per digit,
+ * error buzz on failure, success ding on unlock). Mirrors the web/desktop lock
+ * screen from @munim/ui, including the "Connection settings" link that opens
+ * the reset-config screen (wrong DB URL / Cloudinary creds → re-onboard).
  */
 import React, {useEffect, useRef, useState} from 'react';
 import {Keyboard, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
@@ -15,13 +17,11 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import {Lock, Mail, Delete} from 'lucide-react-native';
+import {Lock, Mail, Settings2} from 'lucide-react-native';
 import {colors, SafeScreen} from '../components/ui';
 import {useThemeStyles} from '../theme';
 import {selectionTick, errorFeedback, successFeedback} from '../lib/haptics';
 import type {PinContextValue} from '../lib/pin-provider';
-
-const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'] as const;
 
 const makeStyles = () =>
   StyleSheet.create({
@@ -68,21 +68,28 @@ const makeStyles = () =>
     message: {height: 20, marginBottom: 8},
     messageError: {fontSize: 13, fontWeight: '600', color: colors.danger},
     messageHint: {fontSize: 12, color: colors.muted},
-    keypad: {flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', width: 264, gap: 12},
-    key: {
-      width: 80,
-      height: 62,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.mutedSoft,
-    },
-    keyText: {fontSize: 21, fontWeight: '600', color: colors.text},
+    pinInputArea: {alignItems: 'center', marginBottom: 8},
     pinFooter: {flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 22},
     recover: {fontSize: 12, fontWeight: '500', color: colors.muted},
+    connSettings: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      alignSelf: 'center',
+      marginTop: 24,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+    },
+    connSettingsText: {fontSize: 12, fontWeight: '500', color: colors.muted},
   });
 
-export function PinLockScreen({lock}: {lock: PinContextValue}) {
+export function PinLockScreen({
+  lock,
+  onOpenConnectionSettings,
+}: {
+  lock: PinContextValue;
+  onOpenConnectionSettings: () => void;
+}) {
   const styles = useThemeStyles(makeStyles);
   const [step, setStep] = useState<'credentials' | 'pin'>('credentials');
   const [email, setEmail] = useState('');
@@ -92,6 +99,7 @@ export function PinLockScreen({lock}: {lock: PinContextValue}) {
   const [error, setError] = useState<string | null>(null);
   const busyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pinInputRef = useRef<TextInput | null>(null);
   const shake = useSharedValue(0);
 
   const shakeStyle = useAnimatedStyle(() => ({
@@ -116,6 +124,14 @@ export function PinLockScreen({lock}: {lock: PinContextValue}) {
     };
   }, []);
 
+  // Refocus the PIN input whenever the PIN step becomes visible.
+  useEffect(() => {
+    if (step === 'pin') {
+      const t = setTimeout(() => pinInputRef.current?.focus(), 250);
+      return () => clearTimeout(t);
+    }
+  }, [step]);
+
   async function submitCredentials() {
     if (busyRef.current) return;
     busyRef.current = true;
@@ -133,19 +149,19 @@ export function PinLockScreen({lock}: {lock: PinContextValue}) {
     setError(null);
   }
 
-  async function press(digit: string) {
-    if (busyRef.current) return;
+  function handlePinChange(value: string) {
+    if (busyRef.current) return; // verifying — ignore input
     selectionTick();
     setError(null);
-    const next = (entry + digit).slice(0, 4);
-    setEntry(next);
-    if (next.length === 4) {
+    const digits = value.replace(/\D/g, '').slice(0, 4);
+    setEntry(digits);
+    if (digits.length === 4) {
       busyRef.current = true;
       // Small delay so the 4th dot renders before the result.
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
         void (async () => {
-          const ok = await lock.unlock(next);
+          const ok = await lock.unlock(digits);
           if (ok) {
             successFeedback();
             setEntry('');
@@ -153,18 +169,12 @@ export function PinLockScreen({lock}: {lock: PinContextValue}) {
             errorFeedback();
             setError('Wrong PIN — try again.');
             setEntry('');
+            pinInputRef.current?.focus();
           }
           busyRef.current = false;
         })();
       }, 140);
     }
-  }
-
-  function backspace() {
-    if (busyRef.current) return;
-    selectionTick();
-    setError(null);
-    setEntry(e => e.slice(0, -1));
   }
 
   return (
@@ -224,6 +234,16 @@ export function PinLockScreen({lock}: {lock: PinContextValue}) {
                 ]}>
                 <Text style={styles.submitText}>Continue</Text>
               </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={onOpenConnectionSettings}
+                style={({pressed}) => [styles.connSettings, pressed && {opacity: 0.6}]}>
+                <Settings2 size={13} color={colors.muted} />
+                <Text style={styles.connSettingsText}>
+                  Connection settings — change database / credentials
+                </Text>
+              </Pressable>
             </Animated.View>
           </>
         ) : (
@@ -238,45 +258,33 @@ export function PinLockScreen({lock}: {lock: PinContextValue}) {
               {lock.isTestAccount ? 'Test account PIN is 1234' : 'Final security step'}
             </Animated.Text>
 
-            <Animated.View style={[styles.dots, shakeStyle]}>
-              {[0, 1, 2, 3].map(i => (
-                <View
-                  key={i}
-                  style={[styles.dot, i < entry.length ? styles.dotFilled : styles.dotEmpty]}
-                />
-              ))}
+            <Animated.View style={[styles.pinInputArea, shakeStyle]} entering={FadeInUp.duration(260).delay(120)}>
+              <View style={styles.dots}>
+                {[0, 1, 2, 3].map(i => (
+                  <View
+                    key={i}
+                    style={[styles.dot, i < entry.length ? styles.dotFilled : styles.dotEmpty]}
+                  />
+                ))}
+              </View>
+              {/* Real PIN input overlaid on the dots — no keypad buttons. */}
+              <TextInput
+                ref={pinInputRef}
+                style={StyleSheet.absoluteFill}
+                value={entry}
+                onChangeText={handlePinChange}
+                keyboardType="number-pad"
+                secureTextEntry
+                autoFocus
+                maxLength={4}
+                textContentType="oneTimeCode"
+                accessibilityLabel="Enter your 4-digit PIN"
+                caretHidden
+              />
             </Animated.View>
 
             <Animated.View style={styles.message} entering={FadeInUp.duration(160)}>
               {error ? <Text style={styles.messageError}>{error}</Text> : null}
-            </Animated.View>
-
-            <Animated.View entering={FadeInUp.duration(260).delay(120)} style={styles.keypad}>
-              {KEYS.map((k, i) => {
-                if (k === '') return <View key={i} style={styles.key} />;
-                if (k === 'del') {
-                  return (
-                    <Pressable
-                      key={i}
-                      accessibilityRole="button"
-                      accessibilityLabel="Delete digit"
-                      onPress={backspace}
-                      style={({pressed}) => [styles.key, {backgroundColor: 'transparent'}, pressed && {opacity: 0.6}]}>
-                      <Delete size={22} color={colors.muted} />
-                    </Pressable>
-                  );
-                }
-                return (
-                  <Pressable
-                    key={i}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Digit ${k}`}
-                    onPress={() => press(k)}
-                    style={({pressed}) => [styles.key, pressed && {opacity: 0.7, transform: [{scale: 0.92}]}]}>
-                    <Text style={styles.keyText}>{k}</Text>
-                  </Pressable>
-                );
-              })}
             </Animated.View>
 
             <View style={styles.pinFooter}>
@@ -285,6 +293,8 @@ export function PinLockScreen({lock}: {lock: PinContextValue}) {
                 onPress={() => {
                   selectionTick();
                   setStep('credentials');
+                  setEntry('');
+                  setError(null);
                 }}
                 style={({pressed}) => pressed && {opacity: 0.6}}>
                 <Text style={styles.recover}>← Back</Text>
