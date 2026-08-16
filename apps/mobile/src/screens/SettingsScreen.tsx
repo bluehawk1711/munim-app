@@ -138,17 +138,20 @@ export function SettingsScreen() {
     }
     setPinError(null);
     setPinBusy(true);
-    const err = await pin.changePassword(pwCurrent, pwNew);
-    setPinBusy(false);
-    if (err) {
-      setPinError(err);
-      errorFeedback();
-      return;
+    try {
+      const err = await pin.changePassword(pwCurrent, pwNew);
+      if (err) {
+        setPinError(err);
+        errorFeedback();
+        return;
+      }
+      successFeedback();
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+    } finally {
+      setPinBusy(false);
     }
-    successFeedback();
-    setPwCurrent('');
-    setPwNew('');
-    setPwConfirm('');
   }
 
   async function handleChangePin() {
@@ -159,33 +162,39 @@ export function SettingsScreen() {
     }
     setPinError(null);
     setPinBusy(true);
-    const err = await pin.changePin(pinCurrent, pinNew);
-    setPinBusy(false);
-    if (err) {
-      setPinError(err);
-      errorFeedback();
-      return;
+    try {
+      const err = await pin.changePin(pinCurrent, pinNew);
+      if (err) {
+        setPinError(err);
+        errorFeedback();
+        return;
+      }
+      successFeedback();
+      setPinCurrent('');
+      setPinNew('');
+      setPinConfirm('');
+    } finally {
+      setPinBusy(false);
     }
-    successFeedback();
-    setPinCurrent('');
-    setPinNew('');
-    setPinConfirm('');
   }
 
   async function handleDisablePin() {
     setPinError(null);
     setPinBusy(true);
-    const err = await pin.disable(pinCurrent);
-    setPinBusy(false);
-    if (err) {
-      setPinError(err);
-      errorFeedback();
-      return;
+    try {
+      const err = await pin.disable(pinCurrent);
+      if (err) {
+        setPinError(err);
+        errorFeedback();
+        return;
+      }
+      successFeedback();
+      setPinCurrent('');
+      setPinNew('');
+      setPinConfirm('');
+    } finally {
+      setPinBusy(false);
     }
-    successFeedback();
-    setPinCurrent('');
-    setPinNew('');
-    setPinConfirm('');
   }
 
   async function handleEnablePin() {
@@ -196,16 +205,19 @@ export function SettingsScreen() {
     }
     setPinError(null);
     setPinBusy(true);
-    const err = await pin.enable(pinNew);
-    setPinBusy(false);
-    if (err) {
-      setPinError(err);
-      errorFeedback();
-      return;
+    try {
+      const err = await pin.enable(pinNew);
+      if (err) {
+        setPinError(err);
+        errorFeedback();
+        return;
+      }
+      successFeedback();
+      setPinNew('');
+      setPinConfirm('');
+    } finally {
+      setPinBusy(false);
     }
-    successFeedback();
-    setPinNew('');
-    setPinConfirm('');
   }
 
   function handleResetToTest() {
@@ -305,10 +317,10 @@ export function SettingsScreen() {
           }}>
           <View style={{flex: 1, paddingRight: 12}}>
             <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>
-              Force theme transition
+              Force animation play
             </Text>
             <Text style={{fontSize: 12, color: colors.muted, marginTop: 2}}>
-              Play the transition even when animations are off — this device only
+              Play the animation even when animations are off — this device only
             </Text>
           </View>
           <Switch

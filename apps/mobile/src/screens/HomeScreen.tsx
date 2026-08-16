@@ -63,6 +63,56 @@ export function HomeScreen() {
             ))
           )}
 
+          <Text style={styles.section}>Top products</Text>
+          {data.topProducts.length === 0 ? (
+            <Card>
+              <Text style={{color: colors.muted, fontSize: 13}}>No sales yet</Text>
+            </Card>
+          ) : (
+            <Card index={0}>
+              {data.topProducts.slice(0, 4).map((p, i) => {
+                const max = Math.max(...data.topProducts.map(t => t.revenue), 1);
+                const pct = Math.max(4, Math.min(100, (p.revenue / max) * 100));
+                return (
+                  <View key={p.productName + (p.sku ?? '')} style={[styles.barRow, i > 0 && {borderTopWidth: 1, borderTopColor: colors.border}]}>
+                    <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+                      <Text style={{fontSize: 13, fontWeight: '600', color: colors.text, flex: 1}} numberOfLines={1}>
+                        {p.productName}
+                      </Text>
+                      <Text style={{fontSize: 12, color: colors.muted}}>
+                        {p.quantitySold} sold · {money(p.revenue)}
+                      </Text>
+                    </View>
+                    <View style={styles.barTrack}>
+                      <View style={[styles.barFill, {width: `${pct}%`, backgroundColor: colors.primary}]} />
+                    </View>
+                  </View>
+                );
+              })}
+            </Card>
+          )}
+
+          <Text style={styles.section}>Invoice status</Text>
+          <Card index={0}>
+            {data.invoiceStatus.length === 0 ? (
+              <Text style={{color: colors.muted, fontSize: 13}}>No invoices yet</Text>
+            ) : (
+              <View style={{flexDirection: 'row', gap: 8}}>
+                {data.invoiceStatus.map(s => {
+                  const toneColor =
+                    s.name === 'Paid' ? colors.success : s.name === 'Partial' ? colors.warning : colors.danger;
+                  return (
+                    <View key={s.name} style={[styles.statusChip, {borderColor: toneColor}]}>
+                      <View style={[styles.statusDot, {backgroundColor: toneColor}]} />
+                      <Text style={{fontSize: 12, color: colors.text, fontWeight: '600'}}>{s.name}</Text>
+                      <Text style={{fontSize: 12, color: colors.muted}}>{s.value}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </Card>
+
           <Text style={styles.section}>Recent advances</Text>
           {data.recentAdvances.length === 0 ? (
             <Card>
@@ -112,4 +162,19 @@ const makeStyles = () =>
       marginBottom: 10,
     },
     invRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+    barRow: {paddingVertical: 8, gap: 6},
+    barTrack: {height: 5, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden'},
+    barFill: {height: '100%', borderRadius: 3},
+    statusChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      flex: 1,
+      justifyContent: 'center',
+    },
+    statusDot: {width: 8, height: 8, borderRadius: 4},
   });

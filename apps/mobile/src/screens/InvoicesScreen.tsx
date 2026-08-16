@@ -222,7 +222,7 @@ export function InvoicesScreen() {
         renderItem={({item, index}) => {
           const outstanding = item.total - item.amountPaid;
           return (
-            <Card key={item.id} index={index}>
+            <Card index={index}>
               <View style={styles.row}>
                 <View style={{flex: 1}}>
                   <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>

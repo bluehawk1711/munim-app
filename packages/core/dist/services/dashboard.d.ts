@@ -26,6 +26,36 @@ export type DashboardStats = {
         value: number;
         color: string;
     }[];
+    /** Top-selling products by revenue (all-time). */
+    topProducts: {
+        productName: string;
+        sku: string | null;
+        quantitySold: number;
+        revenue: number;
+    }[];
+    /** Revenue share per product category (top 5 + "Other"). */
+    salesByCategory: {
+        name: string;
+        value: number;
+        color: string;
+    }[];
+    /** Invoice counts by status (Paid / Partial / Unpaid / Draft). */
+    invoiceStatus: {
+        name: string;
+        value: number;
+        color: string;
+    }[];
+    /** Open advances split by direction (Given by us vs Taken by us). */
+    advanceSplit: {
+        name: string;
+        value: number;
+        color: string;
+    }[];
+    /** Units sold per month (last 6 months). */
+    soldPerMonth: {
+        month: string;
+        quantity: number;
+    }[];
     recentActivity: schema.ActivityLog[];
     recentAdvances: (schema.Advance & {
         partyName?: string;

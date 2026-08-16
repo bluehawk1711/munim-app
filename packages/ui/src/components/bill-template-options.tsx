@@ -12,6 +12,7 @@
 import * as React from "react";
 import { cn } from "../lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
+import { Switch } from "./switch";
 // The template settings model lives in @munim/core (the global model all three
 // apps share) — imported here AND re-exported so the existing
 // `from "@munim/ui"` imports in web + desktop keep working while mobile types
@@ -77,15 +78,15 @@ export function BillTemplateOptions({
         </Select>
       )}
 
-      <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
-        <input
-          type="checkbox"
-          checked={twoInOne}
-          onChange={(e) => onTwoInOne(e.target.checked)}
-          className="accent-amber-500"
-        />
-        2-in-1 bill
-      </label>
+      <div className="flex items-center gap-2">
+        <Switch checked={twoInOne} onCheckedChange={onTwoInOne} aria-label="2-in-1 bill" />
+        <label
+          className="cursor-pointer text-xs font-medium text-muted-foreground select-none"
+          onClick={() => onTwoInOne(!twoInOne)}
+        >
+          2-in-1 bill
+        </label>
+      </div>
 
       {twoInOne && (
         <Select value={mode} onValueChange={(v) => onMode(v as BillMode)}>

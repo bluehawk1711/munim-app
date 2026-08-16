@@ -100,7 +100,7 @@ rejects `oklch()`/`oklab()`. See `docs/theme.md`.
 The `settings` table gained `theme` and `mode` columns. Each app writes its
 chosen theme/mode to Neon and pulls on startup; a device-local preference only
 wins when the DB row is untouched (defaults never clobber a local choice). The
-"force theme transition" flag is deliberately **device-local** (localStorage /
+"force animation play" flag is deliberately **device-local** (localStorage /
 AsyncStorage), not DB-synced, because it overrides the OS animation preference.
 
 ### ADR-012 — Per-device 4-digit PIN app lock

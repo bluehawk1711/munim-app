@@ -11,6 +11,7 @@ pub fn run() {
                 let _ = window.show();
             }
         }))
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

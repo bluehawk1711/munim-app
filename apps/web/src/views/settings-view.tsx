@@ -289,7 +289,7 @@ export function SettingsView() {
             </div>
             <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-3">
               <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Force theme transition</Label>
+                <Label className="text-sm font-medium">Force animation play</Label>
                 <p className="text-xs text-muted-foreground">
                   Play the wipe animation even when your system has reduced motion enabled. Applies
                   on this device only.
@@ -298,7 +298,7 @@ export function SettingsView() {
               <Switch
                 checked={forceTransition}
                 onCheckedChange={setForceThemeTransition}
-                aria-label="Force theme transition"
+                aria-label="Force animation play"
               />
             </div>
           </CardContent>

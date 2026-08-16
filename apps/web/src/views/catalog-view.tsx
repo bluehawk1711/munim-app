@@ -58,9 +58,9 @@ export function CatalogView() {
   const categories = useCatalog("category")
 
   const setView = useAppStore((s) => s.setView)
-  const setGlobalSearch = useAppStore((s) => s.setGlobalSearch)
   const setProductColorFilter = useAppStore((s) => s.setProductColorFilter)
   const setProductSizeFilter = useAppStore((s) => s.setProductSizeFilter)
+  const setProductCategoryFilter = useAppStore((s) => s.setProductCategoryFilter)
   const setProductStatusFilter = useAppStore((s) => s.setProductStatusFilter)
 
   const [dialog, setDialog] = React.useState<DialogState>(null)
@@ -135,9 +135,7 @@ export function CatalogView() {
           onRename={(item) => setDialog({ kind: "category", mode: "rename", item })}
           onDelete={(item) => setDeleting({ kind: "category", item })}
           onShowProducts={(item) => {
-            // Category search: listProducts now matches category names, so the
-            // global search prefilters the products view.
-            setGlobalSearch(item.name)
+            setProductCategoryFilter(item.name)
             setView("products")
           }}
         />

@@ -24,12 +24,14 @@ type AppState = {
   // Cross-view product filters (e.g. set by the Catalog shortcuts).
   productColorFilter: string
   productSizeFilter: string
+  productCategoryFilter: string
   productStatusFilter: StockStatus | "all"
   setView: (view: ViewKey) => void
   setGlobalSearch: (value: string) => void
   setSellDialogOpen: (open: boolean) => void
   setProductColorFilter: (value: string) => void
   setProductSizeFilter: (value: string) => void
+  setProductCategoryFilter: (value: string) => void
   setProductStatusFilter: (value: StockStatus | "all") => void
 }
 
@@ -76,6 +78,7 @@ export const useAppStore = create<AppState>((set) => ({
   sellDialogOpen: false,
   productColorFilter: "all",
   productSizeFilter: "all",
+  productCategoryFilter: "all",
   productStatusFilter: "all",
   setView: (view) => {
     set({ activeView: view })
@@ -92,6 +95,7 @@ export const useAppStore = create<AppState>((set) => ({
   setSellDialogOpen: (open) => set({ sellDialogOpen: open }),
   setProductColorFilter: (value) => set({ productColorFilter: value }),
   setProductSizeFilter: (value) => set({ productSizeFilter: value }),
+  setProductCategoryFilter: (value) => set({ productCategoryFilter: value }),
   setProductStatusFilter: (value) => set({ productStatusFilter: value }),
 }))
 

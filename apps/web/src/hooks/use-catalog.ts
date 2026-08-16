@@ -6,10 +6,22 @@ import type { CatalogItem, CatalogKind } from "@munim/core"
 
 export type { CatalogItem, CatalogKind }
 
+// "category" pluralizes irregularly (categories ≠ categorys) — the API routes
+// live at /api/colors, /api/sizes and /api/categories.
+const PLURAL: Record<CatalogKind, string> = {
+  color: "colors",
+  size: "sizes",
+  category: "categories",
+}
+
+function catalogUrl(kind: CatalogKind, id?: string): string {
+  return `/api/${PLURAL[kind]}${id ? `/${id}` : ""}`
+}
+
 export function useCatalog(kind: CatalogKind) {
   return useQuery({
     queryKey: ["catalog", kind],
-    queryFn: () => apiFetch<CatalogItem[]>(`/api/${kind}s`),
+    queryFn: () => apiFetch<CatalogItem[]>(catalogUrl(kind)),
   })
 }
 
@@ -27,7 +39,7 @@ export function useCreateCatalogItem(kind: CatalogKind) {
   const invalidate = useInvalidateCatalog()
   return useMutation({
     mutationFn: (name: string) =>
-      apiFetch<CatalogItem>(`/api/${kind}s`, { method: "POST", body: { name } }),
+      apiFetch<CatalogItem>(catalogUrl(kind), { method: "POST", body: { name } }),
     onSuccess: invalidate,
   })
 }
@@ -36,7 +48,7 @@ export function useUpdateCatalogItem(kind: CatalogKind) {
   const invalidate = useInvalidateCatalog()
   return useMutation({
     mutationFn: ({ id, name }: { id: string; name: string }) =>
-      apiFetch<CatalogItem>(`/api/${kind}s/${id}`, { method: "PUT", body: { name } }),
+      apiFetch<CatalogItem>(catalogUrl(kind, id), { method: "PUT", body: { name } }),
     onSuccess: invalidate,
   })
 }
@@ -45,7 +57,7 @@ export function useDeleteCatalogItem(kind: CatalogKind) {
   const invalidate = useInvalidateCatalog()
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<{ success: boolean }>(`/api/${kind}s/${id}`, { method: "DELETE" }),
+      apiFetch<{ success: boolean }>(catalogUrl(kind, id), { method: "DELETE" }),
     onSuccess: invalidate,
   })
 }

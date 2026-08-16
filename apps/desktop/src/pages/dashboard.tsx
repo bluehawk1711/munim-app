@@ -8,6 +8,36 @@ import { money } from "@/lib/format";
 import { navigate } from "@/lib/navigation";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui";
 
+function BarRow({
+  label,
+  sub,
+  value,
+  max,
+  color,
+}: {
+  label: string;
+  sub: string;
+  value: number;
+  max: number;
+  color: string;
+}) {
+  const pct = max > 0 ? Math.max(2, Math.min(100, (value / max) * 100)) : 0;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="truncate font-medium">{label}</span>
+        <span className="text-muted-foreground shrink-0 tabular-nums">{sub}</span>
+      </div>
+      <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{ width: `${pct}%`, backgroundColor: color }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: string; icon: ElementType }) {
   return (
     <motion.div
@@ -186,6 +216,102 @@ export function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+
+      {/* Charts — lightweight CSS bars (desktop has no chart lib) */}
+      <div className="grid gap-5 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-sm">Top Selling Products</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.topProducts.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No sales yet</p>
+            ) : (
+              data.topProducts.map((p) => {
+                const max = Math.max(...data.topProducts.map((t) => t.revenue), 1);
+                return (
+                  <BarRow
+                    key={p.productName + (p.sku ?? "")}
+                    label={p.productName}
+                    sub={`${p.quantitySold} sold · ${money(p.revenue)}`}
+                    value={p.revenue}
+                    max={max}
+                    color="var(--chart-1)"
+                  />
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Invoice Status</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.invoiceStatus.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No invoices yet</p>
+            ) : (
+              data.invoiceStatus.map((s) => (
+                <BarRow
+                  key={s.name}
+                  label={s.name}
+                  sub={`${s.value} invoices`}
+                  value={s.value}
+                  max={Math.max(...data.invoiceStatus.map((x) => x.value), 1)}
+                  color={s.color}
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-sm">Sales by Category</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.salesByCategory.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No sales yet</p>
+            ) : (
+              data.salesByCategory.map((c) => (
+                <BarRow
+                  key={c.name}
+                  label={c.name}
+                  sub={money(c.value)}
+                  value={c.value}
+                  max={Math.max(...data.salesByCategory.map((x) => x.value), 1)}
+                  color={c.color}
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Advances Given vs Taken</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.advanceSplit.length === 0 ? (
+              <p className="text-muted-foreground text-sm">No open advances</p>
+            ) : (
+              data.advanceSplit.map((a) => (
+                <BarRow
+                  key={a.name}
+                  label={a.name}
+                  sub={money(a.value)}
+                  value={a.value}
+                  max={Math.max(...data.advanceSplit.map((x) => x.value), 1)}
+                  color={a.color}
+                />
+              ))
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

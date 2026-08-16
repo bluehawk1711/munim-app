@@ -233,7 +233,7 @@ export function ReportsView() {
                         </TableRow>
                       ) : (
                         report.rows.map((r) => (
-                          <TableRow key={r.sku} className="hover:bg-muted/30">
+                          <TableRow key={`${r.sku ?? "n"}-${r.productId ?? r.productName}`} className="hover:bg-muted/30">
                             <TableCell className="font-medium">{r.productName}</TableCell>
                             <TableCell className="font-mono text-xs">{r.sku}</TableCell>
                             <TableCell>{r.color}</TableCell>

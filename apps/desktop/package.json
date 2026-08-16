@@ -13,7 +13,8 @@
     "tauri:build": "tauri build --bundles nsis",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,json}\"",
     "lint": "eslint src/**/*.{ts,tsx} vite.config.ts",
-    "check": "pnpm lint && pnpm typecheck"
+    "check": "pnpm lint && pnpm typecheck",
+    "doctor": "react-doctor"
   },
   "dependencies": {
     "@munim/core": "workspace:*",
@@ -21,14 +22,12 @@
     "@munim/ui": "workspace:*",
     "@tailwindcss/vite": "^4.2.1",
     "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/plugin-http": "^2.5.9",
     "@tauri-apps/plugin-opener": "^2",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "drizzle-orm": "^0.44.0",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.577.0",
     "motion": "^13.0.0",
-    "next-themes": "^0.4.6",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "sonner": "^2.0.7",
@@ -47,6 +46,7 @@
     "globals": "^16.4.0",
     "prettier": "^3.8.1",
     "prettier-plugin-tailwindcss": "^0.7.2",
+    "react-doctor": "^0.9.12",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.46.1",
     "vite": "^7.0.4"

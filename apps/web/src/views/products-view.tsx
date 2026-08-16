@@ -48,13 +48,16 @@ export function ProductsView() {
   // state picks up the latest store values on mount and mirrors changes back.
   const productColorFilter = useAppStore((s) => s.productColorFilter)
   const productSizeFilter = useAppStore((s) => s.productSizeFilter)
+  const productCategoryFilter = useAppStore((s) => s.productCategoryFilter)
   const productStatusFilter = useAppStore((s) => s.productStatusFilter)
   const setProductColorFilter = useAppStore((s) => s.setProductColorFilter)
   const setProductSizeFilter = useAppStore((s) => s.setProductSizeFilter)
+  const setProductCategoryFilter = useAppStore((s) => s.setProductCategoryFilter)
   const setProductStatusFilter = useAppStore((s) => s.setProductStatusFilter)
 
   const [color, setColor] = React.useState<string>(productColorFilter)
   const [size, setSize] = React.useState<string>(productSizeFilter)
+  const [category, setCategory] = React.useState<string>(productCategoryFilter)
   const [status, setStatus] = React.useState<StockStatus | "all">(productStatusFilter)
   const [page, setPage] = React.useState(1)
   const pageSize = 20
@@ -72,6 +75,11 @@ export function ProductsView() {
   function changeSize(value: string) {
     setSize(value)
     setProductSizeFilter(value)
+    setPage(1)
+  }
+  function changeCategory(value: string) {
+    setCategory(value)
+    setProductCategoryFilter(value)
     setPage(1)
   }
   function changeStatus(value: StockStatus | "all") {
@@ -100,6 +108,7 @@ export function ProductsView() {
     search: globalSearch,
     color,
     size,
+    category,
     status,
     page,
     pageSize,
@@ -108,12 +117,13 @@ export function ProductsView() {
   const products = data?.products ?? []
   const pagination = data?.pagination
 
-  const hasActiveFilters = color !== "all" || size !== "all" || status !== "all" || !!globalSearch
+  const hasActiveFilters = color !== "all" || size !== "all" || category !== "all" || status !== "all" || !!globalSearch
 
   function clearFilters() {
     setGlobalSearch("")
     changeColor("all")
     changeSize("all")
+    changeCategory("all")
     changeStatus("all")
     setPage(1)
   }
@@ -288,6 +298,17 @@ export function ProductsView() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={category} onValueChange={changeCategory}>
+              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by category">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {meta?.categories.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={status} onValueChange={(v) => changeStatus(v as StockStatus | "all")}>
               <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by stock status">
                 <SelectValue placeholder="Status" />
@@ -333,6 +354,7 @@ export function ProductsView() {
           {globalSearch && <Badge variant="secondary">Search: “{globalSearch}”</Badge>}
           {color !== "all" && <Badge variant="secondary">Color: {color}</Badge>}
           {size !== "all" && <Badge variant="secondary">Size: {size}</Badge>}
+          {category !== "all" && <Badge variant="secondary">Category: {category}</Badge>}
           {status !== "all" && <Badge variant="secondary">Status: {status.replace("_", " ")}</Badge>}
         </div>
       )}

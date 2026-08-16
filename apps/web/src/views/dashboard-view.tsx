@@ -20,6 +20,11 @@ import { LoadingState, EmptyState } from "@/components/app/shared"
 import dynamic from "next/dynamic"
 const MonthlySalesChart = dynamic(() => import("@/components/charts").then((m) => m.MonthlySalesChart), { ssr: false })
 const StockDistributionChart = dynamic(() => import("@/components/charts").then((m) => m.StockDistributionChart), { ssr: false })
+const TopProductsChart = dynamic(() => import("@/components/charts").then((m) => m.TopProductsChart), { ssr: false })
+const CategorySalesChart = dynamic(() => import("@/components/charts").then((m) => m.CategorySalesChart), { ssr: false })
+const InvoiceStatusChart = dynamic(() => import("@/components/charts").then((m) => m.InvoiceStatusChart), { ssr: false })
+const AdvanceSplitChart = dynamic(() => import("@/components/charts").then((m) => m.AdvanceSplitChart), { ssr: false })
+const SoldPerMonthChart = dynamic(() => import("@/components/charts").then((m) => m.SoldPerMonthChart), { ssr: false })
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badge, Separator, ScrollArea } from "@munim/ui"
 
 
@@ -173,6 +178,62 @@ export function DashboardView() {
           </CardHeader>
           <CardContent>
             <StockDistributionChart data={data?.stockDistribution ?? []} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top products + invoice status */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Top Selling Products</CardTitle>
+            <CardDescription className="text-xs">Units sold, ranked by revenue</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <TopProductsChart data={data?.topProducts ?? []} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Invoice Status</CardTitle>
+            <CardDescription className="text-xs">Paid / partial / unpaid</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <InvoiceStatusChart data={data?.invoiceStatus ?? []} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Category, advances & units sold */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Sales by Category</CardTitle>
+            <CardDescription className="text-xs">Revenue share per category</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CategorySalesChart data={data?.salesByCategory ?? []} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Advances Given vs Taken</CardTitle>
+            <CardDescription className="text-xs">Open advance money by direction</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <AdvanceSplitChart data={data?.advanceSplit ?? []} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Units Sold per Month</CardTitle>
+            <CardDescription className="text-xs">Quantity sold, last 6 months</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SoldPerMonthChart data={data?.soldPerMonth ?? []} />
           </CardContent>
         </Card>
       </div>

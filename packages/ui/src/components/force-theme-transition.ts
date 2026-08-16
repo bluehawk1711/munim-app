@@ -3,7 +3,7 @@
 import * as React from "react"
 
 /**
- * "Force theme transition" preference — shared by web + desktop.
+ * "Force animation play" preference — shared by web + desktop.
  *
  * When the OS reports reduced motion (e.g. Windows "Animation effects" off),
  * the AnimatedThemeToggle deliberately skips the polygon wipe. This store lets

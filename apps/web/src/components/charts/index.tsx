@@ -94,8 +94,18 @@ export function MonthlySalesChart({ data }: { data: MonthlySalesPoint[] }) {
   )
 }
 
-// ---------- Stock Distribution (Donut) ----------
-export function StockDistributionChart({ data }: { data: StockDistributionPoint[] }) {
+// ---------- Generic Donut ----------
+export function DonutChart({
+  data,
+  centerValue,
+  centerLabel,
+  formatValue = (n: number) => formatNumber(n),
+}: {
+  data: StockDistributionPoint[]
+  centerValue?: string
+  centerLabel?: string
+  formatValue?: (n: number) => string
+}) {
   const total = data.reduce((sum, d) => sum + d.value, 0)
   return (
     <div className="relative">
@@ -103,7 +113,17 @@ export function StockDistributionChart({ data }: { data: StockDistributionPoint[
         <PieChart>
           <ChartTooltip
             cursor={false}
-            content={<ChartTooltipContent nameKey="name" hideLabel />}
+            content={
+              <ChartTooltipContent
+                nameKey="name"
+                hideLabel
+                formatter={(value) => (
+                  <span className="font-mono font-medium tabular-nums">
+                    {formatValue(Number(value))}
+                  </span>
+                )}
+              />
+            }
           />
           <Pie
             data={data}
@@ -121,8 +141,8 @@ export function StockDistributionChart({ data }: { data: StockDistributionPoint[
         </PieChart>
       </ChartContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-2xl font-semibold">{formatNumber(total)}</span>
-        <span className="text-xs text-muted-foreground">Products</span>
+        <span className="text-2xl font-semibold">{centerValue ?? formatNumber(total)}</span>
+        {centerLabel ? <span className="text-xs text-muted-foreground">{centerLabel}</span> : null}
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
         {data.map((d) => (
@@ -132,11 +152,48 @@ export function StockDistributionChart({ data }: { data: StockDistributionPoint[
               style={{ backgroundColor: d.color }}
             />
             <span className="text-muted-foreground">{d.name}</span>
-            <span className="font-medium">{d.value}</span>
+            <span className="font-medium">{formatValue(d.value)}</span>
           </div>
         ))}
       </div>
     </div>
+  )
+}
+
+// ---------- Stock Distribution (Donut) ----------
+export function StockDistributionChart({ data }: { data: StockDistributionPoint[] }) {
+  return <DonutChart data={data} centerLabel="Products" />
+}
+
+// ---------- Sales by Category (Donut) ----------
+export function CategorySalesChart({ data }: { data: StockDistributionPoint[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  return (
+    <DonutChart
+      data={data}
+      centerLabel="Revenue"
+      centerValue={formatCurrency(total)}
+      formatValue={(n) => formatCurrency(n)}
+    />
+  )
+}
+
+// ---------- Invoice Status (Donut) ----------
+export function InvoiceStatusChart({ data }: { data: StockDistributionPoint[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  return <DonutChart data={data} centerLabel="Invoices" centerValue={formatNumber(total)} />
+}
+
+// ---------- Advances Given vs Taken (Donut) ----------
+export function AdvanceSplitChart({ data }: { data: StockDistributionPoint[] }) {
+  const total = data.reduce((s, d) => s + d.value, 0)
+  return (
+    <DonutChart
+      data={data}
+      centerLabel="Open advances"
+      centerValue={formatCurrency(total)}
+      formatValue={(n) => formatCurrency(n)}
+    />
   )
 }
 

@@ -28,6 +28,7 @@ function buildQueryString(filters: ProductFilters): string {
   if (filters.search) params.set("search", filters.search)
   if (filters.color && filters.color !== "all") params.set("color", filters.color)
   if (filters.size && filters.size !== "all") params.set("size", filters.size)
+  if (filters.category && filters.category !== "all") params.set("category", filters.category)
   if (filters.status && filters.status !== "all") params.set("status", filters.status)
 
   if (filters.page) params.set("page", String(filters.page))

@@ -14,8 +14,8 @@
  * - Sun is amber-500 (#f59e0b, same as the web icon); Moon is `colors.text`
  *   so it flips with the mode like the web/desktop icons do.
  * - Press pop + selection haptic (respects the Settings haptics toggle);
- *   reduced-motion users get an instant flip, no spin — unless "Force theme
- *   transition" is enabled in Settings, which plays the spin anyway.
+ *   reduced-motion users get an instant flip, no spin — unless "Force
+ *   animation play" is enabled in Settings, which plays the spin anyway.
  */
 import React, {useEffect} from 'react';
 import {Pressable, StyleSheet} from 'react-native';

@@ -32,6 +32,16 @@ export type DashboardStats = {
   recentInvoices: (schema.Invoice & { items?: schema.InvoiceItem[] })[];
   monthlySales: { month: string; revenue: number; orders: number }[];
   stockDistribution: { name: string; value: number; color: string }[];
+  /** Top-selling products by revenue (all-time). */
+  topProducts: { productName: string; sku: string | null; quantitySold: number; revenue: number }[];
+  /** Revenue share per product category (top 5 + "Other"). */
+  salesByCategory: { name: string; value: number; color: string }[];
+  /** Invoice counts by status (Paid / Partial / Unpaid / Draft). */
+  invoiceStatus: { name: string; value: number; color: string }[];
+  /** Open advances split by direction (Given by us vs Taken by us). */
+  advanceSplit: { name: string; value: number; color: string }[];
+  /** Units sold per month (last 6 months). */
+  soldPerMonth: { month: string; quantity: number }[];
   recentActivity: schema.ActivityLog[];
   recentAdvances: (schema.Advance & { partyName?: string })[];
 };
@@ -60,6 +70,12 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
     unpaidStats,
     recentAdvances,
     parties,
+    topProductsRows,
+    categoryRows,
+    statusRows,
+    advanceRows,
+    soldPerMonthAggs,
+    productSkuRows,
   ] = await Promise.all([
     db
       .select({ count: sql<number>`count(*)::int`, stock: sql<number>`coalesce(sum(stock),0)::float8` })
@@ -99,6 +115,57 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
       .where(sql`status != 'PAID'`),
     db.select().from(schema.advances).where(eq(schema.advances.status, "OPEN")).orderBy(desc(schema.advances.date)).limit(5),
     db.select().from(schema.parties),
+    // Top products by revenue (aggregated over the invoice-items snapshot, so
+    // deleted products still show under their last-known name).
+    db
+      .select({
+        productId: schema.invoiceItems.productId,
+        productName: schema.invoiceItems.productName,
+        quantitySold: sql<number>`coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`,
+        revenue: sql<number>`coalesce(sum(${schema.invoiceItems.total}),0)::float8`,
+      })
+      .from(schema.invoiceItems)
+      .groupBy(schema.invoiceItems.productId, schema.invoiceItems.productName)
+      .orderBy(desc(sql`coalesce(sum(${schema.invoiceItems.total}),0)`))
+      .limit(6),
+    // Revenue per category. LEFT JOIN through the product so uncategorized or
+    // deleted products land in "Uncategorized". The category name is aliased
+    // (as) to avoid the Neon duplicate-column collapse.
+    db
+      .select({
+        categoryName: sql<string | null>`${schema.categories.name}`.as("category_name"),
+        revenue: sql<number>`coalesce(sum(${schema.invoiceItems.total}),0)::float8`,
+      })
+      .from(schema.invoiceItems)
+      .leftJoin(schema.products, eq(schema.products.id, schema.invoiceItems.productId))
+      .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+      .groupBy(sql`${schema.categories.name}`)
+      .orderBy(desc(sql`coalesce(sum(${schema.invoiceItems.total}),0)`)),
+    // Invoice counts by status.
+    db
+      .select({ status: schema.invoices.status, count: sql<number>`count(*)::int` })
+      .from(schema.invoices)
+      .groupBy(schema.invoices.status),
+    // Open advances split by direction.
+    db
+      .select({
+        direction: schema.advances.direction,
+        total: sql<number>`coalesce(sum(${schema.advances.amount}),0)::float8`,
+      })
+      .from(schema.advances)
+      .where(eq(schema.advances.status, "OPEN"))
+      .groupBy(schema.advances.direction),
+    // Units sold per month (last 6 months) — via the invoice date.
+    Promise.all(
+      monthRanges.map((r) =>
+        db
+          .select({ quantity: sql<number>`coalesce(sum(${schema.invoiceItems.quantity}),0)::float8` })
+          .from(schema.invoiceItems)
+          .innerJoin(schema.invoices, eq(schema.invoices.id, schema.invoiceItems.invoiceId))
+          .where(and(gte(schema.invoices.date, r.start), lte(schema.invoices.date, r.end))),
+      ),
+    ),
+    db.select({ id: schema.products.id, sku: schema.products.sku }).from(schema.products),
   ]);
 
   const totalInvoices = salesStats[0]?.count ?? 0;
@@ -112,6 +179,56 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
     ...a,
     partyName: partyNameMap.get(a.partyId),
   }));
+
+  // Top products — attach the live SKU where the product still exists.
+  const skuById = new Map(productSkuRows.map((p) => [p.id, p.sku]));
+  const topProducts = topProductsRows.map((r) => ({
+    productName: r.productName,
+    sku: r.productId ? (skuById.get(r.productId) ?? null) : null,
+    quantitySold: r.quantitySold,
+    revenue: r.revenue,
+  }));
+
+  // Sales by category — top 5 buckets, remainder folded into "Other".
+  const categoryPalette = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+  ];
+  const sortedCats = categoryRows
+    .map((r) => ({ name: r.categoryName ?? "Uncategorized", value: r.revenue }))
+    .filter((c) => c.value > 0)
+    .sort((a, b) => b.value - a.value);
+  const salesByCategory = sortedCats.slice(0, 5).map((c, i) => ({
+    ...c,
+    color: categoryPalette[i % categoryPalette.length]!,
+  }));
+  if (sortedCats.length > 5) {
+    const rest = sortedCats.slice(5).reduce((s, c) => s + c.value, 0);
+    if (rest > 0) salesByCategory.push({ name: "Other", value: rest, color: "var(--chart-3)" });
+  }
+
+  // Invoice counts by status (largest first).
+  const STATUS_META: Record<string, { name: string; color: string }> = {
+    PAID: { name: "Paid", color: "var(--chart-2)" },
+    PARTIAL: { name: "Partial", color: "var(--chart-4)" },
+    UNPAID: { name: "Unpaid", color: "var(--chart-5)" },
+    DRAFT: { name: "Draft", color: "var(--chart-3)" },
+  };
+  const invoiceStatus = statusRows
+    .map((r) => (STATUS_META[r.status] ? { name: STATUS_META[r.status]!.name, value: r.count, color: STATUS_META[r.status]!.color } : null))
+    .filter((x): x is { name: string; value: number; color: string } => x !== null)
+    .sort((a, b) => b.value - a.value);
+
+  // Open advances split.
+  const given = advanceRows.find((r) => r.direction === "GIVEN")?.total ?? 0;
+  const taken = advanceRows.find((r) => r.direction === "TAKEN")?.total ?? 0;
+  const advanceSplit = [
+    ...(given > 0 ? [{ name: "Given by us", value: given, color: "var(--chart-4)" }] : []),
+    ...(taken > 0 ? [{ name: "Taken by us", value: taken, color: "var(--chart-2)" }] : []),
+  ];
 
   return {
     totalProducts: productStats[0]?.count ?? 0,
@@ -137,6 +254,14 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
       { name: "Low Stock", value: lowStock[0]?.count ?? 0, color: "var(--chart-4)" },
       { name: "Out of Stock", value: outOfStock[0]?.count ?? 0, color: "var(--chart-5)" },
     ],
+    topProducts,
+    salesByCategory,
+    invoiceStatus,
+    advanceSplit,
+    soldPerMonth: monthRanges.map((r, i) => ({
+      month: r.label,
+      quantity: soldPerMonthAggs[i]?.[0]?.quantity ?? 0,
+    })),
     recentActivity,
     recentAdvances: recentAdvancesWithNames,
   };
@@ -266,25 +391,37 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
     title = type === "stock" ? "Product Stock Report" : "Low Stock Report";
     periodLabel = now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
   } else {
-    reportRows = rows
-      .filter((r) => r.productId)
-      .map((r) => {
-        const p = r.productId ? productById.get(r.productId) : undefined;
-        const soldWeight = p?.weight != null ? r.soldQuantity * p.weight : 0;
-        return {
-          productId: r.productId,
-          productName: r.productName,
-          sku: p?.sku ?? null,
-          color: p?.colorName ?? null,
-          size: p?.sizeName ?? null,
-          stock: p?.stock ?? 0,
-          weight: p?.weight ?? null,
-          soldWeight,
-          soldQuantity: r.soldQuantity,
-          revenue: r.revenue,
-          profit: r.revenue - r.soldQuantity * (p?.purchasePrice ?? 0),
-        };
+    // The SQL groups by (productId, productName), so a product that was
+    // renamed mid-period produces one row per name snapshot (old invoices keep
+    // the old snapshot). Merge by productId so the report shows ONE row per
+    // product with its CURRENT name — this also keeps row keys unique across
+    // web, desktop & mobile (a shared SKU previously caused duplicate-key
+    // console errors in the reports tables).
+    const merged = new Map<string, ReportRow>();
+    for (const r of rows) {
+      if (!r.productId) continue;
+      const p = productById.get(r.productId);
+      const soldWeight = p?.weight != null ? r.soldQuantity * p.weight : 0;
+      const existing = merged.get(r.productId);
+      const soldQuantity = (existing?.soldQuantity ?? 0) + r.soldQuantity;
+      const revenue = (existing?.revenue ?? 0) + r.revenue;
+      merged.set(r.productId, {
+        productId: r.productId,
+        // Current product name wins; fall back to the first snapshot seen for
+        // products that were deleted after being sold.
+        productName: existing?.productName ?? p?.name ?? r.productName,
+        sku: p?.sku ?? null,
+        color: p?.colorName ?? null,
+        size: p?.sizeName ?? null,
+        stock: p?.stock ?? 0,
+        weight: p?.weight ?? null,
+        soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
+        soldQuantity,
+        revenue,
+        profit: revenue - soldQuantity * (p?.purchasePrice ?? 0),
       });
+    }
+    reportRows = [...merged.values()];
   }
 
   reportRows.sort((a, b) => b.revenue - a.revenue);

@@ -72,6 +72,11 @@ export type DashboardStats = {
   recentInvoices: Invoice[]
   monthlySales: MonthlySalesPoint[]
   stockDistribution: StockDistributionPoint[]
+  topProducts: TopProduct[]
+  salesByCategory: StockDistributionPoint[]
+  invoiceStatus: StockDistributionPoint[]
+  advanceSplit: StockDistributionPoint[]
+  soldPerMonth: SoldPerMonthPoint[]
   recentActivity: ActivityLog[]
   recentAdvances: (Advance & { partyName?: string })[]
 }

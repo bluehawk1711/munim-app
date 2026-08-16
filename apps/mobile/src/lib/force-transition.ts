@@ -1,5 +1,5 @@
 /**
- * "Force theme transition" preference (mobile).
+ * "Force animation play" preference (mobile).
  *
  * The mobile ThemeToggleButton respects `prefers-reduced-motion` (via
  * reanimated's useReducedMotion) and skips its sun/moon spin. This flag lets

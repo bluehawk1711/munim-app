@@ -489,6 +489,9 @@ export function ProductsScreen() {
         {labelTarget?.barcode ? <BarcodeChip value={labelTarget.barcode} /> : null}
         <Text style={styles.meta}>
           {labelTarget?.sku}
+          {[labelTarget?.colorName, labelTarget?.sizeName, labelTarget?.categoryName].filter(Boolean).length
+            ? ` · ${[labelTarget?.colorName, labelTarget?.sizeName, labelTarget?.categoryName].filter(Boolean).join(' / ')}`
+            : ''}
           {labelTarget?.weight != null ? ` · ${formatWeight(labelTarget.weight)}` : ''}
           {labelTarget ? ` · ₹${Number(labelTarget.sellingPrice).toFixed(2)}` : ''}
         </Text>
