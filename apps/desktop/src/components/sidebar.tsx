@@ -1,4 +1,4 @@
-import { motion } from "motion/react";
+import * as m from "motion/react-m";
 import { LayoutDashboard, Package, Palette, ShoppingCart, FileText, Receipt, Users, HandCoins, ScrollText, BarChart3, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigate } from "@/lib/navigation";
@@ -21,14 +21,14 @@ export function Sidebar({ current }: { current: string }) {
   return (
     <aside className="bg-card flex w-56 shrink-0 flex-col border-r">
       <div className="flex h-14 items-center gap-2 border-b px-4">
-        <motion.div
+        <m.div
           initial={{ scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 18 }}
           className="bg-primary flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-primary-foreground"
         >
           M
-        </motion.div>
+        </m.div>
         <div className="leading-tight">
           <p className="text-sm font-semibold">Munim</p>
           <p className="text-muted-foreground text-[11px]">Shop Manager</p>
@@ -52,7 +52,7 @@ export function Sidebar({ current }: { current: string }) {
               )}
             >
               {active && (
-                <motion.span
+                <m.span
                   layoutId="sidebar-active-pill"
                   transition={{ type: "spring", stiffness: 380, damping: 30 }}
                   className="bg-primary/12 absolute inset-0 rounded-md"

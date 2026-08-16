@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "motion/react"
+import * as m from "motion/react-m"
 import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe, Palette, ShieldCheck, ShoppingBag, SunMoon } from "lucide-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
@@ -349,22 +349,22 @@ export function SettingsView() {
                 {pingState === "testing" ? "Checking…" : "Check database connection"}
               </Button>
               {pingState === "ok" && (
-                <motion.span
+                <m.span
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400"
                 >
                   <CheckCircle2 className="h-4 w-4" /> Connected
-                </motion.span>
+                </m.span>
               )}
               {pingState === "fail" && (
-                <motion.span
+                <m.span
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="flex items-center gap-1.5 text-sm text-destructive"
                 >
                   <XCircle className="h-4 w-4" /> Connection failed
-                </motion.span>
+                </m.span>
               )}
             </div>
           </CardContent>

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { AnimatePresence, MotionConfig, motion } from "motion/react";
+import { AnimatePresence, MotionConfig } from "motion/react";
+import * as m from "motion/react-m";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Sidebar } from "@/components/sidebar";
@@ -23,7 +24,7 @@ export function AppShell({ current, title, children }: AppShellProps) {
           <header className="bg-card/60 flex h-14 shrink-0 items-center justify-between border-b px-4 backdrop-blur">
             <div className="overflow-hidden">
               <AnimatePresence mode="wait" initial={false}>
-                <motion.h1
+                <m.h1
                   key={title}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -32,7 +33,7 @@ export function AppShell({ current, title, children }: AppShellProps) {
                   className="text-sm font-semibold"
                 >
                   {title}
-                </motion.h1>
+                </m.h1>
               </AnimatePresence>
             </div>
             <div className="flex items-center gap-1.5">

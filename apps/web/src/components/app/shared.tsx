@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "motion/react"
+import * as m from "motion/react-m"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, Badge } from "@munim/ui"
 
@@ -56,7 +56,7 @@ export function EmptyState({
   className?: string
 }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -75,7 +75,7 @@ export function EmptyState({
           {action}
         </CardContent>
       </Card>
-    </motion.div>
+    </m.div>
   )
 }
 
@@ -105,7 +105,7 @@ export function StatCard({
   className?: string
 }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
@@ -126,7 +126,7 @@ export function StatCard({
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </m.div>
   )
 }
 
@@ -137,7 +137,7 @@ export function Skeleton({ className }: { className?: string }) {
   )
 }
 
-/** Staggered list item entrance — wraps children in motion.div */
+/** Staggered list item entrance — wraps children in m.div */
 export function StaggerItem({
   children,
   index = 0,
@@ -148,13 +148,13 @@ export function StaggerItem({
   className?: string
 }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.04, ease: [0.25, 0.46, 0.45, 0.94] }}
       className={className}
     >
       {children}
-    </motion.div>
+    </m.div>
   )
 }

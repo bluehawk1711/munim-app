@@ -1,5 +1,5 @@
 import type { ElementType } from "react";
-import { motion } from "motion/react";
+import * as m from "motion/react-m";
 import { Banknote, HandCoins, PackageSearch, TrendingUp, Wallet, AlertTriangle, Database, Settings } from "lucide-react";
 import { getDashboard, formatDate } from "@munim/core";
 import { getCore } from "@/lib/core";
@@ -40,7 +40,7 @@ function BarRow({
 
 function StatCard({ label, value, sub, icon: Icon }: { label: string; value: string; sub?: string; icon: ElementType }) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 240, damping: 22, mass: 0.8 }}
@@ -58,7 +58,7 @@ function StatCard({ label, value, sub, icon: Icon }: { label: string; value: str
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </m.div>
   );
 }
 

@@ -4,6 +4,7 @@ import * as React from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Package, UploadCloud, Image as ImageIcon, X, Plus } from "lucide-react"
+import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@munim/ui"
 
 
@@ -220,9 +221,11 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
             <Label>Product Image</Label>
             <div className="flex items-center gap-3">
               {imageUrl ? (
-                <img
+                <Image
                   src={imageUrl}
                   alt="Product preview"
+                  width={64}
+                  height={64}
                   className="h-16 w-16 rounded-lg border object-cover"
                 />
               ) : (

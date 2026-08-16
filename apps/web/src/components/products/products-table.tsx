@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import {
   flexRender,
   getCoreRowModel,
@@ -70,9 +71,11 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
           return (
             <div className="flex items-center gap-3">
               {p.imageUrl ? (
-                <img
+                <Image
                   src={p.imageUrl}
                   alt={p.name}
+                  width={36}
+                  height={36}
                   className="h-9 w-9 shrink-0 rounded-md border object-cover"
                 />
               ) : (

@@ -88,19 +88,26 @@ pnpm --filter @munim/mobile doctor
 ## 🟡 Performance
 
 ### Web
-- [ ] **`prefer-dynamic-import` (2)** — `src/components/charts/index.tsx:4`,
-  `src/components/ui/chart.tsx:6` — recharts is a heavy lib loaded eagerly;
-  `dynamic()` import it.
-- [ ] **`use-lazy-motion` (5)** — `app-shell.tsx:4`, `app-topbar.tsx:4`,
-  `shared.tsx:4`, `stat-card.tsx:4`, `settings-view.tsx:4` — import `motion`
-  from `motion/react` subpath instead of the barrel.
-- [ ] **`nextjs-no-img-element` (4)** — `product-form-dialog.tsx:223`,
-  `products-table.tsx:73`, `sell-product-dialog.tsx:172`, `sell-product-dialog.tsx:249`
-  — use `next/image` (Cloudinary URLs support the loader).
+- [x] **`prefer-dynamic-import` (2)** — recharts is **already lazy-loaded**: the
+  dashboard imports every chart via `dynamic(() => import("@/components/charts"),
+  { ssr: false })`, and `ui/chart.tsx` is only imported by that module. The
+  react-doctor warning is a **false positive** (the rule only sees the static
+  recharts import inside the module, not the dynamic boundary around it).
+- [x] **`use-lazy-motion` (5)** — `app-shell.tsx`, `app-topbar.tsx`,
+  `shared.tsx`, `stat-card.tsx`, `settings-view.tsx` converted to the
+  `LazyMotion` code-split: `AppShell` wraps the tree in
+  `<LazyMotion features={domMax}>`, components use `m` from
+  `motion/react-m` (hooks stay on `motion/react`). Verified in-browser —
+  view transitions + charts animate normally.
+- [x] **`nextjs-no-img-element` (4)** — `product-form-dialog.tsx`,
+  `products-table.tsx`, `sell-product-dialog.tsx` (×2) now use `next/image`;
+  `next.config.ts` added Cloudinary `remotePatterns` for `res.cloudinary.com`.
 
 ### Desktop
-- [ ] **`use-lazy-motion` (4)** — `App.tsx:2`, `app-shell.tsx:2`,
-  `sidebar.tsx:1`, `dashboard.tsx:2` — same barrel-import issue.
+- [x] **`use-lazy-motion` (4)** — `App.tsx`, `app-shell.tsx`, `sidebar.tsx`,
+  `dashboard.tsx` converted to `LazyMotion` + `m` from `motion/react-m`;
+  `App` wraps the tree in `<LazyMotion features={domMax}>` (needed for
+  `whileHover` gestures + the sidebar `layoutId`).
 - [ ] **`no-transition-all`** — `apps/desktop/src/pages/dashboard.tsx:32` —
   `transition: all` animates everything; scope it to `transition-property`.
 
@@ -224,7 +231,7 @@ pnpm --filter @munim/mobile doctor
    layout parse, `Promise.all` awaits; desktop theme-provider memo.
 2. **Dead code (🟠 depcheck/unused)** — prune ~12 deps and ~14 exports/files
    across apps; zero risk, removes noise from every future scan.
-3. **Perf (🟡)** — lazy-load recharts, fix `motion` barrel imports, `next/image`.
+3. **Perf (🟡)** — DONE: recharts already lazy (verified false positive); motion converted to `LazyMotion` + `m` on web + desktop; product images now `next/image`. Remaining: desktop `no-transition-all`, mobile `expo-image` + shadow styles.
 4. **Maintainability (🟠)** — giant-component splits and `useReducer` groups.
 5. **Mobile list perf** — dedicated pass; batch `expo-image` with the next
    native-module change (needs a dev build).

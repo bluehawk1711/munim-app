@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Image from "next/image"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -169,9 +170,11 @@ export function SellProductDialog() {
                 {selectedProduct ? (
                   <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
                     {selectedProduct.imageUrl ? (
-                      <img
+                      <Image
                         src={selectedProduct.imageUrl}
                         alt={selectedProduct.name}
+                        width={40}
+                        height={40}
                         className="h-10 w-10 shrink-0 rounded-md border object-cover"
                       />
                     ) : (
@@ -246,9 +249,11 @@ export function SellProductDialog() {
                                 className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 {p.imageUrl ? (
-                                  <img
+                                  <Image
                                     src={p.imageUrl}
                                     alt={p.name}
+                                    width={36}
+                                    height={36}
                                     className="h-9 w-9 shrink-0 rounded-md border object-cover"
                                   />
                                 ) : (

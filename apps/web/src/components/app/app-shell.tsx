@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { AnimatePresence, motion } from "motion/react"
+import { AnimatePresence, LazyMotion, domMax } from "motion/react"
+import * as m from "motion/react-m"
 import { SidebarNav, SidebarHeader, SidebarFooter } from "@/components/app/sidebar-nav"
 import { AppTopbar } from "@/components/app/app-topbar"
 import { SellProductDialog } from "@/components/sales/sell-product-dialog"
@@ -44,7 +45,7 @@ function ActiveView() {
 
   return (
     <AnimatePresence mode="wait" initial={false}>
-      <motion.div
+      <m.div
         key={activeView}
         initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -52,13 +53,14 @@ function ActiveView() {
         transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
       >
         <Component />
-      </motion.div>
+      </m.div>
     </AnimatePresence>
   )
 }
 
 export function AppShell() {
   return (
+    <LazyMotion features={domMax}>
     <div className="flex min-h-screen flex-col bg-muted/30">
       <div className="flex flex-1">
         {/* Desktop sidebar */}
@@ -104,5 +106,6 @@ export function AppShell() {
       </div>
       <SellProductDialog />
     </div>
+    </LazyMotion>
   )
 }

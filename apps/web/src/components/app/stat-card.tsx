@@ -1,7 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { motion, useInView, useMotionValue, useSpring, useTransform } from "motion/react"
+import { useInView, useMotionValue, useSpring, useTransform } from "motion/react"
+import * as m from "motion/react-m"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, Skeleton } from "@munim/ui"
 
@@ -71,7 +72,7 @@ function CountUpValue({ raw }: { raw: React.ReactNode }) {
   return (
     <p ref={ref} className="truncate text-2xl font-semibold tracking-tight tabular-nums">
       {parsed.prefix}
-      <motion.span>{text}</motion.span>
+      <m.span>{text}</m.span>
       {parsed.suffix}
     </p>
   )
@@ -86,7 +87,7 @@ export function StatCard({
   loading,
 }: StatCardProps) {
   return (
-    <motion.div
+    <m.div
       initial={{ opacity: 0, y: 16, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.8 }}
@@ -104,7 +105,7 @@ export function StatCard({
               )}
               {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
             </div>
-            <motion.div
+            <m.div
               whileHover={{ rotate: 6, scale: 1.08 }}
               transition={{ type: "spring", stiffness: 300, damping: 15 }}
               className={cn(
@@ -114,10 +115,10 @@ export function StatCard({
               )}
             >
               <Icon className="h-5 w-5" />
-            </motion.div>
+            </m.div>
           </div>
         </CardContent>
       </Card>
-    </motion.div>
+    </m.div>
   )
 }
