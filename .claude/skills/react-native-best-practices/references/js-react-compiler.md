@@ -97,15 +97,15 @@ For non-Expo React Native projects, configure Babel manually and keep the compil
 ```javascript
 // babel.config.js
 const ReactCompilerConfig = {
-  target: '19', // Use '18' for React Native < 0.78
+  target: "19", // Use '18' for React Native < 0.78
 };
 
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: ['module:@react-native/babel-preset'],
+    presets: ["module:@react-native/babel-preset"],
     plugins: [
-      ['babel-plugin-react-compiler', ReactCompilerConfig],
+      ["babel-plugin-react-compiler", ReactCompilerConfig],
       // ... other plugins
     ],
   };
@@ -137,11 +137,11 @@ module.exports = function (api) {
   return {
     presets: [
       [
-        'babel-preset-expo',
+        "babel-preset-expo",
         {
-          'react-compiler': {
+          "react-compiler": {
             sources: (filename) => {
-              return filename.includes('src/path/to/dir');
+              return filename.includes("src/path/to/dir");
             },
           },
         },
@@ -156,17 +156,17 @@ module.exports = function (api) {
 ```javascript
 // babel.config.js
 const ReactCompilerConfig = {
-  target: '19',
+  target: "19",
   sources: (filename) => {
-    return filename.includes('src/path/to/dir');
+    return filename.includes("src/path/to/dir");
   },
 };
 
 module.exports = function (api) {
   api.cache(true);
   return {
-    presets: ['module:@react-native/babel-preset'],
-    plugins: [['babel-plugin-react-compiler', ReactCompilerConfig]],
+    presets: ["module:@react-native/babel-preset"],
+    plugins: [["babel-plugin-react-compiler", ReactCompilerConfig]],
   };
 };
 ```
@@ -179,7 +179,7 @@ Use the `"use no memo"` directive to skip optimization for specific components o
 
 ```jsx
 function ProblematicComponent() {
-  'use no memo';
+  "use no memo";
 
   return <Text>Will not be optimized</Text>;
 }
@@ -205,7 +205,7 @@ const Button = ({ onPress, label }) => (
 
 // Callbacks - auto-cached (no useCallback needed)
 const handlePress = () => {
-  console.log('pressed');
+  console.log("pressed");
 };
 
 // Expensive computations - auto-cached (no useMemo needed)
@@ -217,14 +217,14 @@ const filtered = items.filter((item) => item.active);
 ```jsx
 // BAD: Mutating props
 const BadComponent = ({ items }) => {
-  items.push('new item'); // Mutation!
+  items.push("new item"); // Mutation!
   return <List data={items} />;
 };
 
 // BAD: Mutating during render
 const BadMutation = () => {
   const [items, setItems] = useState([]);
-  items.push('new'); // Mutation during render!
+  items.push("new"); // Mutation during render!
   return <List data={items} />;
 };
 

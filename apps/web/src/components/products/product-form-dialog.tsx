@@ -36,9 +36,11 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const [uploading, setUploading] = React.useState(false)
   const [customColor, setCustomColor] = React.useState(false)
   const [customSize, setCustomSize] = React.useState(false)
+  const [customCategory, setCustomCategory] = React.useState(false)
 
   const colors = Array.from(new Set([...DEFAULT_COLORS, ...(meta?.colors ?? [])]))
   const sizes = Array.from(new Set([...DEFAULT_SIZES, ...(meta?.sizes ?? [])]))
+  const categories = Array.from(new Set(meta?.categories ?? []))
 
   const form = useForm<ProductFormValues>({
     // Sanctioned boundary cast: react-hook-form's Resolver<T> requires
@@ -50,7 +52,9 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       name: "",
       color: "Black",
       size: "Standard",
+      category: "",
       barcode: "",
+      weight: undefined,
       imageUrl: "",
       stock: 0,
       purchasePrice: 0,
@@ -68,7 +72,9 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           name: product.name,
           color: product.color,
           size: product.size,
+          category: product.category ?? "",
           barcode: product.barcode ?? "",
+          weight: product.weight ?? undefined,
           imageUrl: product.imageUrl ?? "",
           stock: product.stock,
           purchasePrice: product.purchasePrice,
@@ -80,7 +86,9 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           name: "",
           color: "Black",
           size: "Standard",
+          category: "",
           barcode: "",
+          weight: undefined,
           imageUrl: "",
           stock: 0,
           purchasePrice: 0,
@@ -95,8 +103,13 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const imageUrl = watched.imageUrl
   const colorValue = watched.color ?? ""
   const sizeValue = watched.size ?? ""
+  const categoryValue = watched.category ?? ""
   const colorIsCustom = customColor || (!!colorValue && !colors.includes(colorValue))
   const sizeIsCustom = customSize || (!!sizeValue && !sizes.includes(sizeValue))
+  const categoryIsCustom = customCategory || (!!categoryValue && !categories.includes(categoryValue))
+  // Select needs a non-empty value: "__none" represents "no color" (form value "").
+  const colorSelectValue = colorIsCustom ? "__custom" : colorValue || "__none"
+  const categorySelectValue = categoryIsCustom ? "__custom" : categoryValue || "__none"
   const margin =
     watched.sellingPrice - watched.purchasePrice > 0
       ? (((watched.sellingPrice - watched.purchasePrice) / watched.sellingPrice) * 100).toFixed(0)
@@ -106,6 +119,9 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     if (value === "__custom") {
       setCustomColor(true)
       form.setValue("color", "", { shouldValidate: false })
+    } else if (value === "__none") {
+      setCustomColor(false)
+      form.setValue("color", "", { shouldValidate: true })
     } else {
       setCustomColor(false)
       form.setValue("color", value, { shouldValidate: true })
@@ -119,6 +135,19 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     } else {
       setCustomSize(false)
       form.setValue("size", value, { shouldValidate: true })
+    }
+  }
+
+  function handleCategorySelect(value: string) {
+    if (value === "__custom") {
+      setCustomCategory(true)
+      form.setValue("category", "", { shouldValidate: false })
+    } else if (value === "__none") {
+      setCustomCategory(false)
+      form.setValue("category", "", { shouldValidate: true })
+    } else {
+      setCustomCategory(false)
+      form.setValue("category", value, { shouldValidate: true })
     }
   }
 
@@ -269,17 +298,27 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
             <div className="space-y-2">
               <Label htmlFor="barcode">Barcode</Label>
               <Input id="barcode" placeholder="e.g. 8901234567890" {...form.register("barcode")} />
+              <p className="text-[11px] text-muted-foreground">Leave blank to auto-generate an EAN-13.</p>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="weight">Weight (mg)</Label>
+            <Input id="weight" type="number" step="0.1" min={0} placeholder="e.g. 24500 (24.5 g)" {...form.register("weight")} />
+            {form.formState.errors.weight && (
+              <p className="text-xs text-destructive">{form.formState.errors.weight.message}</p>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label>Color *</Label>
-              <Select value={colorIsCustom ? "__custom" : colorValue} onValueChange={handleColorSelect}>
+              <Label>Color</Label>
+              <Select value={colorSelectValue} onValueChange={handleColorSelect}>
                 <SelectTrigger className="h-9 w-full" aria-label="Color">
                   <SelectValue placeholder="Select a color" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="__none">No color</SelectItem>
                   {colors.map((c) => (
                     <SelectItem key={c} value={c}>{c}</SelectItem>
                   ))}
@@ -331,6 +370,37 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
                 <p className="text-xs text-destructive">{form.formState.errors.size.message}</p>
               )}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select value={categorySelectValue} onValueChange={handleCategorySelect}>
+              <SelectTrigger className="h-9 w-full" aria-label="Category">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">No category</SelectItem>
+                {categories.map((c) => (
+                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                ))}
+                <SelectItem value="__custom">
+                  <span className="flex items-center gap-1.5">
+                    <Plus className="h-3.5 w-3.5" /> New category…
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {categoryIsCustom && (
+              <Input
+                placeholder="Type a new category…"
+                value={categoryValue}
+                onChange={(e) => form.setValue("category", e.target.value, { shouldValidate: true })}
+                className="h-9"
+              />
+            )}
+            {form.formState.errors.category && (
+              <p className="text-xs text-destructive">{form.formState.errors.category.message}</p>
+            )}
           </div>
 
           <div className="space-y-2">

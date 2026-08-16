@@ -7,6 +7,8 @@
 export { cn } from "./lib/utils.js";
 export * from "./components/alert-dialog.js";
 export * from "./components/animated-theme-toggle.js";
+export * from "./components/barcode-lookup-input.js";
+export * from "./components/barcode-svg.js";
 export * from "./components/badge.js";
 export * from "./components/badge-variants.js";
 export * from "./components/bill-template-options.js";
@@ -19,6 +21,9 @@ export * from "./components/dropdown-menu.js";
 export * from "./components/force-theme-transition.js";
 export * from "./components/input.js";
 export * from "./components/invoice-status-badge.js";
+export * from "./components/label-print-dialog.js";
+export * from "./components/product-details-dialog.js";
+export { rasterizeInlineSvgs } from "./lib/rasterize-svg.js";
 export * from "./components/khata-action-dialog.js";
 export * from "./components/khata-card.js";
 export * from "./components/label.js";

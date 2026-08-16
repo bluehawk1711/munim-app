@@ -23,3 +23,15 @@ export {
   type JobLetterData,
   type JobLetterRowLike,
 } from "./jobLetterDocument";
+
+export {
+  buildProductLabel,
+  renderLabelMarkup,
+  renderLabelSheetHtml,
+  renderLabelText,
+  LABEL_WIDTH_MM,
+  LABEL_HEIGHT_MM,
+  type ProductLabel,
+  type LabelShop,
+  type LabelSheetOptions,
+} from "./labelDocument";

@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api-client"
 export type ProductMeta = {
   colors: string[]
   sizes: string[]
+  categories: string[]
 }
 
 export function useProductMeta() {

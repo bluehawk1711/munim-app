@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { CalendarDays, CalendarRange, CalendarClock, Calendar, Package, AlertTriangle, ShoppingCart, Loader2, RefreshCw, TrendingUp, FileSpreadsheet, FileText } from "lucide-react";
+import { CalendarDays, CalendarRange, CalendarClock, Calendar, Package, AlertTriangle, ShoppingCart, Loader2, RefreshCw, TrendingUp, FileSpreadsheet, FileText, Weight } from "lucide-react";
 import { getReport, reportToCsv, type ReportType } from "@munim/core";
 import { getCore } from "@/lib/core";
 import { useAsync } from "@/lib/use-async";
-import { money, formatDateTime } from "@/lib/format";
+import { money, formatDateTime, formatWeight } from "@/lib/format";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Separator, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
 ;
 ;
@@ -171,6 +171,7 @@ export function ReportsPage() {
                       <TableHead className="text-xs">Size</TableHead>
                       <TableHead className="text-right text-xs">Stock</TableHead>
                       <TableHead className="text-right text-xs">Sold Qty</TableHead>
+                      <TableHead className="text-right text-xs">Sold Wt</TableHead>
                       <TableHead className="text-right text-xs">Revenue</TableHead>
                       <TableHead className="text-right text-xs">Profit</TableHead>
                     </TableRow>
@@ -178,7 +179,7 @@ export function ReportsPage() {
                   <TableBody>
                     {report.rows.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                        <TableCell colSpan={9} className="py-10 text-center text-sm text-muted-foreground">
                           No data for this report in the selected period.
                         </TableCell>
                       </TableRow>
@@ -191,6 +192,7 @@ export function ReportsPage() {
                           <TableCell>{r.size}</TableCell>
                           <TableCell className="text-right tabular-nums">{r.stock}</TableCell>
                           <TableCell className="text-right tabular-nums">{r.soldQuantity}</TableCell>
+                          <TableCell className="text-right tabular-nums">{r.soldWeight > 0 ? formatWeight(r.soldWeight) : "—"}</TableCell>
                           <TableCell className="text-right font-semibold tabular-nums">{money(r.revenue)}</TableCell>
                           <TableCell className={`text-right tabular-nums ${r.profit < 0 ? "text-destructive" : ""}`}>{money(r.profit)}</TableCell>
                         </TableRow>
@@ -202,9 +204,10 @@ export function ReportsPage() {
                 {totals && report.rows.length > 0 && (
                   <>
                     <Separator />
-                    <div className="grid gap-3 p-4 sm:grid-cols-4">
+                    <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
                       <TotalCard label="Total Stock" value={String(totals.stock)} />
                       <TotalCard label="Total Sold" value={String(totals.soldQuantity)} />
+                      <TotalCard label="Weight Sold" value={totals.soldWeight > 0 ? formatWeight(totals.soldWeight) : "—"} icon={Weight} />
                       <TotalCard label="Total Revenue" value={money(totals.revenue)} accent />
                       <TotalCard label="Total Profit" value={money(totals.profit)} />
                     </div>
@@ -219,11 +222,21 @@ export function ReportsPage() {
   );
 }
 
-function TotalCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+function TotalCard({
+  label,
+  value,
+  accent,
+  icon: Icon = TrendingUp,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+  icon?: React.ComponentType<{ className?: string }>;
+}) {
   return (
     <div className={`flex items-center gap-3 rounded-lg border p-3 ${accent ? "border-primary/30 bg-primary/5" : ""}`}>
       <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${accent ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
-        <TrendingUp className="h-4 w-4" />
+        <Icon className="h-4 w-4" />
       </div>
       <div>
         <p className="text-xs text-muted-foreground">{label}</p>

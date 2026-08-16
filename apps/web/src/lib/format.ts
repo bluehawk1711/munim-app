@@ -33,3 +33,13 @@ export function formatTimeAgo(date: string | Date): string {
 export function monthLabel(date: Date): string {
   return format(date, "MMM yyyy")
 }
+
+/** Weight stored in milligrams → "350 mg" / "24.5 g" / "1.5 kg". */
+export function formatWeight(milligrams: number | null | undefined): string {
+  const safe = Number.isFinite(milligrams) ? (milligrams ?? 0) : 0
+  if (safe === 0) return "—"
+  const trim = (n: number) => String(Math.round(n * 100) / 100)
+  if (safe >= 1_000_000) return `${trim(safe / 1_000_000)} kg`
+  if (safe >= 1000) return `${trim(safe / 1000)} g`
+  return `${safe} mg`
+}

@@ -53,19 +53,19 @@ Context is not inherently slow, but a broad provider value makes every consumer 
 #### 1. Define Atoms
 
 ```jsx
-import { atom } from 'jotai';
+import { atom } from "jotai";
 
 // Each atom is an independent piece of state
-const filterAtom = atom('all');
+const filterAtom = atom("all");
 const todosAtom = atom([]);
 
 // Derived atom (computed value)
 const filteredTodosAtom = atom((get) => {
   const filter = get(filterAtom);
   const todos = get(todosAtom);
-  
-  if (filter === 'active') return todos.filter(t => !t.completed);
-  if (filter === 'completed') return todos.filter(t => t.completed);
+
+  if (filter === "active") return todos.filter((t) => !t.completed);
+  if (filter === "completed") return todos.filter((t) => t.completed);
   return todos;
 });
 ```
@@ -73,15 +73,15 @@ const filteredTodosAtom = atom((get) => {
 #### 2. Use Atoms in Components
 
 ```jsx
-import { useAtom, useAtomValue, useSetAtom } from 'jotai';
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 
 // Only re-renders when filterAtom changes
 const FilterMenu = () => {
   const [filter, setFilter] = useAtom(filterAtom);
-  
+
   return (
     <View>
-      {['all', 'active', 'completed'].map((f) => (
+      {["all", "active", "completed"].map((f) => (
         <Pressable key={f} onPress={() => setFilter(f)}>
           <Text style={filter === f ? styles.active : null}>{f}</Text>
         </Pressable>
@@ -92,14 +92,14 @@ const FilterMenu = () => {
 
 // Only re-renders when todosAtom changes
 const TodoItem = ({ id }) => {
-  const setTodos = useSetAtom(todosAtom);  // Only setter, no re-render on read
-  
+  const setTodos = useSetAtom(todosAtom); // Only setter, no re-render on read
+
   const toggleTodo = () => {
-    setTodos((prev) => 
-      prev.map((t) => t.id === id ? { ...t, completed: !t.completed } : t)
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)),
     );
   };
-  
+
   return <Pressable onPress={toggleTodo}>...</Pressable>;
 };
 ```
@@ -109,25 +109,26 @@ const TodoItem = ({ id }) => {
 #### 1. Create Store
 
 ```jsx
-import { create } from 'zustand';
+import { create } from "zustand";
 
 const useTodoStore = create((set, get) => ({
-  filter: 'all',
+  filter: "all",
   todos: [],
-  
+
   setFilter: (filter) => set({ filter }),
-  
-  toggleTodo: (id) => set((state) => ({
-    todos: state.todos.map((t) =>
-      t.id === id ? { ...t, completed: !t.completed } : t
-    ),
-  })),
-  
+
+  toggleTodo: (id) =>
+    set((state) => ({
+      todos: state.todos.map((t) =>
+        t.id === id ? { ...t, completed: !t.completed } : t,
+      ),
+    })),
+
   // Selector for derived state
   getFilteredTodos: () => {
     const { filter, todos } = get();
-    if (filter === 'active') return todos.filter(t => !t.completed);
-    if (filter === 'completed') return todos.filter(t => t.completed);
+    if (filter === "active") return todos.filter((t) => !t.completed);
+    if (filter === "completed") return todos.filter((t) => t.completed);
     return todos;
   },
 }));
@@ -140,10 +141,10 @@ const useTodoStore = create((set, get) => ({
 const FilterMenu = () => {
   const filter = useTodoStore((state) => state.filter);
   const setFilter = useTodoStore((state) => state.setFilter);
-  
+
   return (
     <View>
-      {['all', 'active', 'completed'].map((f) => (
+      {["all", "active", "completed"].map((f) => (
         <Pressable key={f} onPress={() => setFilter(f)}>
           <Text>{f}</Text>
         </Pressable>
@@ -161,13 +162,13 @@ const TodoList = () => {
 
 ## Comparison
 
-| Feature | Context | Jotai | Zustand |
-|---------|---------|-------|---------|
+| Feature         | Context                             | Jotai            | Zustand              |
+| --------------- | ----------------------------------- | ---------------- | -------------------- |
 | Re-render scope | Consumers of changed provider value | Atom subscribers | Selector subscribers |
-| Derived state | Manual | Built-in atoms | Selectors |
-| DevTools | React DevTools | Jotai DevTools | Zustand DevTools |
-| Bundle size | 0 KB | Small dependency | Small dependency |
-| Learning curve | Low | Medium | Low |
+| Derived state   | Manual                              | Built-in atoms   | Selectors            |
+| DevTools        | React DevTools                      | Jotai DevTools   | Zustand DevTools     |
+| Bundle size     | 0 KB                                | Small dependency | Small dependency     |
+| Learning curve  | Low                                 | Medium           | Low                  |
 
 ## When to Use Which
 

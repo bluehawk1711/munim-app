@@ -44,7 +44,7 @@ Add to `babel.config.js`:
 
 ```javascript
 module.exports = {
-  plugins: ['react-native-worklets/plugin'],  // Must be last
+  plugins: ["react-native-worklets/plugin"], // Must be last
 };
 ```
 
@@ -69,8 +69,8 @@ module.exports = {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming
-} from 'react-native-reanimated';
+  withTiming,
+} from "react-native-reanimated";
 
 const FadeInView = () => {
   const opacity = useSharedValue(0);
@@ -91,12 +91,12 @@ const FadeInView = () => {
 ### 2. Run Code on UI Thread with `scheduleOnUI`
 
 ```jsx
-import { scheduleOnUI } from 'react-native-worklets';
+import { scheduleOnUI } from "react-native-worklets";
 
 const triggerAnimation = () => {
   scheduleOnUI(() => {
-    'worklet';
-    console.log('Running on UI thread');
+    "worklet";
+    console.log("Running on UI thread");
     // Direct UI manipulations here
   });
 };
@@ -105,17 +105,17 @@ const triggerAnimation = () => {
 ### 3. Call JS from UI Thread with `scheduleOnRN`
 
 ```jsx
-import { scheduleOnRN } from 'react-native-worklets';
-import { Pressable } from 'react-native';
+import { scheduleOnRN } from "react-native-worklets";
+import { Pressable } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withTiming,
-} from 'react-native-reanimated';
+} from "react-native-reanimated";
 
 // Regular JS function
 const trackAnalytics = (value) => {
-  analytics.track('animation_complete', { value });
+  analytics.track("animation_complete", { value });
 };
 
 const AnimatedComponent = () => {
@@ -146,25 +146,21 @@ Avoid calling `scheduleOnRN` from `useAnimatedStyle`; style worklets can evaluat
 ### 4. Animation with Callback
 
 ```jsx
-import { scheduleOnRN } from 'react-native-worklets';
+import { scheduleOnRN } from "react-native-worklets";
 
 const AnimatedButton = () => {
   const scale = useSharedValue(1);
 
   const onComplete = () => {
-    console.log('Animation finished!');
+    console.log("Animation finished!");
   };
 
   const handlePress = () => {
-    scale.value = withTiming(
-      1.2,
-      { duration: 200 },
-      (finished) => {
-        if (finished) {
-          scheduleOnRN(onComplete);
-        }
+    scale.value = withTiming(1.2, { duration: 200 }, (finished) => {
+      if (finished) {
+        scheduleOnRN(onComplete);
       }
-    );
+    });
   };
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -183,17 +179,17 @@ const AnimatedButton = () => {
 
 ## When to Use What
 
-| Thread | Best For |
-|--------|----------|
-| **UI Thread** (worklets) | Visual animations, transforms, gestures |
-| **JS Thread** | State updates, data processing, API calls |
+| Thread                   | Best For                                  |
+| ------------------------ | ----------------------------------------- |
+| **UI Thread** (worklets) | Visual animations, transforms, gestures   |
+| **JS Thread**            | State updates, data processing, API calls |
 
-| Hook/API | Use Case |
-|----------|----------|
-| `useAnimatedStyle` | Animated styles (auto UI thread) |
-| `scheduleOnUI` | Manual UI thread execution (from `react-native-worklets`) |
-| `scheduleOnRN` | Call JS functions from worklets (from `react-native-worklets`) |
-| `useTransition` | Alternative for React state-driven delays |
+| Hook/API           | Use Case                                                       |
+| ------------------ | -------------------------------------------------------------- |
+| `useAnimatedStyle` | Animated styles (auto UI thread)                               |
+| `scheduleOnUI`     | Manual UI thread execution (from `react-native-worklets`)      |
+| `scheduleOnRN`     | Call JS functions from worklets (from `react-native-worklets`) |
+| `useTransition`    | Alternative for React state-driven delays                      |
 
 For React Native Web targets, CSS transitions can be appropriate for simple state-driven style changes. In native apps, keep shared values/worklets for gesture-driven, scroll-driven, layout-sensitive, or orchestrated animations.
 
@@ -207,13 +203,13 @@ For React Native Web targets, CSS transitions can be appropriate for simple stat
 ```jsx
 // BAD: Regular function in useAnimatedStyle
 const style = useAnimatedStyle(() => {
-  heavyComputation();  // Blocks UI thread!
+  heavyComputation(); // Blocks UI thread!
   return { opacity: 1 };
 });
 
 // GOOD: Keep worklets fast
 const style = useAnimatedStyle(() => {
-  return { opacity: opacity.value };  // Just read value
+  return { opacity: opacity.value }; // Just read value
 });
 ```
 
@@ -225,14 +221,14 @@ If you're upgrading from Reanimated 3.x, here are the key changes.
 
 ### Breaking Changes
 
-| Old API (v3) | New API (v4) | Package |
-|--------------|--------------|---------|
-| `runOnUI(() => {...})()` | `scheduleOnUI(() => {...})` | `react-native-worklets` |
-| `runOnJS(fn)(args)` | `scheduleOnRN(fn, args)` | `react-native-worklets` |
-| `executeOnUIRuntimeSync` | `runOnUISync` | `react-native-worklets` |
-| `runOnRuntime` | `scheduleOnRuntime` | `react-native-worklets` |
-| `useScrollViewOffset` | `useScrollOffset` | `react-native-reanimated` |
-| `useWorkletCallback` | Use `useCallback` with `'worklet';` directive | React |
+| Old API (v3)             | New API (v4)                                  | Package                   |
+| ------------------------ | --------------------------------------------- | ------------------------- |
+| `runOnUI(() => {...})()` | `scheduleOnUI(() => {...})`                   | `react-native-worklets`   |
+| `runOnJS(fn)(args)`      | `scheduleOnRN(fn, args)`                      | `react-native-worklets`   |
+| `executeOnUIRuntimeSync` | `runOnUISync`                                 | `react-native-worklets`   |
+| `runOnRuntime`           | `scheduleOnRuntime`                           | `react-native-worklets`   |
+| `useScrollViewOffset`    | `useScrollOffset`                             | `react-native-reanimated` |
+| `useWorkletCallback`     | Use `useCallback` with `'worklet';` directive | React                     |
 
 ### Removed APIs
 
@@ -252,8 +248,8 @@ withSpring(value, {
 
 // After (v4)
 withSpring(value, {
-  energyThreshold: 0.01,  // Replaces both threshold parameters
-  duration: 200,          // Duration is now "perceptual" (~1.5x actual time)
+  energyThreshold: 0.01, // Replaces both threshold parameters
+  duration: 200, // Duration is now "perceptual" (~1.5x actual time)
 });
 ```
 

@@ -102,6 +102,17 @@ export function useAdjustStock() {
   })
 }
 
+export function useBackfillBarcodes() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ updated: number; total: number }>("/api/products/backfill-barcodes", { method: "POST" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: productKeys.all })
+    },
+  })
+}
+
 export function useSeedProducts() {
   const qc = useQueryClient()
   return useMutation({

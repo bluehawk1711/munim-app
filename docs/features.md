@@ -8,7 +8,7 @@ server**.
 This document records what exists, and **on which platforms** it is available (✅ = full UI,
 🟡 = partial / reduced UI, ❌ = not surfaced yet).
 
-> Last updated: 2026-08-12
+> Last updated: 2026-08-15
 
 ---
 
@@ -122,6 +122,10 @@ plain drizzle output.
 | 19 | App lock — 4-digit PIN login screen (test account 1234 pre-created) | ✅ | ✅ | ✅ | Per-device lock, no DB: web/desktop gate in `@munim/ui` (PinGate + PinSettingsCard, localStorage `munim.pin`); mobile `PinLockScreen` + Settings card (AsyncStorage). Two-step login (email+password → PIN) with a 30-day session cookie on web; hashing/verify live in `@munim/core` `security/pin.ts` (pure-TS SHA-256, works on Hermes). The web/desktop lock page is a **premium Apple-style glass screen** (gradient backdrop, blur, staggered entrance); Settings can change password/PIN, disable the lock, or reset to the test account |
 | 20 | Loading skeletons — shimmer (left-to-right sweep, not pulse) | ✅ | ✅ | ✅ | `.skeleton-shimmer` keyframes ship in the shared theme `tokens.css`; the shared `Skeleton` in `@munim/ui` uses it; desktop pages + mobile `Loading` (Reanimated sweep) render shimmer placeholder rows/cards |
 | 21 | Themed scrollbars (thin, matches theme; incl. inside dialogs) | ✅ | ✅ | — | Global thin themed scrollbars (`scrollbar-width` + `-webkit-scrollbar`) in the shared theme `tokens.css`; native mobile scrollbars are OS-styled |
+| 22 | Product label printing (preview, copies, print / PDF, 24-up A4 sheet) | ✅ | ✅ | ✅ | One model in core: `buildProductLabel` + `renderLabelSheetHtml` (63.5 × 33.9 mm labels, 3×8 grid, inline SVG barcode — the SAME markup on every platform). Web + desktop share the `LabelPrintDialog` from `@munim/ui` (label preview, copies stepper, Print via browser dialog + Download PDF via jsPDF `html()` at true physical size); mobile prints via `expo-print` + share |
+| 23 | Barcode generation — unique EAN-13 per product + backfill for existing | ✅ | ✅ | ✅ | `generateEan13` + `backfillBarcodes` in core (shared). New products get a scannable EAN-13 automatically when the form leaves the barcode blank; the **Generate missing barcodes** button appears when any product lacks one. Barcode stays SEPARATE from SKU. Web/desktop show the barcode inline (`BarcodeSvg` in `@munim/ui`); mobile renders the same SVG via `react-native-svg` |
+| 24 | Barcode lookup & scanning (camera on mobile; USB scanners on desktop/web) | ✅ | ✅ | ✅ | Fast indexed exact lookup `findProductByBarcode` in core. Web + desktop: `BarcodeLookupInput` (shared `@munim/ui`) — USB scanners type into it and hit Enter → product opens. Mobile: camera scan (`expo-camera` — **new native module, dev build must be rebuilt**) → `Scan → Detect → Find → Open Product`, plus manual barcode entry in the search box |
+| 25 | Weight-based sales info (product weight + sold weight) | ✅ | ✅ | ✅ | Products store **weight in milligrams (mg)** (row 2). Reports show a **Sold Wt** column per product and a **Weight Sold** total (daily/weekly/monthly/yearly/custom dates), computed as `quantity × unit weight` in `getReport` (core). CSV export includes a `Sold Wt (g)` column; `formatWeight` (mg → g → kg) is shared by all three apps |
 
 ## Platform detail
 
@@ -138,8 +142,8 @@ plain drizzle output.
 - Direct DB: connects straight to Neon via core (fetch-based proxy client); DB URL stored locally (masked in Settings)
 - Settings: same shared `SettingsShell` sectioned layout as web (Shop profile / Appearance / Security / Database) — the URL field is masked (password-style with show/hide eye); only the host is shown once saved
 - Billing: full web parity — `BillTemplateOptions` shared component (template/color/2-in-1), date, notes, second-bill section for Separate mode, 2-in-1 PDF sheet
-- Products: image upload (Cloudinary unsigned preset via `VITE_CLOUDINARY_*`) + thumbnail column
-- PDF: bill download via `lib/billPdf.ts` + job-letter download via `lib/jobLetterPdf.ts` (both render the shared core HTML — identical layout to mobile); CSV export on reports
+- Products: image upload (Cloudinary unsigned preset via `VITE_CLOUDINARY_*`) + thumbnail column; weight (mg) field; inline barcode display; **barcode lookup input** (USB scanners) + **Generate missing barcodes**; **Print label** per product (shared `LabelPrintDialog` → Print / jsPDF download via `lib/labelPdf.ts`)
+- PDF: bill download via `lib/billPdf.ts` + job-letter download via `lib/jobLetterPdf.ts` + label download via `lib/labelPdf.ts` (all render the shared core HTML — identical layout to mobile); CSV export on reports
 - Navigation: pushState SPA with motion transitions
 - Header toggle: `AnimatedThemeToggle` (shared `@munim/ui`) — replaces the old Light/Dark/System dropdown; System mode remains available in Settings (Appearance)
 
@@ -147,7 +151,8 @@ plain drizzle output.
 - Screens: home, products, sales, billing, parties, letters, **catalog**, **reports**, **invoices**, **advances**, settings (all overflow sections open from the More tab)
 - Direct DB: same Neon fetch client (works on Hermes); URL stored in AsyncStorage
 - Share: bill as **PDF** via shared `renderBillHtml` + job letter as **PDF** via shared `renderJobLetterHtml` + `expo-print` (text share also available for bills); invoice payment recording + advance settle included
-- Products: image upload (picker via `expo-image-picker` + Cloudinary unsigned preset via `EXPO_PUBLIC_CLOUDINARY_*`); Reports + Billing use a **native date picker** (`@react-native-community/datetimepicker`) — **both are native modules**, so a dev-build rebuild is required after adding one; builds are manual now (EAS workflow is manual)
+- Products: image upload (picker via `expo-image-picker` + Cloudinary unsigned preset via `EXPO_PUBLIC_CLOUDINARY_*`); weight (mg) field; inline barcode (`react-native-svg` `SvgXml` of the shared core SVG); **camera barcode scanning** (`expo-camera`) + manual barcode search; **Generate missing barcodes**; **label PDF share** (`expo-print` of the shared `renderLabelSheetHtml`)
+- Native modules on mobile: `expo-image-picker`, `@react-native-community/datetimepicker` and **`expo-camera`** — **adding any native module requires a dev-build rebuild**; builds are manual now (EAS workflow is manual)
 
 ## Known gaps & next steps
 
@@ -158,6 +163,7 @@ plain drizzle output.
    English by default. **Not yet shipped** — this row will become a feature row
    once implemented.
 2. **Web job-letter PDF vs shared HTML** — web keeps its gold-bordered jsPDF template; desktop + mobile render the shared `renderJobLetterHtml` from core, so the letter content is identical everywhere (only the renderer differs).
+   - **Labels are NOT subject to this gap** — web + desktop + mobile all render the exact shared `renderLabelSheetHtml` from core; only the rasterizer differs (jsPDF html() / browser print / expo-print).
 3. **Web bill PDF vs shared renderBillHtml** — web keeps its rich jsPDF templates (jewellery/e-commerce, 2-in-1, classic colors); desktop + mobile share the exact `renderBillHtml` markup from core. Desktop now supports 2-in-1 sheets; the remaining difference is only the rasterizer/template styling.
 
 ## How to add a feature globally

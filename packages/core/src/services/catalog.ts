@@ -2,7 +2,7 @@ import { count, desc, eq, sql } from "drizzle-orm";
 import type { DbClient } from "../db/client";
 import * as schema from "../db/schema";
 import { logActivity } from "./activity";
-import { addColor, addSize, ProductError } from "./products";
+import { addColor, addSize, addCategory, ProductError } from "./products";
 
 /**
  * Catalog (colors / sizes) management — SHARED by all three apps.
@@ -18,7 +18,7 @@ import { addColor, addSize, ProductError } from "./products";
  * All mutations write an activity log so the trail is consistent everywhere.
  */
 
-export type CatalogKind = "color" | "size";
+export type CatalogKind = "color" | "size" | "category";
 
 export type CatalogItem = {
   id: string;
@@ -28,14 +28,25 @@ export type CatalogItem = {
 };
 
 function tableFor(kind: CatalogKind) {
-  return kind === "color" ? schema.colors : schema.sizes;
+  if (kind === "color") return schema.colors;
+  if (kind === "size") return schema.sizes;
+  return schema.categories;
 }
 
 function fkFor(kind: CatalogKind) {
-  return kind === "color" ? schema.products.colorId : schema.products.sizeId;
+  if (kind === "color") return schema.products.colorId;
+  if (kind === "size") return schema.products.sizeId;
+  return schema.products.categoryId;
 }
 
-const LABELS: Record<CatalogKind, string> = { color: "color", size: "size" };
+const LABELS: Record<CatalogKind, string> = { color: "color", size: "size", category: "category" };
+
+/** activity log action prefix per kind (COLOR_/SIZE_/CATEGORY_) */
+const ACTIONS: Record<CatalogKind, string> = {
+  color: "COLOR",
+  size: "SIZE",
+  category: "CATEGORY",
+};
 
 export async function listCatalogItems(db: DbClient, kind: CatalogKind): Promise<CatalogItem[]> {
   const table = tableFor(kind);
@@ -81,7 +92,8 @@ async function getCatalogItem(db: DbClient, kind: CatalogKind, id: string): Prom
 
 export async function createCatalogItem(db: DbClient, kind: CatalogKind, name: string): Promise<CatalogItem> {
   const trimmed = name.trim();
-  const row = kind === "color" ? await addColor(db, trimmed) : await addSize(db, trimmed);
+  const row =
+    kind === "color" ? await addColor(db, trimmed) : kind === "size" ? await addSize(db, trimmed) : await addCategory(db, trimmed);
   if (!row) throw new ProductError(`Failed to create ${LABELS[kind]}`, "CREATE_FAILED", 500);
   return { id: row.id, name: row.name, createdAt: row.createdAt.toISOString(), productCount: 0 };
 }
@@ -102,7 +114,7 @@ export async function renameCatalogItem(db: DbClient, kind: CatalogKind, id: str
   await db.update(table).set({ name: trimmed }).where(eq(table.id, id));
   await logActivity(
     db,
-    kind === "color" ? "COLOR_RENAMED" : "SIZE_RENAMED",
+    `${ACTIONS[kind]}_RENAMED`,
     `Renamed ${label} "${existing[0].name}" → "${trimmed}"`,
   );
   const updated = await getCatalogItem(db, kind, id);
@@ -131,6 +143,6 @@ export async function deleteCatalogItem(db: DbClient, kind: CatalogKind, id: str
   }
 
   await db.delete(table).where(eq(table.id, id));
-  await logActivity(db, kind === "color" ? "COLOR_DELETED" : "SIZE_DELETED", `Deleted ${label} "${existing[0].name}"`);
+  await logActivity(db, `${ACTIONS[kind]}_DELETED`, `Deleted ${label} "${existing[0].name}"`);
   return { success: true };
 }

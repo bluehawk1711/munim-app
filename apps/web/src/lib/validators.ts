@@ -2,10 +2,12 @@ import { z } from "zod"
 
 export const productSchema = z.object({
   name: z.string().min(1, "Product name is required").max(120),
-  color: z.string().min(1, "Color is required").max(40),
+  color: z.string().max(40).optional().or(z.literal("")),
   size: z.string().min(1, "Size is required").max(40),
   category: z.string().max(40).optional().or(z.literal("")),
   barcode: z.string().max(80).optional().or(z.literal("")),
+  /** Weight in milligrams (mg). */
+  weight: z.coerce.number().min(0, "Weight cannot be negative").optional(),
   imageUrl: z.string().max(1000).optional().or(z.literal("")),
   stock: z.coerce.number().min(0, "Stock cannot be negative"),
   purchasePrice: z.coerce.number().min(0, "Purchase price cannot be negative"),

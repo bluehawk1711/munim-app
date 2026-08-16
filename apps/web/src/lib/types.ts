@@ -11,6 +11,8 @@ export type Product = {
   size: string
   category?: string
   barcode: string | null
+  /** Weight in milligrams (mg). */
+  weight: number | null
   imageUrl: string | null
   stock: number
   purchasePrice: number
@@ -235,6 +237,10 @@ export type ReportRow = {
   size: string | null
   stock: number
   soldQuantity: number
+  /** Unit weight in mg. */
+  weight: number | null
+  /** Total weight sold in mg. */
+  soldWeight: number
   revenue: number
   profit: number
 }
@@ -248,6 +254,7 @@ export type ReportData = {
   totals: {
     stock: number
     soldQuantity: number
+    soldWeight: number
     revenue: number
     profit: number
   }

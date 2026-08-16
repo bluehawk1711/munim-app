@@ -57,6 +57,8 @@ export const products = pgTable(
     sku: text("sku").notNull().unique(),
     name: text("name").notNull(),
     barcode: text("barcode"),
+    /** Weight in milligrams (mg) — the shop's unit for jewellery-grade precision. */
+    weight: doublePrecision("weight"),
     imageUrl: text("image_url"),
     stock: doublePrecision("stock").notNull().default(0),
     purchasePrice: doublePrecision("purchase_price").notNull().default(0),
@@ -71,6 +73,7 @@ export const products = pgTable(
   },
   (t) => [
     index("products_name_idx").on(t.name),
+    index("products_barcode_idx").on(t.barcode),
     index("products_color_idx").on(t.colorId),
     index("products_size_idx").on(t.sizeId),
     index("products_category_idx").on(t.categoryId),

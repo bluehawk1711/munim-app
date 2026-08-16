@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   Palette,
   Ruler,
+  FolderTree,
   Plus,
   Pencil,
   Trash2,
@@ -54,8 +55,10 @@ type DeleteState = {
 export function CatalogView() {
   const colors = useCatalog("color")
   const sizes = useCatalog("size")
+  const categories = useCatalog("category")
 
   const setView = useAppStore((s) => s.setView)
+  const setGlobalSearch = useAppStore((s) => s.setGlobalSearch)
   const setProductColorFilter = useAppStore((s) => s.setProductColorFilter)
   const setProductSizeFilter = useAppStore((s) => s.setProductSizeFilter)
   const setProductStatusFilter = useAppStore((s) => s.setProductStatusFilter)
@@ -90,7 +93,7 @@ export function CatalogView() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <CatalogCard
           kind="color"
           icon={Palette}
@@ -118,6 +121,23 @@ export function CatalogView() {
           onDelete={(item) => setDeleting({ kind: "size", item })}
           onShowProducts={(item) => {
             setProductSizeFilter(item.name)
+            setView("products")
+          }}
+        />
+        <CatalogCard
+          kind="category"
+          icon={FolderTree}
+          title="Categories"
+          description="Product categories — e.g. Jewellery, Apparel"
+          items={categories.data}
+          isLoading={categories.isLoading}
+          onCreate={() => setDialog({ kind: "category", mode: "add" })}
+          onRename={(item) => setDialog({ kind: "category", mode: "rename", item })}
+          onDelete={(item) => setDeleting({ kind: "category", item })}
+          onShowProducts={(item) => {
+            // Category search: listProducts now matches category names, so the
+            // global search prefilters the products view.
+            setGlobalSearch(item.name)
             setView("products")
           }}
         />
@@ -316,7 +336,8 @@ function CatalogItemDialog({
   if (!state) return null
   const current = state
   const isRename = current.mode === "rename"
-  const kindLabel = current.kind === "color" ? "color" : "size"
+  const kindLabel =
+    current.kind === "color" ? "color" : current.kind === "size" ? "size" : "category"
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -354,7 +375,9 @@ function CatalogItemDialog({
               id="catalog-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder={kindLabel === "color" ? "e.g. Midnight Blue" : "e.g. 3XL"}
+              placeholder={
+                kindLabel === "color" ? "e.g. Midnight Blue" : kindLabel === "size" ? "e.g. 3XL" : "e.g. Jewellery"
+              }
               autoFocus
               maxLength={40}
             />

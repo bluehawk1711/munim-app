@@ -154,6 +154,10 @@ export type ReportRow = {
   size: string | null;
   stock: number;
   soldQuantity: number;
+  /** Unit weight in mg (null when the product has no weight set). */
+  weight: number | null;
+  /** Total weight sold in mg (quantity × unit weight). */
+  soldWeight: number;
   revenue: number;
   profit: number;
 };
@@ -223,10 +227,11 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
       sku: schema.products.sku,
       name: schema.products.name,
       stock: schema.products.stock,
+      weight: schema.products.weight,
       purchasePrice: schema.products.purchasePrice,
       lowStockThreshold: schema.products.lowStockThreshold,
-      colorName: schema.colors.name,
-      sizeName: schema.sizes.name,
+      colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
+      sizeName: sql<string | null>`${schema.sizes.name}`.as("size_name"),
     })
     .from(schema.products)
     .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
@@ -243,6 +248,7 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
       })
       .map((p) => {
         const sold = rows.find((r) => r.productId === p.id);
+        const soldQuantity = sold?.soldQuantity ?? 0;
         return {
           productId: p.id,
           productName: p.name,
@@ -250,9 +256,11 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
           color: p.colorName,
           size: p.sizeName,
           stock: p.stock,
-          soldQuantity: sold?.soldQuantity ?? 0,
+          weight: p.weight,
+          soldWeight: p.weight != null ? soldQuantity * p.weight : 0,
+          soldQuantity,
           revenue: sold?.revenue ?? 0,
-          profit: (sold?.revenue ?? 0) - (sold?.soldQuantity ?? 0) * p.purchasePrice,
+          profit: (sold?.revenue ?? 0) - soldQuantity * p.purchasePrice,
         };
       });
     title = type === "stock" ? "Product Stock Report" : "Low Stock Report";
@@ -262,6 +270,7 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
       .filter((r) => r.productId)
       .map((r) => {
         const p = r.productId ? productById.get(r.productId) : undefined;
+        const soldWeight = p?.weight != null ? r.soldQuantity * p.weight : 0;
         return {
           productId: r.productId,
           productName: r.productName,
@@ -269,6 +278,8 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
           color: p?.colorName ?? null,
           size: p?.sizeName ?? null,
           stock: p?.stock ?? 0,
+          weight: p?.weight ?? null,
+          soldWeight,
           soldQuantity: r.soldQuantity,
           revenue: r.revenue,
           profit: r.revenue - r.soldQuantity * (p?.purchasePrice ?? 0),
@@ -282,11 +293,12 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
     (acc, r) => {
       acc.stock += r.stock;
       acc.soldQuantity += r.soldQuantity;
+      acc.soldWeight += r.soldWeight;
       acc.revenue += r.revenue;
       acc.profit += r.profit;
       return acc;
     },
-    { stock: 0, soldQuantity: 0, revenue: 0, profit: 0 },
+    { stock: 0, soldQuantity: 0, soldWeight: 0, revenue: 0, profit: 0 },
   );
 
   return {
@@ -306,13 +318,14 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
 export function reportToCsv(report: {
   title: string;
   rows: ReportRow[];
-  totals: { stock: number; soldQuantity: number; revenue: number; profit: number };
+  totals: { stock: number; soldQuantity: number; soldWeight: number; revenue: number; profit: number };
 }): string {
-  const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Revenue", "Profit"];
+  const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (g)", "Revenue", "Profit"];
+  const g = (mg: number) => Math.round((mg / 1000) * 1000) / 1000;
   const lines = [
     header.join(","),
     ...report.rows.map((r) =>
-      [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, r.revenue, r.profit]
+      [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, g(r.soldWeight), r.revenue, r.profit]
         .map((v) => {
           const s = String(v);
           return `"${s.replace(/"/g, '""')}"`;

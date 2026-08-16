@@ -19,14 +19,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Package,
+  Tag,
+  Eye,
 } from "lucide-react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@munim/ui"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, BarcodeSvg } from "@munim/ui"
 
 
 
 
 import { StockBadge, EmptyState } from "@/components/app/shared"
-import { formatCurrency, formatDate } from "@/lib/format"
+import { formatCurrency, formatDate, formatWeight } from "@/lib/format"
 import type { Product } from "@/lib/types"
 
 type Props = {
@@ -35,6 +37,8 @@ type Props = {
   onAdjust: (product: Product) => void
   onDelete: (product: Product) => void
   onSell: (product: Product) => void
+  onPrintLabel: (product: Product) => void
+  onViewDetails: (product: Product) => void
   pagination?: {
     page: number
     pageSize: number
@@ -44,7 +48,7 @@ type Props = {
   onPageChange?: (page: number) => void
 }
 
-export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, pagination, onPageChange }: Props) {
+export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, onPrintLabel, onViewDetails, pagination, onPageChange }: Props) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }])
 
   const columns = React.useMemo<ColumnDef<Product>[]>(
@@ -78,9 +82,24 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, pa
               )}
               <div className="flex flex-col">
                 <span className="font-medium text-foreground">{p.name}</span>
-                <span className="text-xs text-muted-foreground">{p.sku}</span>
+                <span className="text-xs text-muted-foreground">
+                  {p.sku}
+                  {p.category ? ` · ${p.category}` : ""}
+                </span>
               </div>
             </div>
+          )
+        },
+      },
+      {
+        accessorKey: "barcode",
+        header: "Barcode",
+        cell: ({ row }) => {
+          const b = row.original.barcode
+          return b ? (
+            <BarcodeSvg value={b} height={30} scale={1} />
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
           )
         },
       },
@@ -92,6 +111,15 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, pa
           </button>
         ),
         cell: ({ row }) => <span>{row.original.color}</span>,
+      },
+      {
+        accessorKey: "weight",
+        header: "Weight",
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {formatWeight(row.original.weight)}
+          </span>
+        ),
       },
       {
         accessorKey: "size",
@@ -159,6 +187,9 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, pa
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => onViewDetails(p)}>
+                    <Eye className="mr-2 h-4 w-4" /> View details
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onEdit(p)}>
                     <Pencil className="mr-2 h-4 w-4" /> Edit product
                   </DropdownMenuItem>
@@ -167,6 +198,9 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, pa
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onSell(p)} disabled={p.stock <= 0}>
                     <ShoppingCart className="mr-2 h-4 w-4" /> Sell this item
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onPrintLabel(p)}>
+                    <Tag className="mr-2 h-4 w-4" /> Print label
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
@@ -182,7 +216,7 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, pa
         },
       },
     ],
-    [onEdit, onAdjust, onDelete, onSell]
+    [onEdit, onAdjust, onDelete, onSell, onPrintLabel, onViewDetails]
   )
 
   const table = useReactTable({

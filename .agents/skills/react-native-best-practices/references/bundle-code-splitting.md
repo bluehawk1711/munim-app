@@ -13,24 +13,25 @@ Harden remote JavaScript chunk loading when a React Native app already uses Re.P
 **Before (static import):**
 
 ```jsx
-import SettingsScreen from './screens/SettingsScreen';
+import SettingsScreen from "./screens/SettingsScreen";
 ```
 
 **After (lazy loaded chunk):**
 
 ```jsx
-const SettingsScreen = React.lazy(() =>
-  import(/* webpackChunkName: "settings" */ './screens/SettingsScreen')
+const SettingsScreen = React.lazy(
+  () => import(/* webpackChunkName: "settings" */ "./screens/SettingsScreen"),
 );
 
 <Suspense fallback={<Loading />}>
   <SettingsScreen />
-</Suspense>
+</Suspense>;
 ```
 
 ## When to Use
 
 Consider code splitting when:
+
 - **Not using Hermes** (JSC/V8 benefits more)
 - App size approaches app-store or base-module limits
 - The app already has a micro-frontend architecture
@@ -47,6 +48,7 @@ Do not recommend adopting Re.Pack for ordinary bundle-size work. Keep the defaul
 Chunks are executable application code. Prefer chunks packaged with the app or resolved from a release manifest produced by your CI. Hosted chunks are acceptable only when they are first-party release artifacts, not arbitrary runtime URLs.
 
 Keep these guardrails in place:
+
 - Serve chunks only from a first-party, HTTPS-only origin you control
 - Resolve `scriptId` through a fixed allowlist or signed release manifest
 - If using Re.Pack, enable code signing for remotely hosted chunks and use strict signature verification in production
@@ -67,18 +69,18 @@ If the project does not already use Re.Pack, do not start here. First confirm Me
 
 ```tsx
 // BEFORE: Static import
-import SettingsScreen from './screens/SettingsScreen';
+import SettingsScreen from "./screens/SettingsScreen";
 
 // AFTER: Dynamic import (creates split point)
-const SettingsScreen = React.lazy(() =>
-  import(/* webpackChunkName: "settings" */ './screens/SettingsScreen')
+const SettingsScreen = React.lazy(
+  () => import(/* webpackChunkName: "settings" */ "./screens/SettingsScreen"),
 );
 ```
 
 ### 2. Wrap with Suspense
 
 ```tsx
-import React, { Suspense } from 'react';
+import React, { Suspense } from "react";
 
 const App = () => {
   return (
@@ -93,11 +95,11 @@ const App = () => {
 
 ```jsx
 // index.js (before AppRegistry)
-import { ScriptManager, Script } from '@callstack/repack/client';
+import { ScriptManager, Script } from "@callstack/repack/client";
 
 const RELEASE_CHUNKS = Object.freeze({
   settings: {
-    release: '42',
+    release: "42",
   },
 });
 
@@ -117,9 +119,9 @@ ScriptManager.shared.addResolver(async (scriptId) => {
 
   return {
     url: Script.getRemoteURL(
-      getFirstPartyChunkBaseURL(scriptId, chunk.release)
+      getFirstPartyChunkBaseURL(scriptId, chunk.release),
     ),
-    verifyScriptSignature: 'strict',
+    verifyScriptSignature: "strict",
   };
 });
 
@@ -147,6 +149,7 @@ if (LOCAL_CHUNKS.has(scriptId)) {
 ### 4. Build and Deploy Chunks
 
 Build generates:
+
 - `index.bundle` - Main bundle
 - `settings.chunk.bundle` - Lazy-loaded chunk
 
@@ -156,24 +159,21 @@ Remote chunks are written to `build/output/<platform>/remotes` by default. Deplo
 
 ```tsx
 // App.tsx
-import React, { Suspense, useState } from 'react';
-import { Button, View, ActivityIndicator } from 'react-native';
+import React, { Suspense, useState } from "react";
+import { Button, View, ActivityIndicator } from "react-native";
 
 // Lazy load heavy feature
-const HeavyFeature = React.lazy(() =>
-  import(/* webpackChunkName: "heavy-feature" */ './HeavyFeature')
+const HeavyFeature = React.lazy(
+  () => import(/* webpackChunkName: "heavy-feature" */ "./HeavyFeature"),
 );
 
 const App = () => {
   const [showFeature, setShowFeature] = useState(false);
-  
+
   return (
     <View>
-      <Button 
-        title="Load Feature" 
-        onPress={() => setShowFeature(true)} 
-      />
-      
+      <Button title="Load Feature" onPress={() => setShowFeature(true)} />
+
       {showFeature && (
         <Suspense fallback={<ActivityIndicator />}>
           <HeavyFeature />
@@ -190,9 +190,7 @@ Only use Module Federation when the app already has a micro-frontend architectur
 
 ```tsx
 // Host app loads remote module
-const RemoteModule = React.lazy(() =>
-  import('remote-app/Module')
-);
+const RemoteModule = React.lazy(() => import("remote-app/Module"));
 ```
 
 Federation increases the trust boundary. Keep the same first-party origin, release-manifest, code-signing, and allowlist rules as above.
@@ -200,7 +198,7 @@ Federation increases the trust boundary. Keep the same first-party origin, relea
 ## Caching Strategy
 
 ```tsx
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 ScriptManager.shared.setStorage(AsyncStorage);
 ```
@@ -209,16 +207,17 @@ Set storage before adding resolvers so Re.Pack can cache resolved script locator
 
 ## When NOT to Use
 
-| Scenario | Why Not |
-|----------|---------|
-| Using Hermes | mmap already efficient |
-| Small app | Overhead not worth it |
-| Simple navigation | Native navigation better |
-| Quick iteration needed | Added complexity |
+| Scenario               | Why Not                  |
+| ---------------------- | ------------------------ |
+| Using Hermes           | mmap already efficient   |
+| Small app              | Overhead not worth it    |
+| Simple navigation      | Native navigation better |
+| Quick iteration needed | Added complexity         |
 
 ## Hermes Memory Mapping
 
 Hermes reads bytecode lazily via mmap:
+
 - Only loads executed code into memory
 - No parse step needed
 - Code splitting provides marginal benefit
@@ -227,16 +226,16 @@ Hermes reads bytecode lazily via mmap:
 
 ```tsx
 // Check if chunk loaded correctly
-ScriptManager.shared.on('loading', (script) => {
+ScriptManager.shared.on("loading", (script) => {
   console.log(`Loading: ${script.scriptId}`);
 });
 
-ScriptManager.shared.on('loaded', (script) => {
+ScriptManager.shared.on("loaded", (script) => {
   console.log(`Loaded: ${script.scriptId}`);
 });
 
-ScriptManager.shared.on('error', (error) => {
-  console.error('Script loading failed:', error);
+ScriptManager.shared.on("error", (error) => {
+  console.error("Script loading failed:", error);
 });
 ```
 

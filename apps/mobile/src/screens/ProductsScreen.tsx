@@ -1,15 +1,35 @@
 import React, {useState} from 'react';
-import {FlatList, Image, Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
+import {
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import Animated, {FadeInUp} from 'react-native-reanimated';
-import {Search, X} from 'lucide-react-native';
+import {Search, X, ScanLine, Barcode} from 'lucide-react-native';
+import {SvgXml} from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
+import {CameraView, useCameraPermissions} from 'expo-camera';
+import * as Print from 'expo-print';
 import {
   listAllProducts,
   createProduct,
   updateProduct,
   adjustStock,
   deleteProduct,
+  backfillBarcodes,
+  findProductByBarcode,
+  getSettings,
   uploadImageToCloudinary,
+  barcodeSvg,
+  buildProductLabel,
+  renderLabelSheetHtml,
+  formatWeight,
   type ProductWithMeta,
 } from '@munim/core';
 import {getCore} from '../lib/core';
@@ -44,6 +64,13 @@ function toneFor(p: ProductWithMeta): 'success' | 'warning' | 'danger' | 'muted'
   return 'success';
 }
 
+/** Small barcode renderer — the SAME SVG string core generates for web/desktop. */
+function BarcodeChip({value}: {value: string}) {
+  const xml = React.useMemo(() => barcodeSvg(value, {showText: false, height: 36}), [value]);
+  if (!value) return null;
+  return <SvgXml xml={xml} width={150} height={40} />;
+}
+
 export function ProductsScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data, error, loading, reload} = useAsync(async () => listAllProducts(await getCore()), []);
@@ -54,6 +81,8 @@ export function ProductsScreen() {
   const [name, setName] = useState('');
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
+  const [category, setCategory] = useState('');
+  const [weight, setWeight] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [stock, setStock] = useState('0');
@@ -61,9 +90,23 @@ export function ProductsScreen() {
   const [sell, setSell] = useState('0');
   const [saving, setSaving] = useState(false);
 
+  // Camera scanning
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState('');
+  const [permission, requestPermission] = useCameraPermissions();
+
+  // Label printing
+  const [labelTarget, setLabelTarget] = useState<ProductWithMeta | null>(null);
+  const [labelOpen, setLabelOpen] = useState(false);
+  const [labelCopies, setLabelCopies] = useState(1);
+  const [labelBusy, setLabelBusy] = useState(false);
+
+  const [backfilling, setBackfilling] = useState(false);
+
   async function handlePickImage() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
+    const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!mediaPermission.granted) {
       errorFeedback();
       return;
     }
@@ -101,6 +144,8 @@ export function ProductsScreen() {
     setName('');
     setColor('');
     setSize('');
+    setCategory('');
+    setWeight('');
     setImageUrl('');
     setStock('0');
     setBuy('0');
@@ -118,6 +163,8 @@ export function ProductsScreen() {
     setName(p.name);
     setColor(p.colorName ?? '');
     setSize(p.sizeName ?? '');
+    setCategory(p.categoryName ?? '');
+    setWeight(p.weight != null ? String(p.weight) : '');
     setImageUrl(p.imageUrl ?? '');
     setStock(String(p.stock));
     setBuy(String(p.purchasePrice));
@@ -133,8 +180,11 @@ export function ProductsScreen() {
     try {
       const input = {
         name: name.trim(),
-        color: color.trim() || 'Standard',
+        // Empty color = no color (optional field).
+        color: color.trim() || undefined,
         size: size.trim() || 'Standard',
+        category: category.trim() || undefined,
+        weight: weight.trim() ? Math.max(0, Number(weight) || 0) : undefined,
         imageUrl: imageUrl.trim() || undefined,
         stock: Math.max(0, Number(stock) || 0),
         purchasePrice: Math.max(0, Number(buy) || 0),
@@ -192,16 +242,95 @@ export function ProductsScreen() {
     }
   }
 
+  async function handleBackfill() {
+    setBackfilling(true);
+    try {
+      await backfillBarcodes(await getCore());
+      successFeedback();
+      reload();
+    } catch {
+      errorFeedback();
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
+  async function handleScanDetected(code: string) {
+    if (scanning) return;
+    setScanning(true);
+    setScanMsg('');
+    try {
+      const product = await findProductByBarcode(await getCore(), code);
+      if (product) {
+        setScanOpen(false);
+        successFeedback();
+        openEdit(product);
+      } else {
+        errorFeedback();
+        setScanMsg(`No product with barcode ${code}`);
+      }
+    } catch {
+      errorFeedback();
+      setScanMsg('Lookup failed — check your database connection');
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  function openScan() {
+    setScanMsg('');
+    if (!permission?.granted) {
+      void requestPermission();
+    }
+    setScanOpen(true);
+  }
+
+  async function handleLabelShare() {
+    if (!labelTarget) return;
+    setLabelBusy(true);
+    try {
+      const settings = await getSettings(await getCore());
+      const label = buildProductLabel(
+        {
+          id: labelTarget.id,
+          name: labelTarget.name,
+          sku: labelTarget.sku,
+          barcode: labelTarget.barcode,
+          weight: labelTarget.weight,
+          sellingPrice: labelTarget.sellingPrice,
+          colorName: labelTarget.colorName,
+          sizeName: labelTarget.sizeName,
+          categoryName: labelTarget.categoryName,
+        },
+        {name: settings?.shopName ?? ''},
+      );
+      const html = renderLabelSheetHtml([label], {copies: labelCopies});
+      const {uri} = await Print.printToFileAsync({html, base64: false});
+      await Share.share({
+        url: uri,
+        message: `Label — ${labelTarget.name} (${labelTarget.sku})`,
+      });
+      setLabelOpen(false);
+    } catch {
+      errorFeedback();
+    } finally {
+      setLabelBusy(false);
+    }
+  }
+
   const query = search.trim().toLowerCase();
   const filtered = query
     ? (data ?? []).filter(
         p =>
           p.name.toLowerCase().includes(query) ||
           p.sku.toLowerCase().includes(query) ||
+          (p.barcode ?? '').toLowerCase().includes(query) ||
           (p.colorName ?? '').toLowerCase().includes(query) ||
           (p.sizeName ?? '').toLowerCase().includes(query),
       )
     : data;
+
+  const missingBarcodes = (data ?? []).some(p => !p.barcode);
 
   return (
     <Screen>
@@ -212,7 +341,7 @@ export function ProductsScreen() {
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search by name, SKU, color…"
+          placeholder="Search by name, SKU, barcode, color…"
           placeholderTextColor={colors.inputPlaceholder}
           autoCapitalize="none"
           autoCorrect={false}
@@ -227,7 +356,24 @@ export function ProductsScreen() {
             <X size={16} color={colors.muted} />
           </Pressable>
         ) : null}
+        <Pressable
+          onPress={openScan}
+          style={styles.scanButton}
+          accessibilityRole="button"
+          accessibilityLabel="Scan barcode">
+          <ScanLine size={18} color={colors.primary} />
+        </Pressable>
       </View>
+      {missingBarcodes ? (
+        <View style={{marginHorizontal: 16, marginBottom: 10}}>
+          <Button
+            title={backfilling ? 'Generating…' : 'Generate missing barcodes'}
+            variant="outline"
+            onPress={handleBackfill}
+            disabled={backfilling}
+          />
+        </View>
+      ) : null}
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
       ) : loading || !data ? (
@@ -256,13 +402,15 @@ export function ProductsScreen() {
                   <Text style={styles.name}>{item.name}</Text>
                   <Text style={styles.meta}>
                     {item.sku}
-                    {item.colorName || item.sizeName
-                      ? ` · ${[item.colorName, item.sizeName].filter(Boolean).join(' / ')}`
+                    {item.colorName || item.sizeName || item.categoryName
+                      ? ` · ${[item.colorName, item.sizeName, item.categoryName].filter(Boolean).join(' / ')}`
                       : ''}
+                    {item.weight != null ? ` · ${formatWeight(item.weight)}` : ''}
                   </Text>
                   <Text style={styles.meta}>
                     Buy {money(item.purchasePrice)} · Sell {money(item.sellingPrice)}
                   </Text>
+                  {item.barcode ? <BarcodeChip value={item.barcode} /> : null}
                 </View>
                 <View style={{alignItems: 'flex-end', gap: 6}}>
                   <Badge
@@ -271,16 +419,9 @@ export function ProductsScreen() {
                   />
                   <Text style={styles.stock}>{item.stock} in stock</Text>
                   <View style={styles.cardActions}>
+                    <Button title="Label" variant="outline" onPress={() => { setLabelTarget(item); setLabelCopies(1); setLabelOpen(true); }} />
                     <Button title="Edit" variant="outline" onPress={() => openEdit(item)} />
-                    <Button
-                      title="Adjust"
-                      variant="outline"
-                      onPress={() => {
-                        setAdjusting(item);
-                        setAdjustQty('');
-                        setAdjustReason('');
-                      }}
-                    />
+                    <Button title="Adjust" variant="outline" onPress={() => { setAdjusting(item); setAdjustQty(''); setAdjustReason(''); }} />
                     <Button title="Delete" variant="danger" onPress={() => handleDelete(item)} />
                   </View>
                 </View>
@@ -306,8 +447,10 @@ export function ProductsScreen() {
             <Text style={styles.imagePickerText}>{uploading ? 'Uploading…' : '+ Add product image'}</Text>
           )}
         </Pressable>
-        <Field label="Color" value={color} onChangeText={setColor} placeholder="Gold" />
+        <Field label="Color" value={color} onChangeText={setColor} placeholder="Gold (optional)" />
         <Field label="Size" value={size} onChangeText={setSize} placeholder="Standard" />
+        <Field label="Category" value={category} onChangeText={setCategory} placeholder="e.g. Jewellery (optional)" />
+        <Field label="Weight (mg)" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder="e.g. 24500 (24.5 g)" />
         <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
         <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
         <Field label="Sell price" value={sell} onChangeText={setSell} keyboardType="numeric" />
@@ -338,6 +481,60 @@ export function ProductsScreen() {
         />
         <Button title="Adjust" onPress={handleAdjust} />
       </ModalSheet>
+
+      <ModalSheet
+        visible={labelOpen}
+        title={`Print label — ${labelTarget?.name ?? ''}`}
+        onClose={() => setLabelOpen(false)}>
+        {labelTarget?.barcode ? <BarcodeChip value={labelTarget.barcode} /> : null}
+        <Text style={styles.meta}>
+          {labelTarget?.sku}
+          {labelTarget?.weight != null ? ` · ${formatWeight(labelTarget.weight)}` : ''}
+          {labelTarget ? ` · ₹${Number(labelTarget.sellingPrice).toFixed(2)}` : ''}
+        </Text>
+        <Field
+          label="Number of copies"
+          value={String(labelCopies)}
+          onChangeText={text => {
+            const n = Math.max(1, Math.min(100, Number(text) || 1));
+            setLabelCopies(n);
+          }}
+          keyboardType="numeric"
+        />
+        <Button
+          title={labelBusy ? 'Preparing PDF…' : 'Share label PDF'}
+          onPress={handleLabelShare}
+          loading={labelBusy}
+          disabled={!labelTarget}
+        />
+      </ModalSheet>
+
+      {/* Camera scanner — Scan → Detect → Find → Open */}
+      <Modal visible={scanOpen} animationType="slide" onRequestClose={() => setScanOpen(false)}>
+        <View style={styles.scanRoot}>
+          {permission?.granted ? (
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              barcodeScannerSettings={{barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr']}}
+              onBarcodeScanned={({data: barcodeData}) => void handleScanDetected(barcodeData)}>
+              <View style={styles.scanOverlay}>
+                <View style={styles.scanFrame} />
+                <Text style={styles.scanTitle}>Point at a product barcode</Text>
+                {scanMsg ? <Text style={styles.scanMsg}>{scanMsg}</Text> : null}
+                <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: 24}} />
+              </View>
+            </CameraView>
+          ) : (
+            <View style={styles.scanPerm}>
+              <Barcode size={40} color={colors.muted} />
+              <Text style={styles.scanTitle}>Camera permission needed to scan barcodes</Text>
+              <Button title="Allow camera" onPress={() => void requestPermission()} style={{marginTop: 12}} />
+              <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: 8}} />
+            </View>
+          )}
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -365,6 +562,7 @@ const makeStyles = () =>
     searchIcon: {marginRight: 8},
     searchInput: {flex: 1, fontSize: 14, color: colors.text, paddingVertical: 0},
     searchClear: {padding: 4},
+    scanButton: {padding: 4, marginLeft: 6},
     cardActions: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end'},
     imagePicker: {
       height: 96,
@@ -379,4 +577,17 @@ const makeStyles = () =>
     },
     imagePickerThumb: {width: '100%', height: '100%'},
     imagePickerText: {fontSize: 13, color: colors.muted, fontWeight: '600'},
+    scanRoot: {flex: 1, backgroundColor: '#000'},
+    scanOverlay: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24},
+    scanFrame: {
+      width: 260,
+      height: 160,
+      borderWidth: 3,
+      borderColor: colors.primary,
+      borderRadius: 16,
+      marginBottom: 20,
+    },
+    scanTitle: {fontSize: 15, fontWeight: '600', color: '#fff', textAlign: 'center'},
+    scanMsg: {fontSize: 13, color: '#fca5a5', marginTop: 10, textAlign: 'center'},
+    scanPerm: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32},
   });

@@ -37,11 +37,12 @@ export function CatalogScreen() {
   const {data, error, loading, reload} = useAsync(
     async () => {
       const db = await getCore();
-      const [colorItems, sizeItems] = await Promise.all([
+      const [colorItems, sizeItems, categoryItems] = await Promise.all([
         listCatalogItems(db, 'color'),
         listCatalogItems(db, 'size'),
+        listCatalogItems(db, 'category'),
       ]);
-      return {colors: colorItems, sizes: sizeItems};
+      return {colors: colorItems, sizes: sizeItems, categories: categoryItems};
     },
     [],
   );
@@ -116,7 +117,7 @@ export function CatalogScreen() {
 
   return (
     <Screen>
-      <Header title="Catalog" subtitle="Colors & sizes available for products" />
+      <Header title="Catalog" subtitle="Colors, sizes & categories available for products" />
 
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
@@ -157,12 +158,30 @@ export function CatalogScreen() {
               ))
             )}
           </Card>
+
+          <Section title="Categories" index={2} />
+          <Card>
+            {data.categories.length === 0 ? (
+              <Text style={styles.emptyRow}>No categories yet — add one below.</Text>
+            ) : (
+              data.categories.map(item => (
+                <CatalogRow
+                  key={item.id}
+                  kind="category"
+                  item={item}
+                  onRename={() => openRename('category', item)}
+                  onDelete={() => confirmDelete('category', item)}
+                />
+              ))
+            )}
+          </Card>
         </View>
       )}
 
       <Animated.View entering={FadeInUp.duration(320)} style={styles.fabRow}>
-        <Button title="+ Add color" variant="outline" style={styles.fabHalf} onPress={() => openAdd('color')} />
-        <Button title="+ Add size" style={styles.fabHalf} onPress={() => openAdd('size')} />
+        <Button title="+ Color" variant="outline" style={styles.fabHalf} onPress={() => openAdd('color')} />
+        <Button title="+ Size" variant="outline" style={styles.fabHalf} onPress={() => openAdd('size')} />
+        <Button title="+ Category" style={styles.fabHalf} onPress={() => openAdd('category')} />
       </Animated.View>
 
       <ModalSheet
@@ -173,7 +192,7 @@ export function CatalogScreen() {
           label="Name"
           value={name}
           onChangeText={setName}
-          placeholder={kindLabel === 'color' ? 'e.g. Midnight Blue' : 'e.g. 3XL'}
+          placeholder={kindLabel === 'color' ? 'e.g. Midnight Blue' : kindLabel === 'size' ? 'e.g. 3XL' : 'e.g. Jewellery'}
           style={{marginBottom: 16}}
         />
         <Button

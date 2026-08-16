@@ -14,6 +14,7 @@ import {
   Loader2,
   RefreshCw,
   TrendingUp,
+  Weight,
 } from "lucide-react"
 import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, Badge, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
 
@@ -27,7 +28,7 @@ import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDes
 import { useReport } from "@/hooks/use-dashboard"
 import { exportReportToExcel, exportReportToPdf } from "@/lib/export"
 import { reportToCsv } from "@munim/core"
-import { formatCurrency, formatNumber, formatDateTime } from "@/lib/format"
+import { formatCurrency, formatNumber, formatDateTime, formatWeight } from "@/lib/format"
 import type { ReportType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
@@ -219,13 +220,14 @@ export function ReportsView() {
                         <TableHead className="text-xs">Size</TableHead>
                         <TableHead className="text-right text-xs">Stock</TableHead>
                         <TableHead className="text-right text-xs">Sold Qty</TableHead>
+                        <TableHead className="text-right text-xs">Sold Wt</TableHead>
                         <TableHead className="text-right text-xs">Revenue</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {report.rows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                             No data for this report in the selected period.
                           </TableCell>
                         </TableRow>
@@ -238,6 +240,7 @@ export function ReportsView() {
                             <TableCell>{r.size}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(r.stock)}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(r.soldQuantity)}</TableCell>
+                            <TableCell className="text-right tabular-nums">{r.soldWeight > 0 ? formatWeight(r.soldWeight) : "—"}</TableCell>
                             <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(r.revenue)}</TableCell>
                           </TableRow>
                         ))
@@ -249,9 +252,10 @@ export function ReportsView() {
                 {report.rows.length > 0 && (
                   <>
                     <Separator />
-                    <div className="grid gap-3 p-4 sm:grid-cols-3">
+                    <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
                       <TotalCard label="Total Stock" value={formatNumber(report.totals.stock)} icon={Package} />
                       <TotalCard label="Total Sold" value={formatNumber(report.totals.soldQuantity)} icon={ShoppingCart} />
+                      <TotalCard label="Weight Sold" value={report.totals.soldWeight > 0 ? formatWeight(report.totals.soldWeight) : "—"} icon={Weight} />
                       <TotalCard label="Total Revenue" value={formatCurrency(report.totals.revenue)} icon={TrendingUp} accent />
                     </div>
                   </>

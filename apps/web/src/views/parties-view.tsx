@@ -70,22 +70,24 @@ export function PartiesView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex w-full flex-col gap-2">
           <div className="relative w-full sm:max-w-xs">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone…" className="h-9 pl-9" />
           </div>
-          <Select value={type} onValueChange={setType}>
-            <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All types</SelectItem>
-              <SelectItem value="CUSTOMER">Customers</SelectItem>
-              <SelectItem value="SUPPLIER">Suppliers</SelectItem>
-              <SelectItem value="WORKER">Workers</SelectItem>
-              <SelectItem value="OTHER">Other</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="CUSTOMER">Customers</SelectItem>
+                <SelectItem value="SUPPLIER">Suppliers</SelectItem>
+                <SelectItem value="WORKER">Workers</SelectItem>
+                <SelectItem value="OTHER">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <Button onClick={() => setCreateOpen(true)} className="h-9 gap-1.5">
           <Plus className="h-4 w-4" /> Add Party

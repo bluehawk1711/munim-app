@@ -26,6 +26,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         sku: string;
         name: string;
         barcode: string | null;
+        weight: number | null;
         imageUrl: string | null;
         stock: number;
         purchasePrice: number;
@@ -53,6 +54,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     sku: string;
     name: string;
     barcode: string | null;
+    weight: number | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -68,10 +70,14 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
 export declare function listAllProducts(db: DbClient): Promise<ProductWithMeta[]>;
 export type ProductInput = {
     name: string;
-    color: string;
+    /** Optional — empty/absent means the product has no color. */
+    color?: string;
     size: string;
     category?: string;
+    /** Barcode value. `undefined` → keep existing (edit); `""` → clear; else set. */
     barcode?: string;
+    /** Weight in milligrams (mg). */
+    weight?: number;
     imageUrl?: string;
     stock?: number;
     purchasePrice?: number;
@@ -92,6 +98,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     sku: string;
     name: string;
     barcode: string | null;
+    weight: number | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -112,6 +119,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     sku: string;
     name: string;
     barcode: string | null;
+    weight: number | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -139,6 +147,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     sku: string;
     name: string;
     barcode: string | null;
+    weight: number | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -162,6 +171,42 @@ export declare function listStockMovements(db: DbClient, productId?: string, lim
     note: string | null;
     createdAt: Date;
 }[]>;
+/**
+ * Fast exact barcode lookup — the shop-counter path. Indexed on
+ * products.barcode; returns the product (with color/size/category names) or
+ * null. Use for scanner hits and exact-match search before falling back to
+ * fuzzy name/SKU search.
+ */
+export declare function findProductByBarcode(db: DbClient, barcode: string): Promise<{
+    colorName: string | null;
+    sizeName: string | null;
+    categoryName: string | null;
+    id: string;
+    sku: string;
+    name: string;
+    barcode: string | null;
+    weight: number | null;
+    imageUrl: string | null;
+    stock: number;
+    purchasePrice: number;
+    sellingPrice: number;
+    notes: string | null;
+    lowStockThreshold: number;
+    colorId: string | null;
+    sizeId: string | null;
+    categoryId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+} | null>;
+/**
+ * Assigns a generated EAN-13 barcode to every product that doesn't have one.
+ * Safe backfill for existing data — never touches products that already have
+ * a barcode. Returns how many were updated.
+ */
+export declare function backfillBarcodes(db: DbClient): Promise<{
+    updated: number;
+    total: number;
+}>;
 export declare function seedProducts(db: DbClient): Promise<{
     success: boolean;
     count: number;

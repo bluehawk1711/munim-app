@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Palette, Ruler, Plus, Pencil, Trash2, Package } from "lucide-react";
+import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Package } from "lucide-react";
 import {
   listCatalogItems,
   createCatalogItem,
@@ -143,8 +143,12 @@ export function CatalogPage() {
   const { data, error, loading, reload } = useAsync(
     async () => {
       const db = getCore();
-      const [colors, sizes] = await Promise.all([listCatalogItems(db, "color"), listCatalogItems(db, "size")]);
-      return { colors, sizes };
+      const [colors, sizes, categories] = await Promise.all([
+        listCatalogItems(db, "color"),
+        listCatalogItems(db, "size"),
+        listCatalogItems(db, "category"),
+      ]);
+      return { colors, sizes, categories };
     },
     [],
   );
@@ -204,7 +208,7 @@ export function CatalogPage() {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <CatalogCard
           kind="color"
           icon={Palette}
@@ -231,6 +235,19 @@ export function CatalogPage() {
           onRename={(item) => openRename("size", item)}
           onDelete={(item) => handleDelete("size", item)}
         />
+        <CatalogCard
+          kind="category"
+          icon={FolderTree}
+          title="Categories"
+          description="Product categories — e.g. Jewellery, Apparel"
+          items={data?.categories ?? null}
+          loading={loading}
+          error={error}
+          onReload={reload}
+          onAdd={() => openAdd("category")}
+          onRename={(item) => openRename("category", item)}
+          onDelete={(item) => handleDelete("category", item)}
+        />
       </div>
 
       <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>
@@ -252,7 +269,9 @@ export function CatalogPage() {
                 id="catalog-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder={dialog?.kind === "color" ? "e.g. Midnight Blue" : "e.g. 3XL"}
+                placeholder={
+                  dialog?.kind === "color" ? "e.g. Midnight Blue" : dialog?.kind === "size" ? "e.g. 3XL" : "e.g. Jewellery"
+                }
                 autoFocus
                 maxLength={40}
               />

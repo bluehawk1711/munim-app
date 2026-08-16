@@ -1,6 +1,6 @@
 import React, {useState} from 'react';
 import {ScrollView, Share, StyleSheet, Text, View} from 'react-native';
-import {getReport, reportToCsv, type ReportType} from '@munim/core';
+import {getReport, reportToCsv, formatWeight, type ReportType} from '@munim/core';
 import {getCore} from '../lib/core';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
@@ -130,6 +130,7 @@ export function ReportsScreen() {
                       <Text style={styles.revenue}>{money(r.revenue)}</Text>
                       <Text style={styles.meta}>
                         {r.stock} stock · {r.soldQuantity} sold
+                        {r.soldWeight > 0 ? ` · ${formatWeight(r.soldWeight)}` : ''}
                       </Text>
                       <Text style={[styles.meta, {color: r.profit < 0 ? colors.danger : colors.success}]}>
                         Profit {money(r.profit)}
@@ -149,6 +150,10 @@ export function ReportsScreen() {
                   <Text style={styles.totalValue}>{money(report.totals.profit)}</Text>
                   <Text style={styles.totalLabel}>Items sold</Text>
                   <Text style={styles.totalValue}>{report.totals.soldQuantity}</Text>
+                  <Text style={styles.totalLabel}>Weight sold</Text>
+                  <Text style={styles.totalValue}>
+                    {report.totals.soldWeight > 0 ? formatWeight(report.totals.soldWeight) : '—'}
+                  </Text>
                 </View>
               </Card>
             ) : null}

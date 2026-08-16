@@ -11,8 +11,10 @@ import {
   ShoppingCart,
   Download,
   FileSpreadsheet,
+  Barcode,
 } from "lucide-react"
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, Skeleton, Badge } from "@munim/ui"
+import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, Skeleton, Badge, BarcodeLookupInput, LabelPrintDialog, ProductDetailsDialog } from "@munim/ui"
+import { buildProductLabel, type ProductLabel } from "@munim/core"
 
 
 
@@ -24,10 +26,14 @@ import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { setPendingSellProduct } from "@/lib/pending-sell"
-import { useProducts, useSeedProducts } from "@/hooks/use-products"
+import { useProducts, useSeedProducts, useBackfillBarcodes } from "@/hooks/use-products"
+import { useSettings } from "@/hooks/use-settings"
 import { useProductMeta } from "@/hooks/use-meta"
 import { useAppStore } from "@/store/view-store"
 import { exportProductsToExcel, exportProductsToCsv } from "@/lib/export"
+import { downloadLabelPdf, printLabelHtml } from "@/lib/label-pdf"
+import { formatCurrency, formatDate, formatWeight } from "@/lib/format"
+import { apiFetch } from "@/lib/api-client"
 import type { Product, StockStatus } from "@/lib/types"
 import { toast } from "sonner"
 
@@ -80,9 +86,15 @@ export function ProductsView() {
   const [adjustOpen, setAdjustOpen] = React.useState(false)
   const [deleting, setDeleting] = React.useState<Product | null>(null)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
+  const [labelTarget, setLabelTarget] = React.useState<Product | null>(null)
+  const [labelOpen, setLabelOpen] = React.useState(false)
+  const [labelCopies, setLabelCopies] = React.useState(1)
+  const [detailsProduct, setDetailsProduct] = React.useState<Product | null>(null)
 
   const { data: meta } = useProductMeta()
+  const { data: settings } = useSettings()
   const seed = useSeedProducts()
+  const backfill = useBackfillBarcodes()
 
   const filters = {
     search: globalSearch,
@@ -132,6 +144,78 @@ export function ProductsView() {
     setSellDialogOpen(true)
   }
 
+  function openLabelDialog(p: Product) {
+    setLabelTarget(p)
+    setLabelCopies(1)
+    setLabelOpen(true)
+  }
+
+  function openDetails(p: Product) {
+    setDetailsProduct(p)
+  }
+
+  /** Shop-counter path: exact barcode lookup (indexed) → open the product. */
+  async function handleBarcodeLookup(code: string) {
+    const product = await apiFetch<Product>(
+      `/api/products/lookup?barcode=${encodeURIComponent(code)}`,
+    )
+    handleEdit(product)
+    toast.success(`Found ${product.name}`)
+  }
+
+  async function handleBackfill() {
+    try {
+      const r = await backfill.mutateAsync()
+      if (r.updated === 0) {
+        toast.info("All products already have barcodes")
+      } else {
+        toast.success(`Generated ${r.updated} barcode${r.updated !== 1 ? "s" : ""}`)
+      }
+    } catch (err) {
+      toast.error("Backfill failed", { description: err instanceof Error ? err.message : undefined })
+    }
+  }
+
+  const labelLabels = React.useMemo<ProductLabel[]>(
+    () =>
+      labelTarget
+        ? [
+            buildProductLabel(
+              {
+                id: labelTarget.id,
+                name: labelTarget.name,
+                sku: labelTarget.sku,
+                barcode: labelTarget.barcode,
+                weight: labelTarget.weight,
+                sellingPrice: labelTarget.sellingPrice,
+                colorName: labelTarget.color || null,
+                sizeName: labelTarget.size || null,
+                categoryName: labelTarget.category ?? null,
+              },
+              { name: settings?.shopName ?? "" },
+            ),
+          ]
+        : [],
+    [labelTarget, settings],
+  )
+
+  function handleLabelPrint(html: string) {
+    setLabelOpen(false)
+    printLabelHtml(html)
+  }
+
+  async function handleLabelDownload(html: string) {
+    setLabelOpen(false)
+    try {
+      await downloadLabelPdf(html)
+      toast.success("Label PDF downloaded")
+    } catch (err) {
+      toast.error("PDF failed", { description: err instanceof Error ? err.message : undefined })
+    }
+  }
+
+  const missingBarcodes = products.some((p) => !p.barcode)
+
   async function handleExportExcel() {
     if (!products || products.length === 0) {
       toast.error("Nothing to export", { description: "No products match the current filters." })
@@ -160,20 +244,28 @@ export function ProductsView() {
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              placeholder="Search by name, SKU, color…"
-              className="h-9 pl-9"
-              aria-label="Search products"
+      {/* Toolbar — search on row 1, filters on row 2, actions right */}
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex w-full flex-col gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={globalSearch}
+                onChange={(e) => setGlobalSearch(e.target.value)}
+                placeholder="Search by name, SKU, barcode, color…"
+                className="h-9 pl-9"
+                aria-label="Search products"
+              />
+            </div>
+            {/* Scanner-friendly input: USB barcode scanners type here + Enter. */}
+            <BarcodeLookupInput
+              onLookup={handleBarcodeLookup}
+              className="w-full sm:max-w-[240px]"
+              autoFocus={false}
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
             <Select value={color} onValueChange={changeColor}>
               <SelectTrigger className="h-9 w-[130px]" aria-label="Filter by color">
                 <SelectValue placeholder="Color" />
@@ -215,7 +307,12 @@ export function ProductsView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {missingBarcodes && (
+            <Button variant="outline" size="sm" onClick={handleBackfill} disabled={backfill.isPending} className="h-9 gap-1.5">
+              <Barcode className="h-4 w-4" /> {backfill.isPending ? "Generating…" : "Generate barcodes"}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleExportCsv} className="h-9 gap-1.5">
             <Download className="h-4 w-4" /> CSV
           </Button>
@@ -283,14 +380,33 @@ export function ProductsView() {
           onAdjust={handleAdjust}
           onDelete={handleDelete}
           onSell={handleSell}
+          onPrintLabel={openLabelDialog}
+          onViewDetails={openDetails}
           pagination={pagination}
           onPageChange={handlePageChange}
         />
       )}
 
+      <ProductDetailsDialog
+        open={detailsProduct !== null}
+        onOpenChange={(open) => !open && setDetailsProduct(null)}
+        product={detailsProduct}
+        formatCurrency={formatCurrency}
+        formatWeight={formatWeight}
+        formatDate={formatDate}
+      />
       <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} product={editing} />
       <StockAdjustmentDialog open={adjustOpen} onOpenChange={setAdjustOpen} product={adjusting} />
       <DeleteProductDialog open={deleteOpen} onOpenChange={setDeleteOpen} product={deleting} />
+      <LabelPrintDialog
+        open={labelOpen}
+        onOpenChange={setLabelOpen}
+        labels={labelLabels}
+        copies={labelCopies}
+        onCopiesChange={setLabelCopies}
+        onPrint={handleLabelPrint}
+        onDownloadPdf={handleLabelDownload}
+      />
     </div>
   )
 }

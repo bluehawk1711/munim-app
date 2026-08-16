@@ -12,7 +12,7 @@ import type { DbClient } from "../db/client";
  *
  * All mutations write an activity log so the trail is consistent everywhere.
  */
-export type CatalogKind = "color" | "size";
+export type CatalogKind = "color" | "size" | "category";
 export type CatalogItem = {
     id: string;
     name: string;

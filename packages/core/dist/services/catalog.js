@@ -1,14 +1,28 @@
 import { count, desc, eq, sql } from "drizzle-orm";
 import * as schema from "../db/schema";
 import { logActivity } from "./activity";
-import { addColor, addSize, ProductError } from "./products";
+import { addColor, addSize, addCategory, ProductError } from "./products";
 function tableFor(kind) {
-    return kind === "color" ? schema.colors : schema.sizes;
+    if (kind === "color")
+        return schema.colors;
+    if (kind === "size")
+        return schema.sizes;
+    return schema.categories;
 }
 function fkFor(kind) {
-    return kind === "color" ? schema.products.colorId : schema.products.sizeId;
+    if (kind === "color")
+        return schema.products.colorId;
+    if (kind === "size")
+        return schema.products.sizeId;
+    return schema.products.categoryId;
 }
-const LABELS = { color: "color", size: "size" };
+const LABELS = { color: "color", size: "size", category: "category" };
+/** activity log action prefix per kind (COLOR_/SIZE_/CATEGORY_) */
+const ACTIONS = {
+    color: "COLOR",
+    size: "SIZE",
+    category: "CATEGORY",
+};
 export async function listCatalogItems(db, kind) {
     const table = tableFor(kind);
     const fk = fkFor(kind);
@@ -51,7 +65,7 @@ async function getCatalogItem(db, kind, id) {
 }
 export async function createCatalogItem(db, kind, name) {
     const trimmed = name.trim();
-    const row = kind === "color" ? await addColor(db, trimmed) : await addSize(db, trimmed);
+    const row = kind === "color" ? await addColor(db, trimmed) : kind === "size" ? await addSize(db, trimmed) : await addCategory(db, trimmed);
     if (!row)
         throw new ProductError(`Failed to create ${LABELS[kind]}`, "CREATE_FAILED", 500);
     return { id: row.id, name: row.name, createdAt: row.createdAt.toISOString(), productCount: 0 };
@@ -68,7 +82,7 @@ export async function renameCatalogItem(db, kind, id, name) {
         throw new ProductError(`${label} "${trimmed}" already exists`, "DUPLICATE", 409);
     }
     await db.update(table).set({ name: trimmed }).where(eq(table.id, id));
-    await logActivity(db, kind === "color" ? "COLOR_RENAMED" : "SIZE_RENAMED", `Renamed ${label} "${existing[0].name}" → "${trimmed}"`);
+    await logActivity(db, `${ACTIONS[kind]}_RENAMED`, `Renamed ${label} "${existing[0].name}" → "${trimmed}"`);
     const updated = await getCatalogItem(db, kind, id);
     if (!updated)
         throw new ProductError(`${label} not found`, "NOT_FOUND", 404);
@@ -89,7 +103,7 @@ export async function deleteCatalogItem(db, kind, id) {
         throw new ProductError(`Cannot delete "${existing[0].name}" — it is used by ${inUse[0]?.count} product(s).`, "IN_USE", 400);
     }
     await db.delete(table).where(eq(table.id, id));
-    await logActivity(db, kind === "color" ? "COLOR_DELETED" : "SIZE_DELETED", `Deleted ${label} "${existing[0].name}"`);
+    await logActivity(db, `${ACTIONS[kind]}_DELETED`, `Deleted ${label} "${existing[0].name}"`);
     return { success: true };
 }
 //# sourceMappingURL=catalog.js.map

@@ -138,7 +138,8 @@ async function run() {
   });
 
     // ── products & stock ──
-    await test("createProduct", async () => {
+    let createdBarcode = null;
+    await test("createProduct (auto barcode + weight)", async () => {
     const p = await core.createProduct(db, {
       name: productName,
       color,
@@ -149,9 +150,30 @@ async function run() {
       sellingPrice: 800,
       lowStockThreshold: 3,
       notes: "smoke",
+      weight: 24500,
     });
     productId = p.id;
-    return `sku=${p.sku}`;
+    createdBarcode = p.barcode;
+    const ok =
+      p.barcode &&
+      /^\d{13}$/.test(p.barcode) &&
+      core.isEan13(p.barcode) &&
+      p.weight === 24500;
+    return `sku=${p.sku} barcode=${p.barcode} ean13=${ok ? "valid" : "INVALID"} weight=${p.weight}`;
+  });
+  await test("findProductByBarcode", async () => {
+    if (!productId || !createdBarcode) return "skipped";
+    const p = await core.findProductByBarcode(db, createdBarcode);
+    return p ? `found ${p.name}` : "NOT FOUND";
+  });
+  await test("backfillBarcodes", async () => {
+    if (!productId) return "skipped";
+    // Manually null the barcode to simulate a pre-barcode product.
+    await db.update(schema.products).set({ barcode: null }).where(eq(schema.products.id, productId));
+    const r = await core.backfillBarcodes(db);
+    const after = await core.getProduct(db, productId);
+    const ok = r.updated >= 1 && after?.barcode && core.isEan13(after.barcode);
+    return `updated=${r.updated} assigned=${ok ? "valid EAN-13" : "FAILED"}`;
   });
   await test("listProducts", () => core.listProducts(db, { search: productName.slice(0, 12) }).then((r) => `${r.products.length} hit(s)`));
   await test("getProduct", async () => (productId ? core.getProduct(db, productId).then((p) => `${p?.name}`) : "skipped"));
@@ -165,7 +187,8 @@ async function run() {
   await test("updateProduct", async () => {
     if (!productId) return "skipped";
     const p = await core.updateProduct(db, productId, { name: productName, color, size, sellingPrice: 950 });
-    return `price=${p.sellingPrice}`;
+    // update omits `barcode` → must be preserved (not wiped).
+    return `price=${p.sellingPrice} barcode-kept=${p.barcode ? "yes" : "WIPED"}`;
   });
   await test("seedProducts", async () => {
     // No-op guard on a non-empty DB (returns success:false); on an empty
@@ -223,7 +246,16 @@ async function run() {
     invoiceId = inv.id;
     return `no=${inv.invoiceNumber} total=${inv.total}`;
   });
-  await test("listInvoices", () => core.listInvoices(db, { search: partyName.slice(0, 12) }).then((r) => `${r.invoices.length} invoice(s)`));
+  await test("listInvoices (with items)", async () => {
+    // Regression guard: the items lookup must attach real rows. A previous bug
+    // (sql`…in (${chunks.join(", ")})`) silently produced `in ($1)` with a
+    // single mangled param, so items came back EMPTY while the DB had them.
+    const r = await core.listInvoices(db, { search: partyName.slice(0, 12) });
+    const inv = r.invoices[0];
+    const item = inv?.items?.[0];
+    const ok = !!inv && !!item && item.productName === productName;
+    return `${r.invoices.length} invoice(s), items=${inv?.items?.length ?? 0}, product=${item?.productName ?? "NONE"} ${ok ? "ok" : "ITEMS MISSING"}`;
+  });
   await test("getInvoice", () => (invoiceId ? core.getInvoice(db, invoiceId).then((i) => `${i?.items.length} item(s)`) : "skipped"));
   await test("recordInvoicePayment", () => (invoiceId ? core.recordInvoicePayment(db, invoiceId, { amount: 200, method: "upi" }).then((i) => `status=${i.status} paid=${i.amountPaid}`) : "skipped"));
   await test("deleteInvoice", async () => {
@@ -250,6 +282,12 @@ async function run() {
     await test("getDashboard", () => core.getDashboard(db).then((d) => `revenue=${d.totalRevenue}, recv=${d.receivables}`));
     await test("getReport monthly", () => core.getReport(db, "monthly").then((r) => `rows=${r.rows?.length ?? 0}`));
     await test("getReport stock", () => core.getReport(db, "stock").then((r) => `rows=${r.rows?.length ?? 0}`));
+    await test("getReport weight fields", async () => {
+      const r = await core.getReport(db, "monthly");
+      const hasSoldWeight = typeof r.totals?.soldWeight === "number";
+      const hasRowWeight = r.rows.every((row) => "weight" in row && "soldWeight" in row);
+      return `totals.soldWeight=${r.totals?.soldWeight} rows=${hasRowWeight ? "weighted" : "MISSING"} ${hasSoldWeight ? "ok" : "MISSING TOTAL"}`;
+    });
 
     // ── billing (pure logic, no DB) ──
     await test("amountInWords", () => `₹${core.amountInWords(12345.6)}`);
@@ -287,6 +325,84 @@ async function run() {
         html.includes("Discount") &&
         html.includes("TOTAL");
       return ok ? "has billNo + totals + discount" : "MISSING elements";
+    });
+    // ── barcodes (pure logic, no DB) ──
+    await test("ean13CheckDigit known vectors", () => {
+      const ok =
+        core.ean13CheckDigit("590123412345") === 7 &&
+        core.ean13CheckDigit("400638133393") === 1 &&
+        core.ean13CheckDigit("200000000000") === 8;
+      return ok ? "5901234123457 / 4006381333931 / 2000000000008" : "CHECK DIGIT WRONG";
+    });
+    await test("isEan13", () => {
+      const ok =
+        core.isEan13("5901234123457") &&
+        !core.isEan13("5901234123458") &&
+        !core.isEan13("ABC123") &&
+        !core.isEan13("590123412345") &&
+        !core.isEan13("59012341234571");
+      return ok ? "valid + invalid rejected" : "EAN-13 VALIDATOR FAILED";
+    });
+    await test("generateEan13", async () => {
+      const seen = new Set();
+      for (let i = 0; i < 5; i++) {
+        const code = await core.generateEan13(async (c) => seen.has(c));
+        if (!core.isEan13(code)) return "GENERATED INVALID";
+        seen.add(code);
+      }
+      return `${seen.size} unique valid codes`;
+    });
+    await test("barcodeSvg EAN-13", () => {
+      const svg = core.barcodeSvg("5901234123457", { scale: 2 });
+      const ok =
+        svg.startsWith("<svg") &&
+        svg.includes("<rect") &&
+        svg.includes("width=\"190\"") && // 95 modules × scale 2
+        svg.includes("5901234123457");
+      return ok ? "95-module EAN-13 svg" : "EAN SVG MISSING ELEMENTS";
+    });
+    await test("barcodeSvg Code 39 fallback", () => {
+      const svg = core.barcodeSvg("MUNIM-123", { scale: 1 });
+      const ok = svg.startsWith("<svg") && svg.includes("<rect") && svg.includes("MUNIM-123");
+      return ok ? "code39 svg rendered" : "CODE39 SVG FAILED";
+    });
+    await test("formatWeight", () => {
+      const ok =
+        core.formatWeight(350) === "350 mg" &&
+        core.formatWeight(24500) === "24.5 g" &&
+        core.formatWeight(1500000) === "1.5 kg" &&
+        core.formatWeight(null) === "—";
+      return ok ? "mg/g/kg + empty" : "FORMAT WRONG";
+    });
+    await test("buildProductLabel", () => {
+      const label = core.buildProductLabel(
+        { id: "p1", name: "Gold Bangle <Heavy>", sku: "PRD-ABC123", barcode: "5901234123457", weight: 24500, sellingPrice: 1200, colorName: "Gold", sizeName: "M", categoryName: "Jewellery" },
+        { name: "Munim Shop" },
+      );
+      const ok = label.productName === "Gold Bangle <Heavy>" && label.weightMg === 24500 && label.shopName === "Munim Shop";
+      return ok ? "label built from product row" : "LABEL BUILD FAILED";
+    });
+    await test("renderLabelSheetHtml", () => {
+      const label = core.buildProductLabel(
+        { id: "p1", name: "Gold Bangle", sku: "PRD-ABC123", barcode: "5901234123457", weight: 24500, sellingPrice: 1200, colorName: "Gold", sizeName: "M", categoryName: "Jewellery" },
+        { name: "Munim Shop" },
+      );
+      const html = core.renderLabelSheetHtml([label], { copies: 2 });
+      const ok =
+        html.startsWith("<!DOCTYPE html>") &&
+        html.includes("24.5 g") &&
+        html.includes("PRD-ABC123") &&
+        html.includes("<svg") &&
+        (html.match(/class=\"label\"/g) ?? []).length >= 2 &&
+        html.includes("@page");
+      return ok ? "24-up sheet with barcode + 2 copies" : "LABEL HTML FAILED";
+    });
+    await test("renderLabelMarkup no-barcode", () => {
+      const label = core.buildProductLabel(
+        { id: "p1", name: "No Code Item", sku: "PRD-X", barcode: null, weight: null, sellingPrice: 50 },
+        { name: "S" },
+      );
+      return core.renderLabelMarkup(label).includes("NO BARCODE") ? "graceful no-barcode fallback" : "MISSING NO-BARCODE TEXT";
     });
     await test("renderJobLetterHtml", () => {
       const html = core.renderJobLetterHtml({

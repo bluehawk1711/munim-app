@@ -14,7 +14,9 @@ Replace ScrollView with FlatList, FlashList, or Legend List for performant large
 
 ```jsx
 <ScrollView>
-  {items.map((item) => <Item key={item.id} {...item} />)}
+  {items.map((item) => (
+    <Item key={item.id} {...item} />
+  ))}
 </ScrollView>
 ```
 
@@ -73,7 +75,7 @@ Large eager lists mount every row immediately, increasing JS work, native view c
 ### 2. Replace with FlatList
 
 ```jsx
-import { FlatList } from 'react-native';
+import { FlatList } from "react-native";
 
 const BetterList = ({ items }) => {
   const renderItem = ({ item }) => (
@@ -81,7 +83,7 @@ const BetterList = ({ items }) => {
       <Text>{item.title}</Text>
     </View>
   );
-  
+
   return (
     <FlatList
       data={items}
@@ -107,13 +109,13 @@ const OptimizedList = ({ items }) => {
       <Text>{item.title}</Text>
     </View>
   );
-  
+
   const getItemLayout = (_, index) => ({
     length: ITEM_HEIGHT,
     offset: ITEM_HEIGHT * index,
     index,
   });
-  
+
   return (
     <FlatList
       data={items}
@@ -132,7 +134,7 @@ npm install @shopify/flash-list
 ```
 
 ```jsx
-import { FlashList } from '@shopify/flash-list';
+import { FlashList } from "@shopify/flash-list";
 
 const BestList = ({ items }) => {
   const renderItem = ({ item }) => (
@@ -140,7 +142,7 @@ const BestList = ({ items }) => {
       <Text>{item.title}</Text>
     </View>
   );
-  
+
   return (
     <FlashList
       data={items}
@@ -154,6 +156,7 @@ const BestList = ({ items }) => {
 For FlashList v1, add `estimatedItemSize` with a realistic average item height. FlashList v2 requires React Native New Architecture and no longer needs size estimates; it computes sizing automatically. For old architecture apps, use FlashList v1 docs or evaluate Legend List.
 
 **FlashList advantages:**
+
 - Recycles views instead of creating new ones
 - Often improves memory and scroll smoothness for large, complex lists
 - Supports item-type-aware recycling with `getItemType`
@@ -172,11 +175,11 @@ Enable `recycleItems` for long lists after confirming item components do not kee
 <FlashList
   data={items}
   renderItem={({ item }) => {
-    if (item.type === 'header') return <Header {...item} />;
-    if (item.type === 'product') return <Product {...item} />;
+    if (item.type === "header") return <Header {...item} />;
+    if (item.type === "product") return <Product {...item} />;
     return <DefaultItem {...item} />;
   }}
-  getItemType={(item) => item.type}  // Helps recycling
+  getItemType={(item) => item.type} // Helps recycling
 />
 ```
 
@@ -196,19 +199,19 @@ If the project is still on FlashList v1, keep `estimatedItemSize` alongside `get
   windowSize={5}
   // Avoid re-renders
   keyExtractor={(item) => item.id}
-  extraData={selectedId}  // Only when selection changes
+  extraData={selectedId} // Only when selection changes
 />
 ```
 
 ## Decision Matrix
 
-| Scenario | Recommendation |
-|----------|---------------|
-| Small static content | ScrollView OK |
-| Measured eager-mount or scroll cost | FlatList minimum |
-| Large or complex list | FlashList or Legend List |
-| Complex item layouts | FlashList with `getItemType`, or Legend List |
-| Fixed height items | FlatList: `getItemLayout`; FlashList v1: `estimatedItemSize`; FlashList v2+: stable item structure |
+| Scenario                            | Recommendation                                                                                     |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Small static content                | ScrollView OK                                                                                      |
+| Measured eager-mount or scroll cost | FlatList minimum                                                                                   |
+| Large or complex list               | FlashList or Legend List                                                                           |
+| Complex item layouts                | FlashList with `getItemType`, or Legend List                                                       |
+| Fixed height items                  | FlatList: `getItemLayout`; FlashList v1: `estimatedItemSize`; FlashList v2+: stable item structure |
 
 ## Common Pitfalls
 

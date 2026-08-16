@@ -1,6 +1,7 @@
-import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import * as schema from "../db/schema";
 import { generateSku } from "../utils/codes";
+import { generateEan13 } from "../utils/barcode";
 import { logActivity } from "./activity";
 /* ── Lookup resolvers (colors, sizes, categories) ─────────────── */
 export async function resolveColorId(db, name) {
@@ -40,6 +41,7 @@ const PRODUCT_SELECT = {
     sku: schema.products.sku,
     name: schema.products.name,
     barcode: schema.products.barcode,
+    weight: schema.products.weight,
     imageUrl: schema.products.imageUrl,
     stock: schema.products.stock,
     purchasePrice: schema.products.purchasePrice,
@@ -62,7 +64,7 @@ export async function listProducts(db, filters = {}) {
     const pageSize = Math.max(1, Math.min(1000, filters.pageSize || 20));
     const conditions = [];
     if (search) {
-        conditions.push(or(ilike(schema.products.name, `%${search}%`), ilike(schema.products.sku, `%${search}%`), ilike(schema.products.barcode, `%${search}%`), sql `exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name ilike ${`%${search}%`})`));
+        conditions.push(or(ilike(schema.products.name, `%${search}%`), ilike(schema.products.sku, `%${search}%`), ilike(schema.products.barcode, `%${search}%`), sql `exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name ilike ${`%${search}%`})`));
     }
     if (color)
         conditions.push(sql `exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name = ${color})`);
@@ -82,9 +84,9 @@ export async function listProducts(db, filters = {}) {
         db
             .select({
             ...PRODUCT_SELECT,
-            colorName: schema.colors.name,
-            sizeName: schema.sizes.name,
-            categoryName: schema.categories.name,
+            colorName: sql `${schema.colors.name}`.as("color_name"),
+            sizeName: sql `${schema.sizes.name}`.as("size_name"),
+            categoryName: sql `${schema.categories.name}`.as("category_name"),
         })
             .from(schema.products)
             .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
@@ -109,9 +111,9 @@ export async function getProduct(db, id) {
     const row = await db
         .select({
         ...PRODUCT_SELECT,
-        colorName: schema.colors.name,
-        sizeName: schema.sizes.name,
-        categoryName: schema.categories.name,
+        colorName: sql `${schema.colors.name}`.as("color_name"),
+        sizeName: sql `${schema.sizes.name}`.as("size_name"),
+        categoryName: sql `${schema.categories.name}`.as("category_name"),
     })
         .from(schema.products)
         .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
@@ -124,9 +126,9 @@ export async function listAllProducts(db) {
     const rows = await db
         .select({
         ...PRODUCT_SELECT,
-        colorName: schema.colors.name,
-        sizeName: schema.sizes.name,
-        categoryName: schema.categories.name,
+        colorName: sql `${schema.colors.name}`.as("color_name"),
+        sizeName: sql `${schema.sizes.name}`.as("size_name"),
+        categoryName: sql `${schema.categories.name}`.as("category_name"),
     })
         .from(schema.products)
         .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
@@ -145,12 +147,22 @@ export class ProductError extends Error {
     }
 }
 export async function createProduct(db, input) {
-    const [sku, colorId, sizeId, categoryId] = await Promise.all([
+    const [sku, barcode, colorId, sizeId, categoryId] = await Promise.all([
         generateSku(async (sku) => {
             const r = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.sku, sku));
             return r.length > 0;
         }),
-        resolveColorId(db, input.color),
+        // Every product gets a scannable barcode — auto-generate one when the
+        // form doesn't provide it (barcode stays SEPARATE from the SKU).
+        (async () => {
+            if (input.barcode?.trim())
+                return input.barcode.trim();
+            return generateEan13(async (code) => {
+                const r = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.barcode, code));
+                return r.length > 0;
+            });
+        })(),
+        input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
         resolveSizeId(db, input.size),
         input.category ? resolveCategoryId(db, input.category) : Promise.resolve(null),
     ]);
@@ -159,7 +171,8 @@ export async function createProduct(db, input) {
         .values({
         sku,
         name: input.name.trim(),
-        barcode: input.barcode?.trim() || null,
+        barcode,
+        weight: typeof input.weight === "number" && Number.isFinite(input.weight) ? input.weight : null,
         imageUrl: input.imageUrl?.trim() || null,
         stock: input.stock ?? 0,
         purchasePrice: input.purchasePrice ?? 0,
@@ -191,15 +204,24 @@ export async function updateProduct(db, id, input) {
     if (!existing)
         throw new ProductError("Product not found", "NOT_FOUND", 404);
     const [colorId, sizeId, categoryId] = await Promise.all([
-        resolveColorId(db, input.color),
+        // Empty/absent color clears it; a real value resolves (or creates) the color.
+        input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
         resolveSizeId(db, input.size),
         input.category ? resolveCategoryId(db, input.category) : Promise.resolve(existing.categoryId),
     ]);
+    // undefined → keep the existing barcode (forms that omit the field must not
+    // wipe it, e.g. the mobile form which has no barcode input); "" → clear.
+    const barcode = input.barcode === undefined ? existing.barcode : input.barcode?.trim() || null;
     await db
         .update(schema.products)
         .set({
         name: input.name.trim(),
-        barcode: input.barcode?.trim() || null,
+        barcode,
+        weight: input.weight === undefined
+            ? existing.weight
+            : typeof input.weight === "number" && Number.isFinite(input.weight)
+                ? input.weight
+                : null,
         imageUrl: input.imageUrl?.trim() || null,
         stock: input.stock ?? existing.stock,
         purchasePrice: input.purchasePrice ?? existing.purchasePrice,
@@ -254,19 +276,69 @@ export async function listStockMovements(db, productId, limit = 50) {
         .orderBy(desc(schema.stockMovements.createdAt))
         .limit(limit);
 }
+/* ── Barcode lookup & backfill ───────────────────────────────── */
+/**
+ * Fast exact barcode lookup — the shop-counter path. Indexed on
+ * products.barcode; returns the product (with color/size/category names) or
+ * null. Use for scanner hits and exact-match search before falling back to
+ * fuzzy name/SKU search.
+ */
+export async function findProductByBarcode(db, barcode) {
+    const code = barcode.replace(/[^0-9A-Za-z]/g, "");
+    if (!code)
+        return null;
+    const row = await db
+        .select({
+        ...PRODUCT_SELECT,
+        colorName: sql `${schema.colors.name}`.as("color_name"),
+        sizeName: sql `${schema.sizes.name}`.as("size_name"),
+        categoryName: sql `${schema.categories.name}`.as("category_name"),
+    })
+        .from(schema.products)
+        .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
+        .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId))
+        .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+        .where(eq(schema.products.barcode, code))
+        .limit(1);
+    return row[0] ?? null;
+}
+/**
+ * Assigns a generated EAN-13 barcode to every product that doesn't have one.
+ * Safe backfill for existing data — never touches products that already have
+ * a barcode. Returns how many were updated.
+ */
+export async function backfillBarcodes(db) {
+    const missing = await db
+        .select({ id: schema.products.id })
+        .from(schema.products)
+        .where(or(isNull(schema.products.barcode), eq(schema.products.barcode, "")));
+    let updated = 0;
+    for (const row of missing) {
+        const code = await generateEan13(async (code) => {
+            const r = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.barcode, code));
+            return r.length > 0;
+        });
+        await db.update(schema.products).set({ barcode: code }).where(eq(schema.products.id, row.id));
+        updated++;
+    }
+    if (updated > 0) {
+        await logActivity(db, "BARCODES_BACKFILLED", `Generated barcodes for ${updated} product(s)`);
+    }
+    return { updated, total: updated };
+}
 /* ── Seed sample data ─────────────────────────────────────────── */
 export async function seedProducts(db) {
     const count = await db.select({ count: sql `count(*)::int` }).from(schema.products);
     if ((count[0]?.count ?? 0) > 0)
         return { success: false, count: 0 };
     const samples = [
-        { name: "Gold Necklace Set", color: "Gold", size: "Standard", category: "Jewellery", stock: 12, purchasePrice: 24500, sellingPrice: 32000, lowStockThreshold: 4 },
-        { name: "Silver Anklet", color: "Silver", size: "Small", category: "Jewellery", stock: 30, purchasePrice: 850, sellingPrice: 1250, lowStockThreshold: 8 },
-        { name: "Diamond Ring", color: "White", size: "12", category: "Jewellery", stock: 6, purchasePrice: 38000, sellingPrice: 45500, lowStockThreshold: 2 },
-        { name: "Pearl Earrings", color: "Pearl", size: "Standard", category: "Jewellery", stock: 18, purchasePrice: 3200, sellingPrice: 4600, lowStockThreshold: 5 },
-        { name: "Cotton Kurti", color: "Red", size: "M", category: "Apparel", stock: 25, purchasePrice: 420, sellingPrice: 650, lowStockThreshold: 6 },
-        { name: "Silk Saree", color: "Maroon", size: "Free", category: "Apparel", stock: 9, purchasePrice: 1800, sellingPrice: 2600, lowStockThreshold: 3 },
-        { name: "Brass Diya Set", color: "Brass", size: "Large", category: "Home Decor", stock: 40, purchasePrice: 180, sellingPrice: 320, lowStockThreshold: 10 },
+        { name: "Gold Necklace Set", color: "Gold", size: "Standard", category: "Jewellery", stock: 12, purchasePrice: 24500, sellingPrice: 32000, lowStockThreshold: 4, weight: 24500 },
+        { name: "Silver Anklet", color: "Silver", size: "Small", category: "Jewellery", stock: 30, purchasePrice: 850, sellingPrice: 1250, lowStockThreshold: 8, weight: 18500 },
+        { name: "Diamond Ring", color: "White", size: "12", category: "Jewellery", stock: 6, purchasePrice: 38000, sellingPrice: 45500, lowStockThreshold: 2, weight: 3200 },
+        { name: "Pearl Earrings", color: "Pearl", size: "Standard", category: "Jewellery", stock: 18, purchasePrice: 3200, sellingPrice: 4600, lowStockThreshold: 5, weight: 4100 },
+        { name: "Cotton Kurti", color: "Red", size: "M", category: "Apparel", stock: 25, purchasePrice: 420, sellingPrice: 650, lowStockThreshold: 6, weight: 350000 },
+        { name: "Silk Saree", color: "Maroon", size: "Free", category: "Apparel", stock: 9, purchasePrice: 1800, sellingPrice: 2600, lowStockThreshold: 3, weight: 550000 },
+        { name: "Brass Diya Set", color: "Brass", size: "Large", category: "Home Decor", stock: 40, purchasePrice: 180, sellingPrice: 320, lowStockThreshold: 10, weight: 750000 },
     ];
     for (const s of samples)
         await createProduct(db, s);

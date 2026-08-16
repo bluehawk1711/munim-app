@@ -41,6 +41,10 @@ export type ReportRow = {
     size: string | null;
     stock: number;
     soldQuantity: number;
+    /** Unit weight in mg (null when the product has no weight set). */
+    weight: number | null;
+    /** Total weight sold in mg (quantity × unit weight). */
+    soldWeight: number;
     revenue: number;
     profit: number;
 };
@@ -53,6 +57,7 @@ export declare function getReport(db: DbClient, type: ReportType, startDate?: st
     totals: {
         stock: number;
         soldQuantity: number;
+        soldWeight: number;
         revenue: number;
         profit: number;
     };
@@ -67,6 +72,7 @@ export declare function reportToCsv(report: {
     totals: {
         stock: number;
         soldQuantity: number;
+        soldWeight: number;
         revenue: number;
         profit: number;
     };

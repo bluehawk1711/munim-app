@@ -76,6 +76,15 @@ npx expo start        # starts the Metro bundler, shows a QR code
 - **Pulled new native code** (new expo module / gradle change)? Rebuild and
   reinstall the dev client — JS-only changes don't need a rebuild.
 
+## Camera scanning (barcode) — requires a rebuild once
+
+Barcode scanning uses **`expo-camera`** (a native module). The current dev
+build predates it, so **rebuild the dev client once** (EAS `--profile
+development` or `pnpm android`) before the camera scan button on the Products
+screen works. The label PDF export (`expo-print`), barcode display
+(`react-native-svg`) and everything else in this release are JS-only and hot
+reload normally. See `docs/features.md` rows 22–25 for the full feature set.
+
 ## Android builds via EAS Build
 
 `eas.json` profiles:

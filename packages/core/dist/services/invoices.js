@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import * as schema from "../db/schema";
 import { generateInvoiceNumber } from "../utils/codes";
 import { getProduct } from "./products";
@@ -219,7 +219,7 @@ export async function listInvoices(db, filters = {}) {
         .select()
         .from(schema.invoiceItems)
         .where(rows.length
-        ? sql `${schema.invoiceItems.invoiceId} in (${rows.map((r) => sql `${r.id}`).join(", ")})`
+        ? inArray(schema.invoiceItems.invoiceId, rows.map((r) => r.id))
         : sql `false`);
     const itemsByInvoice = new Map();
     for (const it of items) {
