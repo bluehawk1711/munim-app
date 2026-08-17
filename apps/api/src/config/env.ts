@@ -20,6 +20,13 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().default(""),
   CLOUDINARY_API_KEY: z.string().default(""),
   CLOUDINARY_API_SECRET: z.string().default(""),
+  /**
+   * Upstash Redis (REST). Both must be set to enable caching; when absent the
+   * API falls back to an in-process TTL cache (fine for single-instance dev,
+   * not for multi-replica production — set these there).
+   */
+  UPSTASH_REDIS_REST_URL: z.string().default(""),
+  UPSTASH_REDIS_REST_TOKEN: z.string().default(""),
 });
 
 export type ApiEnv = z.infer<typeof envSchema>;

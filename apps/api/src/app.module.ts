@@ -4,6 +4,7 @@ import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { ApiKeyGuard } from "./auth/api-key.guard.js";
 import { GlobalExceptionFilter } from "./common/exception.filter.js";
 import { drizzleProvider } from "./db/drizzle.provider.js";
+import { CacheService } from "./common/cache.service.js";
 import { HealthController } from "./health/health.controller.js";
 import { ProductsController } from "./controllers/products.controller.js";
 import { DashboardController } from "./controllers/dashboard.controller.js";
@@ -44,6 +45,7 @@ import { UploadController } from "./controllers/upload.controller.js";
   ],
   providers: [
     drizzleProvider,
+    CacheService,
     { provide: APP_GUARD, useClass: ApiKeyGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },

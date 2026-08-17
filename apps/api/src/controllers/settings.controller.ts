@@ -8,18 +8,25 @@ import {
 } from "@munim/core";
 import { DRIZZLE } from "../db/drizzle.provider.js";
 import { ZodValidationPipe } from "../common/validation.pipe.js";
+import { CacheService } from "../common/cache.service.js";
+import { CACHE_TTL, cacheKeys, invalidate } from "../common/cache.keys.js";
 
 @Controller("settings")
 export class SettingsController {
-  constructor(@Inject(DRIZZLE) private readonly db: DbClient) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DbClient,
+    @Inject(CacheService) private readonly cache: CacheService,
+  ) {}
 
   @Get()
   async get() {
-    return getSettings(this.db);
+    return this.cache.cacheAside(cacheKeys.settings, CACHE_TTL.static, () => getSettings(this.db));
   }
 
   @Put()
   async update(@Body(new ZodValidationPipe(settingsSchema)) values: SettingsFormValues) {
-    return updateSettings(this.db, values);
+    const result = await updateSettings(this.db, values);
+    await invalidate(this.cache, ["settings"]);
+    return result;
   }
 }

@@ -4,13 +4,14 @@
 > pg.Pool client, API-key guard, health checks, boot + live-DB e2e smoke), core
 > prep done (`createServerDb` via `@munim/core/server`, validators +
 > serializers moved into core, explicit `*Dto` wire types added to
-> `packages/core/src/serialize`), and **`packages/api-client` built** — a
-> typed client with one module per resource, methods mirroring the core
-> service names, `fetchImpl` injection (Tauri plugin fetch for desktop),
-> `ApiClientError` mapping, CSV text mode; unit smoke (stub server, 14
-> checks) + live-DB e2e through the real API (17 checks) both green.
-> Remaining phases: 2 (Upstash caching) → 4 (desktop) → 5 (mobile) → 6 (web)
-> → 7 (CI/CD + docs).
+> `packages/core/src/serialize`), **`packages/api-client` built** (typed
+> client, one module per resource, `fetchImpl` injection, `ApiClientError`,
+> CSV mode; 14-check unit smoke + 17-check live-DB e2e), and **Upstash
+> caching landed (Phase 2)** — `CacheService` cache-aside + explicit
+> prefix invalidation on every write; in-memory TTL fallback when
+> `UPSTASH_REDIS_REST_URL/TOKEN` are unset; `/readyz` pings Upstash too;
+> 11-check cache unit spec + live-DB e2e extended to 16 checks, all green.
+> Remaining phases: 4 (desktop) → 5 (mobile) → 6 (web) → 7 (CI/CD + docs).
 >
 > Supersedes part of **ADR-001** (no API server). See "ADR updates" at the end.
 
@@ -48,7 +49,7 @@ duplication — core stays the single source of truth.
 | DB driver in API | `pg` connection pool via `drizzle-orm/node-postgres` (long-running process) |
 | Business logic | 100% `packages/core` services — API only adds HTTP/validation/caching/auth |
 | Auth | **3 static API keys** — one per platform (web / desktop / mobile), injected at **build time via GitHub secrets**, sent by each client as `x-api-key` |
-| Caching | **Upstash Redis** via `@nestjs/cache-manager` (v6) + `upstash-redis` cache-manager store; in-memory fallback for local dev |
+| Caching | **Upstash Redis** via `@upstash/redis` (REST SDK) in a small `CacheService` (cache-aside + explicit prefix invalidation); in-memory TTL fallback when `UPSTASH_REDIS_REST_URL/TOKEN` are unset. **Note:** the original plan's `upstash-redis` cache-manager store was **unpublished in 2021** — using the SDK directly instead |
 | Deploy | **Render or Railway** (container, long-running Node) — Node 24, same as CI |
 | Order | Desktop + mobile first (this plan), **web later** (Phase 6) |
 | DB | Neon unchanged; migrations flow unchanged (`db-migrate` workflow) |
@@ -175,36 +176,55 @@ logic.
 
 ---
 
-## 6. Caching — Upstash Redis
+## 6. Caching — Upstash Redis ✅
 
 **Library choice:** `node-cache` is effectively abandoned (in-memory only,
-unmaintained). The modern NestJS stack is **`@nestjs/cache-manager`** (v6, the
-replacement for the deprecated `CacheModule`) + **`cache-manager` v6** +
-**`upstash-redis`** (its SDK ships a cache-manager-compatible store). Dev
-fallback: `cache-manager`'s built-in memory store when
-`UPSTASH_REDIS_REST_URL` is unset — so local dev needs no Redis.
+unmaintained). The originally-planned `upstash-redis` cache-manager store was
+**unpublished in 2021** — instead we use **`@upstash/redis` (the REST SDK)
+directly** in a small `CacheService` (`apps/api/src/common/cache.service.ts`):
+`cacheAside(key, ttl, loader)`, `get/set/del`, `delByPrefix` (SCAN + pipelined
+DEL over REST), `ping`. When `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN`
+are unset it falls back to an **in-process TTL Map** (single-instance dev;
+`isRedis` reports which). Reads are **fail-open**: a Redis error logs once/min
+and falls through to the loader rather than failing the request.
+
+Keys are namespaced `munim:*`; all controllers inject the service explicitly
+(`@Inject(CacheService)` — required because the tsx dev runner doesn't emit
+`design:paramtypes` decorator metadata). `apps/api/src/common/cache.keys.ts`
+holds the key builders + **invalidation groups**: a write invalidates every
+prefix that could hold derived data (conservative by design).
 
 **What gets cached (read-heavy, safe):**
 
-| Cache key | TTL | Invalidation trigger |
+| Cache key | TTL | Invalidation group(s) on write |
 |---|---|---|
-| `dashboard` | 30 s | any write (product/invoice/sale/advance/payment/settings) |
-| `reports:{type}:{from}:{to}` | 60 s | writes touching invoices/payments |
-| `catalog:{kind}` (colors/sizes/categories) | 10 min | create/rename/delete catalog item |
-| `products:list:{hash(filters,page)}` | 30 s | product create/update/delete/adjust |
-| `products:byBarcode:{barcode}` | 5 min | product update/delete |
-| `parties:list:{hash(filters)}` | 30 s | party create/update/delete |
-| `settings` | 60 s | `PUT /api/settings` |
+| `dashboard:get` | 30 s | products / invoices / parties / money / jobLetters / settings |
+| `reports:{type}:{from}:{to}` | 120 s | products / invoices / parties / money |
+| `catalog:{kind}:list` | 300 s | catalog (+ products — names embedded in rows) |
+| `products:list:{hash(filters)}` / `products:get:{id}` / `products:lookup:{barcode}` / `products:meta` / `products:movements:{id}` | 300 s | products |
+| `invoices:list:{hash}` / `invoices:get:{id}` / `sales:list:{hash}` | 120 s | invoices (covers sales) |
+| `parties:list:{hash}` / `parties:balances` / `parties:get:{id}` | 120 s | parties / money |
+| `advances:list:{partyId}` / `payments:list:{partyId}` | 120 s | money |
+| `job-letters:list` | 120 s | jobLetters |
+| `settings:get` | 300 s | settings |
 
 **Rules:**
-- **Cache-aside only** (never write-through): `cache.service.ts` wraps a read;
-  every mutating controller calls `invalidate(keyPattern)` — explicit
-  invalidation, never pure TTL trust for money data.
-- **Never cache** single invoice/advance/ledger reads unless keyed precisely;
-  financial *totals* come from `getReport`/`getDashboard` which are invalidated
-  on writes.
-- Invalidation uses Upstash `del` with a key-prefix scan (`dashboard*`,
-  `reports:*`) — a small `keys()`/`scan` helper in `cache.service.ts`.
+- **Cache-aside only** (never write-through); every mutating controller calls
+  `invalidate(cache, [groups])` — explicit invalidation, never pure TTL trust
+  for money data. Groups are conservative (see `CACHE_GROUPS` in
+  `cache.keys.ts`).
+- `null`/`undefined` loader results are never cached (a Redis miss is
+  indistinguishable from a stored null).
+- CSV reports run `reportToCsv` per-request over the cached report — the raw
+  report is what gets cached.
+- Invalidation uses Upstash SCAN (cursor loop, `count: 200`) + pipelined DEL;
+  the memory fallback iterates its Map.
+
+**Fixed while testing:** the settings schema rejected `null` on fields the
+DB row actually returns (e.g. `shopAddress`/`shopEmail` can be NULL), so a
+GET→PUT settings save 400'd on its own output. The shared `settingsSchema`
+now accepts null and normalizes it to `undefined` via `.transform()` (a null
+means "no change"), keeping `ShopSettingsInput` untouched.
 
 ---
 
@@ -308,12 +328,18 @@ Neon** — a live fallback while desktop/mobile are migrated.
 - [ ] Typecheck + lint `apps/api`; run core smoke; web still green (validators
       now imported from core).
 
-### Phase 2 — Upstash caching
-- [ ] `CacheModule` (upstash store; memory fallback in dev).
-- [ ] `cache.service.ts` (get/set/invalidate + prefix scan); wire the read
-      endpoints per §6 table; invalidate on every mutating route.
-- [ ] Verify: repeated `GET /api/dashboard` hits Upstash (log/hit-miss header);
-      a write invalidates.
+### Phase 2 — Upstash caching ✅
+- [x] `CacheService` (`@upstash/redis` REST SDK — the planned `upstash-redis`
+      store was unpublished) + `cache.keys.ts` (key builders, TTLs, invalidation
+      groups).
+- [x] Wire the read endpoints per §6 table; invalidate on every mutating route
+      (products, dashboard, catalog, settings, reports, invoices, sales,
+      parties, advances, payments, job-letters).
+- [x] `/readyz` pings Upstash when configured; `.env.example` gains
+      `UPSTASH_REDIS_REST_URL/TOKEN`.
+- [x] Verify: `test/cache.spec.ts` (11 checks — cache-aside, null skip,
+      prefix invalidation, TTL, group composition) + live-DB e2e extended to
+      16 checks (repeat-read + settings write-invalidation round-trip).
 
 ### Phase 3 — `packages/api-client` ✅
 - [x] Scaffold package (fetch wrapper, `fetchImpl` injection, typed endpoints,

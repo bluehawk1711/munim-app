@@ -130,8 +130,11 @@ to the exact same functions. Zero business-logic duplication.
 - **Auth:** three static per-platform API keys (`x-api-key` header,
   `API_KEY_WEB`/`API_KEY_DESKTOP`/`API_KEY_MOBILE`), injected into each client
   at build time via GitHub Actions secrets; constant-time comparison.
-- **Caching:** Upstash Redis via `@nestjs/cache-manager` v6 + `upstash-redis`
-  store (Phase 2; `node-cache` rejected as unmaintained/in-memory-only).
+- **Caching:** Upstash Redis via `@upstash/redis` (REST SDK) in a `CacheService`
+  — cache-aside + explicit prefix invalidation on every write, in-memory TTL
+  fallback in dev (Phase 2 landed; `node-cache` rejected as
+  unmaintained/in-memory-only, and the originally-planned `upstash-redis`
+  store was unpublished).
 - **Perf:** Fastify adapter, compression, helmet, throttler, pg.Pool (kills the
   per-query TLS handshake of SQL-over-HTTP), pino.
 - **Validation/serialization:** moved into `packages/core` (`validators/` +

@@ -32,10 +32,15 @@ import {
 } from "@munim/core";
 import { DRIZZLE } from "../db/drizzle.provider.js";
 import { ZodValidationPipe } from "../common/validation.pipe.js";
+import { CacheService } from "../common/cache.service.js";
+import { CACHE_TTL, cacheKeys, invalidate } from "../common/cache.keys.js";
 
 @Controller("products")
 export class ProductsController {
-  constructor(@Inject(DRIZZLE) private readonly db: DbClient) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DbClient,
+    @Inject(CacheService) private readonly cache: CacheService,
+  ) {}
 
   @Get()
   async list(
@@ -56,13 +61,18 @@ export class ProductsController {
       page: page ? Math.max(1, parseInt(page, 10) || 1) : undefined,
       pageSize: pageSize ? Math.max(1, Math.min(1000, parseInt(pageSize, 10) || 20)) : undefined,
     };
-    const { products, pagination } = await listProducts(this.db, filters);
-    return { products: products.map((p) => serializeProduct(p)), pagination };
+    return this.cache.cacheAside(cacheKeys.productsList(filters), CACHE_TTL.static, async () => {
+      const { products, pagination } = await listProducts(this.db, filters);
+      return {
+        products: products.map((p) => serializeProduct(p)),
+        pagination,
+      };
+    });
   }
 
   @Get("meta")
   async meta() {
-    return listMeta(this.db);
+    return this.cache.cacheAside(cacheKeys.productsMeta, CACHE_TTL.static, () => listMeta(this.db));
   }
 
   @Get("lookup")
@@ -70,14 +80,20 @@ export class ProductsController {
     if (!barcode?.trim()) {
       throw new NotFoundException("Missing barcode");
     }
-    const product = await findProductByBarcode(this.db, barcode);
+    const product = await this.cache.cacheAside(
+      cacheKeys.productLookup(barcode),
+      CACHE_TTL.detail,
+      () => findProductByBarcode(this.db, barcode),
+    );
     if (!product) throw new NotFoundException("No product with that barcode");
     return serializeProduct(product);
   }
 
   @Get(":id")
   async get(@Param("id") id: string) {
-    const product = await getProduct(this.db, id);
+    const product = await this.cache.cacheAside(cacheKeys.product(id), CACHE_TTL.detail, () =>
+      getProduct(this.db, id),
+    );
     if (!product) throw new NotFoundException("Product not found");
     return serializeProduct(product);
   }
@@ -86,6 +102,7 @@ export class ProductsController {
   async create(@Body(new ZodValidationPipe(productSchema)) values: ProductFormValues) {
     const product = await createProduct(this.db, values);
     if (!product) throw new Error("Product creation returned no row");
+    await invalidate(this.cache, ["products"]);
     return serializeProduct(product);
   }
 
@@ -96,6 +113,7 @@ export class ProductsController {
   ) {
     const product = await updateProduct(this.db, id, values);
     if (!product) throw new Error("Product update returned no row");
+    await invalidate(this.cache, ["products"]);
     return serializeProduct(product);
   }
 
@@ -106,12 +124,15 @@ export class ProductsController {
   ) {
     const product = await adjustStock(this.db, id, values);
     if (!product) throw new Error("Stock adjustment returned no row");
+    await invalidate(this.cache, ["products"]);
     return serializeProduct(product);
   }
 
   @Get(":id/movements")
   async movements(@Param("id") id: string) {
-    return listStockMovements(this.db, id);
+    return this.cache.cacheAside(cacheKeys.productMovements(id), CACHE_TTL.lists, () =>
+      listStockMovements(this.db, id),
+    );
   }
 
   @Delete(":id")
@@ -119,11 +140,14 @@ export class ProductsController {
     const product = await getProduct(this.db, id);
     if (!product) throw new NotFoundException("Product not found");
     await deleteProduct(this.db, id);
+    await invalidate(this.cache, ["products"]);
     return { success: true };
   }
 
   @Post("backfill-barcodes")
   async backfill() {
-    return backfillBarcodes(this.db);
+    const result = await backfillBarcodes(this.db);
+    await invalidate(this.cache, ["products"]);
+    return result;
   }
 }

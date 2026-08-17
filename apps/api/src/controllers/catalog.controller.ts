@@ -19,6 +19,8 @@ import {
 } from "@munim/core";
 import { DRIZZLE } from "../db/drizzle.provider.js";
 import { ZodValidationPipe } from "../common/validation.pipe.js";
+import { CacheService } from "../common/cache.service.js";
+import { CACHE_TTL, cacheKeys, invalidate } from "../common/cache.keys.js";
 
 const nameSchema = z
   .string()
@@ -43,11 +45,17 @@ function parseKind(kind: string): CatalogKind {
  */
 @Controller("catalog")
 export class CatalogController {
-  constructor(@Inject(DRIZZLE) private readonly db: DbClient) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DbClient,
+    @Inject(CacheService) private readonly cache: CacheService,
+  ) {}
 
   @Get(":kind")
   async list(@Param("kind") kind: string) {
-    return listCatalogItems(this.db, parseKind(kind));
+    const kindName = parseKind(kind);
+    return this.cache.cacheAside(cacheKeys.catalogList(kind), CACHE_TTL.static, () =>
+      listCatalogItems(this.db, kindName),
+    );
   }
 
   @Post(":kind")
@@ -55,7 +63,9 @@ export class CatalogController {
     @Param("kind") kind: string,
     @Body(new ZodValidationPipe(createSchema)) body: { name: string },
   ) {
-    return createCatalogItem(this.db, parseKind(kind), body.name);
+    const item = await createCatalogItem(this.db, parseKind(kind), body.name);
+    await invalidate(this.cache, ["catalog"]);
+    return item;
   }
 
   @Patch(":kind/:id")
@@ -64,11 +74,15 @@ export class CatalogController {
     @Param("id") id: string,
     @Body(new ZodValidationPipe(renameSchema)) body: { name: string },
   ) {
-    return renameCatalogItem(this.db, parseKind(kind), id, body.name);
+    const item = await renameCatalogItem(this.db, parseKind(kind), id, body.name);
+    await invalidate(this.cache, ["catalog"]);
+    return item;
   }
 
   @Delete(":kind/:id")
   async remove(@Param("kind") kind: string, @Param("id") id: string) {
-    return deleteCatalogItem(this.db, parseKind(kind), id);
+    const result = await deleteCatalogItem(this.db, parseKind(kind), id);
+    await invalidate(this.cache, ["catalog"]);
+    return result;
   }
 }

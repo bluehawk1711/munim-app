@@ -177,14 +177,35 @@ export type JobLetterFormValues = z.infer<typeof jobLetterSchema>;
 
 /* ── Settings ─────────────────────────────────────────────────── */
 
+// Settings fields round-trip the raw DB row, where any of these can be NULL.
+// The schema accepts null (a GET→PUT save must not 400 on its own output)
+// but normalizes it to `undefined` so the service skips unchanged fields.
+const settingsString = (max: number, min = 0) =>
+  z
+    .string()
+    .min(min)
+    .max(max)
+    .nullish()
+    .transform((v) => v ?? undefined);
+
 export const settingsSchema = z.object({
-  shopName: z.string().min(1).max(120).optional(),
-  shopAddress: z.string().max(300).optional(),
-  shopPhones: z.array(z.string().max(20)).optional(),
-  shopEmail: z.string().max(120).optional().or(z.literal("")),
-  lowStockThreshold: z.coerce.number().min(0).optional(),
-  currency: z.string().max(10).optional(),
-  defaultTemplate: z.record(z.string(), z.unknown()).optional(),
+  shopName: settingsString(120, 1),
+  shopAddress: settingsString(300),
+  shopPhones: z
+    .array(z.string().max(20))
+    .nullish()
+    .transform((v) => v ?? undefined),
+  shopEmail: settingsString(120),
+  lowStockThreshold: z.coerce
+    .number()
+    .min(0)
+    .nullish()
+    .transform((v) => v ?? undefined),
+  currency: settingsString(10),
+  defaultTemplate: z
+    .record(z.string(), z.unknown())
+    .nullish()
+    .transform((v) => v ?? undefined),
 });
 
 export type SettingsFormValues = z.infer<typeof settingsSchema>;

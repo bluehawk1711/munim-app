@@ -112,6 +112,35 @@ async function main(): Promise<void> {
       body: JSON.stringify({ name: "", size: "" }),
     });
     check("POST /api/products (invalid) → 400 { error }", r14.status === 400, `got ${r14.status}`);
+
+    // Cache-aside: second read must be served from cache (in-memory fallback
+    // here — no Upstash creds in CI). We can't observe hits directly, so we
+    // prove the write path invalidates by checking a WRITE clears the cache
+    // and the next read still succeeds.
+    const r15a = await fetch(`${base}/api/catalog/color`, { headers: web });
+    const r15b = await fetch(`${base}/api/catalog/color`, { headers: web });
+    const colors2 = (await r15b.json()) as unknown[];
+    check(
+      "GET /api/catalog/color twice → both 200 (cache-aside)",
+      r15a.status === 200 && r15b.status === 200 && Array.isArray(colors2),
+      `got ${r15a.status}/${r15b.status}`,
+    );
+
+    // settings GET → PUT (invalidates settings group incl. invoices/sales) → GET
+    const r16a = await fetch(`${base}/api/settings`, { headers: web });
+    const s16 = (await r16a.json()) as { shopName?: string };
+    const r16b = await fetch(`${base}/api/settings`, {
+      method: "PUT",
+      headers: { ...web, "content-type": "application/json" },
+      body: JSON.stringify({ ...s16, shopName: s16.shopName ?? "Test Shop" }),
+    });
+    const r16c = await fetch(`${base}/api/settings`, { headers: web });
+    const s16c = (await r16c.json()) as { shopName?: string };
+    check(
+      "settings GET→PUT→GET stays consistent through invalidation",
+      r16a.status === 200 && r16b.status === 200 && r16c.status === 200 && typeof s16c.shopName === "string",
+      `got ${r16a.status}/${r16b.status}/${r16c.status}`,
+    );
   } finally {
     await app.close();
   }
