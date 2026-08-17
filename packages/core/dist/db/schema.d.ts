@@ -1,4 +1,4 @@
-import type { BillTemplateSettings } from "../billing";
+import type { BillTemplateSettings } from "../billing/index.js";
 export declare const colors: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "colors";
     schema: undefined;

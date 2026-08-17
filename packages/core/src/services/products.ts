@@ -1,9 +1,9 @@
 import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
-import { generateSku } from "../utils/codes";
-import { generateEan13 } from "../utils/barcode";
-import { logActivity } from "./activity";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
+import { generateSku } from "../utils/codes.js";
+import { generateEan13 } from "../utils/barcode.js";
+import { logActivity } from "./activity.js";
 
 /* ── Lookup resolvers (colors, sizes, categories) ─────────────── */
 

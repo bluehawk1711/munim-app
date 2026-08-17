@@ -7,9 +7,9 @@
  */
 
 /* DB */
-export { createDb, getDb, pingDatabase, parseConnectionString, type DbClient } from "./db/client";
-export * as schema from "./db/schema";
-export type * from "./db/schema";
+export { createDb, getDb, pingDatabase, parseConnectionString, type DbClient } from "./db/client.js";
+export * as schema from "./db/schema.js";
+export type * from "./db/schema.js";
 
 /* Drizzle operators re-exported so every app uses the SAME instance as core
  * (importing from their own node_modules created a duplicate-instance type
@@ -17,12 +17,12 @@ export type * from "./db/schema";
 export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 /* Billing — shared bill/invoice generation (all 3 apps) */
-export * from "./billing";
-export * from "./security";
+export * from "./billing/index.js";
+export * from "./security/index.js";
 
 /* Utils */
-export { numberToWords, amountInWords } from "./utils/numberToWords";
-export { generateSku, generateInvoiceNumber } from "./utils/codes";
+export { numberToWords, amountInWords } from "./utils/numberToWords.js";
+export { generateSku, generateInvoiceNumber } from "./utils/codes.js";
 export {
   normalizeBarcode,
   isEan13,
@@ -32,24 +32,30 @@ export {
   ean13Svg,
   code39Svg,
   type BarcodeSvgOptions,
-} from "./utils/barcode";
-export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format";
-export { newId } from "./utils/id";
-export { swatchColor } from "./utils/swatch";
+} from "./utils/barcode.js";
+export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
+export { newId } from "./utils/id.js";
+export { swatchColor } from "./utils/swatch.js";
 export {
   uploadImageToCloudinary,
   uploadImageToCloudinarySigned,
   type CloudinaryCredentials,
   type CloudinaryUploadFile,
-} from "./utils/cloudinary";
+} from "./utils/cloudinary.js";
+
+/* Validators — shared zod request schemas (API + web) */
+export * from "./validators/index.js";
+
+/* Serializers — shared Date→JSON converters (API + web) */
+export * from "./serialize/index.js";
 
 /* Services */
-export * from "./services/catalog";
-export * from "./services/products";
-export * from "./services/invoices";
-export * from "./services/parties";
-export * from "./services/advances";
-export * from "./services/jobLetters";
-export * from "./services/settings";
-export * from "./services/dashboard";
-export { logActivity } from "./services/activity";
+export * from "./services/catalog.js";
+export * from "./services/products.js";
+export * from "./services/invoices.js";
+export * from "./services/parties.js";
+export * from "./services/advances.js";
+export * from "./services/jobLetters.js";
+export * from "./services/settings.js";
+export * from "./services/dashboard.js";
+export { logActivity } from "./services/activity.js";

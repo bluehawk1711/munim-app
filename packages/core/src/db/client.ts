@@ -1,8 +1,20 @@
 import { drizzle, type RemoteCallback } from "drizzle-orm/pg-proxy";
 import { sql } from "drizzle-orm";
-import * as schema from "./schema";
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
+import * as schema from "./schema.js";
 
-export type DbClient = ReturnType<typeof createDb>;
+/**
+ * The Drizzle client type shared by every consumer.
+ *
+ * Widened from `ReturnType<typeof createDb>` (which is `PgRemoteDatabase`, the
+ * fetch-based pg-proxy client) to the base `PgDatabase` so that BOTH the
+ * fetch-based client AND the server-side `pg.Pool` client (see `./server.ts`)
+ * satisfy the same service signatures. Verified: `PgRemoteDatabase` and
+ * `node-postgres`'s `PgDatabase` are both assignable to this type, and all
+ * service methods (`select`/`insert`/`update`/`delete`/`execute`/`transaction`)
+ * typecheck against it.
+ */
+export type DbClient = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 /**
  * Cheap connectivity check used by the Settings screens. Runs `select 1`

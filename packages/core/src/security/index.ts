@@ -1,1 +1,1 @@
-export * from "./pin";
+export * from "./pin.js";

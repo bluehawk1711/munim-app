@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { findProductByBarcode } from "@munim/core"
-import { serializeProduct } from "@/lib/serialize"
+import { findProductByBarcode, serializeProduct } from "@munim/core"
 
 export const dynamic = "force-dynamic"
 

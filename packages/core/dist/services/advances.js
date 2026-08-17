@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
-import * as schema from "../db/schema";
-import { logActivity } from "./activity";
+import * as schema from "../db/schema.js";
+import { logActivity } from "./activity.js";
 export class AdvanceError extends Error {
     code;
     status;

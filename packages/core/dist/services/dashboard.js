@@ -1,6 +1,6 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
-import * as schema from "../db/schema";
-import { monthLabel } from "../utils/format";
+import * as schema from "../db/schema.js";
+import { monthLabel } from "../utils/format.js";
 function startOfDay(d) {
     const x = new Date(d);
     x.setHours(0, 0, 0, 0);

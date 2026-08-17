@@ -1,5 +1,5 @@
-import { barcodeSvg } from "../utils/barcode";
-import { formatWeight } from "../utils/format";
+import { barcodeSvg } from "../utils/barcode.js";
+import { formatWeight } from "../utils/format.js";
 
 /**
  * Product label printing — the single source of truth for the physical label

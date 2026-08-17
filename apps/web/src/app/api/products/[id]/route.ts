@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { getProduct, updateProduct, deleteProduct, ProductError } from "@munim/core"
-import { productSchema } from "@/lib/validators"
-import { serializeProduct } from "@/lib/serialize"
+import { getProduct, updateProduct, deleteProduct, ProductError, productSchema, serializeProduct } from "@munim/core"
 import { destroyImageByUrl } from "@/lib/cloudinary"
 import { z } from "zod"
 

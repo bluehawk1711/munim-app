@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import * as schema from "../db/schema";
+import * as schema from "../db/schema.js";
 const SETTINGS_ID = "shop-settings";
 /** Fetches settings, creating the singleton row on first use. */
 export async function getSettings(db) {

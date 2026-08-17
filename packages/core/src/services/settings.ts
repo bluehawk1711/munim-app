@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
 
 const SETTINGS_ID = "shop-settings";
 

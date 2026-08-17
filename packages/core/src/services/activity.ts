@@ -1,4 +1,4 @@
-import type { DbClient } from "../db/client";
+import type { DbClient } from "../db/client.js";
 
 /** Best-effort activity logging — never throws into the caller's flow. */
 export async function logActivity(db: DbClient, action: string, detail?: string) {
@@ -9,4 +9,4 @@ export async function logActivity(db: DbClient, action: string, detail?: string)
   }
 }
 
-import * as schema from "../db/schema";
+import * as schema from "../db/schema.js";

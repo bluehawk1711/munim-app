@@ -2,8 +2,10 @@
 
 Every feature lives in the **shared core** (`packages/core`): the Drizzle schema, the Neon
 Postgres client, and ALL business logic (stock, sales, invoices, bills, parties, advances/ledger,
-payments, reports, settings). The three apps are thin UIs over that one model — there is **no API
-server**.
+payments, reports, settings). The three apps are thin UIs over that one model. A **NestJS API
+server (`apps/api`)** is being introduced (see `docs/nestjs-backend.md`): it reuses the *same*
+core service functions with a `pg.Pool` client, and desktop + mobile will fetch from it (web
+later). Until the refactor lands, all three apps still connect to Neon directly via core.
 
 This document records what exists, and **on which platforms** it is available (✅ = full UI,
 🟡 = partial / reduced UI, ❌ = not surfaced yet).

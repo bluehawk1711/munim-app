@@ -1,5 +1,5 @@
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
 export declare class PartyError extends Error {
     code: string;
     status: number;

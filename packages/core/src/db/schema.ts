@@ -7,8 +7,8 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { newId } from "../utils/id";
-import type { BillTemplateSettings } from "../billing";
+import { newId } from "../utils/id.js";
+import type { BillTemplateSettings } from "../billing/index.js";
 
 const id = () => text("id").primaryKey().$defaultFn(newId);
 

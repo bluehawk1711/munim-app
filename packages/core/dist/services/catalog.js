@@ -1,7 +1,7 @@
 import { count, desc, eq, sql } from "drizzle-orm";
-import * as schema from "../db/schema";
-import { logActivity } from "./activity";
-import { addColor, addSize, addCategory, ProductError } from "./products";
+import * as schema from "../db/schema.js";
+import { logActivity } from "./activity.js";
+import { addColor, addSize, addCategory, ProductError } from "./products.js";
 function tableFor(kind) {
     if (kind === "color")
         return schema.colors;

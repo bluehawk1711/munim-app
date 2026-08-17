@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
-import { monthLabel } from "../utils/format";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
+import { monthLabel } from "../utils/format.js";
 
 function startOfDay(d: Date): Date {
   const x = new Date(d);

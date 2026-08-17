@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { listPayments, recordPayment, AdvanceError } from "@munim/core"
+import { listPayments, recordPayment, AdvanceError, paymentSchema, serializePayment } from "@munim/core"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
-
-function serializePayment(p: { date: Date; createdAt: Date }) {
-  return { ...p, date: p.date.toISOString(), createdAt: p.createdAt.toISOString() }
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -15,15 +11,6 @@ export async function GET(request: Request) {
   const payments = await listPayments(db, partyId)
   return NextResponse.json(payments.map(serializePayment))
 }
-
-const paymentSchema = z.object({
-  partyId: z.string().optional(),
-  direction: z.enum(["IN", "OUT"]),
-  amount: z.coerce.number().positive("Amount must be positive"),
-  method: z.string().max(40).optional(),
-  date: z.string().optional(),
-  note: z.string().max(300).optional().or(z.literal("")),
-})
 
 export async function POST(request: Request) {
   try {

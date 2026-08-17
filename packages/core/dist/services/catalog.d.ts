@@ -1,4 +1,4 @@
-import type { DbClient } from "../db/client";
+import type { DbClient } from "../db/client.js";
 /**
  * Catalog (colors / sizes) management — SHARED by all three apps.
  *

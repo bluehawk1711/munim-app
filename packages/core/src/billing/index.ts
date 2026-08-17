@@ -12,7 +12,7 @@ export {
   type BillClassicColor,
   type BillMode,
   type BillTemplateSettings,
-} from "./billDocument";
+} from "./billDocument.js";
 
 export {
   defaultJobLetterData,
@@ -22,7 +22,7 @@ export {
   type JobLetterCompanyFallback,
   type JobLetterData,
   type JobLetterRowLike,
-} from "./jobLetterDocument";
+} from "./jobLetterDocument.js";
 
 export {
   buildProductLabel,
@@ -34,4 +34,4 @@ export {
   type ProductLabel,
   type LabelShop,
   type LabelSheetOptions,
-} from "./labelDocument";
+} from "./labelDocument.js";

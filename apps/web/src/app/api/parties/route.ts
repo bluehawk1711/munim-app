@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { listParties, createParty, getPartyBalances, getReceivables, getPayables, PartyError } from "@munim/core"
+import { listParties, createParty, getPartyBalances, getReceivables, getPayables, PartyError, partySchema, serializeParty } from "@munim/core"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
-
-function serializeParty(p: { createdAt: Date }) {
-  return { ...p, createdAt: p.createdAt.toISOString() }
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -31,15 +27,6 @@ export async function GET(request: Request) {
   const parties = await listParties(db, type, search)
   return NextResponse.json(parties.map(serializeParty))
 }
-
-const partySchema = z.object({
-  name: z.string().min(1, "Name is required").max(120),
-  phone: z.string().max(40).optional().or(z.literal("")),
-  email: z.email("Invalid email").optional().or(z.literal("")),
-  address: z.string().max(300).optional().or(z.literal("")),
-  type: z.enum(["CUSTOMER", "SUPPLIER", "WORKER", "OTHER"]).optional(),
-  notes: z.string().max(500).optional().or(z.literal("")),
-})
 
 export async function POST(request: Request) {
   try {

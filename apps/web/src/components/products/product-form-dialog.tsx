@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
-import { productSchema, type ProductFormValues } from "@/lib/validators"
+import { productSchema, type ProductFormValues } from "@munim/core"
 import type { Product } from "@/lib/types"
 import { toast } from "@munim/ui"
 

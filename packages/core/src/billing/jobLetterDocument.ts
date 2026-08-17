@@ -1,4 +1,4 @@
-import { amountInWords } from "../utils/numberToWords";
+import { amountInWords } from "../utils/numberToWords.js";
 
 /**
  * Shared job-letter model — THE single source of truth for appointment /

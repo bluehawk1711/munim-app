@@ -1,0 +1,41 @@
+{
+  "name": "@munim/api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Munim NestJS API server — reuses @munim/core business logic with a pg.Pool Drizzle client, Upstash Redis caching, and per-platform API-key auth.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "test": "tsx test/smoke.ts"
+  },
+  "dependencies": {
+    "@fastify/compress": "^8.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "@munim/core": "workspace:*",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-fastify": "^11.0.0",
+    "@nestjs/throttler": "^6.4.0",
+    "drizzle-orm": "^0.44.2",
+    "fastify": "^5.11.3",
+    "pg": "^8.23.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "zod": "^4.0.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@types/node": "^25.5.0",
+    "@types/pg": "^8.21.0",
+    "eslint": "^9.38.0",
+    "globals": "^16.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.46.1"
+  }
+}

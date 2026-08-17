@@ -1,4 +1,4 @@
-import { amountInWords } from "../utils/numberToWords";
+import { amountInWords } from "../utils/numberToWords.js";
 
 /**
  * Shared bill/invoice generation — THE single source of truth used by all

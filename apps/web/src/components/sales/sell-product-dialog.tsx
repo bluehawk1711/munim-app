@@ -26,7 +26,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 import { useProducts } from "@/hooks/use-products"
 import { useCreateSale } from "@/hooks/use-sales"
-import { saleSchema, type SaleFormValues } from "@/lib/validators"
+import { saleSchema, type SaleFormValues } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
 import { consumePendingSellProduct } from "@/lib/pending-sell"
 import { formatCurrency } from "@/lib/format"

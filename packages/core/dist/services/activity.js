@@ -7,5 +7,5 @@ export async function logActivity(db, action, detail) {
         // ignore — logging must never break the main operation
     }
 }
-import * as schema from "../db/schema";
+import * as schema from "../db/schema.js";
 //# sourceMappingURL=activity.js.map

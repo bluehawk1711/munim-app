@@ -1,5 +1,5 @@
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
 export declare function resolveColorId(db: DbClient, name: string): Promise<string>;
 export declare function resolveSizeId(db: DbClient, name: string): Promise<string>;
 export declare function resolveCategoryId(db: DbClient, name: string): Promise<string | null>;

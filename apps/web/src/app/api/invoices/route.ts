@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { listInvoices, createInvoice, InvoiceError, type Invoice, type InvoiceItem } from "@munim/core"
+import { listInvoices, createInvoice, InvoiceError, invoiceSchema, serializeInvoice, type Invoice, type InvoiceItem } from "@munim/core"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"
@@ -11,16 +11,6 @@ const INVOICE_STATUSES = ["DRAFT", "UNPAID", "PARTIAL", "PAID"] as const
 
 function statusParam(value: string | null): "DRAFT" | "UNPAID" | "PARTIAL" | "PAID" | undefined {
   return INVOICE_STATUSES.find((s) => s === value)
-}
-
-function serializeInvoice(inv: InvoiceWithItems) {
-  return {
-    ...inv,
-    date: inv.date.toISOString(),
-    createdAt: inv.createdAt.toISOString(),
-    updatedAt: inv.updatedAt.toISOString(),
-    items: (inv.items ?? []).map((i) => ({ ...i })),
-  }
 }
 
 export async function GET(request: Request) {
@@ -40,48 +30,6 @@ export async function GET(request: Request) {
   })
 }
 
-const invoiceItemSchema = z.object({
-  productId: z.string().optional(),
-  productName: z.string().min(1, "Item name is required"),
-  sku: z.string().optional(),
-  color: z.string().optional(),
-  size: z.string().optional(),
-  description: z.string().optional(),
-  quantity: z.coerce.number().positive("Quantity must be positive"),
-  price: z.coerce.number().min(0),
-})
-
-const invoiceSchema = z.object({
-  customerName: z.string().optional(),
-  customerPhone: z.string().optional(),
-  customerAddress: z.string().optional(),
-  partyId: z.string().optional(),
-  date: z.string().optional(),
-  items: z.array(invoiceItemSchema).min(1, "At least one line item is required"),
-  deliveryCharge: z.coerce.number().min(0).optional(),
-  discount: z.coerce.number().min(0).optional(),
-  notes: z.string().optional(),
-  shopDetails: z
-    .object({
-      name: z.string(),
-      address: z.string(),
-      phones: z.array(z.string()),
-      email: z.string(),
-    })
-    .optional(),
-  // Bill template snapshot (template / classic color / 2-in-1) — validated
-  // against the shared BillTemplateSettings model instead of a JSON blob.
-  templateSettings: z
-    .object({
-      template: z.enum(["jewellery", "ecommerce"]),
-      classicColor: z.enum(["red", "yellow"]),
-      twoInOne: z.boolean(),
-      mode: z.enum(["duplicate", "distinct"]),
-    })
-    .optional(),
-  amountPaid: z.coerce.number().min(0).optional(),
-  paymentMethod: z.string().optional(),
-})
 
 export async function POST(request: Request) {
   try {

@@ -1,5 +1,5 @@
 import { pgTable, text, timestamp, doublePrecision, json, index, uniqueIndex, } from "drizzle-orm/pg-core";
-import { newId } from "../utils/id";
+import { newId } from "../utils/id.js";
 const id = () => text("id").primaryKey().$defaultFn(newId);
 /* ────────────────────────────────────────────────────────────────
  * LOOKUPS

@@ -1,8 +1,8 @@
 import { count, desc, eq, sql } from "drizzle-orm";
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
-import { logActivity } from "./activity";
-import { addColor, addSize, addCategory, ProductError } from "./products";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
+import { logActivity } from "./activity.js";
+import { addColor, addSize, addCategory, ProductError } from "./products.js";
 
 /**
  * Catalog (colors / sizes) management — SHARED by all three apps.

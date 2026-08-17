@@ -1,6 +1,6 @@
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
-import type { BillTemplateSettings } from "../billing";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
+import type { BillTemplateSettings } from "../billing/index.js";
 export declare class InvoiceError extends Error {
     code: string;
     status: number;

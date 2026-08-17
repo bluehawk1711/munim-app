@@ -1,5 +1,5 @@
-import { barcodeSvg } from "../utils/barcode";
-import { formatWeight } from "../utils/format";
+import { barcodeSvg } from "../utils/barcode.js";
+import { formatWeight } from "../utils/format.js";
 /** Builds a label from a product row (+ optional shop header). Pure + shared. */
 export function buildProductLabel(product, shop) {
     return {

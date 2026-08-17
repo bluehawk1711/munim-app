@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { adjustStock, ProductError } from "@munim/core"
-import { stockAdjustmentSchema } from "@/lib/validators"
-import { serializeProduct } from "@/lib/serialize"
+import { adjustStock, ProductError, stockAdjustmentSchema, serializeProduct } from "@munim/core"
 import { z } from "zod"
 
 export const dynamic = "force-dynamic"

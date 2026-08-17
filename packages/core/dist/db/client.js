@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/pg-proxy";
 import { sql } from "drizzle-orm";
-import * as schema from "./schema";
+import * as schema from "./schema.js";
 /**
  * Cheap connectivity check used by the Settings screens. Runs `select 1`
  * through the app's own db client (fetch-based Neon proxy), so apps don't

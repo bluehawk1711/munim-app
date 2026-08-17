@@ -1,7 +1,7 @@
 import { desc, eq } from "drizzle-orm";
-import type { DbClient } from "../db/client";
-import * as schema from "../db/schema";
-import { logActivity } from "./activity";
+import type { DbClient } from "../db/client.js";
+import * as schema from "../db/schema.js";
+import { logActivity } from "./activity.js";
 
 export type JobLetterInput = {
   title: string;

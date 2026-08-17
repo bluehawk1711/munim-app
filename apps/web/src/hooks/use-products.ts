@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
 import type { Product, ProductFilters, StockStatus } from "@/lib/types"
-import type { ProductFormValues, StockAdjustmentValues } from "@/lib/validators"
+import type { ProductFormValues, StockAdjustmentValues } from "@munim/core"
 
 export const productKeys = {
   all: ["products"] as const,

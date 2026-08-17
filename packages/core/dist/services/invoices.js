@@ -1,8 +1,8 @@
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
-import * as schema from "../db/schema";
-import { generateInvoiceNumber } from "../utils/codes";
-import { getProduct } from "./products";
-import { logActivity } from "./activity";
+import * as schema from "../db/schema.js";
+import { generateInvoiceNumber } from "../utils/codes.js";
+import { getProduct } from "./products.js";
+import { logActivity } from "./activity.js";
 export class InvoiceError extends Error {
     code;
     status;

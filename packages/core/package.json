@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/db/server.d.ts",
+      "import": "./dist/db/server.js"
     }
   },
   "files": [
@@ -32,8 +36,10 @@
   "devDependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@types/node": "^22.15.0",
+    "@types/pg": "^8.21.0",
     "drizzle-kit": "^0.31.1",
     "esbuild": "^0.28.2",
+    "pg": "^8.23.0",
     "typescript": "^5.8.3"
   }
 }

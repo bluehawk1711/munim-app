@@ -6,22 +6,18 @@ pick up work. Append new decisions here instead of re-litigating old ones.
 ## Decisions (ADR)
 
 ### ADR-001 — No API server: shared Neon Postgres via SQL-over-HTTP
-**Status:** Accepted · **Date:** 2026-08
+**Status:** **Superseded** by ADR-014 (NestJS API server) · **Date:** 2026-08
 
-All three apps (web, desktop, mobile) connect **directly** to a single Neon
-Postgres database. No backend service exists.
+Originally all three apps (web, desktop, mobile) connected **directly** to a
+single Neon Postgres database through `drizzle-orm/pg-proxy` (plain `fetch`
+handler) — no backend service. That remains true for the **web app today**
+(until Phase 6 of `docs/nestjs-backend.md`), but **desktop + mobile are being
+refactored to fetch from the NestJS API** (ADR-014) instead of touching Neon
+directly.
 
-**Why:** The user requirement was "a global DB where all logic lives there and
-is imported by all 3 applications" — no separate API server. Research
-confirmed `drizzle-orm/pg-proxy` (plain `fetch` handler) is the only Drizzle
-driver that runs identically in Node (Next.js), a browser webview (Tauri), and
-React Native. Neon's SQL-over-HTTP endpoint supports CORS and works from RN's
-`fetch`.
-
-**Consequences:**
-- All business logic lives in `packages/core`; apps import it directly.
-- DB credentials are per-app environment secrets (`.env`), never committed.
-- Data is live-shared across all devices with no sync layer.
+**What is preserved:** all business logic still lives in `packages/core`;
+apps never re-implement it. The API passes the *same* core service functions a
+faster `pg.Pool`-backed Drizzle client.
 
 ### ADR-002 — Monorepo: pnpm workspaces + Turborepo
 **Status:** Accepted
@@ -121,6 +117,31 @@ desktop gate through `PinGate` in `@munim/ui` (localStorage `munim.pin`),
 mobile through its own `PinLockScreen` (AsyncStorage). Test account PIN: `1234`.
 Web adds a 30-day session cookie so the PIN isn't re-typed on every screen.
 
+### ADR-014 — NestJS API server (Fastify + pg.Pool), reusing core
+**Status:** In progress (Phase 1 landed; desktop/mobile refactor pending) · **Date:** 2026-08
+
+A NestJS API (`apps/api`) serves data to desktop + mobile (web later). It
+reuses `@munim/core` business logic **unchanged**: every core service is a
+plain function taking a Drizzle client, so the API builds a **`pg.Pool`-backed
+client** (`@munim/core/server` subpath export → `createServerDb`) and passes it
+to the exact same functions. Zero business-logic duplication.
+
+- **Auth:** three static per-platform API keys (`x-api-key` header,
+  `API_KEY_WEB`/`API_KEY_DESKTOP`/`API_KEY_MOBILE`), injected into each client
+  at build time via GitHub Actions secrets; constant-time comparison.
+- **Caching:** Upstash Redis via `@nestjs/cache-manager` v6 + `upstash-redis`
+  store (Phase 2; `node-cache` rejected as unmaintained/in-memory-only).
+- **Perf:** Fastify adapter, compression, helmet, throttler, pg.Pool (kills the
+  per-query TLS handshake of SQL-over-HTTP), pino.
+- **Validation/serialization:** moved into `packages/core` (`validators/` +
+  `serialize/`) so API and web share one schema + one Date→JSON shape.
+- Full plan + phases: `docs/nestjs-backend.md`.
+
+**Core ESM note:** `packages/core` now compiles with `module: NodeNext` and
+`.js`-extension relative imports so its dist runs in plain Node (the API) as
+well as bundlers (web/desktop/mobile). Verified: Node `import` of both
+`@munim/core` and `@munim/core/server` works; all four apps typecheck.
+
 ### ADR-013 — Mobile build is manual-only (direct Gradle, no EAS)
 **Status:** Accepted
 
@@ -208,6 +229,10 @@ pnpm --filter @munim/core build
 | `packages/core/src/services/*` | Business logic: products, invoices, parties, advances, payments, jobLetters, dashboard, settings, activity |
 | `packages/core/src/billing/*` | Shared bill/invoice generation (all 3 apps) |
 | `packages/core/src/security/*` | PIN hashing/verify (pure-TS SHA-256) |
+| `packages/core/src/validators/*` | Shared zod request schemas (API + web) |
+| `packages/core/src/serialize/*` | Shared Date→JSON serializers (API + web) |
+| `packages/core/src/db/server.ts` | Server-only `pg.Pool` client (`@munim/core/server` subpath) |
+| `apps/api/*` | NestJS API server (Fastify, pg.Pool, API keys, Upstash caching — see `docs/nestjs-backend.md`) |
 | `packages/ui/src/components/*` | Shared UI kit (web + desktop render from here) |
 | `packages/theme/src/tokens.ts` | Design tokens — 5 themes × light/dark (single source of truth) |
 | `apps/web/src/app/api/*` | Thin Next.js route adapters calling core services |

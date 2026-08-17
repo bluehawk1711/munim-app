@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 
 import { useAdjustStock } from "@/hooks/use-products"
-import { stockAdjustmentSchema, type StockAdjustmentValues } from "@/lib/validators"
+import { stockAdjustmentSchema, type StockAdjustmentValues } from "@munim/core"
 import type { Product } from "@/lib/types"
 import { formatNumber } from "@/lib/format"
 import { toast } from "@munim/ui"

@@ -1,8 +1,8 @@
 import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
-import * as schema from "../db/schema";
-import { generateSku } from "../utils/codes";
-import { generateEan13 } from "../utils/barcode";
-import { logActivity } from "./activity";
+import * as schema from "../db/schema.js";
+import { generateSku } from "../utils/codes.js";
+import { generateEan13 } from "../utils/barcode.js";
+import { logActivity } from "./activity.js";
 /* ── Lookup resolvers (colors, sizes, categories) ─────────────── */
 export async function resolveColorId(db, name) {
     const trimmed = name.trim();

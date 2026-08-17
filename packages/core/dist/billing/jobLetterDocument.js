@@ -1,4 +1,4 @@
-import { amountInWords } from "../utils/numberToWords";
+import { amountInWords } from "../utils/numberToWords.js";
 export const defaultJobLetterData = {
     companyName: "Jewellery Wala",
     companyAddress: "",

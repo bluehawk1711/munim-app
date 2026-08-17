@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { db } from "@/lib/db"
-import { createSale, listInvoices, InvoiceError, type Invoice, type InvoiceItem } from "@munim/core"
-import { saleSchema } from "@/lib/validators"
+import { createSale, listInvoices, InvoiceError, type Invoice, type InvoiceItem, saleSchema } from "@munim/core"
 import { z } from "zod"
 import type { Sale } from "@/lib/types"
 
