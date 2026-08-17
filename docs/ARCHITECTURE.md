@@ -10,10 +10,9 @@ pick up work. Append new decisions here instead of re-litigating old ones.
 
 Originally all three apps (web, desktop, mobile) connected **directly** to a
 single Neon Postgres database through `drizzle-orm/pg-proxy` (plain `fetch`
-handler) — no backend service. That remains true for the **web app today**
-(until Phase 6 of `docs/nestjs-backend.md`), but **desktop + mobile are being
-refactored to fetch from the NestJS API** (ADR-014) instead of touching Neon
-directly.
+handler) — no backend service. That ended with ADR-014: **all three apps now
+fetch from the NestJS API** through the shared `@munim/api-client` + `@munim/query`
+layer, and the in-app Next.js `/api/*` routes were deleted (Phase 6).
 
 **What is preserved:** all business logic still lives in `packages/core`;
 apps never re-implement it. The API passes the *same* core service functions a
@@ -118,8 +117,9 @@ mobile through its own `PinLockScreen` (AsyncStorage). Test account PIN: `1234`.
 Web adds a 30-day session cookie so the PIN isn't re-typed on every screen.
 
 ### ADR-014 — NestJS API server (Fastify + pg.Pool), reusing core
-**Status:** In progress (Phases 1–5 landed: API + `@munim/api-client` built;
-desktop + mobile refactored to the API; web refactor pending — Phase 6) · **Date:** 2026-08
+**Status:** Complete (Phases 1–6 landed: API + `@munim/api-client` built;
+desktop, mobile **and web** all fetch through the API; web's Next.js `/api/*`
+routes deleted) · **Date:** 2026-08
 
 A NestJS API (`apps/api`) serves data to desktop + mobile (web later). It
 reuses `@munim/core` business logic **unchanged**: every core service is a

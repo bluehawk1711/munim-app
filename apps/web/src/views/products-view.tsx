@@ -26,14 +26,15 @@ import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { setPendingSellProduct } from "@/lib/pending-sell"
-import { useProducts, useSeedProducts, useBackfillBarcodes } from "@/hooks/use-products"
+import { useProducts, useBackfillBarcodes } from "@/hooks/use-products"
+import { useApiClient } from "@munim/query"
 import { useSettings } from "@/hooks/use-settings"
 import { useProductMeta } from "@/hooks/use-meta"
 import { useAppStore } from "@/store/view-store"
 import { exportProductsToExcel, exportProductsToCsv } from "@/lib/export"
 import { downloadLabelPdf, printLabelHtml } from "@/lib/label-pdf"
 import { formatCurrency, formatDate, formatWeight } from "@/lib/format"
-import { apiFetch } from "@/lib/api-client"
+
 import type { Product, StockStatus } from "@/lib/types"
 import { toast } from "@munim/ui"
 
@@ -101,8 +102,8 @@ export function ProductsView() {
 
   const { data: meta } = useProductMeta()
   const { data: settings } = useSettings()
-  const seed = useSeedProducts()
   const backfill = useBackfillBarcodes()
+  const getClient = useApiClient()
 
   const filters = {
     search: globalSearch,
@@ -166,9 +167,8 @@ export function ProductsView() {
 
   /** Shop-counter path: exact barcode lookup (indexed) → open the product. */
   async function handleBarcodeLookup(code: string) {
-    const product = await apiFetch<Product>(
-      `/api/products/lookup?barcode=${encodeURIComponent(code)}`,
-    )
+    const api = await getClient()
+    const product = await api.products.byBarcode(code)
     handleEdit(product)
     toast.success(`Found ${product.name}`)
   }
@@ -381,14 +381,6 @@ export function ProductsView() {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => seed.mutateAsync().then((r) => r.success ? toast.success(`Seeded ${r.count} products`) : toast.info("Products already exist"))}
-                disabled={seed.isPending}
-              >
-                {seed.isPending ? "Loading…" : "Load sample data"}
-              </Button>
               <Button size="sm" onClick={handleAdd} className="gap-1.5">
                 <Plus className="h-4 w-4" /> Add product
               </Button>

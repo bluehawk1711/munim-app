@@ -61,8 +61,8 @@ invalidated, writes go through mutations that invalidate).
 - **`QueryProvider`** (`@munim/query`) wraps each app root. It receives a
   `getClient` function — **the API key/base-URL resolution is a function
   parameter**, so the shared hooks never know where the key lives:
-  - web: `() => apiClientFromEnv` (Phase 6 — today web's data hooks stay on its
-    Next routes)
+  - web: `() => apiClientFromEnv` (`lib/query.tsx` resolves
+    `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_API_KEY`, same-origin fallback)
   - desktop: `() => getApi()` (`lib/api.ts`, Tauri fetch + saved URL/key)
   - mobile: `() => getApi()` (`lib/api.ts`, AsyncStorage URL/key + global fetch)
 - Hooks `await` the client inside `queryFn`, so mobile's async `getApi()` works
@@ -87,7 +87,7 @@ client directly — the shared data layer stays untouched.
 
 | Platform | Data hooks (`@munim/query`) | Client store (`@munim/store`) |
 |---|---|---|
-| **Web** | Pending — migrate `apps/web/src/hooks/*` to `@munim/query` in **Phase 6** (when web moves off its Next `/api/*` routes to the api-client) | ✅ Adopted — `store/view-store.ts` re-exports a shared-store instance |
+| **Web** | ✅ Adopted — `apps/web/src/hooks/*` re-export `@munim/query`; provider resolves the API from env; Next `/api/*` routes deleted (Phase 6) | ✅ Adopted — `store/view-store.ts` re-exports a shared-store instance |
 | **Desktop** | ✅ Adopted — all 11 pages use `@munim/query` hooks | ✅ Adopted — active view lives in the shared store |
 | **Mobile** | ✅ Adopted — all 11 screens use `@munim/query` hooks | ✅ Adopted — active tab lives in the shared store |
 

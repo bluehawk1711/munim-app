@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 
 
+import { useUploadImage } from "@munim/query"
 import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
 import { productSchema, type ProductFormValues } from "@munim/core"
@@ -31,6 +32,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const isEdit = !!product
   const create = useCreateProduct()
   const update = useUpdateProduct()
+  const uploadImage = useUploadImage()
   const { data: meta } = useProductMeta()
 
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -161,15 +163,9 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     }
     setUploading(true)
     try {
-      const fd = new FormData()
-      fd.append("file", file)
-      const res = await fetch("/api/upload", { method: "POST", body: fd })
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => null)) as { error?: string } | null
-        throw new Error(errBody?.error ?? "Upload failed")
-      }
-      const body = (await res.json().catch(() => null)) as { url?: string } | null
-      form.setValue("imageUrl", body?.url ?? "", { shouldValidate: true })
+      // Shared api-client → POST /api/upload (Cloudinary secret stays server-side).
+      const { url } = await uploadImage.mutateAsync(file)
+      form.setValue("imageUrl", url, { shouldValidate: true })
       toast.success("Image uploaded")
     } catch (err) {
       toast.error("Upload failed", {

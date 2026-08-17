@@ -4,6 +4,7 @@ import * as React from "react"
 import * as m from "motion/react-m"
 import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe, Palette, ShieldCheck, ShoppingBag, SunMoon } from "lucide-react"
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings"
+import { useApiClient } from "@munim/query"
 import {
   Button,
   Input,
@@ -97,12 +98,15 @@ export function SettingsView() {
   }
 
   const [pingState, setPingState] = React.useState<"idle" | "testing" | "ok" | "fail">("idle")
+  const getClient = useApiClient()
 
   async function handlePing() {
     setPingState("testing")
     try {
-      const res = await fetch("/api/settings", { cache: "no-store" })
-      setPingState(res.ok ? "ok" : "fail")
+      // Shared api-client → GET /api/settings (same path the data hooks use).
+      const api = await getClient()
+      await api.settings.get()
+      setPingState("ok")
     } catch {
       setPingState("fail")
     }

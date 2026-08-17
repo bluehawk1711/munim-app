@@ -32,14 +32,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badg
 
 
 import { formatCurrency, formatNumber, formatDateTime, formatTimeAgo } from "@/lib/format"
-import { useSeedProducts } from "@/hooks/use-products"
 import { toast } from "@munim/ui"
 
 export function DashboardView() {
   const { data, isLoading, isError, refetch } = useDashboard()
   const setView = useAppStore((s) => s.setActiveView)
   const setSellDialogOpen = useAppStore((s) => s.setSellDialogOpen)
-  const seed = useSeedProducts()
 
   if (isLoading) {
     return (
@@ -134,21 +132,10 @@ export function DashboardView() {
               <div>
                 <p className="text-sm font-semibold">Welcome to Munim</p>
                 <p className="text-xs text-muted-foreground">
-                  Your inventory is empty. Load sample products to explore the dashboard.
+                  Your inventory is empty. Add products to see your dashboard stats.
                 </p>
               </div>
             </div>
-            <Button
-              onClick={() =>
-                seed.mutateAsync().then((r) => {
-                  if (r.success) toast.success(`Seeded ${r.count} sample products`)
-                  else toast.info("Products already exist")
-                })
-              }
-              disabled={seed.isPending}
-            >
-              {seed.isPending ? "Loading sample data…" : "Load sample data"}
-            </Button>
           </CardContent>
         </Card>
       )}

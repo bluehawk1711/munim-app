@@ -51,7 +51,7 @@ duplication — core stays the single source of truth.
 | Auth | **3 static API keys** — one per platform (web / desktop / mobile), injected at **build time via GitHub secrets**, sent by each client as `x-api-key` |
 | Caching | **Upstash Redis** via `@upstash/redis` (REST SDK) in a small `CacheService` (cache-aside + explicit prefix invalidation); in-memory TTL fallback when `UPSTASH_REDIS_REST_URL/TOKEN` are unset. **Note:** the original plan's `upstash-redis` cache-manager store was **unpublished in 2021** — using the SDK directly instead |
 | Deploy | **Render or Railway** (container, long-running Node) — Node 24, same as CI |
-| Order | Desktop + mobile first (this plan), **web later** (Phase 6) |
+| Order | Desktop → mobile → web — **all three now on the API** (Phases 4–6) |
 | DB | Neon unchanged; migrations flow unchanged (`db-migrate` workflow) |
 
 ---
@@ -283,13 +283,14 @@ means "no change"), keeping `ShopSettingsInput` untouched.
 4. Barcode **camera scanning** keeps calling the (now API-backed) lookup —
    `api.products.byBarcode(code)`.
 
-## 10. Web refactor (Phase 6 — later, kept out of this build)
+## 10. Web refactor (Phase 6 — done)
 
-Replace the Next.js `/api/*` server routes with direct calls to the NestJS API
-(web sends its own `x-api-key`; same origin or CORS-enabled). Next.js stays the
-renderer; `lib/db.ts` proxy goes away. Validators/serializers already moved to
-core in Phase 1, so the swap is thin. Until then **web keeps running on direct
-Neon** — a live fallback while desktop/mobile are migrated.
+The Next.js `/api/*` server routes are **deleted**; the web app now calls the
+NestJS API through the same shared `@munim/query` hooks as desktop + mobile,
+resolving `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_API_KEY` at build time (with a
+same-origin fallback for local dev). Next.js stays the renderer; `lib/db.ts`,
+`lib/cloudinary.ts` and the web-only seed route are gone. Deployment requires
+`CORS_ORIGINS` on the API to include the web origin.
 
 ---
 
@@ -305,7 +306,8 @@ Neon** — a live fallback while desktop/mobile are migrated.
   `VITE_API_KEY` (from `API_KEY_DESKTOP` secret) to the `pnpm build` env.
 - **Mobile build (`mobile-build.yml`):** add `EXPO_PUBLIC_API_URL` +
   `EXPO_PUBLIC_API_KEY` (from `API_KEY_MOBILE` secret).
-- **Web build:** add `API_KEY_WEB` to Vercel env (used in Phase 6).
+- **Web build:** add `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_API_KEY` to Vercel
+  env (Phase 6 complete) and list the web origin in the API's `CORS_ORIGINS`.
 
 ---
 
@@ -387,9 +389,21 @@ Neon** — a live fallback while desktop/mobile are migrated.
       api-client smoke, core smoke 73/73, live-DB e2e + client e2e against
       Neon. (Dev-build verification deferred to the next `pnpm build:android`.)
 
-### Phase 6 — Web refactor (later, separate PR)
-- [ ] Swap Next.js `/api/*` routes for api-client calls; remove `lib/db.ts`.
-- [ ] Vercel env `API_KEY_WEB`; verify.
+### Phase 6 — Web refactor ✅
+- [x] `apps/web/src/lib/query.tsx` resolves the shared api-client against
+      `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_API_KEY` (same-origin fallback when
+      unset, so `next dev` still boots without a backend).
+- [x] All Next.js `/api/*` route handlers deleted (30 files), plus the now-
+      orphaned `lib/db.ts`, `lib/cloudinary.ts` and `lib/api-client.ts`.
+- [x] Last direct fetches converted to the shared layer: product image upload
+      → `useUploadImage` (`POST /api/upload`), Settings connection ping →
+      `api.settings.get()` through `useApiClient`, barcode lookup →
+      `api.products.byBarcode(code)`. Web-only `useSeedProducts` dev tool and
+      its `/api/products/seed` route removed (no parity on desktop/mobile).
+- [x] Verify: web typecheck + lint clean, `next build` green (only `/` +
+      `/_not-found` routes remain), live-DB e2e 17/17 against the API.
+- [ ] Deploy: set `NEXT_PUBLIC_API_URL` + `NEXT_PUBLIC_API_KEY` on Vercel and
+      add the deployed web origin to the API's `CORS_ORIGINS`.
 
 ### Phase 7b — Shared data layer (`@munim/query` + `@munim/store`) ✅
 - [x] `packages/query` — shared TanStack Query hooks over `@munim/api-client`
@@ -413,7 +427,7 @@ Neon** — a live fallback while desktop/mobile are migrated.
 ## 13. ADR updates (when implementing)
 
 - **ADR-001 (no API server)** → mark **Superseded** for desktop/mobile data
-  access; note web remains direct until Phase 6; core stays the single brain.
+  access; core stays the single brain (all 3 apps now fetch via the API).
 - **ADR-014 — NestJS API server (Accepted):** Fastify adapter, pg.Pool,
   business logic 100% in `@munim/core`.
 - **ADR-015 — Per-platform API keys (Accepted):** 3 static keys, build-injected
@@ -432,6 +446,8 @@ Neon** — a live fallback while desktop/mobile are migrated.
 - **Secrets in clients:** baked API keys are extractable from the desktop
   bundle/APK — acceptable for this threat model (per-platform key, rotatable);
   document in Security notes.
-- **Web stays on direct Neon** until Phase 6 — no regression window.
+- **All three apps now fetch through the API** — the web build requires
+  `NEXT_PUBLIC_API_URL`/`NEXT_PUBLIC_API_KEY` and the server's `CORS_ORIGINS`
+  to include the web origin for browser calls.
 - Barcode/PDF/label logic is client-side rendering of core HTML — unaffected by
   the API move.
