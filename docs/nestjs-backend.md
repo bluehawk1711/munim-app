@@ -1,13 +1,16 @@
 # Munim — NestJS Backend Plan
 
-> Status: **Phase 1 landed (2026-08-17)** — `apps/api` scaffolded (Fastify,
-> pg.Pool client, API-key guard, health checks, boot + live-DB e2e smoke) and
-> core prep done (`createServerDb` via `@munim/core/server`, validators +
-> serializers moved into core). **All controllers are implemented:** products,
-> dashboard, settings, catalog, invoices (+ record payment), sales, parties
-> (+ ledger/balances), advances (+ payments), job-letters, reports (JSON +
-> CSV) and upload (Cloudinary signed). Remaining phases: 2 (Upstash caching)
-> → 3 (`api-client`) → 4 (desktop) → 5 (mobile) → 6 (web) → 7 (CI/CD + docs).
+> Status: **Phases 1–3 landed (2026-08-17)** — `apps/api` scaffolded (Fastify,
+> pg.Pool client, API-key guard, health checks, boot + live-DB e2e smoke), core
+> prep done (`createServerDb` via `@munim/core/server`, validators +
+> serializers moved into core, explicit `*Dto` wire types added to
+> `packages/core/src/serialize`), and **`packages/api-client` built** — a
+> typed client with one module per resource, methods mirroring the core
+> service names, `fetchImpl` injection (Tauri plugin fetch for desktop),
+> `ApiClientError` mapping, CSV text mode; unit smoke (stub server, 14
+> checks) + live-DB e2e through the real API (17 checks) both green.
+> Remaining phases: 2 (Upstash caching) → 4 (desktop) → 5 (mobile) → 6 (web)
+> → 7 (CI/CD + docs).
 >
 > Supersedes part of **ADR-001** (no API server). See "ADR updates" at the end.
 
@@ -312,10 +315,12 @@ Neon** — a live fallback while desktop/mobile are migrated.
 - [ ] Verify: repeated `GET /api/dashboard` hits Upstash (log/hit-miss header);
       a write invalidates.
 
-### Phase 3 — `packages/api-client`
-- [ ] Scaffold package (fetch wrapper, `fetchImpl` injection, typed endpoints,
+### Phase 3 — `packages/api-client` ✅
+- [x] Scaffold package (fetch wrapper, `fetchImpl` injection, typed endpoints,
       DTO types re-exported from core).
-- [ ] Unit-smoke against a running `apps/api` dev server.
+- [x] Unit-smoke against a running `apps/api` dev server (`test/smoke.ts` —
+      stub server, 14 checks) + live-DB e2e through the real API
+      (`apps/api/test/e2e-client.ts` — 17 checks).
 
 ### Phase 4 — Desktop refactor
 - [ ] Swap `lib/core.ts` → api-client; swap all 11 pages.

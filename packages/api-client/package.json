@@ -1,0 +1,37 @@
+{
+  "name": "@munim/api-client",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Munim shared typed HTTP client — one fetch wrapper for the NestJS API used by desktop, mobile and (later) web. Endpoint methods mirror the @munim/core service names so screen swaps are mechanical. DTOs are re-exported from @munim/core — never redefined.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "test": "tsx test/smoke.ts"
+  },
+  "dependencies": {
+    "@munim/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@types/node": "^25.5.0",
+    "eslint": "^9.38.0",
+    "globals": "^16.4.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.46.1"
+  }
+}

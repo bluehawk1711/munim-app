@@ -72,6 +72,9 @@ importers:
       '@eslint/js':
         specifier: ^9.38.0
         version: 9.39.5
+      '@munim/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@types/node':
         specifier: ^25.5.0
         version: 25.9.5
@@ -465,6 +468,34 @@ importers:
       typescript:
         specifier: ^5
         version: 5.9.3
+
+  packages/api-client:
+    dependencies:
+      '@munim/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.38.0
+        version: 9.39.5
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.9.5
+      eslint:
+        specifier: ^9.38.0
+        version: 9.39.5(jiti@2.7.0)
+      globals:
+        specifier: ^16.4.0
+        version: 16.4.0
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.11
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      typescript-eslint:
+        specifier: ^8.46.1
+        version: 8.66.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
 
   packages/core:
     dependencies:

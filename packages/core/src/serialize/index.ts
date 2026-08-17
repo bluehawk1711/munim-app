@@ -2,6 +2,10 @@
  * Shared JSON serializers — convert core domain rows (which carry `Date`
  * objects) into the plain JSON shapes sent over HTTP. Single source of truth
  * for the NestJS API (`apps/api`) and the web app (`apps/web`).
+ *
+ * The `*Dto` types exported here ARE the wire contract: the shared
+ * `@munim/api-client` re-exports them, so desktop/mobile/web consumers never
+ * redefine a DTO. Add any new wire shape here, never in an app.
  */
 import type {
   Product,
@@ -11,7 +15,12 @@ import type {
   Advance,
   Payment,
   JobLetter,
+  StockMovement,
+  ActivityLog,
+  Settings,
 } from "../db/schema.js";
+import type { DashboardStats, ReportRow, ReportType } from "../services/dashboard.js";
+import type { LedgerLine } from "../services/parties.js";
 
 /* ── Products ─────────────────────────────────────────────────── */
 
@@ -65,9 +74,17 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
 
 /* ── Invoices / bills ─────────────────────────────────────────── */
 
-type InvoiceWithItems = Invoice & { items: InvoiceItem[] };
+/** Invoice line items carry no Date fields — the schema row IS the DTO. */
+export type InvoiceItemDto = InvoiceItem;
 
-export function serializeInvoice(inv: InvoiceWithItems) {
+export type InvoiceDto = Omit<Invoice, "date" | "createdAt" | "updatedAt"> & {
+  date: string;
+  createdAt: string;
+  updatedAt: string;
+  items: InvoiceItemDto[];
+};
+
+export function serializeInvoice(inv: Invoice & { items: InvoiceItem[] }): InvoiceDto {
   return {
     ...inv,
     date: inv.date.toISOString(),
@@ -96,7 +113,7 @@ export type SaleDto = {
 };
 
 /** Maps a core invoice + items into the flattened Sale DTO the UIs expect. */
-export function serializeSale(invoice: InvoiceWithItems): SaleDto {
+export function serializeSale(invoice: Invoice & { items: InvoiceItem[] }): SaleDto {
   const item = (invoice.items ?? [])[0];
   return {
     id: invoice.id,
@@ -117,22 +134,95 @@ export function serializeSale(invoice: InvoiceWithItems): SaleDto {
 
 /* ── Parties (khata) ──────────────────────────────────────────── */
 
-export function serializeParty(p: { createdAt: Date }) {
-  return { ...p, createdAt: p.createdAt.toISOString() };
+export type PartyDto = Omit<Party, "createdAt" | "updatedAt"> & {
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** A party with its net ledger balance (balance > 0 → they owe us). */
+export type PartyBalanceDto = PartyDto & {
+  balance: number;
+  given: number;
+  taken: number;
+};
+
+export type LedgerLineDto = Omit<LedgerLine, "date"> & { date: string };
+
+export function serializeParty(p: Party): PartyDto {
+  return { ...p, createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString() };
 }
 
 /* ── Advances & payments ──────────────────────────────────────── */
 
-export function serializeAdvance(a: { date: Date; createdAt: Date }) {
+export type AdvanceDto = Omit<Advance, "date" | "createdAt"> & {
+  date: string;
+  createdAt: string;
+};
+
+export type PaymentDto = Omit<Payment, "date" | "createdAt"> & {
+  date: string;
+  createdAt: string;
+};
+
+export function serializeAdvance(a: Advance): AdvanceDto {
   return { ...a, date: a.date.toISOString(), createdAt: a.createdAt.toISOString() };
 }
 
-export function serializePayment(p: { date: Date; createdAt: Date }) {
+export function serializePayment(p: Payment): PaymentDto {
   return { ...p, date: p.date.toISOString(), createdAt: p.createdAt.toISOString() };
 }
 
 /* ── Job letters ──────────────────────────────────────────────── */
 
-export function serializeJobLetter(l: { createdAt: Date }) {
+export type JobLetterDto = Omit<JobLetter, "createdAt"> & { createdAt: string };
+
+export function serializeJobLetter(l: JobLetter): JobLetterDto {
   return { ...l, createdAt: l.createdAt.toISOString() };
 }
+
+/* ── Stock movements & activity ───────────────────────────────── */
+
+export type StockMovementDto = Omit<StockMovement, "createdAt"> & { createdAt: string };
+
+export type ActivityLogDto = Omit<ActivityLog, "createdAt"> & { createdAt: string };
+
+/* ── Settings ─────────────────────────────────────────────────── */
+
+export type SettingsDto = Omit<Settings, "updatedAt"> & { updatedAt: string };
+
+/* ── Dashboard & reports ──────────────────────────────────────── */
+
+/** Wire shape of GET /api/dashboard (dates serialized, balances resolved). */
+export type DashboardDto = Omit<
+  DashboardStats,
+  "recentInvoices" | "recentActivity" | "recentAdvances"
+> & {
+  recentInvoices: InvoiceDto[];
+  recentActivity: ActivityLogDto[];
+  recentAdvances: (AdvanceDto & { partyName?: string })[];
+};
+
+/** Wire shape of GET /api/reports (already Date-free in core). */
+export type ReportDto = {
+  type: ReportType;
+  title: string;
+  generatedAt: string;
+  periodLabel: string;
+  rows: ReportRow[];
+  totals: {
+    stock: number;
+    soldQuantity: number;
+    soldWeight: number;
+    revenue: number;
+    profit: number;
+  };
+};
+
+/* ── Pagination (shared list envelope) ────────────────────────── */
+
+export type Pagination = {
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+};

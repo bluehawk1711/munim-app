@@ -118,7 +118,8 @@ mobile through its own `PinLockScreen` (AsyncStorage). Test account PIN: `1234`.
 Web adds a 30-day session cookie so the PIN isn't re-typed on every screen.
 
 ### ADR-014 — NestJS API server (Fastify + pg.Pool), reusing core
-**Status:** In progress (Phase 1 landed; desktop/mobile refactor pending) · **Date:** 2026-08
+**Status:** In progress (Phases 1–3 landed: API + `@munim/api-client` built;
+desktop/mobile refactor pending) · **Date:** 2026-08
 
 A NestJS API (`apps/api`) serves data to desktop + mobile (web later). It
 reuses `@munim/core` business logic **unchanged**: every core service is a
@@ -134,7 +135,13 @@ to the exact same functions. Zero business-logic duplication.
 - **Perf:** Fastify adapter, compression, helmet, throttler, pg.Pool (kills the
   per-query TLS handshake of SQL-over-HTTP), pino.
 - **Validation/serialization:** moved into `packages/core` (`validators/` +
-  `serialize/`) so API and web share one schema + one Date→JSON shape.
+  `serialize/`) so API and web share one schema + one Date→JSON shape; the
+  `serialize/` module also exports the explicit `*Dto` wire types.
+- **Typed client:** `packages/api-client` — one fetch wrapper used by desktop,
+  mobile and (later) web. Methods mirror the core service names
+  (`api.products.list(f)`, `api.invoices.create(v)`), DTOs are re-exported
+  from core (never redefined), and `fetchImpl` is injectable (desktop passes
+  the Tauri HTTP-plugin fetch, killing the old CORS hack).
 - Full plan + phases: `docs/nestjs-backend.md`.
 
 **Core ESM note:** `packages/core` now compiles with `module: NodeNext` and
@@ -233,6 +240,7 @@ pnpm --filter @munim/core build
 | `packages/core/src/serialize/*` | Shared Date→JSON serializers (API + web) |
 | `packages/core/src/db/server.ts` | Server-only `pg.Pool` client (`@munim/core/server` subpath) |
 | `apps/api/*` | NestJS API server (Fastify, pg.Pool, API keys, Upstash caching — see `docs/nestjs-backend.md`) |
+| `packages/api-client/*` | Shared typed HTTP client (desktop/mobile/web → API; methods mirror core service names) |
 | `packages/ui/src/components/*` | Shared UI kit (web + desktop render from here) |
 | `packages/theme/src/tokens.ts` | Design tokens — 5 themes × light/dark (single source of truth) |
 | `apps/web/src/app/api/*` | Thin Next.js route adapters calling core services |
