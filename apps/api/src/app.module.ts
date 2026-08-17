@@ -9,6 +9,13 @@ import { ProductsController } from "./controllers/products.controller.js";
 import { DashboardController } from "./controllers/dashboard.controller.js";
 import { SettingsController } from "./controllers/settings.controller.js";
 import { CatalogController } from "./controllers/catalog.controller.js";
+import { InvoicesController } from "./controllers/invoices.controller.js";
+import { SalesController } from "./controllers/sales.controller.js";
+import { PartiesController } from "./controllers/parties.controller.js";
+import { AdvancesController } from "./controllers/advances.controller.js";
+import { JobLettersController } from "./controllers/job-letters.controller.js";
+import { ReportsController } from "./controllers/reports.controller.js";
+import { UploadController } from "./controllers/upload.controller.js";
 
 @Module({
   imports: [
@@ -27,6 +34,13 @@ import { CatalogController } from "./controllers/catalog.controller.js";
     DashboardController,
     SettingsController,
     CatalogController,
+    InvoicesController,
+    SalesController,
+    PartiesController,
+    AdvancesController,
+    JobLettersController,
+    ReportsController,
+    UploadController,
   ],
   providers: [
     drizzleProvider,

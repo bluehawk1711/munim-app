@@ -67,6 +67,51 @@ async function main(): Promise<void> {
     const r5 = await fetch(`${base}/api/settings`, { headers: { "x-api-key": process.env.API_KEY_DESKTOP! } });
     const s5 = (await r5.json()) as { shopName?: string };
     check("GET /api/settings → 200 with shopName", r5.status === 200 && typeof s5.shopName === "string", `got ${r5.status}`);
+
+    // New controllers — read paths
+    const r6 = await fetch(`${base}/api/invoices?pageSize=3`, { headers: web });
+    const i6 = (await r6.json()) as { invoices?: unknown[]; pagination?: { totalCount?: number } };
+    check(
+      "GET /api/invoices?pageSize=3 → 200 with pagination",
+      r6.status === 200 && Array.isArray(i6.invoices) && typeof i6.pagination?.totalCount === "number",
+      `got ${r6.status}`,
+    );
+
+    const r7 = await fetch(`${base}/api/sales?pageSize=3`, { headers: web });
+    const s7 = (await r7.json()) as unknown[];
+    check("GET /api/sales → 200 array (flattened Sale DTO)", r7.status === 200 && Array.isArray(s7), `got ${r7.status}`);
+
+    const r8 = await fetch(`${base}/api/parties`, { headers: web });
+    const p8 = (await r8.json()) as unknown[];
+    check("GET /api/parties → 200 array", r8.status === 200 && Array.isArray(p8), `got ${r8.status}`);
+
+    const r9 = await fetch(`${base}/api/parties?balances=true`, { headers: web });
+    const p9 = (await r9.json()) as { balances?: unknown[] };
+    check("GET /api/parties?balances=true → 200 with balances", r9.status === 200 && Array.isArray(p9.balances), `got ${r9.status}`);
+
+    const r10 = await fetch(`${base}/api/advances`, { headers: web });
+    const a10 = (await r10.json()) as unknown[];
+    check("GET /api/advances → 200 array", r10.status === 200 && Array.isArray(a10), `got ${r10.status}`);
+
+    const r11 = await fetch(`${base}/api/job-letters`, { headers: web });
+    const j11 = (await r11.json()) as unknown[];
+    check("GET /api/job-letters → 200 array", r11.status === 200 && Array.isArray(j11), `got ${r11.status}`);
+
+    const r12 = await fetch(`${base}/api/reports?type=monthly`, { headers: web });
+    const rep12 = (await r12.json()) as { type?: string; rows?: unknown[] };
+    check("GET /api/reports?type=monthly → 200 with rows", r12.status === 200 && rep12.type === "monthly" && Array.isArray(rep12.rows), `got ${r12.status}`);
+
+    const r13 = await fetch(`${base}/api/reports?type=sold&format=csv`, { headers: web });
+    const csv13 = await r13.text();
+    check("GET /api/reports?format=csv → 200 CSV text", r13.status === 200 && csv13.includes("Product"), `got ${r13.status}`);
+
+    // Invalid body → 400 via shared zod schema
+    const r14 = await fetch(`${base}/api/products`, {
+      method: "POST",
+      headers: { ...web, "content-type": "application/json" },
+      body: JSON.stringify({ name: "", size: "" }),
+    });
+    check("POST /api/products (invalid) → 400 { error }", r14.status === 400, `got ${r14.status}`);
   } finally {
     await app.close();
   }

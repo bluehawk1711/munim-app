@@ -1,11 +1,13 @@
 # Munim — NestJS Backend Plan
 
 > Status: **Phase 1 landed (2026-08-17)** — `apps/api` scaffolded (Fastify,
-> pg.Pool client, API-key guard, health checks, products/dashboard/settings/
-> catalog controllers, boot + live-DB e2e smoke) and core prep done
-> (`createServerDb` via `@munim/core/server`, validators + serializers moved
-> into core). Remaining phases: 2 (Upstash caching) → 3 (`api-client`) →
-> 4 (desktop) → 5 (mobile) → 6 (web) → 7 (CI/CD + docs).
+> pg.Pool client, API-key guard, health checks, boot + live-DB e2e smoke) and
+> core prep done (`createServerDb` via `@munim/core/server`, validators +
+> serializers moved into core). **All controllers are implemented:** products,
+> dashboard, settings, catalog, invoices (+ record payment), sales, parties
+> (+ ledger/balances), advances (+ payments), job-letters, reports (JSON +
+> CSV) and upload (Cloudinary signed). Remaining phases: 2 (Upstash caching)
+> → 3 (`api-client`) → 4 (desktop) → 5 (mobile) → 6 (web) → 7 (CI/CD + docs).
 >
 > Supersedes part of **ADR-001** (no API server). See "ADR updates" at the end.
 
@@ -148,20 +150,20 @@ and web pass global `fetch`.
 
 ## 5. API surface (mirrors web `/api/*` exactly)
 
-| Resource | Endpoints |
+| Resource | Endpoints (all implemented) |
 |---|---|
-| Products | `GET /api/products?search&color&size&category&page&pageSize`, `POST /api/products`, `GET/PATCH/DELETE /api/products/:id` |
-| Colors / Sizes / Categories | `GET/POST /api/colors` (…sizes, categories), `PATCH/DELETE /api/colors/:id` |
-| Sales | `POST /api/sales` (quick sale), delete via invoice |
-| Invoices | `GET /api/invoices?search&status&page`, `POST /api/invoices`, `GET/DELETE /api/invoices/:id` |
-| Payments | `POST /api/payments` (record invoice payment) |
-| Parties | `GET /api/parties?search&type`, `POST /api/parties`, `GET/PATCH/DELETE /api/parties/:id` (+ ledger) |
-| Advances | `GET/POST /api/advances`, `POST /api/advances/:id/settle` |
+| Products | `GET /api/products?search&color&size&category&status&page&pageSize`, `POST /api/products`, `GET/PUT/DELETE /api/products/:id`, `PATCH /api/products/:id/stock`, `GET /api/products/:id/movements`, `GET /api/products/lookup?barcode`, `GET /api/products/meta`, `POST /api/products/backfill-barcodes` |
+| Catalog (colors/sizes/categories) | `GET/POST /api/catalog/:kind`, `PATCH/DELETE /api/catalog/:kind/:id` (`kind` = color \| size \| category) |
+| Sales | `GET /api/sales?search&status&startDate&endDate`, `POST /api/sales` (quick sale), `DELETE /api/sales/:id` (undo → stock restore) |
+| Invoices | `GET /api/invoices?search&status&partyId&startDate&endDate&page&pageSize`, `POST /api/invoices`, `GET/DELETE /api/invoices/:id`, `POST /api/invoices/:id/payment` |
+| Payments | `GET/POST /api/payments` (money in/out against a party) |
+| Parties | `GET /api/parties?search&type&balances`, `POST /api/parties`, `GET/PUT/DELETE /api/parties/:id` (GET returns party + ledger) |
+| Advances | `GET/POST /api/advances`, `POST /api/advances/:id/settle`, `DELETE /api/advances/:id` |
 | Job letters | `GET/POST /api/job-letters`, `DELETE /api/job-letters/:id` |
-| Reports | `GET /api/reports?type&from&to` (all types + custom dates) |
+| Reports | `GET /api/reports?type&startDate&endDate[&format=csv]` (all types + custom dates) |
 | Settings | `GET/PUT /api/settings` |
 | Dashboard | `GET /api/dashboard` (all 7 stat sets) |
-| Upload | `POST /api/upload` (Cloudinary signed — secret lives only on the server) |
+| Upload | `POST /api/upload` (multipart `file` field, Cloudinary signed — secret lives only on the server) |
 | Health | `GET /healthz`, `GET /readyz` |
 
 Every controller = parse DTO (shared zod schema) → call core service with the

@@ -102,6 +102,16 @@ export const recordPaymentSchema = z.object({
 
 export type RecordPaymentValues = z.infer<typeof recordPaymentSchema>;
 
+/** Payment against a specific invoice (invoice id comes from the URL). */
+export const invoicePaymentSchema = z.object({
+  amount: z.coerce.number().positive("Payment amount must be positive"),
+  method: z.string().max(40).optional().or(z.literal("")),
+  date: z.string().optional(),
+  note: z.string().max(300).optional().or(z.literal("")),
+});
+
+export type InvoicePaymentValues = z.infer<typeof invoicePaymentSchema>;
+
 /* ── Parties (khata) ──────────────────────────────────────────── */
 
 export const partySchema = z.object({
@@ -114,6 +124,18 @@ export const partySchema = z.object({
 });
 
 export type PartyFormValues = z.infer<typeof partySchema>;
+
+/** Partial update — all fields optional (mirrors `updateParty(db, id, Partial<PartyInput>)`). */
+export const partyUpdateSchema = z.object({
+  name: z.string().min(1, "Party name is required").max(120).optional(),
+  phone: z.string().max(40).optional().or(z.literal("")),
+  email: z.email("Invalid email").optional().or(z.literal("")),
+  address: z.string().max(300).optional().or(z.literal("")),
+  type: z.enum(["CUSTOMER", "SUPPLIER", "WORKER", "OTHER"]).optional(),
+  notes: z.string().max(500).optional().or(z.literal("")),
+});
+
+export type PartyUpdateValues = z.infer<typeof partyUpdateSchema>;
 
 /* ── Payments (money in/out against a party) ──────────────────── */
 

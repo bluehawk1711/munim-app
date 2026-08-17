@@ -77,6 +77,44 @@ export function serializeInvoice(inv: InvoiceWithItems) {
   };
 }
 
+/* ── Sales (flattened sale rows for quick-sale lists) ─────────── */
+
+export type SaleDto = {
+  id: string;
+  invoiceId: string;
+  invoiceNumber: string;
+  productId: string | null;
+  productName: string;
+  sku: string | null;
+  color: string | null;
+  size: string | null;
+  quantity: number;
+  sellingPrice: number;
+  total: number;
+  status: "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
+  createdAt: string;
+};
+
+/** Maps a core invoice + items into the flattened Sale DTO the UIs expect. */
+export function serializeSale(invoice: InvoiceWithItems): SaleDto {
+  const item = (invoice.items ?? [])[0];
+  return {
+    id: invoice.id,
+    invoiceId: invoice.id,
+    invoiceNumber: invoice.invoiceNumber,
+    productId: item?.productId ?? null,
+    productName: item?.productName ?? invoice.customerName ?? "—",
+    sku: item?.sku ?? null,
+    color: item?.color ?? null,
+    size: item?.size ?? null,
+    quantity: item?.quantity ?? 0,
+    sellingPrice: item?.price ?? invoice.total,
+    total: invoice.total,
+    status: invoice.status,
+    createdAt: invoice.createdAt.toISOString(),
+  };
+}
+
 /* ── Parties (khata) ──────────────────────────────────────────── */
 
 export function serializeParty(p: { createdAt: Date }) {

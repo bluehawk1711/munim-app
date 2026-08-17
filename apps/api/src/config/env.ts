@@ -16,6 +16,10 @@ const envSchema = z.object({
   API_KEY_DESKTOP: z.string().min(8).default(""),
   API_KEY_MOBILE: z.string().min(8).default(""),
   CORS_ORIGINS: z.string().default(""),
+  /** Cloudinary (server-side signed uploads — secrets never reach clients). */
+  CLOUDINARY_CLOUD_NAME: z.string().default(""),
+  CLOUDINARY_API_KEY: z.string().default(""),
+  CLOUDINARY_API_SECRET: z.string().default(""),
 });
 
 export type ApiEnv = z.infer<typeof envSchema>;
@@ -43,4 +47,8 @@ export function getCorsOrigins(env: ApiEnv): string[] {
   return env.CORS_ORIGINS.split(",")
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+export function isCloudinaryConfigured(env: ApiEnv): boolean {
+  return Boolean(env.CLOUDINARY_CLOUD_NAME && env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
 }

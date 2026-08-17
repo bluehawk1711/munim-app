@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import compress from "@fastify/compress";
 import helmet from "@fastify/helmet";
+import multipart from "@fastify/multipart";
 import { Logger } from "@nestjs/common";
 import { AppModule } from "./app.module.js";
 import { getCorsOrigins, getEnv } from "./config/env.js";
@@ -13,6 +14,7 @@ async function bootstrap(): Promise<void> {
 
   await app.register(helmet);
   await app.register(compress, { threshold: 1024 });
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
 
   const origins = getCorsOrigins(env);
   if (origins.length > 0) {
