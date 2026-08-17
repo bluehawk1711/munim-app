@@ -118,8 +118,8 @@ mobile through its own `PinLockScreen` (AsyncStorage). Test account PIN: `1234`.
 Web adds a 30-day session cookie so the PIN isn't re-typed on every screen.
 
 ### ADR-014 — NestJS API server (Fastify + pg.Pool), reusing core
-**Status:** In progress (Phases 1–3 landed: API + `@munim/api-client` built;
-desktop/mobile refactor pending) · **Date:** 2026-08
+**Status:** In progress (Phases 1–4 landed: API + `@munim/api-client` built;
+desktop refactored to the API; mobile refactor pending) · **Date:** 2026-08
 
 A NestJS API (`apps/api`) serves data to desktop + mobile (web later). It
 reuses `@munim/core` business logic **unchanged**: every core service is a

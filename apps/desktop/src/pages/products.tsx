@@ -1,29 +1,16 @@
 import { useMemo, useRef, useState } from "react";
 import { Plus, Search, Pencil, Trash2, PackagePlus, UploadCloud, Image as ImageIcon, Loader2, X, Barcode, Tag, Eye } from "lucide-react";
 import {
-  listProducts,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-  adjustStock,
-  backfillBarcodes,
-  findProductByBarcode,
-  uploadImageToCloudinary,
-  uploadImageToCloudinarySigned,
   buildProductLabel,
-  type ProductWithMeta,
   type ProductLabel,
 } from "@munim/core";
-import { getCore } from "@/lib/core";
-import { getSavedCloudinary } from "@/lib/env";
+import type { ProductDto } from "@munim/api-client";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { money, formatWeight } from "@/lib/format";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
 import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, BarcodeSvg, BarcodeLookupInput, LabelPrintDialog, ProductDetailsDialog } from "@munim/ui";
-
-const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string | undefined;
-const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string | undefined;
 
 type FormState = {
   name: string;
@@ -56,7 +43,7 @@ const EMPTY_FORM: FormState = {
   notes: "",
 };
 
-function stockVariant(p: ProductWithMeta): "success" | "warning" | "destructive" | "secondary" {
+function stockVariant(p: ProductDto): "success" | "warning" | "destructive" | "secondary" {
   if (p.stock <= 0) return "destructive";
   if (p.stock <= p.lowStockThreshold) return "warning";
   return "success";
@@ -65,28 +52,28 @@ function stockVariant(p: ProductWithMeta): "success" | "warning" | "destructive"
 export function ProductsPage() {
   const [search, setSearch] = useState("");
   const { data, error, loading, reload } = useAsync(
-    () => listProducts(getCore(), { search, pageSize: 200 }),
+    async () => (await getApi().products.list({ search, pageSize: 200 })).products,
     [search],
   );
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<ProductWithMeta | null>(null);
+  const [editing, setEditing] = useState<ProductDto | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [adjusting, setAdjusting] = useState<ProductWithMeta | null>(null);
+  const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
   const [adjustQty, setAdjustQty] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
 
-  const [labelTarget, setLabelTarget] = useState<ProductWithMeta | null>(null);
+  const [labelTarget, setLabelTarget] = useState<ProductDto | null>(null);
   const [labelOpen, setLabelOpen] = useState(false);
   const [labelCopies, setLabelCopies] = useState(1);
-  const [detailsProduct, setDetailsProduct] = useState<ProductWithMeta | null>(null);
+  const [detailsProduct, setDetailsProduct] = useState<ProductDto | null>(null);
   const [backfilling, setBackfilling] = useState(false);
 
-  const products = useMemo(() => data?.products ?? [], [data]);
+  const products = useMemo(() => data ?? [], [data]);
   const missingBarcodes = products.some((p) => !p.barcode);
 
   function openAdd() {
@@ -95,13 +82,13 @@ export function ProductsPage() {
     setFormOpen(true);
   }
 
-  function openEdit(p: ProductWithMeta) {
+  function openEdit(p: ProductDto) {
     setEditing(p);
     setForm({
       name: p.name,
-      color: p.colorName ?? "",
-      size: p.sizeName ?? "",
-      category: p.categoryName ?? "",
+      color: p.color ?? "",
+      size: p.size ?? "",
+      category: p.category ?? "",
       barcode: p.barcode ?? "",
       weight: p.weight != null ? String(p.weight) : "",
       imageUrl: p.imageUrl ?? "",
@@ -123,12 +110,9 @@ export function ProductsPage() {
     }
     setUploading(true);
     try {
-      // Onboarding credentials (signed upload) take priority; the legacy
-      // env-var unsigned preset is the fallback for existing installs.
-      const stored = getSavedCloudinary();
-      const url = stored
-        ? await uploadImageToCloudinarySigned(file, stored)
-        : await uploadImageToCloudinary(file, CLOUD_NAME ?? "", UPLOAD_PRESET ?? "");
+      // Uploads go through the shared API (server-side Cloudinary signing) —
+      // the desktop never touches Cloudinary credentials.
+      const { url } = await getApi().upload.image(file, file.name);
       setForm((f) => ({ ...f, imageUrl: url }));
       toast.success("Image uploaded");
     } catch (err) {
@@ -162,10 +146,10 @@ export function ProductsPage() {
         notes: form.notes.trim() || undefined,
       };
       if (editing) {
-        await updateProduct(getCore(), editing.id, input);
+        await getApi().products.update(editing.id, input);
         toast.success("Product updated");
       } else {
-        await createProduct(getCore(), input);
+        await getApi().products.create(input);
         toast.success("Product created");
       }
       setFormOpen(false);
@@ -177,10 +161,10 @@ export function ProductsPage() {
     }
   }
 
-  async function handleDelete(p: ProductWithMeta) {
+  async function handleDelete(p: ProductDto) {
     if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
     try {
-      await deleteProduct(getCore(), p.id);
+      await getApi().products.remove(p.id);
       toast.success("Product deleted");
       reload();
     } catch (err) {
@@ -188,7 +172,7 @@ export function ProductsPage() {
     }
   }
 
-  function openLabelDialog(p: ProductWithMeta) {
+  function openLabelDialog(p: ProductDto) {
     setLabelTarget(p);
     setLabelCopies(1);
     setLabelOpen(true);
@@ -196,8 +180,10 @@ export function ProductsPage() {
 
   /** Shop-counter path: exact barcode lookup (indexed) → open the product. */
   async function handleBarcodeLookup(code: string) {
-    const product = await findProductByBarcode(getCore(), code);
-    if (!product) {
+    let product: ProductDto;
+    try {
+      product = await getApi().products.byBarcode(code);
+    } catch {
       throw new Error(`No product with barcode ${code}`);
     }
     openEdit(product);
@@ -207,7 +193,7 @@ export function ProductsPage() {
   async function handleBackfill() {
     setBackfilling(true);
     try {
-      const r = await backfillBarcodes(getCore());
+      const r = await getApi().products.backfillBarcodes();
       if (r.updated === 0) {
         toast.info("All products already have barcodes");
       } else {
@@ -233,9 +219,9 @@ export function ProductsPage() {
                 barcode: labelTarget.barcode,
                 weight: labelTarget.weight,
                 sellingPrice: labelTarget.sellingPrice,
-                colorName: labelTarget.colorName,
-                sizeName: labelTarget.sizeName,
-                categoryName: labelTarget.categoryName,
+                colorName: labelTarget.color || null,
+                sizeName: labelTarget.size || null,
+                categoryName: labelTarget.category || null,
               },
               { name: "" },
             ),
@@ -267,7 +253,7 @@ export function ProductsPage() {
       return;
     }
     try {
-      await adjustStock(getCore(), adjusting.id, { adjustment: qty, reason: adjustReason.trim() || undefined });
+      await getApi().products.adjustStock(adjusting.id, { adjustment: qty, reason: adjustReason.trim() || undefined });
       toast.success("Stock adjusted");
       setAdjusting(null);
       setAdjustQty("");
@@ -351,7 +337,7 @@ export function ProductsPage() {
                     </TableCell>
                     <TableCell className="max-w-56">
                       <div className="truncate font-medium">{p.name}</div>
-                      {p.categoryName ? <div className="text-xs text-muted-foreground">{p.categoryName}</div> : null}
+                      {p.category ? <div className="text-xs text-muted-foreground">{p.category}</div> : null}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{p.sku}</TableCell>
                     <TableCell>
@@ -362,7 +348,7 @@ export function ProductsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {[p.colorName, p.sizeName].filter(Boolean).join(" / ") || "—"}
+                      {[p.color, p.size].filter(Boolean).join(" / ") || "—"}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground tabular-nums">{formatWeight(p.weight)}</TableCell>
                     <TableCell className="text-right font-medium">{p.stock}</TableCell>
@@ -505,9 +491,9 @@ export function ProductsPage() {
                 name: detailsProduct.name,
                 sku: detailsProduct.sku,
                 barcode: detailsProduct.barcode,
-                color: detailsProduct.colorName,
-                size: detailsProduct.sizeName,
-                category: detailsProduct.categoryName,
+                color: detailsProduct.color,
+                size: detailsProduct.size,
+                category: detailsProduct.category,
                 weight: detailsProduct.weight,
                 imageUrl: detailsProduct.imageUrl,
                 stock: detailsProduct.stock,
@@ -515,8 +501,8 @@ export function ProductsPage() {
                 purchasePrice: detailsProduct.purchasePrice,
                 sellingPrice: detailsProduct.sellingPrice,
                 notes: detailsProduct.notes,
-                createdAt: detailsProduct.createdAt.toISOString(),
-                updatedAt: detailsProduct.updatedAt.toISOString(),
+                createdAt: detailsProduct.createdAt,
+                updatedAt: detailsProduct.updatedAt,
               }
             : null
         }

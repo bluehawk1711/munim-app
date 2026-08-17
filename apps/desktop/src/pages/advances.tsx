@@ -1,16 +1,8 @@
 import { useState } from "react";
 import { ArrowUpRight, ArrowDownLeft, TrendingUp, TrendingDown, Wallet } from "lucide-react";
-import {
-  getPartyBalances,
-  getReceivables,
-  getPayables,
-  listParties,
-  createAdvance,
-  recordPayment,
-  formatCurrency,
-  type PartyBalance,
-} from "@munim/core";
-import { getCore } from "@/lib/core";
+import { formatCurrency } from "@munim/core";
+import type { PartyBalanceDto } from "@munim/api-client";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "@munim/ui";
 import {
@@ -24,19 +16,19 @@ import {
   type KhataActionKind,
 } from "@munim/ui";
 
-type Action = { party: PartyBalance; kind: KhataActionKind } | null;
+type Action = { party: PartyBalanceDto; kind: KhataActionKind } | null;
 
 export function AdvancesPage() {
   const { data, loading, reload } = useAsync(
     async () => {
-      const db = getCore();
-      const [all, receivables, payables, parties] = await Promise.all([
-        getPartyBalances(db),
-        getReceivables(db),
-        getPayables(db),
-        listParties(db),
-      ]);
-      return { all, receivables, payables, parties };
+      const api = getApi();
+      const [balances, parties] = await Promise.all([api.parties.balances(), api.parties.list()]);
+      return {
+        all: balances.balances,
+        receivables: balances.receivables,
+        payables: balances.payables,
+        parties,
+      };
     },
     [],
   );
@@ -52,7 +44,7 @@ export function AdvancesPage() {
   const totalReceivable = receivables.reduce((s, p) => s + p.balance, 0);
   const totalPayable = payables.reduce((s, p) => s + Math.abs(p.balance), 0);
 
-  function openAction(party: PartyBalance, kind: KhataActionKind) {
+  function openAction(party: PartyBalanceDto, kind: KhataActionKind) {
     setAction({ party, kind });
     setAmount(0);
   }
@@ -61,14 +53,13 @@ export function AdvancesPage() {
     if (!action || amount <= 0) return;
     setSaving(true);
     try {
-      const db = getCore();
       if (action.kind === "GIVEN" || action.kind === "TAKEN") {
-        await createAdvance(db, { partyId: action.party.id, direction: action.kind, amount, note: note.trim() || undefined });
+        await getApi().advances.create({ partyId: action.party.id, direction: action.kind, amount, note: note.trim() || undefined });
         toast.success(action.kind === "GIVEN" ? "Advance given" : "Advance received", {
           description: `${formatCurrency(amount)} · ${action.party.name}`,
         });
       } else {
-        await recordPayment(db, {
+        await getApi().payments.create({
           partyId: action.party.id,
           direction: action.kind === "PAYMENT_IN" ? "IN" : "OUT",
           amount,
@@ -92,7 +83,7 @@ export function AdvancesPage() {
     if (!quickParty || amount <= 0) return;
     setSaving(true);
     try {
-      await createAdvance(getCore(), { partyId: quickParty, direction: quickKind, amount });
+      await getApi().advances.create({ partyId: quickParty, direction: quickKind, amount });
       toast.success(quickKind === "GIVEN" ? "Advance given" : "Advance received", { description: formatCurrency(amount) });
       setAmount(0);
       reload();

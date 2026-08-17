@@ -25,7 +25,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
  * again on every refresh.
  */
 import * as React from "react";
-import { ArrowLeft, CheckCircle2, CloudUpload, Database, Eye, EyeOff, Lock, Mail, RotateCcw, ShieldCheck, XCircle, } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CloudUpload, Database, Eye, EyeOff, Lock, Mail, RotateCcw, Server, ShieldCheck, XCircle, } from "lucide-react";
 import { TEST_EMAIL, TEST_PASSWORD, TEST_PIN, hashPassword, hashPin, isEmail, isFourDigitPin, isPassword, isPinHash, isTestPasswordHash, isTestPinHash, verifyEmail, verifyPassword, verifyPin, } from "@munim/core";
 import { cn } from "../lib/utils";
 const PIN_KEY = "munim.pin";
@@ -303,7 +303,7 @@ const GATE_PRIMARY_BUTTON_CLASS = "flex h-10 w-full items-center justify-center 
 /* ────────────────────────────────────────────────────────────────
  * Onboarding — first-run: Neon DB URL + Cloudinary credentials
  * ──────────────────────────────────────────────────────────────── */
-export function OnboardingScreen({ onComplete, pingDatabase, }) {
+export function OnboardingScreen({ onComplete, pingDatabase, mode = "database", }) {
     const [step, setStep] = React.useState("database");
     const [dbUrl, setDbUrl] = React.useState("");
     const [showDb, setShowDb] = React.useState(false);
@@ -345,6 +345,22 @@ export function OnboardingScreen({ onComplete, pingDatabase, }) {
         setSaving(false);
         onComplete();
     }
+    function handleFinishApi() {
+        const url = dbUrl.trim();
+        if (!url)
+            return;
+        setSaving(true);
+        saveAppSetup({ databaseUrl: url, cloudinary: null });
+        setSaving(false);
+        onComplete();
+    }
+    // API mode — a single "connect to your server" step (no Cloudinary).
+    if (mode === "api") {
+        return (_jsxs(GateShell, { children: [_jsx(GateBadge, { icon: Server }), _jsx("h1", { className: "munim-gate-item text-center text-xl font-semibold tracking-tight", style: { animationDelay: "0.09s" }, children: "Connect to your server" }), _jsx("p", { className: "munim-gate-item mt-1 text-center text-sm text-muted-foreground", style: { animationDelay: "0.14s" }, children: "Enter the Munim API base URL \u2014 the same server the web app uses" }), _jsxs("div", { className: "munim-gate-item mt-6 space-y-3", style: { animationDelay: "0.2s" }, children: [_jsxs("div", { className: "space-y-1.5", children: [_jsx("label", { htmlFor: "onb-api", className: "text-xs font-medium text-muted-foreground", children: "API base URL" }), _jsxs("div", { className: "relative", children: [_jsx("input", { id: "onb-api", type: "text", autoComplete: "off", spellCheck: false, placeholder: "https://api.munim.app", value: dbUrl, onChange: (e) => {
+                                                setDbUrl(e.target.value);
+                                                setTestState("idle");
+                                            }, className: cn(GATE_INPUT_CLASS, "pr-10 font-mono text-xs") }), _jsx("button", { type: "button", onClick: () => setShowDb((v) => !v), "aria-label": showDb ? "Hide URL" : "Show URL", className: "text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer", children: showDb ? _jsx(EyeOff, { className: "h-4 w-4" }) : _jsx(Eye, { className: "h-4 w-4" }) })] })] }), pingDatabase ? (_jsxs("div", { className: "flex items-center gap-2", children: [_jsxs("button", { type: "button", onClick: () => void handleTest(), disabled: !dbUrl.trim() || testing, className: "flex h-9 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium transition-all hover:bg-muted active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50", children: [testing ? (_jsx("span", { className: "border-primary size-3 animate-spin rounded-full border-2 border-t-transparent" })) : (_jsx(Server, { className: "h-3.5 w-3.5" })), testing ? "Testing…" : "Test connection"] }), testState === "ok" ? (_jsxs("span", { className: "flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400", children: [_jsx(CheckCircle2, { className: "h-3.5 w-3.5" }), " Connected"] })) : testState === "fail" ? (_jsxs("span", { className: "flex items-center gap-1 text-xs font-medium text-destructive", title: testError ?? undefined, children: [_jsx(XCircle, { className: "h-3.5 w-3.5" }), " Failed"] })) : null] })) : null, _jsx("button", { type: "button", onClick: handleFinishApi, disabled: !dbUrl.trim() || saving, className: cn(GATE_PRIMARY_BUTTON_CLASS, "cursor-pointer"), children: saving ? "Saving…" : "Finish setup" }), _jsx("p", { className: "text-center text-[11px] text-muted-foreground", children: "Stored on this device only \u2014 the API key is baked into the app at build time." })] })] }));
+    }
     const progress = step === "database" ? 50 : 100;
     return (_jsxs(GateShell, { children: [_jsx("div", { className: "munim-gate-item mb-7 h-1 w-full overflow-hidden rounded-full bg-muted", style: { animationDelay: "0.02s" }, children: _jsx("div", { className: "h-full rounded-full bg-primary transition-all duration-500 ease-out", style: { width: `${progress}%` } }) }), step === "database" ? (_jsxs(_Fragment, { children: [_jsx(GateBadge, { icon: Database }), _jsx("h1", { className: "munim-gate-item text-center text-xl font-semibold tracking-tight", style: { animationDelay: "0.09s" }, children: "Welcome to Munim" }), _jsx("p", { className: "munim-gate-item mt-1 text-center text-sm text-muted-foreground", style: { animationDelay: "0.14s" }, children: "Step 1 of 2 \u2014 connect your shop's shared Neon database" }), _jsxs("div", { className: "munim-gate-item mt-6 space-y-3", style: { animationDelay: "0.2s" }, children: [_jsxs("div", { className: "space-y-1.5", children: [_jsx("label", { htmlFor: "onb-db", className: "text-xs font-medium text-muted-foreground", children: "Neon connection string" }), _jsxs("div", { className: "relative", children: [_jsx("input", { id: "onb-db", type: showDb ? "text" : "password", autoComplete: "off", spellCheck: false, placeholder: "postgresql://user:pass@host/db", value: dbUrl, onChange: (e) => {
                                                     setDbUrl(e.target.value);
@@ -354,12 +370,12 @@ export function OnboardingScreen({ onComplete, pingDatabase, }) {
 /* ────────────────────────────────────────────────────────────────
  * Reset connection screen — reachable from the login screen
  * ──────────────────────────────────────────────────────────────── */
-export function ResetConfigScreen({ onCleared, onCancel, }) {
+export function ResetConfigScreen({ onCleared, onCancel, mode = "database", }) {
     const setup = getSavedAppSetup();
-    return (_jsxs(GateShell, { children: [_jsx(GateBadge, { icon: ShieldCheck }), _jsx("h1", { className: "munim-gate-item text-center text-xl font-semibold tracking-tight", style: { animationDelay: "0.09s" }, children: "Connection settings" }), _jsx("p", { className: "munim-gate-item mt-1 text-center text-sm text-muted-foreground", style: { animationDelay: "0.14s" }, children: "Saved on this device only \u2014 never in the shared database." }), _jsxs("div", { className: "munim-gate-item mt-6 space-y-2.5", style: { animationDelay: "0.2s" }, children: [_jsxs("div", { className: "rounded-xl border bg-muted/40 p-3.5", children: [_jsx("p", { className: "text-[11px] font-semibold tracking-wide text-muted-foreground uppercase", children: "Database" }), _jsx("p", { className: "mt-1 font-mono text-xs font-medium", children: setup ? maskDatabaseHost(setup.databaseUrl) : "Not configured" })] }), _jsxs("div", { className: "rounded-xl border bg-muted/40 p-3.5", children: [_jsx("p", { className: "text-[11px] font-semibold tracking-wide text-muted-foreground uppercase", children: "Cloudinary" }), _jsx("p", { className: "mt-1 text-xs font-medium", children: setup?.cloudinary ? `${setup.cloudinary.cloudName} (images enabled)` : "Not configured" })] }), _jsxs("button", { type: "button", onClick: () => {
+    return (_jsxs(GateShell, { children: [_jsx(GateBadge, { icon: ShieldCheck }), _jsx("h1", { className: "munim-gate-item text-center text-xl font-semibold tracking-tight", style: { animationDelay: "0.09s" }, children: "Connection settings" }), _jsx("p", { className: "munim-gate-item mt-1 text-center text-sm text-muted-foreground", style: { animationDelay: "0.14s" }, children: "Saved on this device only \u2014 never in the shared database." }), _jsxs("div", { className: "munim-gate-item mt-6 space-y-2.5", style: { animationDelay: "0.2s" }, children: [_jsxs("div", { className: "rounded-xl border bg-muted/40 p-3.5", children: [_jsx("p", { className: "text-[11px] font-semibold tracking-wide text-muted-foreground uppercase", children: mode === "api" ? "Server" : "Database" }), _jsx("p", { className: "mt-1 font-mono text-xs font-medium", children: setup ? maskDatabaseHost(setup.databaseUrl) : "Not configured" })] }), mode !== "api" && (_jsxs("div", { className: "rounded-xl border bg-muted/40 p-3.5", children: [_jsx("p", { className: "text-[11px] font-semibold tracking-wide text-muted-foreground uppercase", children: "Cloudinary" }), _jsx("p", { className: "mt-1 text-xs font-medium", children: setup?.cloudinary ? `${setup.cloudinary.cloudName} (images enabled)` : "Not configured" })] })), _jsxs("button", { type: "button", onClick: () => {
                             clearAppSetup();
                             onCleared();
-                        }, className: "mt-1 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-destructive text-sm font-medium text-destructive-foreground shadow-xs transition-all hover:bg-destructive/90 active:scale-[0.98]", children: [_jsx(RotateCcw, { className: "h-4 w-4" }), " Clear & start over"] }), _jsx("p", { className: "text-center text-[11px] leading-relaxed text-muted-foreground", children: "Wrong connection string or credentials? Clearing returns you to the setup screen." }), _jsx("button", { type: "button", onClick: onCancel, className: "text-muted-foreground hover:text-foreground h-8 w-full cursor-pointer text-xs font-medium underline-offset-2 hover:underline", children: "Back to login" })] })] }));
+                        }, className: "mt-1 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-destructive text-sm font-medium text-destructive-foreground shadow-xs transition-all hover:bg-destructive/90 active:scale-[0.98]", children: [_jsx(RotateCcw, { className: "h-4 w-4" }), " Clear & start over"] }), _jsx("p", { className: "text-center text-[11px] leading-relaxed text-muted-foreground", children: "Wrong server URL or credentials? Clearing returns you to the setup screen." }), _jsx("button", { type: "button", onClick: onCancel, className: "text-muted-foreground hover:text-foreground h-8 w-full cursor-pointer text-xs font-medium underline-offset-2 hover:underline", children: "Back to login" })] })] }));
 }
 /* ────────────────────────────────────────────────────────────────
  * Login screen (two steps: email/password → PIN input)
@@ -454,7 +470,7 @@ function LoginScreen({ lock, onOpenConnectionSettings, }) {
 /* ────────────────────────────────────────────────────────────────
  * Gate
  * ──────────────────────────────────────────────────────────────── */
-export function PinGate({ children, onboarding = false, pingDatabase, }) {
+export function PinGate({ children, onboarding = false, onboardingMode = "database", pingDatabase, }) {
     const lock = usePinLock();
     const [phase, setPhase] = React.useState("gate");
     const [setupChecked, setSetupChecked] = React.useState(false);
@@ -470,10 +486,10 @@ export function PinGate({ children, onboarding = false, pingDatabase, }) {
     if (!setupChecked || lock.status === "loading")
         return null;
     if (phase === "onboarding") {
-        return _jsx(OnboardingScreen, { onComplete: () => setPhase("gate"), pingDatabase: pingDatabase });
+        return (_jsx(OnboardingScreen, { onComplete: () => setPhase("gate"), pingDatabase: pingDatabase, mode: onboardingMode }));
     }
     if (phase === "reset") {
-        return (_jsx(ResetConfigScreen, { onCleared: () => setPhase("onboarding"), onCancel: () => setPhase("gate") }));
+        return (_jsx(ResetConfigScreen, { onCleared: () => setPhase("onboarding"), onCancel: () => setPhase("gate"), mode: onboardingMode }));
     }
     if (lock.status === "locked") {
         return _jsx(LoginScreen, { lock: lock, onOpenConnectionSettings: () => setPhase("reset") });

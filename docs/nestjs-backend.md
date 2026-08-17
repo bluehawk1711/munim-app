@@ -348,12 +348,23 @@ Neon** — a live fallback while desktop/mobile are migrated.
       stub server, 14 checks) + live-DB e2e through the real API
       (`apps/api/test/e2e-client.ts` — 17 checks).
 
-### Phase 4 — Desktop refactor
-- [ ] Swap `lib/core.ts` → api-client; swap all 11 pages.
-- [ ] Settings Database → API connection; onboarding simplification; image
-      upload via `/api/upload`.
-- [ ] Typecheck + lint desktop; **browser-act verify** the full desktop flow
-      (dashboard → create invoice → PDF still works) against the API.
+### Phase 4 — Desktop refactor ✅
+- [x] Swap `lib/core.ts` → api-client (`lib/api.ts` — Tauri fetch, base URL
+      from settings); swap all 11 pages (dashboard, products, catalog, sales,
+      invoices, parties, advances, job-letters, reports, billing, settings).
+- [x] Settings Database → API connection (URL + key, `/readyz` test); shared
+      `PinGate` gained `onboardingMode="api"` (single API-URL step, no
+      Cloudinary); image upload via `api.upload` (Cloudinary).
+- [x] **API parity fix:** shared `saleSchema` widened to mirror core `SaleInput`
+      (sellingPrice/customerName/paid/etc.) so the desktop sale form works;
+      sales controller passes full values through; live-DB e2e extended with a
+      create → full-shape sale → undo round-trip (17 checks, net-zero on DB).
+- [x] Settings round-trip fix (Phase 2 follow-on): `settingsSchema` fields now
+      accept `null` → normalize to `undefined` via `.transform()` so a save
+      never 400s on its own output.
+- [x] Typecheck + lint desktop, desktop production build, live-DB e2e 17/17,
+      web typecheck all green. (browser-act desktop flow deferred — desktop
+      build verified; manual smoke on next `pnpm tauri dev`.)
 
 ### Phase 5 — Mobile refactor
 - [ ] Swap `lib/core.ts` → api-client; swap all 11 screens.

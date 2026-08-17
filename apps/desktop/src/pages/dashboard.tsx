@@ -1,8 +1,8 @@
 import type { ElementType } from "react";
 import * as m from "motion/react-m";
 import { Banknote, HandCoins, PackageSearch, TrendingUp, Wallet, AlertTriangle, Database, Settings } from "lucide-react";
-import { getDashboard, formatDate } from "@munim/core";
-import { getCore } from "@/lib/core";
+import { formatDate } from "@munim/core";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { navigate } from "@/lib/navigation";
@@ -63,25 +63,22 @@ function StatCard({ label, value, sub, icon: Icon }: { label: string; value: str
 }
 
 export function DashboardPage() {
-  const { data, error, loading, reload } = useAsync(() => getDashboard(getCore()), []);
+  const { data, error, loading, reload } = useAsync(() => getApi().dashboard.get(), []);
 
   if (error) {
-    const noConfig = error.includes("No database URL configured");
-    const host = error.match(/@([^/]+)/)?.[1] ?? null;
+    const noConfig = error.includes("No server URL configured");
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <div className="bg-destructive/10 text-destructive rounded-2xl p-4">
           {noConfig ? <Database className="h-8 w-8" /> : <AlertTriangle className="h-8 w-8" />}
         </div>
         <p className="text-base font-semibold">
-          {noConfig ? "Database not configured" : "Couldn't load dashboard"}
+          {noConfig ? "Server not configured" : "Couldn't load dashboard"}
         </p>
         <p className="text-muted-foreground max-w-md text-sm">
           {noConfig
-            ? "Add your shared Neon connection string in Settings — the same one the web app uses."
-            : host
-              ? `Tried to reach ${host} but the query failed. Check the connection string in Settings.`
-              : error}
+            ? "Add the Munim API base URL in Settings — the same server the web app uses."
+            : error}
         </p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={reload}>

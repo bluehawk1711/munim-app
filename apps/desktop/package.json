@@ -17,6 +17,7 @@
     "doctor": "react-doctor"
   },
   "dependencies": {
+    "@munim/api-client": "workspace:*",
     "@munim/core": "workspace:*",
     "@munim/theme": "workspace:*",
     "@munim/ui": "workspace:*",

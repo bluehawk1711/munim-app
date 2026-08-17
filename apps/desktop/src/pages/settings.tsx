@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Database, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
-import { getSettings, pingDatabase, updateSettings } from "@munim/core";
-import { createAppDb, getCore, resetCore } from "@/lib/core";
-import { getSavedDatabaseUrl, saveDatabaseUrl } from "@/lib/env";
+import { getApi, pingApiUrl, resetApi } from "@/lib/api";
+import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "@munim/ui";
 import {
@@ -40,8 +39,18 @@ const MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: "system", label: "System" },
 ];
 
+/** Masked host of a saved API URL (shown instead of the raw string). */
+function maskApiHost(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).host;
+  } catch {
+    return url.slice(0, 28);
+  }
+}
+
 export function SettingsPage() {
-  const { data: settings, reload } = useAsync(() => getSettings(getCore()), []);
+  const { data: settings, reload } = useAsync(() => getApi().settings.get(), []);
   const { themeName, setThemeName, mode, setMode } = useAccentTheme();
   const pin = usePinLockContext();
   const forceTransition = useForceThemeTransition();
@@ -58,14 +67,16 @@ export function SettingsPage() {
   // a pointless re-render (its value is never read in JSX).
   const loadedRef = useRef(false);
 
-  const [dbUrl, setDbUrl] = useState(() => getSavedDatabaseUrl() ?? "");
-  const [showDbUrl, setShowDbUrl] = useState(false);
+  const [apiUrl, setApiUrl] = useState(() => getSavedApiUrl() ?? "");
+  const [apiKey, setApiKey] = useState(() => getSavedApiKey() ?? "");
+  const [showApiUrl, setShowApiUrl] = useState(false);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [testOpen, setTestOpen] = useState(false);
   const [testState, setTestState] = useState<ConnectionTestState>("testing");
   const [testError, setTestError] = useState<string | undefined>();
 
   // Masked host of the currently saved URL (shown instead of the raw string).
-  const savedHost = (getSavedDatabaseUrl() ?? "").match(/@([^/]+)/)?.[1] ?? null;
+  const savedHost = maskApiHost(getSavedApiUrl());
 
   useEffect(() => {
     if (settings && !loadedRef.current) {
@@ -81,7 +92,7 @@ export function SettingsPage() {
 
   async function handleSaveShop() {
     try {
-      await updateSettings(getCore(), {
+      await getApi().settings.update({
         shopName: shopName.trim() || "My Shop",
         shopAddress: shopAddress.trim() || undefined,
         shopPhones: shopPhones.split(",").map((s) => s.trim()).filter(Boolean),
@@ -97,14 +108,13 @@ export function SettingsPage() {
   }
 
   /** Runs the ping once, flipping the modal between loading → ok / fail. */
-  async function runConnectionTest(url: string): Promise<boolean> {
+  async function runConnectionTest(url: string, key: string): Promise<boolean> {
     setTestState("testing");
     setTestError(undefined);
     try {
-      // Must use the platform fetch (Tauri HTTP plugin in the webview) — the
-      // webview's own fetch is CORS-blocked by Neon and would always fail.
-      const testDb = createAppDb(url);
-      await pingDatabase(testDb);
+      // Pings GET /readyz through the shared api-client (Tauri HTTP plugin in
+      // the webview — no CORS). Resolves when the API + DB are reachable.
+      await pingApiUrl(url, key || undefined);
       setTestState("ok");
       return true;
     } catch (err) {
@@ -115,29 +125,30 @@ export function SettingsPage() {
   }
 
   async function handleTestConnection() {
-    const url = dbUrl.trim();
+    const url = apiUrl.trim();
     if (!url) {
-      toast.error("Enter a database URL first");
+      toast.error("Enter the server URL first");
       return;
     }
     // Open the modal first so the loading state is visible immediately, then
     // ping. The dialog can't be dismissed while the test is in flight.
     setTestOpen(true);
-    await runConnectionTest(url);
+    await runConnectionTest(url, apiKey);
   }
 
   async function handleSaveUrl() {
-    const url = dbUrl.trim();
+    const url = apiUrl.trim();
     if (!url) {
-      toast.error("Enter a database URL first");
+      toast.error("Enter the server URL first");
       return;
     }
     setTestOpen(true);
-    const ok = await runConnectionTest(url);
+    const ok = await runConnectionTest(url, apiKey);
     if (ok) {
-      saveDatabaseUrl(url);
-      resetCore();
-      toast.success("Database URL saved — reconnect with the new URL");
+      saveApiUrl(url);
+      if (apiKey.trim()) saveApiKey(apiKey.trim());
+      resetApi();
+      toast.success("Server saved — reconnecting with the new URL");
     } else {
       toast.error("Not saved — connection failed");
     }
@@ -165,8 +176,8 @@ export function SettingsPage() {
     },
     {
       id: "database",
-      label: "Database",
-      description: "Connection & sync",
+      label: "Server",
+      description: "API connection & sync",
       icon: Database,
     },
   ];
@@ -273,47 +284,70 @@ export function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Database className="h-4 w-4" /> Database
+              <Database className="h-4 w-4" /> Server connection
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground text-sm leading-relaxed">
-              Munim has no API server — this desktop app connects <strong>directly</strong> to the shared
-              Neon Postgres database used by the web app and mobile app. Paste your connection string:
+              This desktop app talks to the shared <strong>Munim API server</strong> — the same one the
+              web app uses. Enter its base URL; the API key is baked in at build time (you can override
+              it here for local development).
             </p>
             <ConnectionTestDialog
               open={testOpen}
               onOpenChange={setTestOpen}
               state={testState}
               error={testError}
-              onRetry={() => void runConnectionTest(dbUrl.trim())}
+              onRetry={() => void runConnectionTest(apiUrl.trim(), apiKey)}
             />
             <div className="space-y-1.5">
-              <Label htmlFor="st-db">Neon connection string</Label>
+              <Label htmlFor="st-api">API base URL</Label>
               <div className="relative">
                 <Input
-                  id="st-db"
-                  type={showDbUrl ? "text" : "password"}
-                  value={dbUrl}
-                  onChange={(e) => setDbUrl(e.target.value)}
-                  placeholder="postgresql://user:pass@host/db?sslmode=require"
+                  id="st-api"
+                  type={showApiUrl ? "text" : "password"}
+                  value={apiUrl}
+                  onChange={(e) => setApiUrl(e.target.value)}
+                  placeholder="https://api.munim.app"
                   className="font-mono pr-10 text-xs"
                   autoComplete="off"
                 />
                 <button
                   type="button"
-                  onClick={() => setShowDbUrl((v) => !v)}
-                  aria-label={showDbUrl ? "Hide database URL" : "Show database URL"}
+                  onClick={() => setShowApiUrl((v) => !v)}
+                  aria-label={showApiUrl ? "Hide URL" : "Show URL"}
                   className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
                 >
-                  {showDbUrl ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showApiUrl ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="st-api-key">API key</Label>
+              <div className="relative">
+                <Input
+                  id="st-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="Optional — defaults to the build-time key"
+                  className="font-mono pr-10 text-xs"
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey((v) => !v)}
+                  aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
+                >
+                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                 <ShieldCheck className="h-3.5 w-3.5" />
                 {savedHost
-                  ? `Saved connection: ${savedHost} — stored on this device only.`
-                  : "Hidden for security — the URL is stored on this device only."}
+                  ? `Saved server: ${savedHost} — stored on this device only.`
+                  : "The URL and key are stored on this device only."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -321,9 +355,9 @@ export function SettingsPage() {
                 {testState === "testing" ? "Testing…" : "Test connection"}
               </Button>
               <Button onClick={handleSaveUrl}>
-                <Save className="h-4 w-4" /> Save URL
+                <Save className="h-4 w-4" /> Save &amp; reconnect
               </Button>
-              <Button variant="ghost" onClick={() => { resetCore(); toast.success("Client reset"); }}>
+              <Button variant="ghost" onClick={() => { resetApi(); toast.success("Client reset"); }}>
                 <RotateCcw className="h-4 w-4" /> Reset client
               </Button>
             </div>

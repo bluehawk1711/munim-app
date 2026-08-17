@@ -1,43 +1,43 @@
-const STORAGE_KEY = "munim.databaseUrl";
+/**
+ * Desktop app connection config.
+ *
+ * The app talks to the shared NestJS API (not to Neon directly). The base URL
+ * is user-configurable (saved by onboarding / Settings); the API key is baked
+ * at build time via VITE_API_KEY, with a Settings override for local dev.
+ *
+ * The saved-URL key (`munim.databaseUrl`) is shared with the PinGate
+ * onboarding screen, which writes it when the first-run flow completes.
+ */
 
-/** Connection string saved by the user in Settings (overrides the build env). */
-export function getSavedDatabaseUrl(): string | undefined {
-  const saved = localStorage.getItem(STORAGE_KEY);
+const CONNECTION_KEY = "munim.databaseUrl";
+const API_KEY_STORAGE = "munim.apiKey";
+
+/** Connection URL saved by the user (onboarding / Settings), if any. */
+export function getSavedApiUrl(): string | undefined {
+  const saved = localStorage.getItem(CONNECTION_KEY);
   return saved && saved.trim() ? saved.trim() : undefined;
 }
 
-/** Resolves the active connection string: saved override, then VITE_DATABASE_URL. */
-export function getDatabaseUrl(): string | undefined {
-  return getSavedDatabaseUrl() ?? import.meta.env.VITE_DATABASE_URL;
+/** Resolves the active API base URL: saved override, then VITE_API_URL. */
+export function getApiBaseUrl(): string | undefined {
+  return getSavedApiUrl() ?? import.meta.env.VITE_API_URL;
 }
 
-export function saveDatabaseUrl(url: string): void {
-  localStorage.setItem(STORAGE_KEY, url.trim());
+export function saveApiUrl(url: string): void {
+  localStorage.setItem(CONNECTION_KEY, url.trim());
 }
 
-const CLOUDINARY_KEY = "munim.cloudinary";
+/** API key saved in Settings (overrides the build-time key). */
+export function getSavedApiKey(): string | undefined {
+  const saved = localStorage.getItem(API_KEY_STORAGE);
+  return saved && saved.trim() ? saved.trim() : undefined;
+}
 
-export type StoredCloudinaryConfig = {
-  cloudName: string;
-  apiKey: string;
-  apiSecret: string;
-};
+/** Resolves the active API key: saved override, then the build-time key. */
+export function getApiKey(): string {
+  return getSavedApiKey() ?? import.meta.env.VITE_API_KEY ?? "";
+}
 
-/** Cloudinary credentials saved during onboarding (munim.cloudinary). */
-export function getSavedCloudinary(): StoredCloudinaryConfig | undefined {
-  try {
-    const raw = localStorage.getItem(CLOUDINARY_KEY);
-    if (!raw) return undefined;
-    const parsed = JSON.parse(raw) as Partial<StoredCloudinaryConfig>;
-    if (parsed.cloudName && parsed.apiKey && parsed.apiSecret) {
-      return {
-        cloudName: parsed.cloudName,
-        apiKey: parsed.apiKey,
-        apiSecret: parsed.apiSecret,
-      };
-    }
-    return undefined;
-  } catch {
-    return undefined;
-  }
+export function saveApiKey(key: string): void {
+  localStorage.setItem(API_KEY_STORAGE, key.trim());
 }

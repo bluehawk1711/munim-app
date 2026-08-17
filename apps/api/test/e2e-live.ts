@@ -126,6 +126,53 @@ async function main(): Promise<void> {
       `got ${r15a.status}/${r15b.status}`,
     );
 
+    // Sale round-trip with the FULL desktop shape (price override, customer,
+    // paid): create a product → quick sale → assert fields → undo → delete.
+    // Net-zero on the DB (undo restores stock; product deleted after).
+    const saleName = `e2e-sale-${Date.now()}`;
+    const rp = await fetch(`${base}/api/products`, {
+      method: "POST",
+      headers: { ...web, "content-type": "application/json" },
+      body: JSON.stringify({ name: saleName, size: "Standard", stock: 10, purchasePrice: 50, sellingPrice: 100 }),
+    });
+    const prod = (await rp.json()) as { id?: string; sku?: string };
+    let saleId: string | null = null;
+    let saleCheckOk = (rp.status === 200 || rp.status === 201) && typeof prod.id === "string";
+    if (saleCheckOk) {
+      const rs = await fetch(`${base}/api/sales`, {
+        method: "POST",
+        headers: { ...web, "content-type": "application/json" },
+        body: JSON.stringify({
+          productId: prod.id,
+          quantity: 2,
+          sellingPrice: 120,
+          customerName: "E2E Customer",
+          paid: true,
+          paymentMethod: "cash",
+        }),
+      });
+      const sale = (await rs.json()) as { id?: string; total?: number; status?: string };
+      saleId = sale.id ?? null;
+      saleCheckOk =
+        (rs.status === 200 || rs.status === 201) &&
+        sale.total === 240 &&
+        sale.status === "PAID";
+      if (!saleCheckOk) {
+        console.log(`  └ sale resp: http=${rs.status} total=${sale.total} status=${sale.status}`);
+      }
+    }
+    check(
+      "POST /api/sales keeps full desktop shape (price override + paid)",
+      saleCheckOk,
+      saleCheckOk ? undefined : "sale did not round-trip price override / PAID",
+    );
+    if (saleId) {
+      await fetch(`${base}/api/sales/${saleId}`, { method: "DELETE", headers: web });
+    }
+    if (prod.id) {
+      await fetch(`${base}/api/products/${prod.id}`, { method: "DELETE", headers: web });
+    }
+
     // settings GET → PUT (invalidates settings group incl. invoices/sales) → GET
     const r16a = await fetch(`${base}/api/settings`, { headers: web });
     const s16 = (await r16a.json()) as { shopName?: string };

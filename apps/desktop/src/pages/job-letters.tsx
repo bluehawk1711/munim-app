@@ -1,16 +1,11 @@
 import { useState } from "react";
 import { Plus, Trash2, Download } from "lucide-react";
 import {
-  saveJobLetter,
-  listJobLetters,
-  deleteJobLetter,
-  getSettings,
   jobLetterFromStored,
   formatDate,
-  type JobLetter,
-  type Settings,
 } from "@munim/core";
-import { getCore } from "@/lib/core";
+import type { JobLetterDto, SettingsDto } from "@munim/api-client";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { downloadJobLetterPdf } from "@/lib/jobLetterPdf";
@@ -24,13 +19,13 @@ import { Button, Input, Label, Card, CardContent, Dialog, DialogContent, DialogD
 ;
 ;
 
-function companyFromSettings(s: Settings | null | undefined): { name: string; address: string; email: string } | undefined {
+function companyFromSettings(s: SettingsDto | null | undefined): { name: string; address: string; email: string } | undefined {
   return s ? { name: s.shopName, address: s.shopAddress ?? "", email: s.shopEmail ?? "" } : undefined;
 }
 
 export function JobLettersPage() {
-  const { data, loading, reload } = useAsync(() => listJobLetters(getCore(), 100), []);
-  const { data: settings } = useAsync(() => getSettings(getCore()), []);
+  const { data, loading, reload } = useAsync(() => getApi().jobLetters.list(), []);
+  const { data: settings } = useAsync(() => getApi().settings.get(), []);
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("Job Letter");
@@ -44,7 +39,7 @@ export function JobLettersPage() {
   /** Persists the dialog fields, clears + reloads, toasts — returns success. */
   async function persistLetter(): Promise<boolean> {
     try {
-      await saveJobLetter(getCore(), {
+      await getApi().jobLetters.create({
         title: title.trim() || "Job Letter",
         employeeName: employeeName.trim(),
         position: position.trim() || undefined,
@@ -105,7 +100,7 @@ export function JobLettersPage() {
     }
   }
 
-  async function handleDownload(letter: JobLetter) {
+  async function handleDownload(letter: JobLetterDto) {
     setExporting(true);
     try {
       await downloadJobLetterPdf(jobLetterFromStored(letter.data, letter, companyFromSettings(settings)));
@@ -119,7 +114,7 @@ export function JobLettersPage() {
   async function handleDelete(id: string) {
     if (!window.confirm("Delete this job letter?")) return;
     try {
-      await deleteJobLetter(getCore(), id);
+      await getApi().jobLetters.remove(id);
       reload();
       toast.success("Deleted");
     } catch (err) {

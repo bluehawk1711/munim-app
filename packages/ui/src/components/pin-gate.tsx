@@ -35,6 +35,7 @@ import {
   Lock,
   Mail,
   RotateCcw,
+  Server,
   ShieldCheck,
   XCircle,
 } from "lucide-react";
@@ -420,11 +421,21 @@ const GATE_PRIMARY_BUTTON_CLASS =
 export function OnboardingScreen({
   onComplete,
   pingDatabase,
+  mode = "database",
 }: {
   onComplete: () => void;
   /** Platform DB ping (desktop: createAppDb → pingDatabase). Optional — lets
    *  the user verify the URL before continuing. */
   pingDatabase?: (url: string) => Promise<void>;
+  /**
+   * What the first-run flow collects:
+   *  - "database" (default): Neon DB URL + Cloudinary credentials (mobile/
+   *    web-on-desktop legacy — apps that still talk to Neon directly).
+   *  - "api": a single API base URL step (no Cloudinary — image uploads go
+   *    through the server). Used by the desktop app after the Phase 4 API
+   *    refactor.
+   */
+  mode?: "database" | "api";
 }) {
   const [step, setStep] = React.useState<"database" | "cloudinary">("database");
   const [dbUrl, setDbUrl] = React.useState("");
@@ -465,6 +476,100 @@ export function OnboardingScreen({
     saveAppSetup({ databaseUrl: url, cloudinary });
     setSaving(false);
     onComplete();
+  }
+
+  function handleFinishApi() {
+    const url = dbUrl.trim();
+    if (!url) return;
+    setSaving(true);
+    saveAppSetup({ databaseUrl: url, cloudinary: null });
+    setSaving(false);
+    onComplete();
+  }
+
+  // API mode — a single "connect to your server" step (no Cloudinary).
+  if (mode === "api") {
+    return (
+      <GateShell>
+        <GateBadge icon={Server} />
+        <h1 className="munim-gate-item text-center text-xl font-semibold tracking-tight" style={{ animationDelay: "0.09s" }}>
+          Connect to your server
+        </h1>
+        <p className="munim-gate-item mt-1 text-center text-sm text-muted-foreground" style={{ animationDelay: "0.14s" }}>
+          Enter the Munim API base URL — the same server the web app uses
+        </p>
+
+        <div className="munim-gate-item mt-6 space-y-3" style={{ animationDelay: "0.2s" }}>
+          <div className="space-y-1.5">
+            <label htmlFor="onb-api" className="text-xs font-medium text-muted-foreground">
+              API base URL
+            </label>
+            <div className="relative">
+              <input
+                id="onb-api"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="https://api.munim.app"
+                value={dbUrl}
+                onChange={(e) => {
+                  setDbUrl(e.target.value);
+                  setTestState("idle");
+                }}
+                className={cn(GATE_INPUT_CLASS, "pr-10 font-mono text-xs")}
+              />
+              <button
+                type="button"
+                onClick={() => setShowDb((v) => !v)}
+                aria-label={showDb ? "Hide URL" : "Show URL"}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer"
+              >
+                {showDb ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {pingDatabase ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleTest()}
+                disabled={!dbUrl.trim() || testing}
+                className="flex h-9 cursor-pointer items-center gap-2 rounded-md border border-input bg-background px-3 text-xs font-medium transition-all hover:bg-muted active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+              >
+                {testing ? (
+                  <span className="border-primary size-3 animate-spin rounded-full border-2 border-t-transparent" />
+                ) : (
+                  <Server className="h-3.5 w-3.5" />
+                )}
+                {testing ? "Testing…" : "Test connection"}
+              </button>
+              {testState === "ok" ? (
+                <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Connected
+                </span>
+              ) : testState === "fail" ? (
+                <span className="flex items-center gap-1 text-xs font-medium text-destructive" title={testError ?? undefined}>
+                  <XCircle className="h-3.5 w-3.5" /> Failed
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            onClick={handleFinishApi}
+            disabled={!dbUrl.trim() || saving}
+            className={cn(GATE_PRIMARY_BUTTON_CLASS, "cursor-pointer")}
+          >
+            {saving ? "Saving…" : "Finish setup"}
+          </button>
+          <p className="text-center text-[11px] text-muted-foreground">
+            Stored on this device only — the API key is baked into the app at build time.
+          </p>
+        </div>
+      </GateShell>
+    );
   }
 
   const progress = step === "database" ? 50 : 100;
@@ -643,9 +748,12 @@ export function OnboardingScreen({
 export function ResetConfigScreen({
   onCleared,
   onCancel,
+  mode = "database",
 }: {
   onCleared: () => void;
   onCancel: () => void;
+  /** Matches the OnboardingScreen `mode` — affects labels only. */
+  mode?: "database" | "api";
 }) {
   const setup = getSavedAppSetup();
 
@@ -661,13 +769,17 @@ export function ResetConfigScreen({
 
       <div className="munim-gate-item mt-6 space-y-2.5" style={{ animationDelay: "0.2s" }}>
         <div className="rounded-xl border bg-muted/40 p-3.5">
-          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Database</p>
+          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+            {mode === "api" ? "Server" : "Database"}
+          </p>
           <p className="mt-1 font-mono text-xs font-medium">{setup ? maskDatabaseHost(setup.databaseUrl) : "Not configured"}</p>
         </div>
-        <div className="rounded-xl border bg-muted/40 p-3.5">
-          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Cloudinary</p>
-          <p className="mt-1 text-xs font-medium">{setup?.cloudinary ? `${setup.cloudinary.cloudName} (images enabled)` : "Not configured"}</p>
-        </div>
+        {mode !== "api" && (
+          <div className="rounded-xl border bg-muted/40 p-3.5">
+            <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">Cloudinary</p>
+            <p className="mt-1 text-xs font-medium">{setup?.cloudinary ? `${setup.cloudinary.cloudName} (images enabled)` : "Not configured"}</p>
+          </div>
+        )}
 
         <button
           type="button"
@@ -680,7 +792,7 @@ export function ResetConfigScreen({
           <RotateCcw className="h-4 w-4" /> Clear &amp; start over
         </button>
         <p className="text-center text-[11px] leading-relaxed text-muted-foreground">
-          Wrong connection string or credentials? Clearing returns you to the setup screen.
+          Wrong server URL or credentials? Clearing returns you to the setup screen.
         </p>
         <button
           type="button"
@@ -932,13 +1044,17 @@ function LoginScreen({
 export function PinGate({
   children,
   onboarding = false,
+  onboardingMode = "database",
   pingDatabase,
 }: {
   children: React.ReactNode;
-  /** Enable the first-run onboarding (Neon URL + Cloudinary) when no setup is
-   *  saved yet. Web keeps this off (env-driven); desktop enables it. */
+  /** Enable the first-run onboarding when no setup is saved yet. Web keeps
+   *  this off (env-driven); desktop enables it. */
   onboarding?: boolean;
-  /** Platform DB ping used by the onboarding "Test connection" button. */
+  /** What the onboarding collects: "database" (Neon + Cloudinary, default,
+   *  mobile/web) or "api" (single server-URL step, desktop post-Phase 4). */
+  onboardingMode?: "database" | "api";
+  /** Platform ping used by the onboarding "Test connection" button. */
   pingDatabase?: (url: string) => Promise<void>;
 }) {
   const lock = usePinLock();
@@ -958,13 +1074,20 @@ export function PinGate({
   if (!setupChecked || lock.status === "loading") return null;
 
   if (phase === "onboarding") {
-    return <OnboardingScreen onComplete={() => setPhase("gate")} pingDatabase={pingDatabase} />;
+    return (
+      <OnboardingScreen
+        onComplete={() => setPhase("gate")}
+        pingDatabase={pingDatabase}
+        mode={onboardingMode}
+      />
+    );
   }
   if (phase === "reset") {
     return (
       <ResetConfigScreen
         onCleared={() => setPhase("onboarding")}
         onCancel={() => setPhase("gate")}
+        mode={onboardingMode}
       />
     );
   }

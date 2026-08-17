@@ -1,16 +1,11 @@
 import { useState } from "react";
 import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Package } from "lucide-react";
 import {
-  listCatalogItems,
-  createCatalogItem,
-  renameCatalogItem,
-  deleteCatalogItem,
   swatchColor,
-  ProductError,
   type CatalogItem,
   type CatalogKind,
 } from "@munim/core";
-import { getCore } from "@/lib/core";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton } from "@munim/ui"
@@ -142,11 +137,11 @@ function CatalogCard({
 export function CatalogPage() {
   const { data, error, loading, reload } = useAsync(
     async () => {
-      const db = getCore();
+      const api = getApi();
       const [colors, sizes, categories] = await Promise.all([
-        listCatalogItems(db, "color"),
-        listCatalogItems(db, "size"),
-        listCatalogItems(db, "category"),
+        api.catalog.list("color"),
+        api.catalog.list("size"),
+        api.catalog.list("category"),
       ]);
       return { colors, sizes, categories };
     },
@@ -177,10 +172,10 @@ export function CatalogPage() {
     setSaving(true);
     try {
       if (dialog.mode === "rename") {
-        await renameCatalogItem(getCore(), dialog.kind, dialog.item.id, trimmed);
+        await getApi().catalog.rename(dialog.kind, dialog.item.id, trimmed);
         toast.success(`${dialog.kind} renamed`, { description: trimmed });
       } else {
-        await createCatalogItem(getCore(), dialog.kind, trimmed);
+        await getApi().catalog.create(dialog.kind, trimmed);
         toast.success(`${dialog.kind} created`, { description: trimmed });
       }
       setDialog(null);
@@ -196,12 +191,12 @@ export function CatalogPage() {
     const confirmed = window.confirm(`Delete "${item.name}"? This cannot be undone.`);
     if (!confirmed) return;
     try {
-      await deleteCatalogItem(getCore(), kind, item.id);
+      await getApi().catalog.remove(kind, item.id);
       toast.success(`${kind} deleted`, { description: item.name });
       reload();
     } catch (err) {
       toast.error("Delete failed", {
-        description: err instanceof ProductError ? err.message : err instanceof Error ? err.message : undefined,
+        description: err instanceof Error ? err.message : undefined,
       });
     }
   }

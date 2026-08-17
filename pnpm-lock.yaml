@@ -102,6 +102,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@munim/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@munim/core':
         specifier: workspace:*
         version: link:../../packages/core

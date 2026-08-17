@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search, X, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2, AlertTriangle, Loader2 } from "lucide-react";
-import { createSale, listInvoices, listAllProducts, deleteInvoice, formatDate, formatCurrency, type InvoiceFilters } from "@munim/core";
-import { getCore } from "@/lib/core";
+import { formatDate, formatCurrency } from "@munim/core";
+import type { InvoiceDto } from "@munim/api-client";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { toast } from "@munim/ui";
@@ -40,7 +41,7 @@ function rangeToDates(range: RangeKey): { startDate?: string; endDate?: string }
   }
 }
 
-type InvoiceRow = NonNullable<Awaited<ReturnType<typeof listInvoices>>>["invoices"][number];
+type InvoiceRow = InvoiceDto;
 
 export function SalesPage() {
   const [productId, setProductId] = useState("");
@@ -58,11 +59,14 @@ export function SalesPage() {
   const [undoOpen, setUndoOpen] = useState(false);
   const [undoing, setUndoing] = useState(false);
 
-  const { data: allProducts, reload: reloadProducts } = useAsync(() => listAllProducts(getCore()), []);
+  const { data: allProducts, reload: reloadProducts } = useAsync(
+    async () => (await getApi().products.list({ pageSize: 1000 })).products,
+    [],
+  );
 
   const { startDate, endDate } = rangeToDates(range);
   const { data: recent, loading: loadingRecent, reload: reloadRecent } = useAsync(
-    () => listInvoices(getCore(), { search, startDate, endDate, pageSize: 200 } as InvoiceFilters),
+    () => getApi().invoices.list({ search, startDate, endDate, pageSize: 200 }),
     [search, startDate, endDate],
   );
 
@@ -100,7 +104,7 @@ export function SalesPage() {
     }
     setSaving(true);
     try {
-      const invoice = await createSale(getCore(), {
+      const invoice = await getApi().sales.create({
         productId: selected.id,
         quantity: qty,
         sellingPrice: sellPrice || undefined,
@@ -109,7 +113,6 @@ export function SalesPage() {
         paid,
         paymentMethod: "cash",
       });
-      if (!invoice) throw new Error("Sale failed");
       toast.success(`Sale done — ${invoice.invoiceNumber} (${money(invoice.total)})`);
       setQuantity("1");
       setCustomerName("");
@@ -127,7 +130,7 @@ export function SalesPage() {
     if (!undoTarget) return;
     setUndoing(true);
     try {
-      await deleteInvoice(getCore(), undoTarget.id);
+      await getApi().sales.remove(undoTarget.id);
       toast.success("Sale undone", { description: `${undoTarget.invoiceNumber} reversed — stock restored.` });
       setUndoOpen(false);
       reloadProducts();

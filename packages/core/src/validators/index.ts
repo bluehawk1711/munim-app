@@ -36,9 +36,18 @@ export type StockAdjustmentValues = z.infer<typeof stockAdjustmentSchema>;
 
 export const saleSchema = z.object({
   productId: z.string().min(1, "Please select a product"),
-  color: z.string().min(1, "Please select a color"),
-  size: z.string().min(1, "Please select a size"),
   quantity: z.coerce.number().positive("Quantity must be greater than 0"),
+  // Optional — the web quick-sale form sends color+size; the desktop form
+  // sends the full SaleInput (price override, customer, paid, notes). The
+  // schema mirrors core's SaleInput so the API accepts both call shapes.
+  color: z.string().optional(),
+  size: z.string().optional(),
+  sellingPrice: z.coerce.number().min(0).optional(),
+  customerName: z.string().max(120).optional(),
+  customerPhone: z.string().max(20).optional(),
+  paid: z.boolean().optional(),
+  paymentMethod: z.string().max(20).optional(),
+  notes: z.string().max(500).optional(),
 });
 
 export type SaleFormValues = z.infer<typeof saleSchema>;
@@ -180,13 +189,16 @@ export type JobLetterFormValues = z.infer<typeof jobLetterSchema>;
 // Settings fields round-trip the raw DB row, where any of these can be NULL.
 // The schema accepts null (a GET→PUT save must not 400 on its own output)
 // but normalizes it to `undefined` so the service skips unchanged fields.
+// Every field is also `.optional()` at the OUTPUT level so the inferred
+// `SettingsFormValues` keeps all-optional properties (matching ShopSettingsInput).
 const settingsString = (max: number, min = 0) =>
   z
     .string()
     .min(min)
     .max(max)
     .nullish()
-    .transform((v) => v ?? undefined);
+    .transform((v) => v ?? undefined)
+    .optional();
 
 export const settingsSchema = z.object({
   shopName: settingsString(120, 1),
@@ -194,18 +206,21 @@ export const settingsSchema = z.object({
   shopPhones: z
     .array(z.string().max(20))
     .nullish()
-    .transform((v) => v ?? undefined),
+    .transform((v) => v ?? undefined)
+    .optional(),
   shopEmail: settingsString(120),
   lowStockThreshold: z.coerce
     .number()
     .min(0)
     .nullish()
-    .transform((v) => v ?? undefined),
+    .transform((v) => v ?? undefined)
+    .optional(),
   currency: settingsString(10),
   defaultTemplate: z
     .record(z.string(), z.unknown())
     .nullish()
-    .transform((v) => v ?? undefined),
+    .transform((v) => v ?? undefined)
+    .optional(),
 });
 
 export type SettingsFormValues = z.infer<typeof settingsSchema>;

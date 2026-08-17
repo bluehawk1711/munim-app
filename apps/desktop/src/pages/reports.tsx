@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { CalendarDays, CalendarRange, CalendarClock, Calendar, Package, AlertTriangle, ShoppingCart, Loader2, RefreshCw, TrendingUp, FileSpreadsheet, FileText, Weight } from "lucide-react";
-import { getReport, reportToCsv, type ReportType } from "@munim/core";
-import { getCore } from "@/lib/core";
+import type { ReportType } from "@munim/core";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { money, formatDateTime, formatWeight } from "@/lib/format";
+import { toast } from "@munim/ui";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Separator, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
 ;
 ;
@@ -37,7 +38,11 @@ export function ReportsPage() {
   const { data: report, loading, reload } = useAsync(
     () =>
       active
-        ? getReport(getCore(), active.type, active.start || undefined, active.end || undefined)
+        ? getApi().reports.get({
+            type: active.type,
+            startDate: active.start || undefined,
+            endDate: active.end || undefined,
+          })
         : Promise.resolve(null),
     [active?.type, active?.start, active?.end],
   );
@@ -50,15 +55,24 @@ export function ReportsPage() {
   }
 
   async function handleCsv() {
-    if (!report || report.rows.length === 0) return;
-    const csv = reportToCsv(report);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${report.title.replace(/\s+/g, "-").toLowerCase()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!report || report.rows.length === 0 || !active) return;
+    try {
+      // Server-side CSV via the shared reportToCsv (kept consistent with web).
+      const csv = await getApi().reports.csv({
+        type: active.type,
+        startDate: active.start || undefined,
+        endDate: active.end || undefined,
+      });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${report.title.replace(/\s+/g, "-").toLowerCase()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error("CSV export failed", { description: err instanceof Error ? err.message : undefined });
+    }
   }
 
   return (

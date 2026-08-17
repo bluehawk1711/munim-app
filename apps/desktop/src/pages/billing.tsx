@@ -1,18 +1,12 @@
 import { useMemo, useState } from "react";
 import { Plus, Trash2, Download, Wallet } from "lucide-react";
 import {
-  createInvoice,
-  getSettings,
-  listAllProducts,
-  listInvoices,
-  listParties,
-  recordInvoicePayment,
   buildBillDocument,
   type BillDocument,
   type BillShopDetails,
-  type InvoiceWithItems,
 } from "@munim/core";
-import { getCore } from "@/lib/core";
+import type { InvoiceDto, SettingsDto } from "@munim/api-client";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { money, formatDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
@@ -69,7 +63,7 @@ function emptyLine(): LineState {
   return { productId: "", productName: "", sku: "", color: "", size: "", description: "", quantity: "1", price: "0" };
 }
 
-function settingsToShop(s: Awaited<ReturnType<typeof getSettings>>): BillShopDetails {
+function settingsToShop(s: SettingsDto): BillShopDetails {
   return {
     name: s.shopName,
     address: s.shopAddress,
@@ -82,7 +76,7 @@ function toInvoiceShop(s: BillShopDetails): { name: string; address: string; pho
   return { name: s.name, address: s.address ?? "", phones: s.phones, email: s.email ?? "" };
 }
 
-function invoiceToBillDocument(inv: InvoiceWithItems, shop: BillShopDetails, currency: string): BillDocument {
+function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency: string): BillDocument {
   return buildBillDocument({
     billNo: inv.invoiceNumber,
     date: inv.date,
@@ -108,11 +102,14 @@ function invoiceToBillDocument(inv: InvoiceWithItems, shop: BillShopDetails, cur
 }
 
 export function BillingPage() {
-  const { data: settings } = useAsync(() => getSettings(getCore()), []);
-  const { data: allProducts } = useAsync(() => listAllProducts(getCore()), []);
-  const { data: parties } = useAsync(() => listParties(getCore()), []);
+  const { data: settings } = useAsync(() => getApi().settings.get(), []);
+  const { data: allProducts } = useAsync(
+    async () => (await getApi().products.list({ pageSize: 1000 })).products,
+    [],
+  );
+  const { data: parties } = useAsync(() => getApi().parties.list(), []);
   const { data: list, loading: loadingList, reload: reloadList } = useAsync(
-    () => listInvoices(getCore(), { pageSize: 100 }),
+    () => getApi().invoices.list({ pageSize: 100 }),
     [],
   );
 
@@ -149,7 +146,7 @@ export function BillingPage() {
   const [preview, setPreview] = useState<BillDocument | null>(null);
   const [secondPreview, setSecondPreview] = useState<BillDocument | null>(null);
 
-  const [payingInvoice, setPayingInvoice] = useState<InvoiceWithItems | null>(null);
+  const [payingInvoice, setPayingInvoice] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState("");
 
   const distinct = twoInOne && mode === "distinct";
@@ -181,8 +178,8 @@ export function BillingPage() {
       productId: p.id,
       productName: p.name,
       sku: p.sku,
-      color: p.colorName ?? "",
-      size: p.sizeName ?? "",
+      color: p.color ?? "",
+      size: p.size ?? "",
       price: String(p.sellingPrice),
     };
     if (target === "second") updateSecondLine(index, patch);
@@ -252,7 +249,7 @@ export function BillingPage() {
         paymentMethod: "cash" as const,
         shopDetails: shop ? toInvoiceShop(shop) : undefined,
       };
-      const invoice = await createInvoice(getCore(), {
+      const invoice = await getApi().invoices.create({
         ...base,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim() || undefined,
@@ -263,7 +260,6 @@ export function BillingPage() {
         deliveryCharge: Number(deliveryCharge) || 0,
         amountPaid: Number(amountPaid) || 0,
       });
-      if (!invoice) throw new Error("Failed to create invoice");
 
       const shopForPreview: BillShopDetails = invoice.shopDetails
         ? { name: invoice.shopDetails.name, address: invoice.shopDetails.address, phones: invoice.shopDetails.phones, email: invoice.shopDetails.email }
@@ -271,10 +267,10 @@ export function BillingPage() {
       const doc = invoiceToBillDocument(invoice, shopForPreview, settings?.currency ?? "INR");
       setPreview(doc);
 
-      let secondInvoice: InvoiceWithItems | null = null;
+      let secondInvoice: InvoiceDto | null = null;
       if (distinct) {
         try {
-          secondInvoice = await createInvoice(getCore(), {
+          secondInvoice = await getApi().invoices.create({
             ...base,
             customerName: secondCustomerName.trim(),
             customerPhone: secondCustomerPhone.trim() || undefined,
@@ -328,7 +324,7 @@ export function BillingPage() {
     }
   }
 
-  async function handleDownload(inv: InvoiceWithItems) {
+  async function handleDownload(inv: InvoiceDto) {
     const shopForInvoice: BillShopDetails | null = inv.shopDetails
       ? { name: inv.shopDetails.name, address: inv.shopDetails.address, phones: inv.shopDetails.phones, email: inv.shopDetails.email }
       : shop;
@@ -354,7 +350,7 @@ export function BillingPage() {
       return;
     }
     try {
-      await recordInvoicePayment(getCore(), payingInvoice.id, { amount, method: "cash" });
+      await getApi().invoices.recordPayment(payingInvoice.id, { amount, method: "cash" });
       toast.success("Payment recorded");
       setPayingInvoice(null);
       setPayAmount("");

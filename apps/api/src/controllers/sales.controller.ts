@@ -58,12 +58,10 @@ export class SalesController {
 
   @Post()
   async create(@Body(new ZodValidationPipe(saleSchema)) values: SaleFormValues) {
-    const invoice = await createSale(this.db, {
-      productId: values.productId,
-      quantity: values.quantity,
-      paid: true,
-      paymentMethod: "cash",
-    });
+    // Pass the full validated input through — the schema mirrors core's
+    // SaleInput (price override, customer, paid, notes), so desktop/mobile
+    // quick-sale forms keep their behavior.
+    const invoice = await createSale(this.db, values);
     if (!invoice) throw new Error("Sale creation returned no invoice");
     await invalidate(this.cache, ["invoices"]);
     return serializeSale(invoice);

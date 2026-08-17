@@ -1,14 +1,8 @@
 import { useEffect, useState } from "react";
 import { Search, Receipt, Trash2, IndianRupee, CheckCircle2, Clock, FileText } from "lucide-react";
-import {
-  listInvoices,
-  recordInvoicePayment,
-  deleteInvoice,
-  formatDate,
-  formatCurrency,
-  type InvoiceFilters,
-} from "@munim/core";
-import { getCore } from "@/lib/core";
+import { formatDate, formatCurrency } from "@munim/core";
+import type { InvoiceDto, InvoiceFilters } from "@munim/api-client";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { toast } from "@munim/ui";
 import {
@@ -28,7 +22,7 @@ import {
   ConfirmDialog,
 } from "@munim/ui";
 
-type InvoiceRow = NonNullable<Awaited<ReturnType<typeof listInvoices>>>["invoices"][number];
+type InvoiceRow = InvoiceDto;
 
 export function InvoicesPage() {
   const [search, setSearch] = useState("");
@@ -36,7 +30,7 @@ export function InvoicesPage() {
   const [page, setPage] = useState(1);
 
   const { data, loading, reload } = useAsync(
-    () => listInvoices(getCore(), { search, status, page, pageSize: 15 }),
+    () => getApi().invoices.list({ search, status, page, pageSize: 15 }),
     [search, status, page],
   );
 
@@ -59,7 +53,7 @@ export function InvoicesPage() {
   async function confirmDelete() {
     if (!deleting) return;
     try {
-      await deleteInvoice(getCore(), deleting.id);
+      await getApi().invoices.remove(deleting.id);
       toast.success("Invoice deleted", { description: `${deleting.invoiceNumber} removed and stock restored.` });
       setDeleting(null);
       reload();
@@ -72,7 +66,7 @@ export function InvoicesPage() {
     if (!paying) return;
     setSaving(true);
     try {
-      await recordInvoicePayment(getCore(), paying.id, { amount, method: "cash" });
+      await getApi().invoices.recordPayment(paying.id, { amount, method: "cash" });
       toast.success("Payment recorded", { description: `${formatCurrency(amount)} received` });
       setPaying(null);
       reload();

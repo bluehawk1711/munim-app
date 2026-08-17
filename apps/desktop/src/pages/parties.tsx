@@ -1,17 +1,7 @@
 import { useState } from "react";
 import { Plus, ArrowUpRight, ArrowDownLeft, Search, Trash2, Users } from "lucide-react";
-import {
-  createParty,
-  deleteParty,
-  getPartyBalances,
-  getPartyLedger,
-  listAdvances,
-  createAdvance,
-  recordPayment,
-  settleAdvance,
-  formatDate,
-} from "@munim/core";
-import { getCore } from "@/lib/core";
+import { formatDate } from "@munim/core";
+import { getApi } from "@/lib/api";
 import { useAsync } from "@/lib/use-async";
 import { money } from "@/lib/format";
 import { toast } from "@munim/ui";
@@ -37,7 +27,7 @@ export function PartiesPage() {
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
   const { data: allBalances, loading, reload: reloadParties } = useAsync(
-    () => getPartyBalances(getCore()),
+    async () => (await getApi().parties.balances()).balances,
     [],
   );
 
@@ -66,11 +56,14 @@ export function PartiesPage() {
 
   const selected = (parties ?? []).find((p) => p.id === selectedId) ?? null;
   const { data: ledger, reload: reloadLedger } = useAsync(
-    () => (selectedId ? getPartyLedger(getCore(), selectedId) : Promise.resolve({ lines: [], balance: 0 })),
+    () =>
+      selectedId
+        ? getApi().parties.get(selectedId).then((r) => r.ledger)
+        : Promise.resolve({ lines: [], balance: 0 }),
     [selectedId],
   );
   const { data: advances, reload: reloadAdvances } = useAsync(
-    () => (selectedId ? listAdvances(getCore(), selectedId) : Promise.resolve([])),
+    () => (selectedId ? getApi().advances.list(selectedId) : Promise.resolve([])),
     [selectedId],
   );
 
@@ -86,7 +79,7 @@ export function PartiesPage() {
       return;
     }
     try {
-      const party = await createParty(getCore(), { name: newName.trim(), phone: newPhone.trim() || undefined, type: newType });
+      const party = await getApi().parties.create({ name: newName.trim(), phone: newPhone.trim() || undefined, type: newType });
       setAddOpen(false);
       setNewName("");
       setNewPhone("");
@@ -103,7 +96,7 @@ export function PartiesPage() {
     if (!deleteId) return;
     setDeleting(true);
     try {
-      await deleteParty(getCore(), deleteId);
+      await getApi().parties.remove(deleteId);
       setDeleteId(null);
       setSelectedId(null);
       reloadParties();
@@ -119,7 +112,7 @@ export function PartiesPage() {
     if (!selectedId || amount <= 0) return;
     setDialogBusy(true);
     try {
-      await createAdvance(getCore(), {
+      await getApi().advances.create({
         partyId: selectedId,
         direction: advanceDirection,
         amount,
@@ -139,7 +132,7 @@ export function PartiesPage() {
     if (!selectedId || amount <= 0) return;
     setDialogBusy(true);
     try {
-      await recordPayment(getCore(), {
+      await getApi().payments.create({
         partyId: selectedId,
         direction: paymentDirection,
         amount,
@@ -158,7 +151,7 @@ export function PartiesPage() {
 
   async function handleSettle(id: string) {
     try {
-      await settleAdvance(getCore(), id);
+      await getApi().advances.settle(id);
       refresh();
       toast.success("Advance settled");
     } catch (err) {

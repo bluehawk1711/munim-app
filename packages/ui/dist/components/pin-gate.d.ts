@@ -74,22 +74,36 @@ export declare function saveAppSetup(cfg: {
 export declare function clearAppSetup(): void;
 /** Masked host of a connection string, e.g. "ep-…neon.tech". */
 export declare function maskDatabaseHost(databaseUrl: string): string;
-export declare function OnboardingScreen({ onComplete, pingDatabase, }: {
+export declare function OnboardingScreen({ onComplete, pingDatabase, mode, }: {
     onComplete: () => void;
     /** Platform DB ping (desktop: createAppDb → pingDatabase). Optional — lets
      *  the user verify the URL before continuing. */
     pingDatabase?: (url: string) => Promise<void>;
+    /**
+     * What the first-run flow collects:
+     *  - "database" (default): Neon DB URL + Cloudinary credentials (mobile/
+     *    web-on-desktop legacy — apps that still talk to Neon directly).
+     *  - "api": a single API base URL step (no Cloudinary — image uploads go
+     *    through the server). Used by the desktop app after the Phase 4 API
+     *    refactor.
+     */
+    mode?: "database" | "api";
 }): React.JSX.Element;
-export declare function ResetConfigScreen({ onCleared, onCancel, }: {
+export declare function ResetConfigScreen({ onCleared, onCancel, mode, }: {
     onCleared: () => void;
     onCancel: () => void;
+    /** Matches the OnboardingScreen `mode` — affects labels only. */
+    mode?: "database" | "api";
 }): React.JSX.Element;
-export declare function PinGate({ children, onboarding, pingDatabase, }: {
+export declare function PinGate({ children, onboarding, onboardingMode, pingDatabase, }: {
     children: React.ReactNode;
-    /** Enable the first-run onboarding (Neon URL + Cloudinary) when no setup is
-     *  saved yet. Web keeps this off (env-driven); desktop enables it. */
+    /** Enable the first-run onboarding when no setup is saved yet. Web keeps
+     *  this off (env-driven); desktop enables it. */
     onboarding?: boolean;
-    /** Platform DB ping used by the onboarding "Test connection" button. */
+    /** What the onboarding collects: "database" (Neon + Cloudinary, default,
+     *  mobile/web) or "api" (single server-URL step, desktop post-Phase 4). */
+    onboardingMode?: "database" | "api";
+    /** Platform ping used by the onboarding "Test connection" button. */
     pingDatabase?: (url: string) => Promise<void>;
 }): React.JSX.Element | null;
 export {};
