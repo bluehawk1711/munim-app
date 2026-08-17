@@ -24,7 +24,7 @@ type Action = {
 } | null
 
 export function AdvancesView() {
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
   const { data, isLoading } = usePartyBalances()
   const { data: allParties } = useParties()
 

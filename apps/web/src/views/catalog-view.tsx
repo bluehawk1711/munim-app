@@ -57,7 +57,7 @@ export function CatalogView() {
   const sizes = useCatalog("size")
   const categories = useCatalog("category")
 
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
   const setProductColorFilter = useAppStore((s) => s.setProductColorFilter)
   const setProductSizeFilter = useAppStore((s) => s.setProductSizeFilter)
   const setProductCategoryFilter = useAppStore((s) => s.setProductCategoryFilter)

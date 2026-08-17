@@ -7,8 +7,13 @@ import {
   formatDate,
   type JobLetterDto,
 } from '@munim/core';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {
+  useDeleteJobLetter,
+  useJobLetters,
+  useQueryState,
+  useSaveJobLetter,
+  useSettings,
+} from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
 import {
@@ -25,14 +30,16 @@ import {
 } from '../components/ui';
 
 export function JobLettersScreen() {
-  const {data, loading, error, reload} = useAsync(async () => (await getApi()).jobLetters.list(), []);
-  const {data: settings} = useAsync(async () => (await getApi()).settings.get(), []);
+  const {data, loading, error, reload} = useQueryState(useJobLetters());
+  const {data: settings} = useQueryState(useSettings());
 
   const [open, setOpen] = useState(false);
   const [employeeName, setEmployeeName] = useState('');
   const [position, setPosition] = useState('');
   const [salary, setSalary] = useState('');
   const [saving, setSaving] = useState(false);
+  const saveLetter = useSaveJobLetter();
+  const deleteLetter = useDeleteJobLetter();
 
   async function handleSave() {
     if (!employeeName.trim()) {
@@ -40,7 +47,7 @@ export function JobLettersScreen() {
     }
     setSaving(true);
     try {
-      await (await getApi()).jobLetters.create({
+      await saveLetter.mutateAsync({
         title: 'Job Letter',
         employeeName: employeeName.trim(),
         position: position.trim() || undefined,
@@ -52,7 +59,6 @@ export function JobLettersScreen() {
       setEmployeeName('');
       setPosition('');
       setSalary('');
-      reload();
     } catch {
       errorFeedback();
       // keep modal open
@@ -79,9 +85,8 @@ export function JobLettersScreen() {
 
   async function handleDelete(id: string) {
     try {
-      await (await getApi()).jobLetters.remove(id);
+      await deleteLetter.mutateAsync(id);
       successFeedback();
-      reload();
     } catch {
       errorFeedback();
       // ignore

@@ -163,14 +163,31 @@ JS-only changes hot-reload through Metro, so pushing shouldn't burn an EAS
 build. Local builds remain available: `pnpm build:android` (debug APK) / 
 `pnpm build:android:release` via `scripts/build-android.mjs`.
 
+### ADR-017 — Shared data + client-state layer: TanStack Query + Zustand
+**Status:** Accepted · **Date:** 2026-08
+
+One API-calling layer for all three apps. `packages/query` (`@munim/query`)
+holds shared TanStack Query hooks whose `queryFn`s call the typed
+`@munim/api-client` — caching (staleTime 30s, dedup, retries, background
+refetch) and invalidation live in one place. `packages/store` (`@munim/store`)
+holds shared Zustand **client** state (active view/tab, global search,
+cross-view product filters, sell dialog). Redux was rejected (boilerplate + no
+caching win); a hand-rolled Zustand cache was rejected in favor of TanStack
+Query (already proven in web, identical API on React + React Native). The
+API key/base-URL resolution is a **function parameter** — each platform passes
+`getClient: () => getApi()` to `QueryProvider`, so the shared hooks never touch
+storage or env. Web's data hooks migrate in Phase 6; its `store/view-store.ts`
+already re-exports a shared-store instance. See `docs/state-management.md`.
+
 ## Security notes
 
-- The Neon connection string (which includes the DB password) is stored by the
-  desktop app in webview `localStorage` and by the mobile app in AsyncStorage —
-  plaintext on device. This is inherent to the no-API-server design. Use a
-  **least-privilege DB role** for the desktop/mobile connection strings (e.g. a
-  role limited to the `munim` schema, `SELECT/INSERT/UPDATE/DELETE` only) so a
-  leaked client key cannot DROP tables or touch other projects.
+- The Neon connection string (which includes the DB password) lives **only** in
+  `packages/core/.env` and the API's environment — desktop + mobile never see
+  it since Phases 4–5 (they talk to the API). They store the **API base URL +
+  API key** locally (webview `localStorage` / AsyncStorage). Use a
+  **least-privilege API key / DB role** (e.g. a role limited to the `munim`
+  schema, `SELECT/INSERT/UPDATE/DELETE` only) so a leaked key cannot DROP
+  tables or touch other projects.
 - Never commit `.env` files; only `.env.example`.
 
 ## Type discipline (from AGENTS.md)
@@ -244,6 +261,8 @@ pnpm --filter @munim/core build
 | `packages/core/src/db/server.ts` | Server-only `pg.Pool` client (`@munim/core/server` subpath) |
 | `apps/api/*` | NestJS API server (Fastify, pg.Pool, API keys, Upstash caching — see `docs/nestjs-backend.md`) |
 | `packages/api-client/*` | Shared typed HTTP client (desktop/mobile/web → API; methods mirror core service names) |
+| `packages/query/*` | Shared TanStack Query hooks over the api-client — the ONE API-calling layer (caching + invalidation) |
+| `packages/store/*` | Shared Zustand client-state factory (active view, search, filters, sell dialog) |
 | `packages/ui/src/components/*` | Shared UI kit (web + desktop render from here) |
 | `packages/theme/src/tokens.ts` | Design tokens — 5 themes × light/dark (single source of truth) |
 | `apps/web/src/app/api/*` | Thin Next.js route adapters calling core services |

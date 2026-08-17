@@ -3,6 +3,7 @@ import { AnimatePresence, LazyMotion, domMax } from "motion/react";
 import * as m from "motion/react-m";
 import { PinGate } from "@munim/ui";
 import { pingApiUrl } from "@/lib/api";
+import { DesktopQueryProvider } from "@/lib/query";
 import { AppShell } from "@/components/app-shell";
 import { useCurrentPath } from "@/lib/navigation";
 import { DashboardPage } from "@/pages/dashboard";
@@ -37,30 +38,32 @@ export function App() {
   const current = useCurrentPath();
   const route = ROUTES.find((r) => r.path === current) ?? FALLBACK_ROUTE;
   return (
-    <PinGate
-      onboarding
-      onboardingMode="api"
-      pingDatabase={async (url) => {
-        // API readiness probe through the Tauri HTTP plugin (no CORS).
-        await pingApiUrl(url);
-      }}
-    >
-      <LazyMotion features={domMax}>
-        <AppShell current={route.path} title={route.title}>
-          <AnimatePresence mode="wait" initial={false}>
-            <m.div
-              key={route.path}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="h-full"
-            >
-              {route.element}
-            </m.div>
-          </AnimatePresence>
-        </AppShell>
-      </LazyMotion>
-    </PinGate>
+    <DesktopQueryProvider>
+      <PinGate
+        onboarding
+        onboardingMode="api"
+        pingDatabase={async (url) => {
+          // API readiness probe through the Tauri HTTP plugin (no CORS).
+          await pingApiUrl(url);
+        }}
+      >
+        <LazyMotion features={domMax}>
+          <AppShell current={route.path} title={route.title}>
+            <AnimatePresence mode="wait" initial={false}>
+              <m.div
+                key={route.path}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="h-full"
+              >
+                {route.element}
+              </m.div>
+            </AnimatePresence>
+          </AppShell>
+        </LazyMotion>
+      </PinGate>
+    </DesktopQueryProvider>
   );
 }

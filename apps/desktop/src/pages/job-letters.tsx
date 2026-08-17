@@ -5,8 +5,13 @@ import {
   formatDate,
 } from "@munim/core";
 import type { JobLetterDto, SettingsDto } from "@munim/api-client";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import {
+  useJobLetters,
+  useSettings,
+  useSaveJobLetter,
+  useDeleteJobLetter,
+  useQueryState,
+} from "@munim/query";
 import { money } from "@/lib/format";
 import { downloadJobLetterPdf } from "@/lib/jobLetterPdf";
 import { toast } from "@munim/ui";
@@ -24,8 +29,10 @@ function companyFromSettings(s: SettingsDto | null | undefined): { name: string;
 }
 
 export function JobLettersPage() {
-  const { data, loading, reload } = useAsync(() => getApi().jobLetters.list(), []);
-  const { data: settings } = useAsync(() => getApi().settings.get(), []);
+  const { data, loading } = useQueryState(useJobLetters());
+  const { data: settings } = useQueryState(useSettings());
+  const saveLetter = useSaveJobLetter();
+  const deleteLetter = useDeleteJobLetter();
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("Job Letter");
@@ -36,10 +43,10 @@ export function JobLettersPage() {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
-  /** Persists the dialog fields, clears + reloads, toasts — returns success. */
+  /** Persists the dialog fields, clears, toasts — returns success. */
   async function persistLetter(): Promise<boolean> {
     try {
-      await getApi().jobLetters.create({
+      await saveLetter.mutateAsync({
         title: title.trim() || "Job Letter",
         employeeName: employeeName.trim(),
         position: position.trim() || undefined,
@@ -51,7 +58,6 @@ export function JobLettersPage() {
       setPosition("");
       setMonthlySalary("");
       setNotes("");
-      reload();
       toast.success("Job letter saved");
       return true;
     } catch (err) {
@@ -114,8 +120,7 @@ export function JobLettersPage() {
   async function handleDelete(id: string) {
     if (!window.confirm("Delete this job letter?")) return;
     try {
-      await getApi().jobLetters.remove(id);
-      reload();
+      await deleteLetter.mutateAsync(id);
       toast.success("Deleted");
     } catch (err) {
       toast.error("Delete failed", { description: err instanceof Error ? err.message : undefined });

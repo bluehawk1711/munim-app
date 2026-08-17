@@ -5,8 +5,17 @@ import {
   type ProductLabel,
 } from "@munim/core";
 import type { ProductDto } from "@munim/api-client";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import {
+  useProducts,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+  useAdjustStock,
+  useBackfillBarcodes,
+  useUploadImage,
+  useApiClient,
+  useQueryState,
+} from "@munim/query";
 import { money, formatWeight } from "@/lib/format";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
 import { toast } from "@munim/ui";
@@ -51,10 +60,15 @@ function stockVariant(p: ProductDto): "success" | "warning" | "destructive" | "s
 
 export function ProductsPage() {
   const [search, setSearch] = useState("");
-  const { data, error, loading, reload } = useAsync(
-    async () => (await getApi().products.list({ search, pageSize: 200 })).products,
-    [search],
-  );
+  const { data, error, loading, reload } = useQueryState(useProducts({ search, pageSize: 200 }));
+  const products = data?.products ?? [];
+  const getClient = useApiClient();
+  const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
+  const deleteProduct = useDeleteProduct();
+  const adjustStock = useAdjustStock();
+  const backfillBarcodes = useBackfillBarcodes();
+  const uploadImage = useUploadImage();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductDto | null>(null);
@@ -73,7 +87,6 @@ export function ProductsPage() {
   const [detailsProduct, setDetailsProduct] = useState<ProductDto | null>(null);
   const [backfilling, setBackfilling] = useState(false);
 
-  const products = useMemo(() => data ?? [], [data]);
   const missingBarcodes = products.some((p) => !p.barcode);
 
   function openAdd() {
@@ -112,7 +125,7 @@ export function ProductsPage() {
     try {
       // Uploads go through the shared API (server-side Cloudinary signing) —
       // the desktop never touches Cloudinary credentials.
-      const { url } = await getApi().upload.image(file, file.name);
+      const { url } = await uploadImage.mutateAsync(file);
       setForm((f) => ({ ...f, imageUrl: url }));
       toast.success("Image uploaded");
     } catch (err) {
@@ -146,14 +159,13 @@ export function ProductsPage() {
         notes: form.notes.trim() || undefined,
       };
       if (editing) {
-        await getApi().products.update(editing.id, input);
+        await updateProduct.mutateAsync({ id: editing.id, values: input });
         toast.success("Product updated");
       } else {
-        await getApi().products.create(input);
+        await createProduct.mutateAsync(input);
         toast.success("Product created");
       }
       setFormOpen(false);
-      reload();
     } catch (err) {
       toast.error("Failed to save product", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -164,9 +176,8 @@ export function ProductsPage() {
   async function handleDelete(p: ProductDto) {
     if (!window.confirm(`Delete "${p.name}"? This cannot be undone.`)) return;
     try {
-      await getApi().products.remove(p.id);
+      await deleteProduct.mutateAsync(p.id);
       toast.success("Product deleted");
-      reload();
     } catch (err) {
       toast.error("Delete failed", { description: err instanceof Error ? err.message : undefined });
     }
@@ -182,7 +193,8 @@ export function ProductsPage() {
   async function handleBarcodeLookup(code: string) {
     let product: ProductDto;
     try {
-      product = await getApi().products.byBarcode(code);
+      const api = await getClient();
+      product = await api.products.byBarcode(code);
     } catch {
       throw new Error(`No product with barcode ${code}`);
     }
@@ -193,13 +205,12 @@ export function ProductsPage() {
   async function handleBackfill() {
     setBackfilling(true);
     try {
-      const r = await getApi().products.backfillBarcodes();
+      const r = await backfillBarcodes.mutateAsync();
       if (r.updated === 0) {
         toast.info("All products already have barcodes");
       } else {
         toast.success(`Generated ${r.updated} barcode${r.updated !== 1 ? "s" : ""}`);
       }
-      reload();
     } catch (err) {
       toast.error("Backfill failed", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -253,12 +264,11 @@ export function ProductsPage() {
       return;
     }
     try {
-      await getApi().products.adjustStock(adjusting.id, { adjustment: qty, reason: adjustReason.trim() || undefined });
+      await adjustStock.mutateAsync({ id: adjusting.id, values: { adjustment: qty, reason: adjustReason.trim() || undefined } });
       toast.success("Stock adjusted");
       setAdjusting(null);
       setAdjustQty("");
       setAdjustReason("");
-      reload();
     } catch (err) {
       toast.error("Adjustment failed", { description: err instanceof Error ? err.message : undefined });
     }
@@ -293,7 +303,12 @@ export function ProductsPage() {
       </div>
 
       {error ? (
-        <Card className="p-6 text-sm text-destructive">{error}</Card>
+        <Card className="flex items-center justify-between gap-3 p-6 text-sm text-destructive">
+          <span>{error}</span>
+          <Button variant="outline" size="sm" onClick={reload}>
+            Retry
+          </Button>
+        </Card>
       ) : loading ? (
         <Card>
           <CardLoading rows={6} />

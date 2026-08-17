@@ -12,9 +12,14 @@ import {Search, Trash2} from 'lucide-react-native';
 import {
   formatDate,
   type InvoiceFilters,
+  type InvoiceDto,
 } from '@munim/core';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {
+  useDeleteInvoice,
+  useInvoices,
+  useQueryState,
+  useRecordInvoicePayment,
+} from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {
@@ -44,34 +49,18 @@ const STATUS_CHIPS: {key: StatusFilter; label: string}[] = [
 
 const PAGE_SIZE = 15;
 
-type InvoiceRow = {
-  id: string;
-  invoiceNumber: string;
-  customerName: string | null;
-  date: string;
-  status: 'DRAFT' | 'UNPAID' | 'PARTIAL' | 'PAID';
-  total: number;
-  amountPaid: number;
-  items: {productName: string | null}[];
-};
-
 export function InvoicesScreen() {
   const styles = useThemeStyles(makeStyles);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [page, setPage] = useState(1);
-  const [invoices, setInvoices] = useState<InvoiceRow[]>([]);
-  const [totalCount, setTotalCount] = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
 
   const filters: InvoiceFilters = {search, status, page, pageSize: PAGE_SIZE};
-  const {loading, error, reload} = useAsync(async () => {
-    const res = await (await getApi()).invoices.list(filters);
-    setInvoices(res.invoices);
-    setTotalCount(res.pagination.totalCount);
-    setTotalPages(res.pagination.totalPages);
-    return res;
-  }, [search, status, page]);
+  // Cached list — the shared @munim/query hook owns fetch + invalidation.
+  const {data, loading, error} = useQueryState(useInvoices(filters));
+  const invoices: InvoiceDto[] = data?.invoices ?? [];
+  const totalCount = data?.pagination.totalCount ?? 0;
+  const totalPages = data?.pagination.totalPages ?? 0;
 
   // Reset to page 1 when a filter changes (web parity — avoids landing on an
   // empty page N). Page resets happen alongside the filter state update, so
@@ -85,11 +74,13 @@ export function InvoicesScreen() {
     setPage(1);
   }
 
-  const [paying, setPaying] = useState<InvoiceRow | null>(null);
+  const [paying, setPaying] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payBusy, setPayBusy] = useState(false);
-  const [deleting, setDeleting] = useState<InvoiceRow | null>(null);
+  const [deleting, setDeleting] = useState<InvoiceDto | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const recordPayment = useRecordInvoicePayment(paying?.id ?? '');
+  const deleteInvoice = useDeleteInvoice();
 
   const summary = invoices.reduce(
     (acc, inv) => ({
@@ -100,7 +91,7 @@ export function InvoicesScreen() {
     {total: 0, unpaid: 0, collected: 0},
   );
 
-  function openPayment(inv: InvoiceRow) {
+  function openPayment(inv: InvoiceDto) {
     setPaying(inv);
     setPayAmount(String(Math.max(0, inv.total - inv.amountPaid)));
   }
@@ -115,10 +106,9 @@ export function InvoicesScreen() {
     }
     setPayBusy(true);
     try {
-      await (await getApi()).invoices.recordPayment(paying.id, {amount, method: 'cash'});
+      await recordPayment.mutateAsync({amount, method: 'cash'});
       successFeedback();
       setPaying(null);
-      reload();
     } catch {
       errorFeedback();
     } finally {
@@ -132,10 +122,9 @@ export function InvoicesScreen() {
     }
     setDeleteBusy(true);
     try {
-      await (await getApi()).invoices.remove(deleting.id);
+      await deleteInvoice.mutateAsync(deleting.id);
       successFeedback();
       setDeleting(null);
-      reload();
     } catch {
       errorFeedback();
     } finally {
@@ -143,7 +132,7 @@ export function InvoicesScreen() {
     }
   }
 
-  const badgeTone = (s: InvoiceRow['status']): 'success' | 'warning' | 'muted' =>
+  const badgeTone = (s: InvoiceDto['status']): 'success' | 'warning' | 'muted' =>
     s === 'PAID' ? 'success' : s === 'PARTIAL' ? 'warning' : 'muted';
 
   return (

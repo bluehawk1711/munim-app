@@ -43,7 +43,7 @@ type PickableProduct = {
 }
 
 export function BillingView() {
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
   const createInvoice = useCreateInvoice()
   const { data: settings } = useSettings()
   const { data: parties } = useParties()

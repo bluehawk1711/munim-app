@@ -18,6 +18,10 @@
   },
   "dependencies": {
     "@munim/api-client": "workspace:*",
+    "@munim/query": "workspace:*",
+    "@munim/store": "workspace:*",
+    "@tanstack/react-query": "^5.82.0",
+    "zustand": "^5.0.6",
     "@munim/core": "workspace:*",
     "@munim/theme": "workspace:*",
     "@munim/ui": "workspace:*",

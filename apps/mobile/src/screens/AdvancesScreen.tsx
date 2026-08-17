@@ -9,8 +9,13 @@ import {
 } from 'react-native';
 import {ChevronDown, TrendingDown, TrendingUp} from 'lucide-react-native';
 import {type PartyBalanceDto} from '@munim/core';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {
+  useCreateAdvance,
+  useParties,
+  usePartyBalances,
+  useQueryState,
+  useRecordPartyPayment,
+} from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {
@@ -43,11 +48,9 @@ const TYPE_LABELS: Record<string, string> = {
 
 export function AdvancesScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data: balances, loading, error, reload} = useAsync(
-    async () => (await getApi()).parties.balances().then(r => r.balances),
-    [],
-  );
-  const {data: parties} = useAsync(async () => (await getApi()).parties.list(), []);
+  const {data: balancesData, loading, error} = useQueryState(usePartyBalances());
+  const balances = balancesData?.balances;
+  const {data: parties} = useQueryState(useParties());
 
   const [action, setAction] = useState<Action | null>(null);
   const [amount, setAmount] = useState('');
@@ -61,6 +64,9 @@ export function AdvancesScreen() {
   const [quickKind, setQuickKind] = useState<'GIVEN' | 'TAKEN'>('GIVEN');
   const [quickAmount, setQuickAmount] = useState('');
   const [quickNote, setQuickNote] = useState('');
+
+  const createAdvance = useCreateAdvance();
+  const recordPartyPayment = useRecordPartyPayment();
 
   const receivables = useMemo(() => (balances ?? []).filter(p => p.balance > 0.001), [balances]);
   const payables = useMemo(() => (balances ?? []).filter(p => p.balance < -0.001), [balances]);
@@ -84,16 +90,15 @@ export function AdvancesScreen() {
     }
     setBusy(true);
     try {
-      const api = await getApi();
       if (action.kind === 'GIVEN' || action.kind === 'TAKEN') {
-        await api.advances.create({
+        await createAdvance.mutateAsync({
           partyId: action.party.id,
           direction: action.kind,
           amount: value,
           note: note.trim() || undefined,
         });
       } else {
-        await api.payments.create({
+        await recordPartyPayment.mutateAsync({
           partyId: action.party.id,
           direction: action.kind === 'PAYMENT_IN' ? 'IN' : 'OUT',
           amount: value,
@@ -103,7 +108,6 @@ export function AdvancesScreen() {
       }
       successFeedback();
       setAction(null);
-      reload();
     } catch {
       errorFeedback();
     } finally {
@@ -121,7 +125,7 @@ export function AdvancesScreen() {
     }
     setBusy(true);
     try {
-      await (await getApi()).advances.create({
+      await createAdvance.mutateAsync({
         partyId: quickPartyId,
         direction: quickKind,
         amount: value,
@@ -131,7 +135,6 @@ export function AdvancesScreen() {
       setQuickAmount('');
       setQuickNote('');
       setQuickOpen(false);
-      reload();
     } catch {
       errorFeedback();
     } finally {

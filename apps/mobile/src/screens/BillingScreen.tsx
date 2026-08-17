@@ -15,8 +15,13 @@ import {
   type PartyDto,
   type InvoiceDto,
 } from '@munim/core';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {
+  useCreateInvoice,
+  useInvoices,
+  useParties,
+  useQueryState,
+  useSettings,
+} from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {
@@ -176,12 +181,10 @@ function LineItemsEditor({
 
 export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data: settings} = useAsync(async () => (await getApi()).settings.get(), []);
-  const {data: parties} = useAsync(async () => (await getApi()).parties.list(), []);
-  const {data: list, loading, reload: reloadList} = useAsync(
-    async () => (await getApi()).invoices.list({pageSize: 50}),
-    [],
-  );
+  const {data: settings} = useQueryState(useSettings());
+  const {data: parties} = useQueryState(useParties());
+  const {data: list, loading} = useQueryState(useInvoices({pageSize: 50}));
+  const createInvoice = useCreateInvoice();
 
   // ── Bill 1 ──────────────────────────────────────────────────────────────
   const [customer, setCustomer] = useState('');
@@ -321,7 +324,7 @@ export function BillingScreen() {
         date: date || undefined,
         notes: notes.trim() || undefined,
       };
-      const invoice = await (await getApi()).invoices.create({
+      const invoice = await createInvoice.mutateAsync({
         customerName: customer.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
@@ -340,7 +343,7 @@ export function BillingScreen() {
 
       if (distinct) {
         try {
-          const secondInvoice = await (await getApi()).invoices.create({
+          const secondInvoice = await createInvoice.mutateAsync({
             customerName: secondCustomer.trim() || undefined,
             customerPhone: secondCustomerPhone.trim() || undefined,
             customerAddress: secondCustomerAddress.trim() || undefined,
@@ -366,7 +369,6 @@ export function BillingScreen() {
             }`,
           );
           resetForm();
-          reloadList();
           return;
         }
       }
@@ -376,7 +378,6 @@ export function BillingScreen() {
         setSecondPreview(secondDoc);
       }
       resetForm();
-      reloadList();
       successFeedback();
     } catch {
       errorFeedback();

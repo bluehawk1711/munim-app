@@ -1,4 +1,4 @@
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
   FlatList,
   Image,
@@ -24,8 +24,18 @@ import {
   type ProductDto,
 } from '@munim/core';
 import {ApiClientError} from '@munim/api-client';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {
+  useAdjustStock,
+  useBackfillBarcodes,
+  useCreateProduct,
+  useDeleteProduct,
+  useProductByBarcode,
+  useProducts,
+  useQueryState,
+  useSettings,
+  useUpdateProduct,
+  useUploadImage,
+} from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
 import {
@@ -62,14 +72,16 @@ function BarcodeChip({value}: {value: string}) {
 
 export function ProductsScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data, error, loading, reload} = useAsync(
-    async () => {
-      const api = await getApi();
-      const {products} = await api.products.list({pageSize: 500});
-      return products;
-    },
-    [],
-  );
+  // Cached product list + mutations (shared @munim/query layer).
+  const {data: listData, error, loading, reload} = useQueryState(useProducts({pageSize: 500}));
+  const data = listData?.products;
+  const createProduct = useCreateProduct();
+  const updateProduct = useUpdateProduct();
+  const adjustStock = useAdjustStock();
+  const deleteProduct = useDeleteProduct();
+  const backfillBarcodes = useBackfillBarcodes();
+  const uploadImage = useUploadImage();
+  const {data: settings} = useQueryState(useSettings());
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductDto | null>(null);
@@ -86,13 +98,37 @@ export function ProductsScreen() {
   const [sell, setSell] = useState('0');
   const [saving, setSaving] = useState(false);
 
-  // Camera scanning
+  // Camera scanning — the lookup runs through the shared query layer
+  // (useProductByBarcode); a 404 surfaces as an error we map to "no product".
   const [scanOpen, setScanOpen] = useState(false);
   // Re-entry guard for handleScanDetected — never read in JSX, so a ref
   // avoids a pointless re-render while scanning.
   const scanningRef = useRef(false);
   const [scanMsg, setScanMsg] = useState('');
+  const [scanCode, setScanCode] = useState<string | null>(null);
+  const scanQ = useProductByBarcode(scanCode);
   const [permission, requestPermission] = useCameraPermissions();
+
+  useEffect(() => {
+    if (!scanCode) return;
+    if (scanQ.data) {
+      scanningRef.current = false;
+      setScanOpen(false);
+      successFeedback();
+      openEdit(scanQ.data);
+      setScanCode(null);
+    } else if (scanQ.isError) {
+      scanningRef.current = false;
+      const notFound = scanQ.error instanceof ApiClientError && scanQ.error.status === 404;
+      errorFeedback();
+      setScanMsg(
+        notFound
+          ? `No product with barcode ${scanCode}`
+          : 'Lookup failed — check your server connection',
+      );
+      setScanCode(null);
+    }
+  }, [scanCode, scanQ.data, scanQ.isError, scanQ.error]);
 
   // Label printing
   const [labelTarget, setLabelTarget] = useState<ProductDto | null>(null);
@@ -127,7 +163,7 @@ export function ProductsScreen() {
       };
       // Uploads go through the shared API — the server signs with Cloudinary,
       // so the app never touches Cloudinary secrets.
-      const {url} = await (await getApi()).upload.image(file);
+      const {url} = await uploadImage.mutateAsync(file);
       setImageUrl(url);
       successFeedback();
     } catch {
@@ -193,15 +229,14 @@ export function ProductsScreen() {
         sellingPrice: Math.max(0, Number(sell) || 0),
       };
       if (editing) {
-        await (await getApi()).products.update(editing.id, input);
+        await updateProduct.mutateAsync({id: editing.id, values: input});
       } else {
-        await (await getApi()).products.create(input);
+        await createProduct.mutateAsync(input);
       }
       successFeedback();
       setFormOpen(false);
       setEditing(null);
       resetForm();
-      reload();
     } catch {
       errorFeedback();
       // keep the modal open on failure
@@ -220,15 +255,17 @@ export function ProductsScreen() {
     }
     setAdjustBusy(true);
     try {
-      await (await getApi()).products.adjustStock(adjusting.id, {
-        adjustment: qty,
-        reason: adjustReason.trim() || undefined,
+      await adjustStock.mutateAsync({
+        id: adjusting.id,
+        values: {
+          adjustment: qty,
+          reason: adjustReason.trim() || undefined,
+        },
       });
       successFeedback();
       setAdjusting(null);
       setAdjustQty('');
       setAdjustReason('');
-      reload();
     } catch {
       errorFeedback();
       // keep modal open on failure
@@ -239,8 +276,7 @@ export function ProductsScreen() {
 
   async function handleDelete(p: ProductDto) {
     try {
-      await (await getApi()).products.remove(p.id);
-      reload();
+      await deleteProduct.mutateAsync(p.id);
     } catch {
       errorFeedback();
       // ignore
@@ -250,9 +286,8 @@ export function ProductsScreen() {
   async function handleBackfill() {
     setBackfilling(true);
     try {
-      await (await getApi()).products.backfillBarcodes();
+      await backfillBarcodes.mutateAsync();
       successFeedback();
-      reload();
     } catch {
       errorFeedback();
     } finally {
@@ -260,27 +295,11 @@ export function ProductsScreen() {
     }
   }
 
-  async function handleScanDetected(code: string) {
+  function handleScanDetected(code: string) {
     if (scanningRef.current) return;
     scanningRef.current = true;
     setScanMsg('');
-    try {
-      // 404 = no product with this barcode; anything else = real failure.
-      const product = await (await getApi()).products.byBarcode(code);
-      setScanOpen(false);
-      successFeedback();
-      openEdit(product);
-    } catch (err) {
-      if (err instanceof ApiClientError && err.status === 404) {
-        errorFeedback();
-        setScanMsg(`No product with barcode ${code}`);
-      } else {
-        errorFeedback();
-        setScanMsg('Lookup failed — check your server connection');
-      }
-    } finally {
-      scanningRef.current = false;
-    }
+    setScanCode(code);
   }
 
   function openScan() {
@@ -295,7 +314,6 @@ export function ProductsScreen() {
     if (!labelTarget) return;
     setLabelBusy(true);
     try {
-      const settings = await (await getApi()).settings.get();
       const label = buildProductLabel(
         {
           id: labelTarget.id,

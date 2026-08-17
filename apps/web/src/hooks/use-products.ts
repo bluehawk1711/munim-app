@@ -1,129 +1,39 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+/**
+ * Web products hooks — thin re-exports of the shared @munim/query hooks so all
+ * three apps call the API through one layer (keys, caching, invalidation).
+ * See docs/state-management.md.
+ */
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { apiFetch } from "@/lib/api-client"
-import type { Product, ProductFilters, StockStatus } from "@/lib/types"
-import type { ProductFormValues, StockAdjustmentValues } from "@munim/core"
+import {
+  useProducts,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+  useAdjustStock,
+  useBackfillBarcodes,
+} from "@munim/query"
 
-export const productKeys = {
-  all: ["products"] as const,
-  list: (filters: ProductFilters) => ["products", "list", filters] as const,
-  detail: (id: string) => ["products", "detail", id] as const,
+export {
+  useProducts,
+  useCreateProduct,
+  useUpdateProduct,
+  useDeleteProduct,
+  useAdjustStock,
+  useBackfillBarcodes,
 }
 
-export type PaginationMeta = {
-  page: number
-  pageSize: number
-  totalCount: number
-  totalPages: number
-}
-
-type PaginatedProductsResponse = {
-  products: Product[]
-  pagination: PaginationMeta
-}
-
-function buildQueryString(filters: ProductFilters): string {
-  const params = new URLSearchParams()
-  if (filters.search) params.set("search", filters.search)
-  if (filters.color && filters.color !== "all") params.set("color", filters.color)
-  if (filters.size && filters.size !== "all") params.set("size", filters.size)
-  if (filters.category && filters.category !== "all") params.set("category", filters.category)
-  if (filters.status && filters.status !== "all") params.set("status", filters.status)
-
-  if (filters.page) params.set("page", String(filters.page))
-  if (filters.pageSize) params.set("pageSize", String(filters.pageSize))
-
-  const qs = params.toString()
-  return qs ? `?${qs}` : ""
-}
-
-export function useProducts(
-  filters: ProductFilters = {},
-  options?: { enabled?: boolean }
-) {
-  return useQuery({
-    queryKey: productKeys.list(filters),
-    queryFn: () =>
-      apiFetch<PaginatedProductsResponse>(`/api/products${buildQueryString(filters)}`),
-    enabled: options?.enabled,
-    select: (data) => ({
-      products: data.products,
-      pagination: data.pagination,
-    }),
-    placeholderData: (previous) => previous,
-  })
-}
-
-export function useCreateProduct() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (values: ProductFormValues) =>
-      apiFetch<Product>("/api/products", { method: "POST", body: values }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: productKeys.all })
-      qc.invalidateQueries({ queryKey: ["dashboard"] })
-    },
-  })
-}
-
-export function useUpdateProduct() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, values }: { id: string; values: ProductFormValues }) =>
-      apiFetch<Product>(`/api/products/${id}`, { method: "PUT", body: values }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: productKeys.all })
-      qc.invalidateQueries({ queryKey: ["dashboard"] })
-    },
-  })
-}
-
-export function useDeleteProduct() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: (id: string) => apiFetch<{ success: boolean }>(`/api/products/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: productKeys.all })
-      qc.invalidateQueries({ queryKey: ["dashboard"] })
-      qc.invalidateQueries({ queryKey: ["sales"] })
-    },
-  })
-}
-
-export function useAdjustStock() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: ({ id, values }: { id: string; values: StockAdjustmentValues }) =>
-      apiFetch<Product>(`/api/products/${id}/stock`, { method: "PATCH", body: values }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: productKeys.all })
-      qc.invalidateQueries({ queryKey: ["dashboard"] })
-    },
-  })
-}
-
-export function useBackfillBarcodes() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: () =>
-      apiFetch<{ updated: number; total: number }>("/api/products/backfill-barcodes", { method: "POST" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: productKeys.all })
-    },
-  })
-}
-
+/** Web-only dev tool — seeds demo products via the local /api/products/seed route. */
 export function useSeedProducts() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: () => apiFetch<{ success: boolean; count: number }>("/api/products/seed", { method: "POST" }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: productKeys.all })
+      qc.invalidateQueries({ queryKey: ["products"] })
       qc.invalidateQueries({ queryKey: ["dashboard"] })
       qc.invalidateQueries({ queryKey: ["sales"] })
     },
   })
 }
-
-export type { StockStatus }

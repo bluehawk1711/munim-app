@@ -17,7 +17,7 @@ import { JobLetterView } from "@/views/job-letter-view"
 import { PartiesView } from "@/views/parties-view"
 import { AdvancesView } from "@/views/advances-view"
 import { SettingsView } from "@/views/settings-view"
-import { useAppStore } from "@/store/view-store"
+import { useAppStore, type ViewKey } from "@/store/view-store"
 import { VIEW_TITLES } from "@/lib/view-titles"
 
 const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
@@ -35,7 +35,7 @@ const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
 }
 
 function ActiveView() {
-  const activeView = useAppStore((s) => s.activeView)
+  const activeView = useAppStore((s) => s.activeView) as ViewKey
   // Keep the browser tab title in sync with the active view (SEO-friendly).
   React.useEffect(() => {
     const meta = VIEW_TITLES[activeView]

@@ -10,7 +10,7 @@
  * @format
  */
 
-import React, {useState} from 'react';
+import React from 'react';
 import {Pressable, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import Animated, {
@@ -32,6 +32,8 @@ import {
 import {colors, SafeScreen} from './src/components/ui';
 import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
 import {PinProvider} from './src/lib/pin-provider';
+import {MobileQueryProvider} from './src/lib/query';
+import {useAppStore} from './src/lib/store';
 import {loadHapticsEnabled, selectionTick} from './src/lib/haptics';
 import {loadForceTransition} from './src/lib/force-transition';
 import {HomeScreen} from './src/screens/HomeScreen';
@@ -136,7 +138,10 @@ function TabBar({tab, onSelect}: {tab: Tab; onSelect: (tab: Tab) => void}) {
 function AppInner() {
   const {mode} = useTheme();
   const styles = useThemeStyles(makeStyles);
-  const [tab, setTab] = useState<Tab>('home');
+  // Active tab lives in the shared client-state store (@munim/store) so any
+  // screen can read/navigate without prop drilling.
+  const tab = useAppStore(s => s.activeView) as Tab;
+  const setTab = React.useCallback((t: Tab) => useAppStore.getState().setActiveView(t), []);
 
   // Restore persisted preferences before any feedback/animation can fire.
   React.useEffect(() => {
@@ -174,7 +179,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <PinProvider>
-        <AppInner />
+        <MobileQueryProvider>
+          <AppInner />
+        </MobileQueryProvider>
       </PinProvider>
     </ThemeProvider>
   );

@@ -1,0 +1,45 @@
+{
+  "name": "@munim/query",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Munim shared data layer — TanStack Query hooks over @munim/api-client. The ONE API-calling layer: every read is a cached query, every write is a mutation that invalidates the right keys. Works identically on web (React), desktop (Tauri) and mobile (React Native).",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "test": "tsx test/smoke.ts"
+  },
+  "dependencies": {
+    "@munim/api-client": "workspace:*",
+    "@munim/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.82.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@tanstack/react-query": "^5.82.0",
+    "@types/node": "^25.5.0",
+    "@types/react": "^19.2.0",
+    "eslint": "^9.38.0",
+    "globals": "^16.4.0",
+    "react": "^19.2.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.46.1"
+  }
+}

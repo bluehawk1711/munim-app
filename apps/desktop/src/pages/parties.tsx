@@ -1,8 +1,17 @@
 import { useState } from "react";
 import { Plus, ArrowUpRight, ArrowDownLeft, Search, Trash2, Users } from "lucide-react";
 import { formatDate } from "@munim/core";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import {
+  usePartyBalances,
+  useParty,
+  useAdvances,
+  useCreateParty,
+  useDeleteParty,
+  useCreateAdvance,
+  useRecordPartyPayment,
+  useSettleAdvance,
+  useQueryState,
+} from "@munim/query";
 import { money } from "@/lib/format";
 import { toast } from "@munim/ui";
 import {
@@ -26,10 +35,9 @@ const TYPE_LABELS: Record<PartyType, string> = {
 export function PartiesPage() {
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
-  const { data: allBalances, loading, reload: reloadParties } = useAsync(
-    async () => (await getApi().parties.balances()).balances,
-    [],
-  );
+  const balancesQ = useQueryState(usePartyBalances());
+  const allBalances = balancesQ.data?.balances;
+  const loading = balancesQ.loading;
 
   // Client-side filter (web parity) — PartyBalance rows carry type + balance.
   const parties = (allBalances ?? []).filter((p) => {
@@ -55,23 +63,15 @@ export function PartiesPage() {
   const [dialogBusy, setDialogBusy] = useState(false);
 
   const selected = (parties ?? []).find((p) => p.id === selectedId) ?? null;
-  const { data: ledger, reload: reloadLedger } = useAsync(
-    () =>
-      selectedId
-        ? getApi().parties.get(selectedId).then((r) => r.ledger)
-        : Promise.resolve({ lines: [], balance: 0 }),
-    [selectedId],
-  );
-  const { data: advances, reload: reloadAdvances } = useAsync(
-    () => (selectedId ? getApi().advances.list(selectedId) : Promise.resolve([])),
-    [selectedId],
-  );
+  const { data: partyDetail } = useQueryState(useParty(selectedId));
+  const ledger = partyDetail?.ledger;
+  const { data: advances } = useQueryState(useAdvances(selectedId ?? undefined));
 
-  function refresh() {
-    reloadParties();
-    reloadLedger();
-    reloadAdvances();
-  }
+  const createParty = useCreateParty();
+  const deleteParty = useDeleteParty();
+  const createAdvance = useCreateAdvance();
+  const recordPayment = useRecordPartyPayment();
+  const settleAdvance = useSettleAdvance();
 
   async function handleAddParty() {
     if (!newName.trim()) {
@@ -79,13 +79,12 @@ export function PartiesPage() {
       return;
     }
     try {
-      const party = await getApi().parties.create({ name: newName.trim(), phone: newPhone.trim() || undefined, type: newType });
+      const party = await createParty.mutateAsync({ name: newName.trim(), phone: newPhone.trim() || undefined, type: newType });
       setAddOpen(false);
       setNewName("");
       setNewPhone("");
       setNewType("CUSTOMER");
       setSelectedId(party.id);
-      refresh();
       toast.success("Party added");
     } catch (err) {
       toast.error("Failed to add party", { description: err instanceof Error ? err.message : undefined });
@@ -96,10 +95,9 @@ export function PartiesPage() {
     if (!deleteId) return;
     setDeleting(true);
     try {
-      await getApi().parties.remove(deleteId);
+      await deleteParty.mutateAsync(deleteId);
       setDeleteId(null);
       setSelectedId(null);
-      reloadParties();
       toast.success("Party deleted");
     } catch (err) {
       toast.error("Delete failed", { description: err instanceof Error ? err.message : undefined });
@@ -112,14 +110,13 @@ export function PartiesPage() {
     if (!selectedId || amount <= 0) return;
     setDialogBusy(true);
     try {
-      await getApi().advances.create({
+      await createAdvance.mutateAsync({
         partyId: selectedId,
         direction: advanceDirection,
         amount,
         note: note.trim() || undefined,
       });
       setAdvanceOpen(false);
-      refresh();
       toast.success(advanceDirection === "GIVEN" ? "Advance given recorded" : "Advance taken recorded");
     } catch (err) {
       toast.error("Failed to record advance", { description: err instanceof Error ? err.message : undefined });
@@ -132,7 +129,7 @@ export function PartiesPage() {
     if (!selectedId || amount <= 0) return;
     setDialogBusy(true);
     try {
-      await getApi().payments.create({
+      await recordPayment.mutateAsync({
         partyId: selectedId,
         direction: paymentDirection,
         amount,
@@ -140,7 +137,6 @@ export function PartiesPage() {
         note: note.trim() || undefined,
       });
       setPaymentOpen(false);
-      refresh();
       toast.success(paymentDirection === "IN" ? "Payment received" : "Payment made");
     } catch (err) {
       toast.error("Failed to record payment", { description: err instanceof Error ? err.message : undefined });
@@ -151,8 +147,7 @@ export function PartiesPage() {
 
   async function handleSettle(id: string) {
     try {
-      await getApi().advances.settle(id);
-      refresh();
+      await settleAdvance.mutateAsync(id);
       toast.success("Advance settled");
     } catch (err) {
       toast.error("Failed to settle", { description: err instanceof Error ? err.message : undefined });

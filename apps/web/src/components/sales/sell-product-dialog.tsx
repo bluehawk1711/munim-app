@@ -39,7 +39,7 @@ const MAX_RESULTS = 200
 export function SellProductDialog() {
   const open = useAppStore((s) => s.sellDialogOpen)
   const setOpen = useAppStore((s) => s.setSellDialogOpen)
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
   // Fetch the full catalog (not just page 1) so every product — including
   // ones on pages 2+ of the Products view — is searchable and selectable.
   // The query only runs while the dialog is open to avoid an always-on fetch.

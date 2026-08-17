@@ -2,8 +2,7 @@ import type { ElementType } from "react";
 import * as m from "motion/react-m";
 import { Banknote, HandCoins, PackageSearch, TrendingUp, Wallet, AlertTriangle, Database, Settings } from "lucide-react";
 import { formatDate } from "@munim/core";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import { useDashboard, useQueryState } from "@munim/query";
 import { money } from "@/lib/format";
 import { navigate } from "@/lib/navigation";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui";
@@ -63,7 +62,7 @@ function StatCard({ label, value, sub, icon: Icon }: { label: string; value: str
 }
 
 export function DashboardPage() {
-  const { data, error, loading, reload } = useAsync(() => getApi().dashboard.get(), []);
+  const { data, error, loading, reload } = useQueryState(useDashboard());
 
   if (error) {
     const noConfig = error.includes("No server URL configured");

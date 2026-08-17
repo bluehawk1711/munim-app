@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
+    "@munim/api-client": "workspace:*",
     "@munim/core": "workspace:*",
+    "@munim/query": "workspace:*",
+    "@munim/store": "workspace:*",
     "@munim/theme": "workspace:*",
     "@munim/ui": "workspace:*",
     "@radix-ui/react-alert-dialog": "^1.1.14",

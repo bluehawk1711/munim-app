@@ -4,9 +4,14 @@ import {
   formatDate,
   type InvoiceDto,
 } from '@munim/core';
+import {
+  useCreateSale,
+  useInvoices,
+  useProducts,
+  useQueryState,
+  useRecordInvoicePayment,
+} from '@munim/query';
 import {successFeedback, errorFeedback} from '../lib/haptics';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {
   Badge,
@@ -27,18 +32,9 @@ import {useThemeStyles} from '../theme';
 
 export function SalesScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data: products, reload: reloadProducts} = useAsync(
-    async () => {
-      const api = await getApi();
-      const {products: allProducts} = await api.products.list({pageSize: 500});
-      return allProducts;
-    },
-    [],
-  );
-  const {data: recent, loading, reload: reloadRecent} = useAsync(
-    async () => (await getApi()).invoices.list({pageSize: 20}),
-    [],
-  );
+  const {data: productsData, reload: reloadProducts} = useQueryState(useProducts({pageSize: 500}));
+  const products = productsData?.products;
+  const {data: recent, loading} = useQueryState(useInvoices({pageSize: 20}));
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [productId, setProductId] = useState('');
@@ -52,6 +48,8 @@ export function SalesScreen() {
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
   const [payingNow, setPayingNow] = useState(false);
+  const recordPayment = useRecordInvoicePayment(paying?.id ?? '');
+  const createSale = useCreateSale();
 
   useEffect(() => {
     if (products && products.length > 0 && !productId) {
@@ -73,7 +71,7 @@ export function SalesScreen() {
     }
     setPayingNow(true);
     try {
-      await (await getApi()).invoices.recordPayment(paying.id, {
+      await recordPayment.mutateAsync({
         amount,
         method: payMethod,
       });
@@ -81,7 +79,6 @@ export function SalesScreen() {
       setPaying(null);
       setPayAmount('');
       setPayMethod('cash');
-      reloadRecent();
     } catch {
       errorFeedback();
       // keep the sheet open so the user can retry
@@ -96,7 +93,7 @@ export function SalesScreen() {
     }
     setSaving(true);
     try {
-      const invoice = await (await getApi()).sales.create({
+      await createSale.mutateAsync({
         productId: selected.id,
         quantity: Number(quantity) || 0,
         sellingPrice: Number(price) || undefined,
@@ -104,13 +101,10 @@ export function SalesScreen() {
         paid: true,
         paymentMethod: 'cash',
       });
-      if (invoice) {
-        successFeedback();
-        setQuantity('1');
-        setCustomer('');
-        reloadProducts();
-        reloadRecent();
-      }
+      successFeedback();
+      setQuantity('1');
+      setCustomer('');
+      reloadProducts();
     } catch {
       errorFeedback();
       // keep form for retry

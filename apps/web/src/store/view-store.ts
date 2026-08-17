@@ -1,7 +1,6 @@
 "use client"
 
-import { create } from "zustand"
-import type { StockStatus } from "@/lib/types"
+import { createAppStore } from "@munim/store"
 
 export type ViewKey =
   | "dashboard"
@@ -15,25 +14,6 @@ export type ViewKey =
   | "reports"
   | "catalog"
   | "settings"
-
-type AppState = {
-  activeView: ViewKey
-  globalSearch: string
-  searchNonce: number
-  sellDialogOpen: boolean
-  // Cross-view product filters (e.g. set by the Catalog shortcuts).
-  productColorFilter: string
-  productSizeFilter: string
-  productCategoryFilter: string
-  productStatusFilter: StockStatus | "all"
-  setView: (view: ViewKey) => void
-  setGlobalSearch: (value: string) => void
-  setSellDialogOpen: (open: boolean) => void
-  setProductColorFilter: (value: string) => void
-  setProductSizeFilter: (value: string) => void
-  setProductCategoryFilter: (value: string) => void
-  setProductStatusFilter: (value: StockStatus | "all") => void
-}
 
 /** All valid view keys — used to validate the `?view=` URL param. */
 const VIEW_KEYS: ViewKey[] = [
@@ -60,46 +40,34 @@ function viewFromUrl(): ViewKey {
     : "dashboard"
 }
 
-/** Keep the URL in sync with the active tab (pushState so back/forward
- * navigates between tabs) and back/forward in sync with the store. */
-let popStateBound = false
-function bindPopState() {
-  if (popStateBound || typeof window === "undefined") return
-  popStateBound = true
+/**
+ * The web's client-state store instance — shared shape + actions from
+ * `@munim/store` (server state lives in `@munim/query`). The web layers its
+ * URL-sync on top: every `setActiveView` (aka the old `setView`) also pushes
+ * `?view=` via pushState so back/forward navigates between tabs.
+ */
+export const useAppStore = createAppStore(viewFromUrl())
+
+// Keep the URL in sync with the active tab (pushState so back/forward
+// navigates between tabs) and back/forward in sync with the store.
+let urlSyncBound = false
+function bindUrlSync() {
+  if (urlSyncBound || typeof window === "undefined") return
+  urlSyncBound = true
+
+  // Store → URL: any activeView change writes ?view=.
+  useAppStore.subscribe((state, prev) => {
+    if (state.activeView === prev.activeView) return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get("view") !== state.activeView) {
+      url.searchParams.set("view", state.activeView)
+      window.history.pushState({ view: state.activeView }, "", url)
+    }
+  })
+
+  // URL → store: back/forward restores the tab.
   window.addEventListener("popstate", () => {
     useAppStore.setState({ activeView: viewFromUrl() })
   })
 }
-
-export const useAppStore = create<AppState>((set) => ({
-  activeView: viewFromUrl(),
-  globalSearch: "",
-  searchNonce: 0,
-  sellDialogOpen: false,
-  productColorFilter: "all",
-  productSizeFilter: "all",
-  productCategoryFilter: "all",
-  productStatusFilter: "all",
-  setView: (view) => {
-    set({ activeView: view })
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href)
-      if (url.searchParams.get("view") !== view) {
-        url.searchParams.set("view", view)
-        window.history.pushState({ view }, "", url)
-      }
-    }
-  },
-  setGlobalSearch: (value) =>
-    set({ globalSearch: value, searchNonce: Date.now() }),
-  setSellDialogOpen: (open) => set({ sellDialogOpen: open }),
-  setProductColorFilter: (value) => set({ productColorFilter: value }),
-  setProductSizeFilter: (value) => set({ productSizeFilter: value }),
-  setProductCategoryFilter: (value) => set({ productCategoryFilter: value }),
-  setProductStatusFilter: (value) => set({ productStatusFilter: value }),
-}))
-
-// The store must exist before the listener can dereference it — this call
-// sits after `create` so the closure is always safe (it fires on popstate,
-// well after module evaluation).
-bindPopState()
+bindUrlSync()

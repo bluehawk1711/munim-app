@@ -1,18 +1,8 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import { apiFetch } from "@/lib/api-client"
-
-export type ProductMeta = {
-  colors: string[]
-  sizes: string[]
-  categories: string[]
-}
-
-export function useProductMeta() {
-  return useQuery({
-    queryKey: ["products", "meta"],
-    queryFn: () => apiFetch<ProductMeta>("/api/products/meta"),
-    staleTime: 1000 * 60,
-  })
-}
+/**
+ * Web product-meta hook — thin re-export of the shared @munim/query hook
+ * (colors/sizes/categories option lists).
+ */
+export { useProductMeta } from "@munim/query"
+export type { ProductMeta } from "@munim/api-client"

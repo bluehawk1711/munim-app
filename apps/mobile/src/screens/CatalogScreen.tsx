@@ -6,8 +6,13 @@ import {
   type CatalogItem,
   type CatalogKind,
 } from '@munim/core';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {
+  useCatalog,
+  useCreateCatalogItem,
+  useDeleteCatalogItem,
+  useQueryState,
+  useUpdateCatalogItem,
+} from '@munim/query';
 import {
   Button,
   Card,
@@ -30,18 +35,37 @@ type EditorState =
 
 export function CatalogScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data, error, loading, reload} = useAsync(
-    async () => {
-      const api = await getApi();
-      const [colorItems, sizeItems, categoryItems] = await Promise.all([
-        api.catalog.list('color'),
-        api.catalog.list('size'),
-        api.catalog.list('category'),
-      ]);
-      return {colors: colorItems, sizes: sizeItems, categories: categoryItems};
-    },
-    [],
-  );
+  const colorQ = useQueryState(useCatalog('color'));
+  const sizeQ = useQueryState(useCatalog('size'));
+  const categoryQ = useQueryState(useCatalog('category'));
+  const data =
+    colorQ.data && sizeQ.data && categoryQ.data
+      ? {colors: colorQ.data, sizes: sizeQ.data, categories: categoryQ.data}
+      : null;
+  const loading = colorQ.loading || sizeQ.loading || categoryQ.loading;
+  const error = colorQ.error ?? sizeQ.error ?? categoryQ.error;
+  const reload = () => {
+    colorQ.reload();
+    sizeQ.reload();
+    categoryQ.reload();
+  };
+
+  // One mutation hook set per kind (catalog writes invalidate products too).
+  const createItem = {
+    color: useCreateCatalogItem('color'),
+    size: useCreateCatalogItem('size'),
+    category: useCreateCatalogItem('category'),
+  };
+  const renameItem = {
+    color: useUpdateCatalogItem('color'),
+    size: useUpdateCatalogItem('size'),
+    category: useUpdateCatalogItem('category'),
+  };
+  const deleteItem = {
+    color: useDeleteCatalogItem('color'),
+    size: useDeleteCatalogItem('size'),
+    category: useDeleteCatalogItem('category'),
+  };
 
   const [editor, setEditor] = useState<EditorState>(null);
   const [name, setName] = useState('');
@@ -67,16 +91,14 @@ export function CatalogScreen() {
     }
     setSaving(true);
     try {
-      const api = await getApi();
       if (editor.mode === 'rename') {
-        await api.catalog.rename(editor.kind, editor.item.id, trimmed);
+        await renameItem[editor.kind].mutateAsync({id: editor.item.id, name: trimmed});
       } else {
-        await api.catalog.create(editor.kind, trimmed);
+        await createItem[editor.kind].mutateAsync(trimmed);
       }
       successFeedback();
       setEditor(null);
       setName('');
-      reload();
     } catch {
       errorFeedback();
       // keep the sheet open so the user can retry
@@ -96,9 +118,8 @@ export function CatalogScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await (await getApi()).catalog.remove(kind, item.id);
+              await deleteItem[kind].mutateAsync(item.id);
               successFeedback();
-              reload();
             } catch {
               errorFeedback();
               // surfaced via the list still containing the item

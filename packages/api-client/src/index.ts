@@ -20,6 +20,7 @@ import { reports } from "./endpoints/reports.js";
 import { settings } from "./endpoints/settings.js";
 import { catalog } from "./endpoints/catalog.js";
 import { upload } from "./endpoints/upload.js";
+export type { UploadableFile, UploadResult } from "./endpoints/upload.js";
 import { health } from "./endpoints/health.js";
 
 export { ApiClientError } from "./http.js";

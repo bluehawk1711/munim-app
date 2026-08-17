@@ -1,8 +1,7 @@
 import React, {useState} from 'react';
 import {ScrollView, Share, StyleSheet, Text, View} from 'react-native';
 import {reportToCsv, formatWeight, type ReportType} from '@munim/core';
-import {getApi} from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {useQueryState, useReport} from '@munim/query';
 import {money} from '../lib/format';
 import {Button, Card, Empty, ErrorBox, Header, Loading, Screen, Section, colors} from '../components/ui';
 import {DateField} from '../components/date-field';
@@ -29,14 +28,8 @@ export function ReportsScreen() {
   const [activeStart, setActiveStart] = useState('');
   const [activeEnd, setActiveEnd] = useState('');
 
-  const {data: report, loading, error, reload} = useAsync(
-    async () =>
-      (await getApi()).reports.get({
-        type: active,
-        startDate: activeStart || undefined,
-        endDate: activeEnd || undefined,
-      }),
-    [active, activeStart, activeEnd],
+  const {data: report, loading, error, reload} = useQueryState(
+    useReport(active, activeStart || undefined, activeEnd || undefined),
   );
 
   function generate() {

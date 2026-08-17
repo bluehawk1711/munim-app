@@ -39,6 +39,14 @@ This document records what exists, and **on which platforms** it is available (�
   browser can't hold a DB connection). Apps never re-implement business logic and never talk to
   Neon directly. Audited 2026-08-17: zero raw `fetch()` calls in desktop/mobile app code, and
   every `/api/*` route + API controller imports its logic from `@munim/core`.
+- **One API-calling + caching layer.** Screens never call the api-client directly — they use
+  the shared **TanStack Query hooks in `@munim/query`** (reads cached + deduped, mutations
+  invalidate the right query keys) and shared **Zustand client state in `@munim/store`**
+  (active view/tab, global search, cross-view filters, sell dialog). Redux was rejected;
+  TanStack Query + Zustand are the chosen stack (web's original pattern, now shared by all 3
+  apps). The API key/URL resolution is a function param (`getClient`) supplied per platform.
+  See `docs/state-management.md` + ADR-017. Desktop + mobile fully migrated; web's data hooks
+  migrate in Phase 6.
 - **Connection test modal (desktop + mobile).** Test / Save URL opens a modal that **cannot be
   dismissed while the ping is in flight** — it shows a loading state, then flips to success or a
   failure panel with the exact error. Desktop uses the shared `ConnectionTestDialog` in `@munim/ui`;

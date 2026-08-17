@@ -108,6 +108,12 @@ importers:
       '@munim/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@munim/query':
+        specifier: workspace:*
+        version: link:../../packages/query
+      '@munim/store':
+        specifier: workspace:*
+        version: link:../../packages/store
       '@munim/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -117,6 +123,9 @@ importers:
       '@tailwindcss/vite':
         specifier: ^4.2.1
         version: 4.3.3(vite@7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.49.2)(tsx@4.23.11)(yaml@2.9.0))
+      '@tanstack/react-query':
+        specifier: ^5.82.0
+        version: 5.101.4(react@19.2.8)
       '@tauri-apps/api':
         specifier: 2.11.1
         version: 2.11.1
@@ -153,6 +162,9 @@ importers:
       tailwindcss:
         specifier: ^4.2.1
         version: 4.3.3
+      zustand:
+        specifier: ^5.0.6
+        version: 5.0.14(@types/react@19.2.18)(react@19.2.8)
     devDependencies:
       '@eslint/js':
         specifier: ^9.38.0
@@ -208,6 +220,12 @@ importers:
       '@munim/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@munim/query':
+        specifier: workspace:*
+        version: link:../../packages/query
+      '@munim/store':
+        specifier: workspace:*
+        version: link:../../packages/store
       '@munim/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -220,6 +238,9 @@ importers:
       '@react-native/new-app-screen':
         specifier: 0.86.2
         version: 0.86.2(@types/react@19.2.18)(react-native@0.86.2(@babel/core@7.29.7)(@react-native-community/cli@20.1.0(typescript@6.0.3))(@react-native/jest-preset@0.86.2(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      '@tanstack/react-query':
+        specifier: ^5.82.0
+        version: 5.101.4(react@19.2.3)
       babel-preset-expo:
         specifier: ~57.0.6
         version: 57.0.6(@babel/core@7.29.7)(@babel/runtime@7.29.7)(expo@57.0.11)(react-refresh@0.17.0)
@@ -265,6 +286,9 @@ importers:
       react-native-worklets:
         specifier: ^0.10.1
         version: 0.10.1(@babel/core@7.29.7)(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(react-native@0.86.2(@babel/core@7.29.7)(@react-native-community/cli@20.1.0(typescript@6.0.3))(@react-native/jest-preset@0.86.2(@babel/core@7.29.7)(react@19.2.3))(@react-native/metro-config@0.86.2(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+      zustand:
+        specifier: ^5.0.6
+        version: 5.0.14(@types/react@19.2.18)(react@19.2.3)
     devDependencies:
       '@babel/core':
         specifier: ^7.25.2
@@ -341,9 +365,18 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.1.1
         version: 5.7.1(@sinclair/typebox@0.27.12)(ajv@8.20.0)(joi@17.13.4)(react-hook-form@7.85.0(react@19.2.8))(zod@4.4.3)
+      '@munim/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@munim/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@munim/query':
+        specifier: workspace:*
+        version: link:../../packages/query
+      '@munim/store':
+        specifier: workspace:*
+        version: link:../../packages/store
       '@munim/theme':
         specifier: workspace:*
         version: link:../../packages/theme
@@ -536,6 +569,79 @@ importers:
       typescript:
         specifier: ^5.8.3
         version: 5.9.3
+
+  packages/query:
+    dependencies:
+      '@munim/api-client':
+        specifier: workspace:*
+        version: link:../api-client
+      '@munim/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.38.0
+        version: 9.39.5
+      '@tanstack/react-query':
+        specifier: ^5.82.0
+        version: 5.101.4(react@19.2.3)
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.9.5
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.2.18
+      eslint:
+        specifier: ^9.38.0
+        version: 9.39.5(jiti@2.7.0)
+      globals:
+        specifier: ^16.4.0
+        version: 16.4.0
+      react:
+        specifier: ^19.2.0
+        version: 19.2.3
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.11
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      typescript-eslint:
+        specifier: ^8.46.1
+        version: 8.66.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
+
+  packages/store:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.38.0
+        version: 9.39.5
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.9.5
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.2.18
+      eslint:
+        specifier: ^9.38.0
+        version: 9.39.5(jiti@2.7.0)
+      globals:
+        specifier: ^16.4.0
+        version: 16.4.0
+      react:
+        specifier: ^19.2.0
+        version: 19.2.3
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.11
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      typescript-eslint:
+        specifier: ^8.46.1
+        version: 8.66.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
+      zustand:
+        specifier: ^5.0.6
+        version: 5.0.14(@types/react@19.2.18)(react@19.2.3)
 
   packages/theme:
     devDependencies:
@@ -12467,6 +12573,11 @@ snapshots:
 
   '@tanstack/query-core@5.101.4': {}
 
+  '@tanstack/react-query@5.101.4(react@19.2.3)':
+    dependencies:
+      '@tanstack/query-core': 5.101.4
+      react: 19.2.3
+
   '@tanstack/react-query@5.101.4(react@19.2.8)':
     dependencies:
       '@tanstack/query-core': 5.101.4
@@ -18369,6 +18480,11 @@ snapshots:
   zod@3.25.76: {}
 
   zod@4.4.3: {}
+
+  zustand@5.0.14(@types/react@19.2.18)(react@19.2.3):
+    optionalDependencies:
+      '@types/react': 19.2.18
+      react: 19.2.3
 
   zustand@5.0.14(@types/react@19.2.18)(react@19.2.8):
     optionalDependencies:

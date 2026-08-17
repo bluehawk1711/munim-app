@@ -3,8 +3,7 @@
 import * as React from "react"
 import * as m from "motion/react-m"
 import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe, Palette, ShieldCheck, ShoppingBag, SunMoon } from "lucide-react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { apiFetch } from "@/lib/api-client"
+import { useSettings, useUpdateSettings } from "@/hooks/use-settings"
 import {
   Button,
   Input,
@@ -36,23 +35,6 @@ import {
   type ThemeMode,
 } from "@/components/app/theme-picker"
 
-type ShopSettings = {
-  shopName: string
-  shopAddress: string | null
-  shopPhones: string[]
-  shopEmail: string | null
-  lowStockThreshold: number
-  currency: string
-}
-
-function useShopSettings() {
-  return useQuery({
-    queryKey: ["settings"],
-    queryFn: () => apiFetch<ShopSettings>("/api/settings"),
-    staleTime: 1000 * 60,
-  })
-}
-
 const MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
   { value: "light", label: "Light" },
   { value: "dark", label: "Dark" },
@@ -60,8 +42,8 @@ const MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
 ]
 
 export function SettingsView() {
-  const queryClient = useQueryClient()
-  const { data: settings, isLoading } = useShopSettings()
+  const { data: settings, isLoading } = useSettings()
+  const updateSettings = useUpdateSettings()
   const { themeName, setThemeName, mode, setMode } = useAccentThemeContext()
   const pin = usePinLockContext()
   const forceTransition = useForceThemeTransition()
@@ -77,7 +59,7 @@ export function SettingsView() {
   const [loaded, setLoaded] = React.useState(false)
 
   // Hydrate form fields once when settings arrive.
-  const [prevSettings, setPrevSettings] = React.useState<ShopSettings | undefined>(undefined)
+  const [prevSettings, setPrevSettings] = React.useState<typeof settings | undefined>(undefined)
   if (settings && settings !== prevSettings) {
     setPrevSettings(settings)
     if (!loaded) {
@@ -91,11 +73,10 @@ export function SettingsView() {
     }
   }
 
-  const save = useMutation({
-    mutationFn: () =>
-      apiFetch<ShopSettings>("/api/settings", {
-        method: "PUT",
-        body: {
+  const save = {
+    mutate: () => {
+      updateSettings.mutate(
+        {
           shopName: shopName.trim() || "My Shop",
           shopAddress: shopAddress.trim() || undefined,
           shopPhones: shopPhones.split(",").map((s) => s.trim()).filter(Boolean),
@@ -103,17 +84,17 @@ export function SettingsView() {
           currency: currency.trim() || "INR",
           lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
         },
-      }),
-    onSuccess: (saved) => {
-      queryClient.setQueryData(["settings"], saved)
-      toast.success("Settings saved")
+        {
+          onSuccess: () => toast.success("Settings saved"),
+          onError: (err) =>
+            toast.error("Failed to save settings", {
+              description: err instanceof Error ? err.message : undefined,
+            }),
+        },
+      )
     },
-    onError: (err) => {
-      toast.error("Failed to save settings", {
-        description: err instanceof Error ? err.message : undefined,
-      })
-    },
-  })
+    isPending: updateSettings.isPending,
+  }
 
   const [pingState, setPingState] = React.useState<"idle" | "testing" | "ok" | "fail">("idle")
 

@@ -6,8 +6,15 @@ import {
   type BillShopDetails,
 } from "@munim/core";
 import type { InvoiceDto, SettingsDto } from "@munim/api-client";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import {
+  useSettings,
+  useProducts,
+  useParties,
+  useInvoices,
+  useCreateInvoice,
+  useRecordInvoicePayment,
+  useQueryState,
+} from "@munim/query";
 import { money, formatDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { toast } from "@munim/ui";
@@ -102,16 +109,12 @@ function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency:
 }
 
 export function BillingPage() {
-  const { data: settings } = useAsync(() => getApi().settings.get(), []);
-  const { data: allProducts } = useAsync(
-    async () => (await getApi().products.list({ pageSize: 1000 })).products,
-    [],
-  );
-  const { data: parties } = useAsync(() => getApi().parties.list(), []);
-  const { data: list, loading: loadingList, reload: reloadList } = useAsync(
-    () => getApi().invoices.list({ pageSize: 100 }),
-    [],
-  );
+  const { data: settings } = useQueryState(useSettings());
+  const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
+  const allProducts = allProductsData?.products;
+  const { data: parties } = useQueryState(useParties());
+  const { data: list, loading: loadingList } = useQueryState(useInvoices({ pageSize: 100 }));
+  const createInvoice = useCreateInvoice();
 
   // ── Bill 1 ──────────────────────────────────────────────────────────────
   const [customerName, setCustomerName] = useState("");
@@ -148,6 +151,7 @@ export function BillingPage() {
 
   const [payingInvoice, setPayingInvoice] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState("");
+  const recordPayment = useRecordInvoicePayment(payingInvoice?.id ?? "");
 
   const distinct = twoInOne && mode === "distinct";
 
@@ -249,7 +253,7 @@ export function BillingPage() {
         paymentMethod: "cash" as const,
         shopDetails: shop ? toInvoiceShop(shop) : undefined,
       };
-      const invoice = await getApi().invoices.create({
+      const invoice = await createInvoice.mutateAsync({
         ...base,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim() || undefined,
@@ -270,7 +274,7 @@ export function BillingPage() {
       let secondInvoice: InvoiceDto | null = null;
       if (distinct) {
         try {
-          secondInvoice = await getApi().invoices.create({
+          secondInvoice = await createInvoice.mutateAsync({
             ...base,
             customerName: secondCustomerName.trim(),
             customerPhone: secondCustomerPhone.trim() || undefined,
@@ -289,7 +293,6 @@ export function BillingPage() {
           toast.error(`Bill 1 (${invoice.invoiceNumber}) saved, but Bill 2 failed`,
             { description: err instanceof Error ? err.message : undefined });
           resetForm();
-          reloadList();
           return;
         }
       }
@@ -300,7 +303,6 @@ export function BillingPage() {
           : `Invoice ${invoice.invoiceNumber} created`,
       );
       resetForm();
-      reloadList();
     } catch (err) {
       toast.error("Failed to create invoice", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -350,11 +352,10 @@ export function BillingPage() {
       return;
     }
     try {
-      await getApi().invoices.recordPayment(payingInvoice.id, { amount, method: "cash" });
+      await recordPayment.mutateAsync({ amount, method: "cash" });
       toast.success("Payment recorded");
       setPayingInvoice(null);
       setPayAmount("");
-      reloadList();
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : undefined });
     }

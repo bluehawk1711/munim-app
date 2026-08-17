@@ -2,7 +2,7 @@ import { useState } from "react";
 import { CalendarDays, CalendarRange, CalendarClock, Calendar, Package, AlertTriangle, ShoppingCart, Loader2, RefreshCw, TrendingUp, FileSpreadsheet, FileText, Weight } from "lucide-react";
 import type { ReportType } from "@munim/core";
 import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import { useReport, useQueryState } from "@munim/query";
 import { money, formatDateTime, formatWeight } from "@/lib/format";
 import { toast } from "@munim/ui";
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Input, Label, Separator, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui"
@@ -35,16 +35,10 @@ export function ReportsPage() {
   const [endDate, setEndDate] = useState("");
   const [active, setActive] = useState<{ type: ReportType; start?: string; end?: string } | null>({ type: "monthly" });
 
-  const { data: report, loading, reload } = useAsync(
-    () =>
-      active
-        ? getApi().reports.get({
-            type: active.type,
-            startDate: active.start || undefined,
-            endDate: active.end || undefined,
-          })
-        : Promise.resolve(null),
-    [active?.type, active?.start, active?.end],
+  // Cached per (type, start, end) — the shared @munim/query hook owns fetch;
+  // `active` gating keeps the fetch off until "Generate" is clicked.
+  const { data: report, loading, reload } = useQueryState(
+    useReport(active?.type ?? null, active?.start || undefined, active?.end || undefined),
   );
 
   const totals = report?.totals;

@@ -41,7 +41,7 @@ export function ProductsView() {
   const globalSearch = useAppStore((s) => s.globalSearch)
   const setGlobalSearchStore = useAppStore((s) => s.setGlobalSearch)
   const setSellDialogOpen = useAppStore((s) => s.setSellDialogOpen)
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
 
   // Filters live in the store so shortcuts from other views (e.g. Catalog)
   // can pre-filter this view. The view remounts on navigation, so the local
@@ -58,7 +58,7 @@ export function ProductsView() {
   const [color, setColor] = React.useState<string>(productColorFilter)
   const [size, setSize] = React.useState<string>(productSizeFilter)
   const [category, setCategory] = React.useState<string>(productCategoryFilter)
-  const [status, setStatus] = React.useState<StockStatus | "all">(productStatusFilter)
+  const [status, setStatus] = React.useState<StockStatus | "all">(productStatusFilter as StockStatus | "all")
   const [page, setPage] = React.useState(1)
   const pageSize = 20
 

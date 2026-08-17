@@ -70,7 +70,7 @@ const NAV_SECTIONS: {
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const activeView = useAppStore((s) => s.activeView)
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
 
   return (
     <nav className="flex flex-col gap-4 px-3 py-4" aria-label="Main navigation">

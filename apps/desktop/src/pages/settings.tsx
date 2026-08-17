@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Database, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
-import { getApi, pingApiUrl, resetApi } from "@/lib/api";
+import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
-import { useAsync } from "@/lib/use-async";
+import { useSettings, useUpdateSettings, useQueryState } from "@munim/query";
 import { toast } from "@munim/ui";
 import {
   ThemeSelect,
@@ -50,7 +50,8 @@ function maskApiHost(url: string | undefined): string | null {
 }
 
 export function SettingsPage() {
-  const { data: settings, reload } = useAsync(() => getApi().settings.get(), []);
+  const { data: settings } = useQueryState(useSettings());
+  const updateSettings = useUpdateSettings();
   const { themeName, setThemeName, mode, setMode } = useAccentTheme();
   const pin = usePinLockContext();
   const forceTransition = useForceThemeTransition();
@@ -92,7 +93,7 @@ export function SettingsPage() {
 
   async function handleSaveShop() {
     try {
-      await getApi().settings.update({
+      await updateSettings.mutateAsync({
         shopName: shopName.trim() || "My Shop",
         shopAddress: shopAddress.trim() || undefined,
         shopPhones: shopPhones.split(",").map((s) => s.trim()).filter(Boolean),
@@ -101,7 +102,6 @@ export function SettingsPage() {
         lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
       });
       toast.success("Settings saved");
-      reload();
     } catch (err) {
       toast.error("Failed to save", { description: err instanceof Error ? err.message : undefined });
     }

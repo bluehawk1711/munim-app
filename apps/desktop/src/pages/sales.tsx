@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Search, X, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2, AlertTriangle, Loader2 } from "lucide-react";
 import { formatDate, formatCurrency } from "@munim/core";
 import type { InvoiceDto } from "@munim/api-client";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import {
+  useProducts,
+  useInvoices,
+  useCreateSale,
+  useUndoSale,
+  useQueryState,
+} from "@munim/query";
 import { money } from "@/lib/format";
 import { toast } from "@munim/ui";
 import {
@@ -59,16 +64,16 @@ export function SalesPage() {
   const [undoOpen, setUndoOpen] = useState(false);
   const [undoing, setUndoing] = useState(false);
 
-  const { data: allProducts, reload: reloadProducts } = useAsync(
-    async () => (await getApi().products.list({ pageSize: 1000 })).products,
-    [],
-  );
+  const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
+  const allProducts = allProductsData?.products;
 
   const { startDate, endDate } = rangeToDates(range);
-  const { data: recent, loading: loadingRecent, reload: reloadRecent } = useAsync(
-    () => getApi().invoices.list({ search, startDate, endDate, pageSize: 200 }),
-    [search, startDate, endDate],
+  const { data: recent, loading: loadingRecent } = useQueryState(
+    useInvoices({ search, startDate, endDate, pageSize: 200 }),
   );
+
+  const createSale = useCreateSale();
+  const undoSale = useUndoSale();
 
   useEffect(() => {
     if (allProducts && allProducts.length > 0 && !productId) {
@@ -104,7 +109,7 @@ export function SalesPage() {
     }
     setSaving(true);
     try {
-      const invoice = await getApi().sales.create({
+      const invoice = await createSale.mutateAsync({
         productId: selected.id,
         quantity: qty,
         sellingPrice: sellPrice || undefined,
@@ -117,8 +122,6 @@ export function SalesPage() {
       setQuantity("1");
       setCustomerName("");
       setCustomerPhone("");
-      reloadProducts();
-      reloadRecent();
     } catch (err) {
       toast.error("Sale failed", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -130,11 +133,9 @@ export function SalesPage() {
     if (!undoTarget) return;
     setUndoing(true);
     try {
-      await getApi().sales.remove(undoTarget.id);
+      await undoSale.mutateAsync(undoTarget.id);
       toast.success("Sale undone", { description: `${undoTarget.invoiceNumber} reversed — stock restored.` });
       setUndoOpen(false);
-      reloadProducts();
-      reloadRecent();
     } catch (err) {
       toast.error("Undo failed", { description: err instanceof Error ? err.message : undefined });
     } finally {

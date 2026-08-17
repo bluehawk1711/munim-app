@@ -5,8 +5,13 @@ import {
   type CatalogItem,
   type CatalogKind,
 } from "@munim/core";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import {
+  useCatalog,
+  useCreateCatalogItem,
+  useUpdateCatalogItem,
+  useDeleteCatalogItem,
+  useQueryState,
+} from "@munim/query";
 import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton } from "@munim/ui"
 ;
@@ -135,18 +140,19 @@ function CatalogCard({
 }
 
 export function CatalogPage() {
-  const { data, error, loading, reload } = useAsync(
-    async () => {
-      const api = getApi();
-      const [colors, sizes, categories] = await Promise.all([
-        api.catalog.list("color"),
-        api.catalog.list("size"),
-        api.catalog.list("category"),
-      ]);
-      return { colors, sizes, categories };
-    },
-    [],
-  );
+  const colors = useQueryState(useCatalog("color"));
+  const sizes = useQueryState(useCatalog("size"));
+  const categories = useQueryState(useCatalog("category"));
+
+  const createColor = useCreateCatalogItem("color");
+  const createSize = useCreateCatalogItem("size");
+  const createCategory = useCreateCatalogItem("category");
+  const renameColor = useUpdateCatalogItem("color");
+  const renameSize = useUpdateCatalogItem("size");
+  const renameCategory = useUpdateCatalogItem("category");
+  const deleteColor = useDeleteCatalogItem("color");
+  const deleteSize = useDeleteCatalogItem("size");
+  const deleteCategory = useDeleteCatalogItem("category");
 
   const [dialog, setDialog] = useState<DialogState>(null);
   const [name, setName] = useState("");
@@ -172,14 +178,15 @@ export function CatalogPage() {
     setSaving(true);
     try {
       if (dialog.mode === "rename") {
-        await getApi().catalog.rename(dialog.kind, dialog.item.id, trimmed);
+        const rename = dialog.kind === "color" ? renameColor : dialog.kind === "size" ? renameSize : renameCategory;
+        await rename.mutateAsync({ id: dialog.item.id, name: trimmed });
         toast.success(`${dialog.kind} renamed`, { description: trimmed });
       } else {
-        await getApi().catalog.create(dialog.kind, trimmed);
+        const create = dialog.kind === "color" ? createColor : dialog.kind === "size" ? createSize : createCategory;
+        await create.mutateAsync(trimmed);
         toast.success(`${dialog.kind} created`, { description: trimmed });
       }
       setDialog(null);
-      reload();
     } catch (err) {
       toast.error("Failed to save", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -191,9 +198,9 @@ export function CatalogPage() {
     const confirmed = window.confirm(`Delete "${item.name}"? This cannot be undone.`);
     if (!confirmed) return;
     try {
-      await getApi().catalog.remove(kind, item.id);
+      const del = kind === "color" ? deleteColor : kind === "size" ? deleteSize : deleteCategory;
+      await del.mutateAsync(item.id);
       toast.success(`${kind} deleted`, { description: item.name });
-      reload();
     } catch (err) {
       toast.error("Delete failed", {
         description: err instanceof Error ? err.message : undefined,
@@ -209,10 +216,10 @@ export function CatalogPage() {
           icon={Palette}
           title="Colors"
           description="Color variants available for products"
-          items={data?.colors ?? null}
-          loading={loading}
-          error={error}
-          onReload={reload}
+          items={colors.data ?? null}
+          loading={colors.loading}
+          error={colors.error}
+          onReload={colors.reload}
           onAdd={() => openAdd("color")}
           onRename={(item) => openRename("color", item)}
           onDelete={(item) => handleDelete("color", item)}
@@ -222,10 +229,10 @@ export function CatalogPage() {
           icon={Ruler}
           title="Sizes"
           description="Size variants available for products"
-          items={data?.sizes ?? null}
-          loading={loading}
-          error={error}
-          onReload={reload}
+          items={sizes.data ?? null}
+          loading={sizes.loading}
+          error={sizes.error}
+          onReload={sizes.reload}
           onAdd={() => openAdd("size")}
           onRename={(item) => openRename("size", item)}
           onDelete={(item) => handleDelete("size", item)}
@@ -235,10 +242,10 @@ export function CatalogPage() {
           icon={FolderTree}
           title="Categories"
           description="Product categories — e.g. Jewellery, Apparel"
-          items={data?.categories ?? null}
-          loading={loading}
-          error={error}
-          onReload={reload}
+          items={categories.data ?? null}
+          loading={categories.loading}
+          error={categories.error}
+          onReload={categories.reload}
           onAdd={() => openAdd("category")}
           onRename={(item) => openRename("category", item)}
           onDelete={(item) => handleDelete("category", item)}

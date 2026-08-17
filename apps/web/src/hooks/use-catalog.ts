@@ -1,63 +1,21 @@
 "use client"
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { apiFetch } from "@/lib/api-client"
-import type { CatalogItem, CatalogKind } from "@munim/core"
+/**
+ * Web catalog hooks — thin re-exports of the shared @munim/query hooks
+ * (colors / sizes / categories all live behind /api/catalog/:kind, which the
+ * web serves from apps/web/src/app/api/catalog/[kind]).
+ */
+import {
+  useCatalog,
+  useCreateCatalogItem,
+  useUpdateCatalogItem,
+  useDeleteCatalogItem,
+} from "@munim/query"
 
-export type { CatalogItem, CatalogKind }
-
-// "category" pluralizes irregularly (categories ≠ categorys) — the API routes
-// live at /api/colors, /api/sizes and /api/categories.
-const PLURAL: Record<CatalogKind, string> = {
-  color: "colors",
-  size: "sizes",
-  category: "categories",
+export {
+  useCatalog,
+  useCreateCatalogItem,
+  useUpdateCatalogItem,
+  useDeleteCatalogItem,
 }
-
-function catalogUrl(kind: CatalogKind, id?: string): string {
-  return `/api/${PLURAL[kind]}${id ? `/${id}` : ""}`
-}
-
-export function useCatalog(kind: CatalogKind) {
-  return useQuery({
-    queryKey: ["catalog", kind],
-    queryFn: () => apiFetch<CatalogItem[]>(catalogUrl(kind)),
-  })
-}
-
-// Renaming/deleting a color or size affects product display names, so every
-// catalog mutation also refreshes the product queries (list + meta).
-function useInvalidateCatalog() {
-  const qc = useQueryClient()
-  return () => {
-    qc.invalidateQueries({ queryKey: ["catalog"] })
-    qc.invalidateQueries({ queryKey: ["products"] })
-  }
-}
-
-export function useCreateCatalogItem(kind: CatalogKind) {
-  const invalidate = useInvalidateCatalog()
-  return useMutation({
-    mutationFn: (name: string) =>
-      apiFetch<CatalogItem>(catalogUrl(kind), { method: "POST", body: { name } }),
-    onSuccess: invalidate,
-  })
-}
-
-export function useUpdateCatalogItem(kind: CatalogKind) {
-  const invalidate = useInvalidateCatalog()
-  return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) =>
-      apiFetch<CatalogItem>(catalogUrl(kind, id), { method: "PUT", body: { name } }),
-    onSuccess: invalidate,
-  })
-}
-
-export function useDeleteCatalogItem(kind: CatalogKind) {
-  const invalidate = useInvalidateCatalog()
-  return useMutation({
-    mutationFn: (id: string) =>
-      apiFetch<{ success: boolean }>(catalogUrl(kind, id), { method: "DELETE" }),
-    onSuccess: invalidate,
-  })
-}
+export type { CatalogItem, CatalogKind } from "@munim/core"

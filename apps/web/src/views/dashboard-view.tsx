@@ -37,7 +37,7 @@ import { toast } from "@munim/ui"
 
 export function DashboardView() {
   const { data, isLoading, isError, refetch } = useDashboard()
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
   const setSellDialogOpen = useAppStore((s) => s.setSellDialogOpen)
   const seed = useSeedProducts()
 

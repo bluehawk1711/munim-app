@@ -3,14 +3,13 @@ import {ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Tex
 import {KeyRound} from 'lucide-react-native';
 import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {
-  getApi,
   getSavedApiKey,
   getSavedApiUrl,
   pingApiUrl,
   saveApiKey,
   saveApiUrl,
 } from '../lib/api';
-import {useAsync} from '../lib/use-async';
+import {useQueryState, useSettings, useUpdateSettings} from '@munim/query';
 import {Badge, Button, Card, Field, Header, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
 import {ThemeToggleButton} from '../components/theme-toggle';
 import {
@@ -38,7 +37,8 @@ export function SettingsScreen() {
   const [pwCurrent, setPwCurrent] = useState('');
   const [pwNew, setPwNew] = useState('');
   const [pwConfirm, setPwConfirm] = useState('');
-  const {data: settings, reload} = useAsync(async () => (await getApi()).settings.get(), []);
+  const {data: settings} = useQueryState(useSettings());
+  const updateSettings = useUpdateSettings();
   const [url, setUrl] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
@@ -137,7 +137,7 @@ export function SettingsScreen() {
   async function handleSaveShop() {
     setSavingShop(true);
     try {
-      await (await getApi()).settings.update({
+      await updateSettings.mutateAsync({
         shopName: shopName.trim() || 'My Shop',
         shopAddress: shopAddress.trim() || undefined,
         shopPhones: shopPhones.split(',').map(s => s.trim()).filter(Boolean),
@@ -146,7 +146,6 @@ export function SettingsScreen() {
         lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
       });
       successFeedback();
-      reload();
     } catch {
       errorFeedback();
       // ignore

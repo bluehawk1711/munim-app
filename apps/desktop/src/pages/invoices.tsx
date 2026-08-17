@@ -2,8 +2,12 @@ import { useEffect, useState } from "react";
 import { Search, Receipt, Trash2, IndianRupee, CheckCircle2, Clock, FileText } from "lucide-react";
 import { formatDate, formatCurrency } from "@munim/core";
 import type { InvoiceDto, InvoiceFilters } from "@munim/api-client";
-import { getApi } from "@/lib/api";
-import { useAsync } from "@/lib/use-async";
+import {
+  useInvoices,
+  useDeleteInvoice,
+  useRecordInvoicePayment,
+  useQueryState,
+} from "@munim/query";
 import { toast } from "@munim/ui";
 import {
   Button,
@@ -29,9 +33,8 @@ export function InvoicesPage() {
   const [status, setStatus] = useState<InvoiceFilters["status"]>("all");
   const [page, setPage] = useState(1);
 
-  const { data, loading, reload } = useAsync(
-    () => getApi().invoices.list({ search, status, page, pageSize: 15 }),
-    [search, status, page],
+  const { data, loading } = useQueryState(
+    useInvoices({ search, status, page, pageSize: 15 }),
   );
 
   // Reset to page 1 when filters change
@@ -45,6 +48,8 @@ export function InvoicesPage() {
   const [paying, setPaying] = useState<InvoiceRow | null>(null);
   const [deleting, setDeleting] = useState<InvoiceRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const deleteInvoice = useDeleteInvoice();
+  const recordPayment = useRecordInvoicePayment(paying?.id ?? "");
 
   function openPayment(inv: InvoiceRow) {
     setPaying(inv);
@@ -53,10 +58,9 @@ export function InvoicesPage() {
   async function confirmDelete() {
     if (!deleting) return;
     try {
-      await getApi().invoices.remove(deleting.id);
+      await deleteInvoice.mutateAsync(deleting.id);
       toast.success("Invoice deleted", { description: `${deleting.invoiceNumber} removed and stock restored.` });
       setDeleting(null);
-      reload();
     } catch (err) {
       toast.error("Delete failed", { description: err instanceof Error ? err.message : undefined });
     }
@@ -66,10 +70,9 @@ export function InvoicesPage() {
     if (!paying) return;
     setSaving(true);
     try {
-      await getApi().invoices.recordPayment(paying.id, { amount, method: "cash" });
+      await recordPayment.mutateAsync({ amount, method: "cash" });
       toast.success("Payment recorded", { description: `${formatCurrency(amount)} received` });
       setPaying(null);
-      reload();
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : undefined });
     } finally {

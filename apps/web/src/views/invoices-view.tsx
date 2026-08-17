@@ -15,13 +15,6 @@ import {
 } from "lucide-react"
 import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, RecordPaymentDialog, ConfirmDialog } from "@munim/ui"
 
-
-
-
-
-
-
-
 import { useInvoices, useDeleteInvoice, useRecordPayment } from "@/hooks/use-invoices"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency, formatDate } from "@/lib/format"
@@ -29,9 +22,9 @@ import type { Invoice } from "@/lib/types"
 import { toast } from "@munim/ui"
 
 export function InvoicesView() {
-  const setView = useAppStore((s) => s.setView)
+  const setView = useAppStore((s) => s.setActiveView)
   const [search, setSearch] = React.useState("")
-  const [status, setStatus] = React.useState("all")
+  const [status, setStatus] = React.useState<"DRAFT" | "UNPAID" | "PARTIAL" | "PAID" | "all">("all")
   const [page, setPage] = React.useState(1)
 
   const { data, isLoading } = useInvoices({ search, status, page, pageSize: 15 })
@@ -86,7 +79,7 @@ export function InvoicesView() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
-            <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1) }}>
+            <Select value={status} onValueChange={(v) => { setStatus(v as typeof status); setPage(1) }}>
               <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>

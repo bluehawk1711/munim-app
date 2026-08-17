@@ -11,12 +11,12 @@ import { Button, Input, Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigg
 
 import { ThemeToggle } from "@/components/app/theme-toggle"
 import { SidebarNav, SidebarHeader, SidebarFooter } from "@/components/app/sidebar-nav"
-import { useAppStore } from "@/store/view-store"
+import { useAppStore, type ViewKey } from "@/store/view-store"
 import { VIEW_TITLES } from "@/lib/view-titles"
 
 export function AppTopbar() {
-  const activeView = useAppStore((s) => s.activeView)
-  const setView = useAppStore((s) => s.setView)
+  const activeView = useAppStore((s) => s.activeView) as ViewKey
+  const setView = useAppStore((s) => s.setActiveView)
   const globalSearch = useAppStore((s) => s.globalSearch)
   const setGlobalSearch = useAppStore((s) => s.setGlobalSearch)
   const setSellDialogOpen = useAppStore((s) => s.setSellDialogOpen)

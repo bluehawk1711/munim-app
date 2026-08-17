@@ -2,23 +2,10 @@
 
 import * as React from "react"
 import { ThemeProvider as NextThemesProvider } from "next-themes"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { WebQueryProvider } from "@/lib/query"
 import { AccentThemeProvider } from "@/components/app/theme-picker"
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = React.useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 1000 * 60,
-            refetchOnWindowFocus: false,
-            retry: 1,
-          },
-        },
-      })
-  )
-
   // mode === null ("follow system") is the untouched default, so first paint
   // must match the OS preference — defaultTheme="system" lets the next-themes
   // inline script resolve it pre-hydration (no light flash on dark machines).
@@ -30,11 +17,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      {/* QueryClientProvider wraps the app for react-query data hooks;
-          AccentThemeProvider is now purely local (per-device theme/mode). */}
-      <QueryClientProvider client={queryClient}>
+      {/* Shared @munim/query provider — one API-calling + caching layer across
+          web, desktop & mobile (docs/state-management.md). AccentThemeProvider
+          stays purely local (per-device theme/mode). */}
+      <WebQueryProvider>
         <AccentThemeProvider>{children}</AccentThemeProvider>
-      </QueryClientProvider>
+      </WebQueryProvider>
     </NextThemesProvider>
   )
 }

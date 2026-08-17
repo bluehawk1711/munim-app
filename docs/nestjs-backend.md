@@ -391,6 +391,13 @@ Neon** — a live fallback while desktop/mobile are migrated.
 - [ ] Swap Next.js `/api/*` routes for api-client calls; remove `lib/db.ts`.
 - [ ] Vercel env `API_KEY_WEB`; verify.
 
+### Phase 7b — Shared data layer (`@munim/query` + `@munim/store`) ✅
+- [x] `packages/query` — shared TanStack Query hooks over `@munim/api-client`
+      (provider + keys + every resource); desktop + mobile screens use them.
+- [x] `packages/store` — shared Zustand client-state factory (view/search/
+      filters/sell dialog); adopted by all 3 apps.
+- [x] Docs: `docs/state-management.md`, ADR-017, feature-matrix rules.
+
 ### Phase 7 — CI/CD + docs + review
 - [ ] `api-deploy.yml`; secrets wiring; Render/Railway deploy.
 - [ ] Update `docs/features.md` (global-rules: "no API server" → "API server";
