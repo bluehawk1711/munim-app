@@ -291,7 +291,7 @@ export function SettingsScreen() {
   return (
     <Screen>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}}>
-      <Header title="Settings" subtitle="Shop profile, appearance, security & database" />
+      <Header title="Settings" subtitle="Shop profile, appearance, security & connection" />
       {urlLoaded && !url.trim() ? (
         <Pressable
           onPress={() => scrollRef.current?.scrollTo({y: dbSectionY.current, animated: true})}
@@ -433,7 +433,7 @@ export function SettingsScreen() {
         </View>
         <Text style={{fontSize: 12, color: colors.muted, lineHeight: 17, marginBottom: 10}}>
           Sign in with your email + password, then a 4-digit PIN — stored locally (hashed), never
-          sent to the database. Your session is remembered on this device.
+          sent to the server. Your session is remembered on this device.
         </Text>
         <View style={{flexDirection: 'row', gap: 8, marginBottom: 12}}>
           <Badge
@@ -568,7 +568,7 @@ export function SettingsScreen() {
       <Section title="Server" index={3} />
       <Card index={1}>
         <Text style={{fontSize: 13, color: colors.muted, lineHeight: 19, marginBottom: 12}}>
-          This app talks to the shared Munim API server (same database as web & desktop). Paste the
+          This app talks to the shared Munim API server — the same one web & desktop use. Paste the
           server URL below — the API key is optional when EXPO_PUBLIC_API_KEY is baked into the build.
         </Text>
         <Field

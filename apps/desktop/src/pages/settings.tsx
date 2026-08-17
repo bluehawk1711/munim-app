@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Database, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
+import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
 import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
 import { useSettings, useUpdateSettings, useQueryState } from "@munim/query";
@@ -175,10 +175,10 @@ export function SettingsPage() {
       badge: pin.lockEnabled ? "Locked" : "Off",
     },
     {
-      id: "database",
+      id: "server",
       label: "Server",
       description: "API connection & sync",
-      icon: Database,
+      icon: Server,
     },
   ];
 
@@ -280,11 +280,11 @@ export function SettingsPage() {
 
       {section === "security" && <PinSettingsCard />}
 
-      {section === "database" && (
+      {section === "server" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Database className="h-4 w-4" /> Server connection
+              <Server className="h-4 w-4" /> Server connection
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">

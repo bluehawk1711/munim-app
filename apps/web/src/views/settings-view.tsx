@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import * as m from "motion/react-m"
-import { Save, Loader2, Store, Database, CheckCircle2, XCircle, Globe, Palette, ShieldCheck, ShoppingBag, SunMoon } from "lucide-react"
+import { Save, Loader2, Store, Server, CheckCircle2, XCircle, Palette, ShieldCheck, ShoppingBag, SunMoon } from "lucide-react"
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings"
 import { useApiClient } from "@munim/query"
 import {
@@ -133,10 +133,10 @@ export function SettingsView() {
       badge: pin.lockEnabled ? "Locked" : "Off",
     },
     {
-      id: "database",
-      label: "Database",
-      description: "Shared connection & sync",
-      icon: Database,
+      id: "server",
+      label: "Server",
+      description: "API connection & sync",
+      icon: Server,
     },
   ]
 
@@ -292,30 +292,32 @@ export function SettingsView() {
 
       {section === "security" && <PinSettingsCard />}
 
-      {section === "database" && (
+      {section === "server" && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-sm">
-              <Database className="h-4 w-4" /> Shared database
+              <Server className="h-4 w-4" /> Server connection
             </CardTitle>
             <CardDescription className="text-xs">
-              One Neon Postgres database powers web, desktop and mobile — no API server.
+              All three apps talk to the shared Munim API server — same data everywhere.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Globe className="h-4 w-4" />
+                <Server className="h-4 w-4" />
               </div>
               <p className="text-sm leading-relaxed text-muted-foreground">
-                Munim talks to the database <strong>directly</strong> from the browser via Neon&apos;s
-                SQL-over-HTTP endpoint. The connection string lives in the server environment — desktop
-                and mobile apps can connect to the same database by pasting it in their Settings screens.
+                This web app connects to the shared <strong>Munim API server</strong> — the same one
+                desktop and mobile use. The base URL and API key come from build-time environment
+                variables (<code className="font-mono text-[11px]">NEXT_PUBLIC_API_URL</code> /
+                <code className="font-mono text-[11px]"> NEXT_PUBLIC_API_KEY</code>) — no database URL
+                is ever entered here.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary" className="font-normal">
-                No API server
+                One API for all apps
               </Badge>
               <Badge variant="secondary" className="font-normal">
                 Shared schema
@@ -331,7 +333,7 @@ export function SettingsView() {
                 ) : (
                   <CheckCircle2 className="h-3.5 w-3.5" />
                 )}
-                {pingState === "testing" ? "Checking…" : "Check database connection"}
+                {pingState === "testing" ? "Checking…" : "Check server connection"}
               </Button>
               {pingState === "ok" && (
                 <m.span
