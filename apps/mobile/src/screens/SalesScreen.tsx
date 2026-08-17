@@ -1,15 +1,11 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
 import {
-  createSale,
-  listInvoices,
-  listAllProducts,
-  recordInvoicePayment,
   formatDate,
-  type Invoice,
+  type InvoiceDto,
 } from '@munim/core';
 import {successFeedback, errorFeedback} from '../lib/haptics';
-import {getCore} from '../lib/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {
@@ -31,9 +27,16 @@ import {useThemeStyles} from '../theme';
 
 export function SalesScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data: products, reload: reloadProducts} = useAsync(async () => listAllProducts(await getCore()), []);
+  const {data: products, reload: reloadProducts} = useAsync(
+    async () => {
+      const api = await getApi();
+      const {products: allProducts} = await api.products.list({pageSize: 500});
+      return allProducts;
+    },
+    [],
+  );
   const {data: recent, loading, reload: reloadRecent} = useAsync(
-    async () => listInvoices(await getCore(), {pageSize: 20}),
+    async () => (await getApi()).invoices.list({pageSize: 20}),
     [],
   );
 
@@ -45,7 +48,7 @@ export function SalesScreen() {
   const [saving, setSaving] = useState(false);
 
   // Invoice payment
-  const [paying, setPaying] = useState<Invoice | null>(null);
+  const [paying, setPaying] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
   const [payingNow, setPayingNow] = useState(false);
@@ -70,7 +73,7 @@ export function SalesScreen() {
     }
     setPayingNow(true);
     try {
-      await recordInvoicePayment(await getCore(), paying.id, {
+      await (await getApi()).invoices.recordPayment(paying.id, {
         amount,
         method: payMethod,
       });
@@ -93,7 +96,7 @@ export function SalesScreen() {
     }
     setSaving(true);
     try {
-      const invoice = await createSale(await getCore(), {
+      const invoice = await (await getApi()).sales.create({
         productId: selected.id,
         quantity: Number(quantity) || 0,
         sellingPrice: Number(price) || undefined,

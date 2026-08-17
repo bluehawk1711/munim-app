@@ -6,6 +6,19 @@ export type UploadResult = {
   publicId: string;
 };
 
+/**
+ * React Native file objects — expo-image-picker assets are `{uri, name, type}`,
+ * which RN's FormData serializes as a multipart file part (no DOM Blob).
+ * Desktop/web pass a real Blob/File. One union type covers both platforms.
+ */
+export type UploadableFile =
+  | Blob
+  | {
+      uri: string;
+      name: string;
+      type: string;
+    };
+
 export function upload(http: HttpClient) {
   return {
     /**
@@ -13,9 +26,14 @@ export function upload(http: HttpClient) {
      * proxies the image to Cloudinary (signed upload) so the client never
      * touches Cloudinary secrets.
      */
-    image(file: Blob, filename: string): Promise<UploadResult> {
+    image(file: UploadableFile, filename?: string): Promise<UploadResult> {
       const form = new FormData();
-      form.append("file", file, filename);
+      const name =
+        filename ??
+        (typeof file === "object" && "name" in file && typeof file.name === "string"
+          ? file.name
+          : "upload.jpg");
+      form.append("file", file as Blob, name);
       return http.upload("/api/upload", form);
     },
   };

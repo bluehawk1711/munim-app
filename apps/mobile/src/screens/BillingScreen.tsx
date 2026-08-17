@@ -3,10 +3,6 @@ import {Alert, FlatList, Pressable, ScrollView, Share, StyleSheet, Switch, Text,
 import * as Print from 'expo-print';
 import {ChevronDown} from 'lucide-react-native';
 import {
-  createInvoice,
-  getSettings,
-  listInvoices,
-  listParties,
   buildBillDocument,
   renderBillText,
   renderBillHtml,
@@ -16,9 +12,10 @@ import {
   type BillClassicColor,
   type BillMode,
   type BillTemplateSettings,
-  type Party,
+  type PartyDto,
+  type InvoiceDto,
 } from '@munim/core';
-import {getCore} from '../lib/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
@@ -62,10 +59,10 @@ function PartyPicker({
   selected,
   onChange,
 }: {
-  parties: Party[] | null | undefined;
+  parties: PartyDto[] | null | undefined;
   partyId: string;
   selected: string;
-  onChange: (id: string, party?: Party) => void;
+  onChange: (id: string, party?: PartyDto) => void;
 }) {
   const styles = useThemeStyles(makeStyles);
   const [open, setOpen] = useState(false);
@@ -179,10 +176,10 @@ function LineItemsEditor({
 
 export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data: settings} = useAsync(async () => getSettings(await getCore()), []);
-  const {data: parties} = useAsync(async () => listParties(await getCore()), []);
+  const {data: settings} = useAsync(async () => (await getApi()).settings.get(), []);
+  const {data: parties} = useAsync(async () => (await getApi()).parties.list(), []);
   const {data: list, loading, reload: reloadList} = useAsync(
-    async () => listInvoices(await getCore(), {pageSize: 50}),
+    async () => (await getApi()).invoices.list({pageSize: 50}),
     [],
   );
 
@@ -253,7 +250,7 @@ export function BillingScreen() {
 
   /** Shared bill model (core) — identical numbers to web + desktop. */
   function toBillDocument(
-    invoice: NonNullable<Awaited<ReturnType<typeof createInvoice>>>,
+    invoice: InvoiceDto,
     shop: {name: string; address: string; phones: string[]; email: string} | undefined,
   ): BillDocument {
     return buildBillDocument({
@@ -324,7 +321,7 @@ export function BillingScreen() {
         date: date || undefined,
         notes: notes.trim() || undefined,
       };
-      const invoice = await createInvoice(await getCore(), {
+      const invoice = await (await getApi()).invoices.create({
         customerName: customer.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
@@ -338,15 +335,12 @@ export function BillingScreen() {
         shopDetails: shop,
         templateSettings,
       });
-      if (!invoice) {
-        throw new Error('Failed to create invoice');
-      }
       const doc = toBillDocument(invoice, shop);
       let secondDoc: BillDocument | null = null;
 
       if (distinct) {
         try {
-          const secondInvoice = await createInvoice(await getCore(), {
+          const secondInvoice = await (await getApi()).invoices.create({
             customerName: secondCustomer.trim() || undefined,
             customerPhone: secondCustomerPhone.trim() || undefined,
             customerAddress: secondCustomerAddress.trim() || undefined,
@@ -360,9 +354,7 @@ export function BillingScreen() {
             shopDetails: shop,
             templateSettings,
           });
-          if (secondInvoice) {
-            secondDoc = toBillDocument(secondInvoice, shop);
-          }
+          secondDoc = toBillDocument(secondInvoice, shop);
         } catch (err) {
           // Bill 1 is already saved — surface the partial result clearly.
           errorFeedback();

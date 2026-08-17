@@ -17,24 +17,14 @@ import * as ImagePicker from 'expo-image-picker';
 import {CameraView, useCameraPermissions} from 'expo-camera';
 import * as Print from 'expo-print';
 import {
-  listAllProducts,
-  createProduct,
-  updateProduct,
-  adjustStock,
-  deleteProduct,
-  backfillBarcodes,
-  findProductByBarcode,
-  getSettings,
-  uploadImageToCloudinary,
-  uploadImageToCloudinarySigned,
   barcodeSvg,
   buildProductLabel,
   renderLabelSheetHtml,
   formatWeight,
-  type ProductWithMeta,
+  type ProductDto,
 } from '@munim/core';
-import {getCore} from '../lib/core';
-import {getSavedAppSetup} from '../lib/app-config';
+import {ApiClientError} from '@munim/api-client';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
@@ -53,10 +43,7 @@ import {
 } from '../components/ui';
 import {useThemeStyles} from '../theme';
 
-const CLOUD_NAME: string = String(process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME ?? '');
-const UPLOAD_PRESET: string = String(process.env.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET ?? '');
-
-function toneFor(p: ProductWithMeta): 'success' | 'warning' | 'danger' | 'muted' {
+function toneFor(p: ProductDto): 'success' | 'warning' | 'danger' | 'muted' {
   if (p.stock <= 0) {
     return 'danger';
   }
@@ -75,10 +62,17 @@ function BarcodeChip({value}: {value: string}) {
 
 export function ProductsScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data, error, loading, reload} = useAsync(async () => listAllProducts(await getCore()), []);
+  const {data, error, loading, reload} = useAsync(
+    async () => {
+      const api = await getApi();
+      const {products} = await api.products.list({pageSize: 500});
+      return products;
+    },
+    [],
+  );
 
   const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<ProductWithMeta | null>(null);
+  const [editing, setEditing] = useState<ProductDto | null>(null);
   const [search, setSearch] = useState('');
   const [name, setName] = useState('');
   const [color, setColor] = useState('');
@@ -101,7 +95,7 @@ export function ProductsScreen() {
   const [permission, requestPermission] = useCameraPermissions();
 
   // Label printing
-  const [labelTarget, setLabelTarget] = useState<ProductWithMeta | null>(null);
+  const [labelTarget, setLabelTarget] = useState<ProductDto | null>(null);
   const [labelOpen, setLabelOpen] = useState(false);
   const [labelCopies, setLabelCopies] = useState(1);
   const [labelBusy, setLabelBusy] = useState(false);
@@ -131,12 +125,9 @@ export function ProductsScreen() {
         name: asset.fileName ?? `product-${Date.now()}.jpg`,
         type: asset.mimeType ?? 'image/jpeg',
       };
-      // Onboarding credentials (signed upload) take priority; the legacy
-      // env-var unsigned preset is the fallback for existing installs.
-      const setup = await getSavedAppSetup();
-      const url = setup?.cloudinary
-        ? await uploadImageToCloudinarySigned(file, setup.cloudinary)
-        : await uploadImageToCloudinary(file, CLOUD_NAME, UPLOAD_PRESET);
+      // Uploads go through the shared API — the server signs with Cloudinary,
+      // so the app never touches Cloudinary secrets.
+      const {url} = await (await getApi()).upload.image(file);
       setImageUrl(url);
       successFeedback();
     } catch {
@@ -146,7 +137,7 @@ export function ProductsScreen() {
     }
   }
 
-  const [adjusting, setAdjusting] = useState<ProductWithMeta | null>(null);
+  const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
   const [adjustBusy, setAdjustBusy] = useState(false);
@@ -169,12 +160,12 @@ export function ProductsScreen() {
     setFormOpen(true);
   }
 
-  function openEdit(p: ProductWithMeta) {
+  function openEdit(p: ProductDto) {
     setEditing(p);
     setName(p.name);
-    setColor(p.colorName ?? '');
-    setSize(p.sizeName ?? '');
-    setCategory(p.categoryName ?? '');
+    setColor(p.color);
+    setSize(p.size);
+    setCategory(p.category ?? '');
     setWeight(p.weight != null ? String(p.weight) : '');
     setImageUrl(p.imageUrl ?? '');
     setStock(String(p.stock));
@@ -202,9 +193,9 @@ export function ProductsScreen() {
         sellingPrice: Math.max(0, Number(sell) || 0),
       };
       if (editing) {
-        await updateProduct(await getCore(), editing.id, input);
+        await (await getApi()).products.update(editing.id, input);
       } else {
-        await createProduct(await getCore(), input);
+        await (await getApi()).products.create(input);
       }
       successFeedback();
       setFormOpen(false);
@@ -229,7 +220,7 @@ export function ProductsScreen() {
     }
     setAdjustBusy(true);
     try {
-      await adjustStock(await getCore(), adjusting.id, {
+      await (await getApi()).products.adjustStock(adjusting.id, {
         adjustment: qty,
         reason: adjustReason.trim() || undefined,
       });
@@ -246,9 +237,9 @@ export function ProductsScreen() {
     }
   }
 
-  async function handleDelete(p: ProductWithMeta) {
+  async function handleDelete(p: ProductDto) {
     try {
-      await deleteProduct(await getCore(), p.id);
+      await (await getApi()).products.remove(p.id);
       reload();
     } catch {
       errorFeedback();
@@ -259,7 +250,7 @@ export function ProductsScreen() {
   async function handleBackfill() {
     setBackfilling(true);
     try {
-      await backfillBarcodes(await getCore());
+      await (await getApi()).products.backfillBarcodes();
       successFeedback();
       reload();
     } catch {
@@ -274,18 +265,19 @@ export function ProductsScreen() {
     scanningRef.current = true;
     setScanMsg('');
     try {
-      const product = await findProductByBarcode(await getCore(), code);
-      if (product) {
-        setScanOpen(false);
-        successFeedback();
-        openEdit(product);
-      } else {
+      // 404 = no product with this barcode; anything else = real failure.
+      const product = await (await getApi()).products.byBarcode(code);
+      setScanOpen(false);
+      successFeedback();
+      openEdit(product);
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 404) {
         errorFeedback();
         setScanMsg(`No product with barcode ${code}`);
+      } else {
+        errorFeedback();
+        setScanMsg('Lookup failed — check your server connection');
       }
-    } catch {
-      errorFeedback();
-      setScanMsg('Lookup failed — check your database connection');
     } finally {
       scanningRef.current = false;
     }
@@ -303,7 +295,7 @@ export function ProductsScreen() {
     if (!labelTarget) return;
     setLabelBusy(true);
     try {
-      const settings = await getSettings(await getCore());
+      const settings = await (await getApi()).settings.get();
       const label = buildProductLabel(
         {
           id: labelTarget.id,
@@ -312,9 +304,9 @@ export function ProductsScreen() {
           barcode: labelTarget.barcode,
           weight: labelTarget.weight,
           sellingPrice: labelTarget.sellingPrice,
-          colorName: labelTarget.colorName,
-          sizeName: labelTarget.sizeName,
-          categoryName: labelTarget.categoryName,
+          colorName: labelTarget.color,
+          sizeName: labelTarget.size,
+          categoryName: labelTarget.category,
         },
         {name: settings?.shopName ?? ''},
       );
@@ -339,8 +331,8 @@ export function ProductsScreen() {
           p.name.toLowerCase().includes(query) ||
           p.sku.toLowerCase().includes(query) ||
           (p.barcode ?? '').toLowerCase().includes(query) ||
-          (p.colorName ?? '').toLowerCase().includes(query) ||
-          (p.sizeName ?? '').toLowerCase().includes(query),
+          (p.color ?? '').toLowerCase().includes(query) ||
+          (p.size ?? '').toLowerCase().includes(query),
       )
     : data;
 
@@ -416,8 +408,8 @@ export function ProductsScreen() {
                   <Text style={styles.name}>{item.name}</Text>
                   <Text style={styles.meta}>
                     {item.sku}
-                    {item.colorName || item.sizeName || item.categoryName
-                      ? ` · ${[item.colorName, item.sizeName, item.categoryName].filter(Boolean).join(' / ')}`
+                    {item.color || item.size || item.category
+                      ? ` · ${[item.color, item.size, item.category].filter(Boolean).join(' / ')}`
                       : ''}
                     {item.weight != null ? ` · ${formatWeight(item.weight)}` : ''}
                   </Text>
@@ -506,8 +498,8 @@ export function ProductsScreen() {
         {labelTarget?.barcode ? <BarcodeChip value={labelTarget.barcode} /> : null}
         <Text style={styles.meta}>
           {labelTarget?.sku}
-          {[labelTarget?.colorName, labelTarget?.sizeName, labelTarget?.categoryName].filter(Boolean).length
-            ? ` · ${[labelTarget?.colorName, labelTarget?.sizeName, labelTarget?.categoryName].filter(Boolean).join(' / ')}`
+          {[labelTarget?.color, labelTarget?.size, labelTarget?.category].filter(Boolean).length
+            ? ` · ${[labelTarget?.color, labelTarget?.size, labelTarget?.category].filter(Boolean).join(' / ')}`
             : ''}
           {labelTarget?.weight != null ? ` · ${formatWeight(labelTarget.weight)}` : ''}
           {labelTarget ? ` · ₹${Number(labelTarget.sellingPrice).toFixed(2)}` : ''}

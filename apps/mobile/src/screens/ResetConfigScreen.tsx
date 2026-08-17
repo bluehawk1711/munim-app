@@ -1,8 +1,8 @@
 /**
  * Mobile connection settings — reachable from the login screen's
  * "Connection settings" link. Shows the saved setup (masked) and lets the user
- * clear the DB URL + Cloudinary credentials, which sends them back to the
- * onboarding screen (handled by PinProvider).
+ * clear the API URL + key, which sends them back to the onboarding screen
+ * (handled by PinProvider).
  */
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
@@ -10,12 +10,7 @@ import Animated, {FadeInDown} from 'react-native-reanimated';
 import {ShieldCheck} from 'lucide-react-native';
 import {colors, Button, SafeScreen} from '../components/ui';
 import {useThemeStyles} from '../theme';
-import {
-  clearAppSetup,
-  getSavedAppSetup,
-  maskDatabaseHost,
-  type AppSetupConfig,
-} from '../lib/app-config';
+import {clearApiConfig, getSavedApiKey, getSavedApiUrl, maskApiUrl} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 
 export function ResetConfigScreen({
@@ -26,14 +21,20 @@ export function ResetConfigScreen({
   onCancel: () => void;
 }) {
   const styles = useThemeStyles(makeStyles);
-  const {data: setup} = useAsync<AppSetupConfig | null>(() => getSavedAppSetup(), []);
+  const {data: setup} = useAsync<{apiUrl: string; apiKey: string} | null>(
+    async () => {
+      const [apiUrl, apiKey] = await Promise.all([getSavedApiUrl(), getSavedApiKey()]);
+      return apiUrl ? {apiUrl, apiKey: apiKey ?? ''} : null;
+    },
+    [],
+  );
   const [clearing, setClearing] = React.useState(false);
 
   async function handleClear() {
     if (clearing) return;
     setClearing(true);
     try {
-      await clearAppSetup();
+      await clearApiConfig();
       onCleared();
     } finally {
       setClearing(false);
@@ -55,15 +56,15 @@ export function ResetConfigScreen({
 
         <Animated.View entering={FadeInDown.duration(280).delay(160)} style={styles.card}>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>DATABASE</Text>
+            <Text style={styles.infoLabel}>SERVER</Text>
             <Text style={styles.infoValue} numberOfLines={1}>
-              {setup ? maskDatabaseHost(setup.databaseUrl) : 'Not configured'}
+              {setup ? maskApiUrl(setup.apiUrl) : 'Not configured'}
             </Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>CLOUDINARY</Text>
+            <Text style={styles.infoLabel}>API KEY</Text>
             <Text style={styles.infoValue} numberOfLines={1}>
-              {setup?.cloudinary ? `${setup.cloudinary.cloudName} (images enabled)` : 'Not configured'}
+              {setup?.apiKey ? `${setup.apiKey.slice(0, 4)}•••• (saved)` : 'Build-time / not set'}
             </Text>
           </View>
 
@@ -74,7 +75,7 @@ export function ResetConfigScreen({
             onPress={() => void handleClear()}
           />
           <Text style={styles.hint}>
-            Wrong connection string or credentials? Clearing returns you to the setup screen.
+            Wrong server URL or key? Clearing returns you to the setup screen.
           </Text>
         </Animated.View>
 

@@ -2,15 +2,11 @@ import React, {useState} from 'react';
 import {Alert, Pressable, StyleSheet, Text, View} from 'react-native';
 import Animated, {FadeInUp} from 'react-native-reanimated';
 import {
-  listCatalogItems,
-  createCatalogItem,
-  renameCatalogItem,
-  deleteCatalogItem,
   swatchColor,
   type CatalogItem,
   type CatalogKind,
 } from '@munim/core';
-import {getCore} from '../lib/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {
   Button,
@@ -36,11 +32,11 @@ export function CatalogScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data, error, loading, reload} = useAsync(
     async () => {
-      const db = await getCore();
+      const api = await getApi();
       const [colorItems, sizeItems, categoryItems] = await Promise.all([
-        listCatalogItems(db, 'color'),
-        listCatalogItems(db, 'size'),
-        listCatalogItems(db, 'category'),
+        api.catalog.list('color'),
+        api.catalog.list('size'),
+        api.catalog.list('category'),
       ]);
       return {colors: colorItems, sizes: sizeItems, categories: categoryItems};
     },
@@ -71,11 +67,11 @@ export function CatalogScreen() {
     }
     setSaving(true);
     try {
-      const db = await getCore();
+      const api = await getApi();
       if (editor.mode === 'rename') {
-        await renameCatalogItem(db, editor.kind, editor.item.id, trimmed);
+        await api.catalog.rename(editor.kind, editor.item.id, trimmed);
       } else {
-        await createCatalogItem(db, editor.kind, trimmed);
+        await api.catalog.create(editor.kind, trimmed);
       }
       successFeedback();
       setEditor(null);
@@ -100,7 +96,7 @@ export function CatalogScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteCatalogItem(await getCore(), kind, item.id);
+              await (await getApi()).catalog.remove(kind, item.id);
               successFeedback();
               reload();
             } catch {

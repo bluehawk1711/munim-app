@@ -1,9 +1,15 @@
 import React, {useEffect, useState} from 'react';
 import {ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
 import {KeyRound} from 'lucide-react-native';
-import {createDb, getSettings, pingDatabase, updateSettings} from '@munim/core';
 import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
-import {getCore, getSavedDatabaseUrl, saveDatabaseUrl} from '../lib/core';
+import {
+  getApi,
+  getSavedApiKey,
+  getSavedApiUrl,
+  pingApiUrl,
+  saveApiKey,
+  saveApiUrl,
+} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {Badge, Button, Card, Field, Header, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
 import {ThemeToggleButton} from '../components/theme-toggle';
@@ -32,8 +38,9 @@ export function SettingsScreen() {
   const [pwCurrent, setPwCurrent] = useState('');
   const [pwNew, setPwNew] = useState('');
   const [pwConfirm, setPwConfirm] = useState('');
-  const {data: settings, reload} = useAsync(async () => getSettings(await getCore()), []);
+  const {data: settings, reload} = useAsync(async () => (await getApi()).settings.get(), []);
   const [url, setUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
   const [urlLoaded, setUrlLoaded] = useState(false);
   const [shopName, setShopName] = useState('');
   const [shopAddress, setShopAddress] = useState('');
@@ -65,10 +72,12 @@ export function SettingsScreen() {
 
   useEffect(() => {
     if (!urlLoaded) {
-      getSavedDatabaseUrl().then(saved => {
-        setUrl(saved ?? '');
+      void (async () => {
+        const [savedUrl, savedKey] = await Promise.all([getSavedApiUrl(), getSavedApiKey()]);
+        setUrl(savedUrl ?? '');
+        setApiKey(savedKey ?? '');
         setUrlLoaded(true);
-      });
+      })();
     }
   }, [urlLoaded]);
 
@@ -85,11 +94,11 @@ export function SettingsScreen() {
   }, [settings, shopLoaded]);
 
   /** Runs the ping once, flipping the modal between loading → ok / fail. */
-  async function runConnectionTest(connectionUrl: string): Promise<boolean> {
+  async function runConnectionTest(connectionUrl: string, key?: string): Promise<boolean> {
     setTestState('testing');
     setTestError(null);
     try {
-      await pingDatabase(createDb({databaseUrl: connectionUrl}));
+      await pingApiUrl(connectionUrl, key);
       successFeedback();
       setTestState('ok');
       return true;
@@ -108,24 +117,27 @@ export function SettingsScreen() {
     // Open the modal first so the loading state is visible immediately, then
     // ping. The sheet can't be dismissed while the test is in flight.
     setTestOpen(true);
-    void runConnectionTest(url.trim());
+    void runConnectionTest(url.trim(), apiKey.trim() || undefined);
   }
 
-  async function handleSaveUrl() {
+  async function handleSaveConnection() {
     if (!url.trim()) {
       return;
     }
     setTestOpen(true);
-    const ok = await runConnectionTest(url.trim());
+    const ok = await runConnectionTest(url.trim(), apiKey.trim() || undefined);
     if (ok) {
-      await saveDatabaseUrl(url);
+      await saveApiUrl(url);
+      if (apiKey.trim()) {
+        await saveApiKey(apiKey);
+      }
     }
   }
 
   async function handleSaveShop() {
     setSavingShop(true);
     try {
-      await updateSettings(await getCore(), {
+      await (await getApi()).settings.update({
         shopName: shopName.trim() || 'My Shop',
         shopAddress: shopAddress.trim() || undefined,
         shopPhones: shopPhones.split(',').map(s => s.trim()).filter(Boolean),
@@ -286,9 +298,9 @@ export function SettingsScreen() {
           onPress={() => scrollRef.current?.scrollTo({y: dbSectionY.current, animated: true})}
           accessibilityRole="button"
           style={({pressed}) => [styles.dbBanner, pressed && {opacity: 0.75}]}>
-          <Text style={styles.dbBannerTitle}>Database not connected</Text>
+          <Text style={styles.dbBannerTitle}>Server not connected</Text>
           <Text style={styles.dbBannerSub}>
-            Tap to paste your Neon connection string
+            Tap to add your API server URL
           </Text>
         </Pressable>
       ) : null}
@@ -554,16 +566,28 @@ export function SettingsScreen() {
         onLayout={e => {
           dbSectionY.current = e.nativeEvent.layout.y;
         }}>
-      <Section title="Database" index={3} />
+      <Section title="Server" index={3} />
       <Card index={1}>
         <Text style={{fontSize: 13, color: colors.muted, lineHeight: 19, marginBottom: 12}}>
-          Munim has no API server. This app talks directly to the same Neon Postgres database used by the
-          web and desktop apps. Paste your connection string below.
+          This app talks to the shared Munim API server (same database as web & desktop). Paste the
+          server URL below — the API key is optional when EXPO_PUBLIC_API_KEY is baked into the build.
         </Text>
-        <Field label="Neon connection string" value={url} onChangeText={setUrl} placeholder="postgresql://user:pass@host/db?sslmode=require" />
+        <Field
+          label="API server URL"
+          value={url}
+          onChangeText={setUrl}
+          placeholder="https://api.munim.app"
+        />
+        <Field
+          label="API key (optional)"
+          value={apiKey}
+          onChangeText={setApiKey}
+          placeholder="Saved on this device only"
+          secureTextEntry
+        />
         <View style={{flexDirection: 'row', gap: 10, marginTop: 4}}>
           <Button title="Test" variant="outline" onPress={handleTest} style={{flex: 1}} />
-          <Button title="Save URL" onPress={() => void handleSaveUrl()} style={{flex: 1}} />
+          <Button title="Save connection" onPress={() => void handleSaveConnection()} style={{flex: 1}} />
         </View>
       </Card>
       </View>
@@ -584,7 +608,7 @@ export function SettingsScreen() {
           <View style={{alignItems: 'center', paddingVertical: 18, gap: 12}}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={{color: colors.muted, fontSize: 13, textAlign: 'center'}}>
-              Contacting the database…
+              Contacting the server…
             </Text>
           </View>
         ) : (
@@ -597,12 +621,12 @@ export function SettingsScreen() {
                   fontWeight: '600',
                   textAlign: 'center',
                 }}>
-                ✓ The database responded successfully.
+                ✓ The server responded successfully.
               </Text>
             ) : (
               <>
                 <Text style={{color: colors.danger, fontSize: 13, textAlign: 'center'}}>
-                  Could not reach the database. Check the connection string and try again.
+                  Could not reach the server. Check the URL / key and try again.
                 </Text>
                 {testError ? (
                   <Text
@@ -622,7 +646,7 @@ export function SettingsScreen() {
                 <Button
                   title="Try again"
                   variant="outline"
-                  onPress={() => void runConnectionTest(url.trim())}
+                  onPress={() => void runConnectionTest(url.trim(), apiKey.trim() || undefined)}
                   style={{flex: 1}}
                 />
               ) : null}

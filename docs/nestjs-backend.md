@@ -366,10 +366,26 @@ Neon** — a live fallback while desktop/mobile are migrated.
       web typecheck all green. (browser-act desktop flow deferred — desktop
       build verified; manual smoke on next `pnpm tauri dev`.)
 
-### Phase 5 — Mobile refactor
-- [ ] Swap `lib/core.ts` → api-client; swap all 11 screens.
-- [ ] Settings/onboarding simplification; remove AsyncStorage Neon URL.
-- [ ] Typecheck + lint mobile; run a dev build; verify a screen end-to-end.
+### Phase 5 — Mobile refactor ✅
+- [x] New `apps/mobile/src/lib/api.ts` (`getApi()` singleton + `pingApiUrl`,
+      AsyncStorage-backed) replaces `lib/core.ts` (deleted); `app-config.ts`
+      now stores the API URL + key (same `munim.databaseUrl`/`munim.apiKey`
+      keys as web/desktop). All 11 screens swapped (home, products, sales,
+      billing, invoices, parties, advances, catalog, job-letters, reports,
+      settings).
+- [x] Onboarding simplified to a single API-URL (+ optional key) step — no
+      Cloudinary step (uploads go through `POST /api/upload`); ResetConfig
+      shows the masked server URL + key; Settings “Server” section tests via
+      `GET /readyz` (non-dismissible modal) and saves URL + key.
+- [x] **DTO field parity:** mobile screens now consume the wire DTOs
+      (`ProductDto.color/size/category` instead of `colorName/sizeName/…`;
+      string dates everywhere) — no per-platform type redefinition.
+- [x] api-client `upload.image` widened to accept RN file objects
+      (`{uri,name,type}` — no DOM Blob on Hermes); `build-android.mjs` builds
+      `@munim/api-client` before bundling.
+- [x] Verify: mobile typecheck + lint clean, workspace typecheck 12/12,
+      api-client smoke, core smoke 73/73, live-DB e2e + client e2e against
+      Neon. (Dev-build verification deferred to the next `pnpm build:android`.)
 
 ### Phase 6 — Web refactor (later, separate PR)
 - [ ] Swap Next.js `/api/*` routes for api-client calls; remove `lib/db.ts`.

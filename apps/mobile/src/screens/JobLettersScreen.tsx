@@ -2,16 +2,12 @@ import React, {useState} from 'react';
 import {FlatList, Share, Text, View} from 'react-native';
 import * as Print from 'expo-print';
 import {
-  saveJobLetter,
-  listJobLetters,
-  deleteJobLetter,
-  getSettings,
   jobLetterFromStored,
   renderJobLetterHtml,
   formatDate,
-  type JobLetter,
+  type JobLetterDto,
 } from '@munim/core';
-import {getCore} from '../lib/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
@@ -29,8 +25,8 @@ import {
 } from '../components/ui';
 
 export function JobLettersScreen() {
-  const {data, loading, error, reload} = useAsync(async () => listJobLetters(await getCore(), 100), []);
-  const {data: settings} = useAsync(async () => getSettings(await getCore()), []);
+  const {data, loading, error, reload} = useAsync(async () => (await getApi()).jobLetters.list(), []);
+  const {data: settings} = useAsync(async () => (await getApi()).settings.get(), []);
 
   const [open, setOpen] = useState(false);
   const [employeeName, setEmployeeName] = useState('');
@@ -44,7 +40,7 @@ export function JobLettersScreen() {
     }
     setSaving(true);
     try {
-      await saveJobLetter(await getCore(), {
+      await (await getApi()).jobLetters.create({
         title: 'Job Letter',
         employeeName: employeeName.trim(),
         position: position.trim() || undefined,
@@ -65,7 +61,7 @@ export function JobLettersScreen() {
     }
   }
 
-  async function handleSharePdf(letter: JobLetter) {
+  async function handleSharePdf(letter: JobLetterDto) {
     try {
       const company = settings
         ? {name: settings.shopName, address: settings.shopAddress ?? '', email: settings.shopEmail ?? ''}
@@ -83,7 +79,7 @@ export function JobLettersScreen() {
 
   async function handleDelete(id: string) {
     try {
-      await deleteJobLetter(await getCore(), id);
+      await (await getApi()).jobLetters.remove(id);
       successFeedback();
       reload();
     } catch {

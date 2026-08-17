@@ -35,8 +35,9 @@ function run(cmd, args, cwd) {
   return res.status ?? 1;
 }
 
-console.log(`→ Building shared packages (@munim/core, @munim/theme)…`);
-for (const pkg of ["core", "theme"]) {
+console.log(`→ Building shared packages (@munim/core, @munim/api-client, @munim/theme)…`);
+// api-client depends on core's dist, so build order matters: core → api-client → theme.
+for (const pkg of ["core", "api-client", "theme"]) {
   const status = run("pnpm", ["--filter", `@munim/${pkg}`, "build"], repoRoot);
   if (status !== 0) process.exit(status);
 }

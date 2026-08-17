@@ -1,7 +1,7 @@
 /**
  * Munim mobile — shop management on the go.
- * Shares the SAME Neon database and business logic (@munim/core) as the web
- * and desktop apps. No API server.
+ * Talks to the shared Munim API server (apps/api), which reuses the same
+ * @munim/core business logic and database as the web and desktop apps.
  *
  * Theming: `ThemeProvider` owns light/dark mode (system default, persisted
  * override in Settings). The root consumes `useTheme()` so every screen

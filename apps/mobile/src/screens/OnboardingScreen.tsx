@@ -1,12 +1,13 @@
 /**
- * Mobile onboarding — first-run setup for the Neon DB URL + Cloudinary
- * credentials. Premium Apple-style: gradient backdrop, glass card, staggered
- * entrances, a "Test connection" step (same createDb + pingDatabase path the
- * Settings screen uses) and a two-step flow (database → cloudinary).
+ * Mobile onboarding — first-run setup for the shared API server URL (+ API
+ * key). Premium Apple-style: gradient backdrop, glass card, staggered
+ * entrances, and a "Test connection" step (same pingApiUrl path the Settings
+ * screen uses). One step — the API proxies database + Cloudinary, so nothing
+ * else needs configuring.
  *
  * Shown by PinProvider when no app setup is saved yet. Completion persists the
- * setup (AsyncStorage munim.databaseUrl + munim.cloudinary) and hands over to
- * the login screen.
+ * setup (AsyncStorage munim.databaseUrl + munim.apiKey) and hands over to the
+ * login screen.
  */
 import React, {useRef, useState} from 'react';
 import {
@@ -20,36 +21,32 @@ import {
   View,
 } from 'react-native';
 import Animated, {FadeInDown} from 'react-native-reanimated';
-import {CloudUpload, Database, Eye, EyeOff, Lock} from 'lucide-react-native';
+import {Eye, EyeOff, Lock, Server} from 'lucide-react-native';
 import {colors, Button, SafeScreen} from '../components/ui';
 import {useThemeStyles} from '../theme';
-import {createDb, pingDatabase} from '@munim/core';
-import {saveAppSetup, type AppCloudinaryConfig} from '../lib/app-config';
+import {pingApiUrl} from '../lib/api';
+import {saveAppSetup} from '../lib/app-config';
 import {successFeedback, errorFeedback} from '../lib/haptics';
 
 export function OnboardingScreen({onComplete}: {onComplete: () => void}) {
   const styles = useThemeStyles(makeStyles);
-  const [step, setStep] = useState<'database' | 'cloudinary'>('database');
-  const [dbUrl, setDbUrl] = useState('');
-  const [showDb, setShowDb] = useState(false);
+  const [apiUrl, setApiUrl] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testState, setTestState] = useState<'idle' | 'ok' | 'fail'>('idle');
   const [testError, setTestError] = useState<string | null>(null);
-  const [cloudName, setCloudName] = useState('');
-  const [apiKey, setApiKey] = useState('');
-  const [apiSecret, setApiSecret] = useState('');
-  const [showSecret, setShowSecret] = useState(false);
   const [saving, setSaving] = useState(false);
   const busyRef = useRef(false);
 
   async function handleTest() {
-    const url = dbUrl.trim();
+    const url = apiUrl.trim();
     if (!url || busyRef.current) return;
     busyRef.current = true;
     setTesting(true);
     setTestState('idle');
     try {
-      await pingDatabase(createDb({databaseUrl: url}));
+      await pingApiUrl(url, apiKey.trim() || undefined);
       setTestState('ok');
       successFeedback();
     } catch (err) {
@@ -62,16 +59,12 @@ export function OnboardingScreen({onComplete}: {onComplete: () => void}) {
     }
   }
 
-  async function handleFinish(skipCloudinary: boolean) {
-    const url = dbUrl.trim();
+  async function handleFinish() {
+    const url = apiUrl.trim();
     if (!url || saving) return;
     setSaving(true);
-    const cloudinary: AppCloudinaryConfig | null =
-      skipCloudinary || !cloudName.trim() || !apiKey.trim() || !apiSecret.trim()
-        ? null
-        : {cloudName: cloudName.trim(), apiKey: apiKey.trim(), apiSecret: apiSecret.trim()};
     try {
-      await saveAppSetup({databaseUrl: url, cloudinary});
+      await saveAppSetup({apiUrl: url, apiKey: apiKey.trim()});
       successFeedback();
       onComplete();
     } catch {
@@ -79,8 +72,6 @@ export function OnboardingScreen({onComplete}: {onComplete: () => void}) {
       setSaving(false);
     }
   }
-
-  const progress = step === 'database' ? 50 : 100;
 
   return (
     <SafeScreen>
@@ -93,151 +84,91 @@ export function OnboardingScreen({onComplete}: {onComplete: () => void}) {
           keyboardShouldPersistTaps="handled">
           {/* Progress bar */}
           <Animated.View entering={FadeInDown.duration(260)} style={styles.progressTrack}>
-            <View style={[styles.progressFill, {width: `${progress}%`}]} />
+            <View style={styles.progressFill} />
           </Animated.View>
 
           <Animated.View entering={FadeInDown.duration(260).delay(60)} style={styles.iconBadge}>
-            {step === 'database' ? (
-              <Database size={26} color={colors.primary} strokeWidth={2.2} />
-            ) : (
-              <CloudUpload size={26} color={colors.primary} strokeWidth={2.2} />
-            )}
+            <Server size={26} color={colors.primary} strokeWidth={2.2} />
           </Animated.View>
 
           <Animated.Text entering={FadeInDown.duration(260).delay(100)} style={styles.title}>
-            {step === 'database' ? 'Welcome to Munim' : 'Product images'}
+            Welcome to Munim
           </Animated.Text>
           <Animated.Text entering={FadeInDown.duration(260).delay(140)} style={styles.subtitle}>
-            {step === 'database'
-              ? 'Step 1 of 2 — connect your shop\u2019s shared Neon database'
-              : 'Step 2 of 2 — Cloudinary credentials for product photos'}
+            Connect your shop&rsquo;s shared Munim server — the same data as web &amp; desktop
           </Animated.Text>
 
-          {step === 'database' ? (
-            <Animated.View entering={FadeInDown.duration(280).delay(180)} style={styles.card}>
-              <Text style={styles.fieldLabel}>Neon connection string</Text>
-              <View style={styles.inputWrap}>
-                <TextInput
-                  style={[styles.input, styles.mono]}
-                  value={dbUrl}
-                  onChangeText={text => {
-                    setDbUrl(text);
-                    setTestState('idle');
-                  }}
-                  placeholder="postgresql://user:pass@host/db"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  secureTextEntry={!showDb}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  spellCheck={false}
-                />
-                <Pressable
-                  onPress={() => setShowDb(v => !v)}
-                  style={styles.eye}
-                  accessibilityRole="button"
-                  accessibilityLabel={showDb ? 'Hide database URL' : 'Show database URL'}>
-                  {showDb ? (
-                    <EyeOff size={18} color={colors.muted} />
-                  ) : (
-                    <Eye size={18} color={colors.muted} />
-                  )}
-                </Pressable>
-              </View>
+          <Animated.View entering={FadeInDown.duration(280).delay(180)} style={styles.card}>
+            <Text style={styles.fieldLabel}>API server URL</Text>
+            <TextInput
+              style={styles.input}
+              value={apiUrl}
+              onChangeText={text => {
+                setApiUrl(text);
+                setTestState('idle');
+              }}
+              placeholder="https://api.munim.app"
+              placeholderTextColor={colors.inputPlaceholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              spellCheck={false}
+              keyboardType="url"
+            />
 
-              <View style={styles.testRow}>
-                <Button
-                  title={testing ? 'Testing…' : 'Test connection'}
-                  variant="outline"
-                  disabled={!dbUrl.trim() || testing}
-                  loading={testing}
-                  onPress={() => void handleTest()}
-                  style={{flex: 0, paddingHorizontal: 14}}
-                />
-                {testState === 'ok' ? (
-                  <Text style={styles.testOk}>✓ Connected</Text>
-                ) : testState === 'fail' ? (
-                  <Text style={styles.testFail} numberOfLines={2}>
-                    ✗ Failed{testError ? ` — ${testError}` : ''}
-                  </Text>
-                ) : null}
-              </View>
-
-              <Text style={styles.hint}>
-                Stored on this device only — never uploaded to the shared database.
-              </Text>
-              <Button
-                title="Continue"
-                disabled={!dbUrl.trim()}
-                onPress={() => setStep('cloudinary')}
-              />
-            </Animated.View>
-          ) : (
-            <Animated.View entering={FadeInDown.duration(280).delay(180)} style={styles.card}>
-              <Text style={styles.fieldLabel}>Cloud name</Text>
-              <TextInput
-                style={styles.input}
-                value={cloudName}
-                onChangeText={setCloudName}
-                placeholder="my-shop"
-                placeholderTextColor={colors.inputPlaceholder}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <Text style={styles.fieldLabel}>API key</Text>
+            <Text style={styles.fieldLabel}>API key (optional)</Text>
+            <View style={styles.inputWrap}>
               <TextInput
                 style={styles.input}
                 value={apiKey}
                 onChangeText={setApiKey}
-                placeholder="123456789012345"
+                placeholder="Only needed if not baked into the build"
                 placeholderTextColor={colors.inputPlaceholder}
+                secureTextEntry={!showKey}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Text style={styles.fieldLabel}>API secret</Text>
-              <View style={styles.inputWrap}>
-                <TextInput
-                  style={styles.input}
-                  value={apiSecret}
-                  onChangeText={setApiSecret}
-                  placeholder="••••••••••••"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  secureTextEntry={!showSecret}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                />
-                <Pressable
-                  onPress={() => setShowSecret(v => !v)}
-                  style={styles.eye}
-                  accessibilityRole="button"
-                  accessibilityLabel={showSecret ? 'Hide API secret' : 'Show API secret'}>
-                  {showSecret ? (
-                    <EyeOff size={18} color={colors.muted} />
-                  ) : (
-                    <Eye size={18} color={colors.muted} />
-                  )}
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={() => setShowKey(v => !v)}
+                style={styles.eye}
+                accessibilityRole="button"
+                accessibilityLabel={showKey ? 'Hide API key' : 'Show API key'}>
+                {showKey ? (
+                  <EyeOff size={18} color={colors.muted} />
+                ) : (
+                  <Eye size={18} color={colors.muted} />
+                )}
+              </Pressable>
+            </View>
 
+            <View style={styles.testRow}>
               <Button
-                title={saving ? 'Saving…' : 'Finish setup'}
-                loading={saving}
-                disabled={!cloudName.trim() || !apiKey.trim() || !apiSecret.trim() || saving}
-                onPress={() => void handleFinish(false)}
+                title={testing ? 'Testing…' : 'Test connection'}
+                variant="outline"
+                disabled={!apiUrl.trim() || testing}
+                loading={testing}
+                onPress={() => void handleTest()}
+                style={{flex: 0, paddingHorizontal: 14}}
               />
-              <Pressable
-                onPress={() => void handleFinish(true)}
-                style={({pressed}) => [styles.linkButton, pressed && {opacity: 0.6}]}
-                accessibilityRole="button">
-                <Text style={styles.linkText}>Skip for now — set up images later</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setStep('database')}
-                style={({pressed}) => [styles.linkButton, pressed && {opacity: 0.6}]}
-                accessibilityRole="button">
-                <Text style={styles.linkText}>← Back to database</Text>
-              </Pressable>
-            </Animated.View>
-          )}
+              {testState === 'ok' ? (
+                <Text style={styles.testOk}>✓ Connected</Text>
+              ) : testState === 'fail' ? (
+                <Text style={styles.testFail} numberOfLines={2}>
+                  ✗ Failed{testError ? ` — ${testError}` : ''}
+                </Text>
+              ) : null}
+            </View>
+
+            <Text style={styles.hint}>
+              Stored on this device only — never uploaded to the shared database. Images and data
+              flow through your server, so no other credentials are needed.
+            </Text>
+            <Button
+              title={saving ? 'Saving…' : 'Continue'}
+              disabled={!apiUrl.trim() || saving}
+              loading={saving}
+              onPress={() => void handleFinish()}
+            />
+          </Animated.View>
 
           <Animated.View entering={FadeInDown.duration(280).delay(220)} style={styles.footer}>
             <Lock size={14} color={colors.muted} />
@@ -268,6 +199,7 @@ const makeStyles = () =>
       marginBottom: 28,
     },
     progressFill: {
+      width: '100%',
       height: '100%',
       borderRadius: 2,
       backgroundColor: colors.primary,
@@ -318,14 +250,11 @@ const makeStyles = () =>
       color: colors.text,
       marginBottom: 12,
     },
-    mono: {fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12},
     eye: {position: 'absolute', right: 12, top: 11},
     testRow: {flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6},
     testOk: {fontSize: 12, fontWeight: '600', color: colors.success, flexShrink: 1},
     testFail: {fontSize: 12, fontWeight: '600', color: colors.danger, flexShrink: 1},
     hint: {fontSize: 11, color: colors.muted, marginBottom: 14, lineHeight: 15},
-    linkButton: {alignItems: 'center', paddingVertical: 8},
-    linkText: {fontSize: 13, fontWeight: '500', color: colors.muted, textDecorationLine: 'underline'},
     footer: {flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 24},
     footerText: {fontSize: 11, color: colors.muted},
   });

@@ -4,9 +4,9 @@ Every feature lives in the **shared core** (`packages/core`): the Drizzle schema
 Postgres client, and ALL business logic (stock, sales, invoices, bills, parties, advances/ledger,
 payments, reports, settings). The three apps are thin UIs over that one model. A **NestJS API
 server (`apps/api`)** reuses the *same* core service functions with a `pg.Pool` client
-(see `docs/nestjs-backend.md`). **Desktop (Phase 4, landed 2026-08-17) now fetches from it via
-the shared `@munim/api-client`**; mobile still talks to Neon directly via core (Phase 5) and
-web still uses thin `/api/*` server routes (Phase 6).
+(see `docs/nestjs-backend.md`). **Desktop + mobile (Phases 4–5, landed 2026-08-17) now fetch
+from it via the shared `@munim/api-client`**; web still uses thin `/api/*` server routes
+(Phase 6).
 
 This document records what exists, and **on which platforms** it is available (✅ = full UI,
 🟡 = partial / reduced UI, ❌ = not surfaced yet).
@@ -30,17 +30,15 @@ This document records what exists, and **on which platforms** it is available (�
 - **One settings layout.** Web + desktop share `SettingsShell` in `@munim/ui` (sectioned sidebar
   layout — Shop / Appearance / Security / Database). Any settings page change is made once and
   appears on both apps. The feature matrix below was last audited on **2026-08-16**: all 11 modules
-  (dashboard → settings) exist on all three platforms (no ❌ rows, and no 🟡 feature rows — the
-  only 🟡 left, row 17 web, is a deliberate platform difference: the browser can't hold a DB
-  connection string, so web reads it from env while desktop + mobile store it locally).
+  (dashboard → settings) exist on all three platforms (no ❌ rows, and no 🟡 feature rows —  the only 🟡 left, row 17 web, is a deliberate platform difference: the browser can't hold a
+  connection config, so web reads it from env while desktop + mobile store it locally).
 - **No per-platform fetch/data logic.** Every read/write goes through the same `@munim/core`
-  service functions: **desktop calls them through the shared `@munim/api-client` against the
-  NestJS API** (one `getApi()` in `lib/api.ts` — the API owns the pooled DB connection); mobile
-  calls them directly via `getCore()` (Neon fetch client); web calls them inside thin `/api/*`
-  server routes (the browser can't hold a DB connection). Apps never re-implement business logic
-  and never talk to Neon directly (except mobile until Phase 5). Audited 2026-08-17: zero raw
-  `fetch()` calls in desktop/mobile app code, and every `/api/*` route + API controller imports
-  its logic from `@munim/core`.
+  service functions: **desktop + mobile call them through the shared `@munim/api-client` against
+  the NestJS API** (one `getApi()` per app in `lib/api.ts` — the API owns the pooled DB
+  connection and the Upstash cache); web calls them inside thin `/api/*` server routes (the
+  browser can't hold a DB connection). Apps never re-implement business logic and never talk to
+  Neon directly. Audited 2026-08-17: zero raw `fetch()` calls in desktop/mobile app code, and
+  every `/api/*` route + API controller imports its logic from `@munim/core`.
 - **Connection test modal (desktop + mobile).** Test / Save URL opens a modal that **cannot be
   dismissed while the ping is in flight** — it shows a loading state, then flips to success or a
   failure panel with the exact error. Desktop uses the shared `ConnectionTestDialog` in `@munim/ui`;
@@ -123,7 +121,7 @@ plain drizzle output.
 
 | # | Feature | Web | Desktop | Mobile | Notes |
 |---|---------|:---:|:-------:|:------:|-------|
-| 1 | Dashboard (revenue, receivables, payables, low stock, recent invoices/advances) | ✅ | ✅ | ✅ | Same `getDashboard` in core. Charts: **Monthly Sales** (area), **Stock Distribution** (donut), **Top Selling Products** (bar), **Invoice Status** (donut), **Sales by Category** (donut), **Advances Given vs Taken** (donut), **Units Sold per Month** (bar) — web renders recharts; desktop + mobile render the same datasets as CSS/RN bars. Data added to `DashboardStats` in core (`topProducts`, `salesByCategory`, `invoiceStatus`, `advanceSplit`, `soldPerMonth`). **Desktop reaches Neon through `@tauri-apps/plugin-http`** (Rust fetch) because the webview's own fetch is CORS-blocked by Neon's SQL-over-HTTP endpoint — previously every desktop query failed with "Failed query: …" |
+| 1 | Dashboard (revenue, receivables, payables, low stock, recent invoices/advances) | ✅ | ✅ | ✅ | Same `getDashboard` in core. Charts: **Monthly Sales** (area), **Stock Distribution** (donut), **Top Selling Products** (bar), **Invoice Status** (donut), **Sales by Category** (donut), **Advances Given vs Taken** (donut), **Units Sold per Month** (bar) — web renders recharts; desktop + mobile render the same datasets as CSS/RN bars. Data added to `DashboardStats` in core (`topProducts`, `salesByCategory`, `invoiceStatus`, `advanceSplit`, `soldPerMonth`). **Desktop reaches the API through `@tauri-apps/plugin-http`** (Rust fetch, no CORS) via `lib/api.ts`; mobile uses global fetch (native, no CORS) |
 | 2 | Products — list, search, create, edit, delete | ✅ | ✅ | ✅ | SKU auto-generated in core. Mobile has search (name/SKU/color/size, client-side over the full list with a clear button) and a shared add/edit form (`updateProduct` on save) alongside create, delete, adjust stock + image upload |
 | 2b | Product image upload (Cloudinary) + thumbnail in list | ✅ | ✅ | ✅ | Web + desktop upload via the shared API (`POST /api/upload` — server-side signed upload, no secret on client; desktop calls `api.upload.image` through the api-client); mobile still uses the shared `uploadImageToCloudinary` unsigned preset (no secret on client). Mobile uses `expo-image-picker` (native module — rebuild the dev build only when native deps change) |
 | 3 | Stock — adjust (+/− with reason), low-stock/out-of-stock badges | ✅ | ✅ | ✅ | `adjustStock` + movements in core (input supports `reason`). All three apps show a **Reason (optional)** multiline field on the adjust dialog and store it as the movement note (`e.g. Restocked, damaged, returned…`) |
@@ -140,7 +138,7 @@ plain drizzle output.
 | 14 | Reports — daily/weekly/monthly/yearly/stock/low-stock/sold (+ custom dates) | ✅ | ✅ | ✅ | Shared `getReport` in core; all three apps generate + export the same report. Custom date range applies to **any** report type on all three apps — dates are committed on "Generate" and an empty range falls back to the type's default period. Mobile uses a **native date picker** (`@react-native-community/datetimepicker`: Android dialog / iOS inline sheet) in Reports and Billing instead of typed YYYY-MM-DD text |
 | 15 | Report export (Excel / PDF / CSV) | ✅ | ✅ | ✅ | All three apps share `reportToCsv` (RFC-4180) for CSV; web also has Excel+PDF, mobile shares CSV via native Share |
 | 16 | Settings — shop profile (name, address, phones, email, currency, low-stock threshold) | ✅ | ✅ | ✅ | Same `updateSettings`/`getSettings` in core; all three apps edit the same DB row. Web + desktop share the **`SettingsShell`** from `@munim/ui` — an Apple-style **sectioned layout** (Shop profile / Appearance / Security / Database sidebar nav, collapsing to chips on narrow screens) so both settings pages are pixel-identical; each section also shows a live status badge (e.g. Security shows “Locked/Off”). Mobile uses the same 4 sections (Shop profile → Appearance → Security → Database) as **grouped cards with `Section` headers** (iOS style, staggered entrance) inside a ScrollView — matching the web/desktop group order and names |
-| 17 | Connection (web: env; desktop: API URL + key; mobile: Neon URL) | 🟡 | ✅ | ✅ | **Desktop** now connects to the shared **NestJS API**: Settings → Server section stores the API base URL (masked) + optional key override, tests via `GET /readyz` (non-dismissible modal), and the dashboard shows an "Open Settings" CTA when unconfigured. **Mobile** still stores the Neon URL locally; web reads env vars + has a connection check in Settings |
+| 17 | Connection (web: env; desktop + mobile: API URL + key) | 🟡 | ✅ | ✅ | **Desktop + mobile** connect to the shared **NestJS API**: Settings → Server section stores the API base URL (masked) + optional key override (build-time `VITE_API_KEY` / `EXPO_PUBLIC_API_KEY` fallback), tests via `GET /readyz` (non-dismissible modal), and the dashboard shows an "Open Settings" CTA when unconfigured. Onboarding is a single API-URL (+ optional key) step — the API proxies database AND Cloudinary, so no Neon URL or Cloudinary secrets live on the device anymore. Web reads env vars + has a connection check in Settings |
 | 18 | Multiple color themes (Apple Gold / Ocean Blue / Forest Green / Rose Blush / Midnight Indigo) | ✅ | ✅ | ✅ | 5 curated themes in `@munim/theme`; compact `ThemeSelect` lives in **Settings only** (web header keeps just the light/dark toggle). **Theme + light/dark mode are DEVICE-LOCAL** — each app persists its own choice (web/desktop localStorage, mobile AsyncStorage) and never reads/writes the shared `settings` row for them (the old cross-platform sync was removed; the `settings.theme`/`settings.mode` columns are legacy and unused). The **header light/dark toggle is the shared `AnimatedThemeToggle`** in `@munim/ui` — a **simple themed circular button with animated Sun/Moon icons** (lucide `Sun`/`Moon` crossfade + rotate on toggle, pure CSS) that drives the **Skiper UI 26 View-Transition toggle** (polygon wipe from top-left with blur; flips the `.dark` class synchronously inside `startViewTransition`, reduced-motion safe, try/catch fallback). The themed fill/border (not solid black) keeps the button visible on dark surfaces. **"Force animation play"** is a **device-local** Settings → Appearance toggle (`munim.forceThemeTransition` in localStorage / AsyncStorage, NOT DB-synced) that plays the wipe even when the OS has reduced motion on — it bypasses the JS `matchMedia` check AND omits the injected reduced-motion CSS kill-switch, so the animation runs on machines with "Animation effects" off. Present on all three apps (web/desktop shared `Switch` in `@munim/ui`; mobile row in the Dark-mode card). Re-adding other Skiper26 variants later: `pnpm dlx shadcn add @skiper-ui/skiper26`, then port `createAnimation` into the shared component |
 | 19 | App lock — 4-digit PIN login screen (test account 1234 pre-created) | ✅ | ✅ | ✅ | Per-device lock, no DB: web/desktop gate in `@munim/ui` (PinGate + PinSettingsCard, localStorage `munim.pin`); mobile `PinLockScreen` + Settings card (AsyncStorage). Two-step login (email+password → PIN) with a 30-day session cookie on web; hashing/verify live in `@munim/core` `security/pin.ts` (pure-TS SHA-256, works on Hermes). The web/desktop lock page is a **premium Apple-style glass screen** (gradient backdrop, blur, staggered entrance); Settings can change password/PIN, disable the lock, or reset to the test account |
 | 20 | Loading skeletons — shimmer (left-to-right sweep, not pulse) | ✅ | ✅ | ✅ | `.skeleton-shimmer` keyframes ship in the shared theme `tokens.css`; the shared `Skeleton` in `@munim/ui` uses it; desktop pages + mobile `Loading` (Reanimated sweep) render shimmer placeholder rows/cards |
@@ -172,7 +170,7 @@ plain drizzle output.
 
 ### Mobile (`apps/mobile`) — React Native + Expo SDK 57
 - Screens: home, products, sales, billing, parties, letters, **catalog**, **reports**, **invoices**, **advances**, settings (all overflow sections open from the More tab)
-- Direct DB: same Neon fetch client (works on Hermes); URL stored in AsyncStorage
+- API client: shared `@munim/api-client` (global fetch — no CORS in native) with a `getApi()` singleton in `lib/api.ts`; API URL + key stored in AsyncStorage (`munim.databaseUrl` / `munim.apiKey`, same keys as web/desktop)
 - Share: bill as **PDF** via shared `renderBillHtml` + job letter as **PDF** via shared `renderJobLetterHtml` + `expo-print` (text share also available for bills); invoice payment recording + advance settle included
 - Products: image upload (picker via `expo-image-picker` + Cloudinary unsigned preset via `EXPO_PUBLIC_CLOUDINARY_*`); weight (mg) field; inline barcode (`react-native-svg` `SvgXml` of the shared core SVG); **camera barcode scanning** (`expo-camera`) + manual barcode search; **Generate missing barcodes**; **label PDF share** (`expo-print` of the shared `renderLabelSheetHtml`)
 - Native modules on mobile: `expo-image-picker`, `@react-native-community/datetimepicker` and **`expo-camera`** — **adding any native module requires a dev-build rebuild**; builds are manual now (`mobile-build.yml` builds the APK directly with Gradle — no EAS)

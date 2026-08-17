@@ -1,17 +1,8 @@
 import React, {useState} from 'react';
 import {FlatList, StyleSheet, Text, View} from 'react-native';
 import Animated, {FadeInDown} from 'react-native-reanimated';
-import {
-  createParty,
-  getPartyBalances,
-  getPartyLedger,
-  createAdvance,
-  listAdvances,
-  settleAdvance,
-  recordPayment,
-  formatDate,
-} from '@munim/core';
-import {getCore} from '../lib/core';
+import {formatDate} from '@munim/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
@@ -32,7 +23,10 @@ import {useThemeStyles} from '../theme';
 
 export function PartiesScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data: parties, loading, reload: reloadParties} = useAsync(async () => getPartyBalances(await getCore()), []);
+  const {data: parties, loading, reload: reloadParties} = useAsync(
+    async () => (await getApi()).parties.balances().then(r => r.balances),
+    [],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -46,9 +40,9 @@ export function PartiesScreen() {
   const [paymentAmount, setPaymentAmount] = useState('');
 
   const [saving, setSaving] = useState(false);
-  const [ledger, setLedger] = useState<{lines: {id: string; date: Date; description: string; debit: number; credit: number; balance: number}[]; balance: number} | null>(null);
+  const [ledger, setLedger] = useState<{lines: {id: string; date: string; description: string; debit: number; credit: number; balance: number}[]; balance: number} | null>(null);
   const [ledgerLoading, setLedgerLoading] = useState(false);
-  const [openAdvances, setOpenAdvances] = useState<{id: string; direction: 'GIVEN' | 'TAKEN'; amount: number; date: Date}[] | null>(null);
+  const [openAdvances, setOpenAdvances] = useState<{id: string; direction: 'GIVEN' | 'TAKEN'; amount: number; date: string}[] | null>(null);
 
   const selected = parties?.find(p => p.id === selectedId) ?? null;
 
@@ -56,12 +50,12 @@ export function PartiesScreen() {
     setSelectedId(party.id);
     setLedgerLoading(true);
     try {
-      const core = await getCore();
-      const [ledgerData, advances] = await Promise.all([
-        getPartyLedger(core, party.id),
-        listAdvances(core, party.id),
+      const api = await getApi();
+      const [detail, advances] = await Promise.all([
+        api.parties.get(party.id),
+        api.advances.list(party.id),
       ]);
-      setLedger(ledgerData);
+      setLedger(detail.ledger);
       setOpenAdvances(
         advances
           .filter(a => a.status === 'OPEN')
@@ -77,7 +71,7 @@ export function PartiesScreen() {
 
   async function handleSettleAdvance(id: string) {
     try {
-      await settleAdvance(await getCore(), id);
+      await (await getApi()).advances.settle(id);
       successFeedback();
       reloadParties();
       if (selected) {
@@ -95,7 +89,7 @@ export function PartiesScreen() {
     }
     setSaving(true);
     try {
-      const party = await createParty(await getCore(), {name: newName.trim()});
+      const party = await (await getApi()).parties.create({name: newName.trim(), type: 'CUSTOMER'});
       successFeedback();
       setAddOpen(false);
       setNewName('');
@@ -119,7 +113,7 @@ export function PartiesScreen() {
     }
     setSaving(true);
     try {
-      await createAdvance(await getCore(), {partyId: selectedId, direction, amount: value});
+      await (await getApi()).advances.create({partyId: selectedId, direction, amount: value});
       successFeedback();
       setAdvanceOpen(false);
       setAmount('');
@@ -145,7 +139,7 @@ export function PartiesScreen() {
     }
     setSaving(true);
     try {
-      await recordPayment(await getCore(), {
+      await (await getApi()).payments.create({
         partyId: selectedId,
         direction: paymentDirection,
         amount: value,

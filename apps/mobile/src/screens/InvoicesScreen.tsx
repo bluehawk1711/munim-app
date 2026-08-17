@@ -10,13 +10,10 @@ import {
 } from 'react-native';
 import {Search, Trash2} from 'lucide-react-native';
 import {
-  deleteInvoice,
-  listInvoices,
-  recordInvoicePayment,
   formatDate,
   type InvoiceFilters,
 } from '@munim/core';
-import {getCore} from '../lib/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
@@ -51,7 +48,7 @@ type InvoiceRow = {
   id: string;
   invoiceNumber: string;
   customerName: string | null;
-  date: Date;
+  date: string;
   status: 'DRAFT' | 'UNPAID' | 'PARTIAL' | 'PAID';
   total: number;
   amountPaid: number;
@@ -69,7 +66,7 @@ export function InvoicesScreen() {
 
   const filters: InvoiceFilters = {search, status, page, pageSize: PAGE_SIZE};
   const {loading, error, reload} = useAsync(async () => {
-    const res = await listInvoices(await getCore(), filters);
+    const res = await (await getApi()).invoices.list(filters);
     setInvoices(res.invoices);
     setTotalCount(res.pagination.totalCount);
     setTotalPages(res.pagination.totalPages);
@@ -118,7 +115,7 @@ export function InvoicesScreen() {
     }
     setPayBusy(true);
     try {
-      await recordInvoicePayment(await getCore(), paying.id, {amount, method: 'cash'});
+      await (await getApi()).invoices.recordPayment(paying.id, {amount, method: 'cash'});
       successFeedback();
       setPaying(null);
       reload();
@@ -135,7 +132,7 @@ export function InvoicesScreen() {
     }
     setDeleteBusy(true);
     try {
-      await deleteInvoice(await getCore(), deleting.id);
+      await (await getApi()).invoices.remove(deleting.id);
       successFeedback();
       setDeleting(null);
       reload();

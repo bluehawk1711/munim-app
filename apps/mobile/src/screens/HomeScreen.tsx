@@ -1,7 +1,7 @@
 import React from 'react';
 import {ScrollView, StyleSheet, Text, View} from 'react-native';
-import {getDashboard, formatDate} from '@munim/core';
-import {getCore} from '../lib/core';
+import {formatDate} from '@munim/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {Badge, Card, ErrorBox, Header, Loading, Screen, StatBox, colors} from '../components/ui';
@@ -9,7 +9,7 @@ import {useThemeStyles} from '../theme';
 
 export function HomeScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {data, error, loading, reload} = useAsync(async () => getDashboard(await getCore()), []);
+  const {data, error, loading, reload} = useAsync(async () => (await getApi()).dashboard.get(), []);
 
   return (
     <Screen>

@@ -1,98 +1,46 @@
 /**
- * Mobile app setup config (Neon DB URL + Cloudinary credentials) — set during
- * onboarding. Mirrors the web/desktop gate storage (packages/ui pin-gate.tsx)
- * with the SAME AsyncStorage/localStorage keys so the reset flow works
- * identically on every platform:
+ * Mobile app setup config (API base URL + API key) — set during onboarding.
  *
- *   - `munim.databaseUrl` AsyncStorage — Neon connection string
- *   - `munim.cloudinary`  AsyncStorage — Cloudinary credentials JSON
- *
- * Storage is per-device, never the shared database.
+ * The app talks to the shared NestJS API; the connection is configured once in
+ * onboarding and can be changed/cleared from Settings or the login screen's
+ * "Connection settings" link. Storage is per-device (AsyncStorage), never the
+ * shared database — the SAME keys as web/desktop (munim.databaseUrl /
+ * munim.apiKey) so the reset flow works identically on every platform.
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const DATABASE_URL_KEY = 'munim.databaseUrl';
-const CLOUDINARY_KEY = 'munim.cloudinary';
-
-export type AppCloudinaryConfig = {
-  cloudName: string;
-  apiKey: string;
-  apiSecret: string;
-};
+import {
+  clearApiConfig,
+  getSavedApiKey,
+  getSavedApiUrl,
+  saveApiKey,
+  saveApiUrl,
+} from './api';
 
 export type AppSetupConfig = {
-  databaseUrl: string;
-  cloudinary: AppCloudinaryConfig | null;
+  /** API base URL, e.g. https://api.munim.app */
+  apiUrl: string;
+  /** API key (may be empty when EXPO_PUBLIC_API_KEY is baked in). */
+  apiKey: string;
 };
-
-async function getStored(key: string): Promise<string | null> {
-  try {
-    return await AsyncStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-async function setStored(key: string, value: string): Promise<void> {
-  try {
-    await AsyncStorage.setItem(key, value);
-  } catch {
-    // Storage unavailable — onboarding still completes for this session.
-  }
-}
-
-async function removeStored(key: string): Promise<void> {
-  try {
-    await AsyncStorage.removeItem(key);
-  } catch {
-    // Ignore.
-  }
-}
 
 /** Read the saved app setup — null until onboarding has been completed. */
 export async function getSavedAppSetup(): Promise<AppSetupConfig | null> {
-  const databaseUrl = await getStored(DATABASE_URL_KEY);
-  if (!databaseUrl || !databaseUrl.trim()) return null;
-  let cloudinary: AppCloudinaryConfig | null = null;
-  try {
-    const raw = await getStored(CLOUDINARY_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Partial<AppCloudinaryConfig>;
-      if (parsed.cloudName && parsed.apiKey && parsed.apiSecret) {
-        cloudinary = {
-          cloudName: parsed.cloudName,
-          apiKey: parsed.apiKey,
-          apiSecret: parsed.apiSecret,
-        };
-      }
-    }
-  } catch {
-    cloudinary = null;
-  }
-  return {databaseUrl: databaseUrl.trim(), cloudinary};
+  const apiUrl = await getSavedApiUrl();
+  if (!apiUrl) return null;
+  return {apiUrl, apiKey: (await getSavedApiKey()) ?? ''};
 }
 
 /** Persist the app setup (used by the onboarding screen). */
 export async function saveAppSetup(cfg: {
-  databaseUrl: string;
-  cloudinary: AppCloudinaryConfig | null;
+  apiUrl: string;
+  apiKey: string;
 }): Promise<void> {
-  await setStored(DATABASE_URL_KEY, cfg.databaseUrl.trim());
-  if (cfg.cloudinary) {
-    await setStored(CLOUDINARY_KEY, JSON.stringify(cfg.cloudinary));
-  } else {
-    await removeStored(CLOUDINARY_KEY);
+  await saveApiUrl(cfg.apiUrl);
+  if (cfg.apiKey.trim()) {
+    await saveApiKey(cfg.apiKey);
   }
 }
 
-/** Remove the saved DB URL + Cloudinary credentials (reset flow). */
+/** Remove the saved API URL + key (reset flow → back to onboarding). */
 export async function clearAppSetup(): Promise<void> {
-  await removeStored(DATABASE_URL_KEY);
-  await removeStored(CLOUDINARY_KEY);
-}
-
-/** Masked host of a connection string, e.g. "ep-…neon.tech". */
-export function maskDatabaseHost(databaseUrl: string): string {
-  const m = databaseUrl.match(/@([^/]+)/);
-  return m?.[1] ?? databaseUrl.slice(0, 24);
+  await clearApiConfig();
 }

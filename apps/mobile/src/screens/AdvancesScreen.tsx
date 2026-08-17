@@ -8,14 +8,8 @@ import {
   View,
 } from 'react-native';
 import {ChevronDown, TrendingDown, TrendingUp} from 'lucide-react-native';
-import {
-  createAdvance,
-  getPartyBalances,
-  listParties,
-  recordPayment,
-  type PartyBalance,
-} from '@munim/core';
-import {getCore} from '../lib/core';
+import {type PartyBalanceDto} from '@munim/core';
+import {getApi} from '../lib/api';
 import {useAsync} from '../lib/use-async';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
@@ -36,7 +30,7 @@ import {useThemeStyles} from '../theme';
 type ActionKind = 'GIVEN' | 'TAKEN' | 'PAYMENT_IN' | 'PAYMENT_OUT';
 
 type Action = {
-  party: PartyBalance;
+  party: PartyBalanceDto;
   kind: ActionKind;
 };
 
@@ -50,10 +44,10 @@ const TYPE_LABELS: Record<string, string> = {
 export function AdvancesScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: balances, loading, error, reload} = useAsync(
-    async () => getPartyBalances(await getCore()),
+    async () => (await getApi()).parties.balances().then(r => r.balances),
     [],
   );
-  const {data: parties} = useAsync(async () => listParties(await getCore()), []);
+  const {data: parties} = useAsync(async () => (await getApi()).parties.list(), []);
 
   const [action, setAction] = useState<Action | null>(null);
   const [amount, setAmount] = useState('');
@@ -74,7 +68,7 @@ export function AdvancesScreen() {
   const totalPayable = payables.reduce((s, p) => s + Math.abs(p.balance), 0);
   const quickParty = parties?.find(p => p.id === quickPartyId) ?? null;
 
-  function openAction(party: PartyBalance, kind: ActionKind) {
+  function openAction(party: PartyBalanceDto, kind: ActionKind) {
     setAction({party, kind});
     setAmount('');
     setNote('');
@@ -90,16 +84,16 @@ export function AdvancesScreen() {
     }
     setBusy(true);
     try {
-      const core = await getCore();
+      const api = await getApi();
       if (action.kind === 'GIVEN' || action.kind === 'TAKEN') {
-        await createAdvance(core, {
+        await api.advances.create({
           partyId: action.party.id,
           direction: action.kind,
           amount: value,
           note: note.trim() || undefined,
         });
       } else {
-        await recordPayment(core, {
+        await api.payments.create({
           partyId: action.party.id,
           direction: action.kind === 'PAYMENT_IN' ? 'IN' : 'OUT',
           amount: value,
@@ -127,7 +121,7 @@ export function AdvancesScreen() {
     }
     setBusy(true);
     try {
-      await createAdvance(await getCore(), {
+      await (await getApi()).advances.create({
         partyId: quickPartyId,
         direction: quickKind,
         amount: value,
