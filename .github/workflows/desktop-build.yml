@@ -42,10 +42,18 @@ jobs:
       - name: Build shared core
         run: pnpm --filter @munim/core build
 
+      # Build-time env — bake the API URL/key and the Cloudinary UNSIGNED
+      # upload preset into the installer. VITE_* vars are inlined by Vite;
+      # the app then works without onboarding when the API is deployed.
+      # (Create the matching secrets in Settings → Secrets and variables.)
       - name: Build Tauri app (NSIS installer)
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+          VITE_CLOUDINARY_CLOUD_NAME: ${{ secrets.VITE_CLOUDINARY_CLOUD_NAME }}
+          VITE_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.VITE_CLOUDINARY_UPLOAD_PRESET }}
         with:
           projectPath: apps/desktop
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}

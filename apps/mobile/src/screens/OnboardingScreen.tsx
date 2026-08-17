@@ -159,8 +159,8 @@ export function OnboardingScreen({onComplete}: {onComplete: () => void}) {
             </View>
 
             <Text style={styles.hint}>
-              Stored on this device only — never uploaded to the shared database. Images and data
-              flow through your server, so no other credentials are needed.
+              Stored on this device only. Images and data flow through your server, so no other
+              credentials are needed — the API key can also be baked in at build time.
             </Text>
             <Button
               title={saving ? 'Saving…' : 'Continue'}

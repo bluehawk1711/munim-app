@@ -38,6 +38,7 @@ import {
 } from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
+import {uploadImageDirect} from '../lib/cloudinary';
 import {
   Badge,
   Button,
@@ -162,9 +163,16 @@ export function ProductsScreen() {
         type: asset.mimeType ?? 'image/jpeg',
       };
       // Uploads go through the shared API — the server signs with Cloudinary,
-      // so the app never touches Cloudinary secrets.
-      const {url} = await uploadImage.mutateAsync(file);
-      setImageUrl(url);
+      // so the app never touches Cloudinary secrets. When the API upload is
+      // unavailable, fall back to the direct unsigned-preset upload baked in
+      // at build time (EXPO_PUBLIC_CLOUDINARY_*).
+      try {
+        const {url} = await uploadImage.mutateAsync(file);
+        setImageUrl(url);
+      } catch {
+        const url = await uploadImageDirect(file);
+        setImageUrl(url);
+      }
       successFeedback();
     } catch {
       errorFeedback();

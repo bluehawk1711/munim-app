@@ -18,6 +18,7 @@ import {
 } from "@munim/query";
 import { money, formatWeight } from "@/lib/format";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
+import { uploadImageDirect } from "@/lib/cloudinary";
 import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, BarcodeSvg, BarcodeLookupInput, LabelPrintDialog, ProductDetailsDialog } from "@munim/ui";
 
@@ -124,8 +125,16 @@ export function ProductsPage() {
     setUploading(true);
     try {
       // Uploads go through the shared API (server-side Cloudinary signing) —
-      // the desktop never touches Cloudinary credentials.
-      const { url } = await uploadImage.mutateAsync(file);
+      // the desktop never touches Cloudinary secrets. When the API upload is
+      // unavailable, fall back to the direct unsigned-preset upload baked in
+      // at build time (VITE_CLOUDINARY_*).
+      let url: string;
+      try {
+        const res = await uploadImage.mutateAsync(file);
+        url = res.url;
+      } catch {
+        url = await uploadImageDirect(file, file.name);
+      }
       setForm((f) => ({ ...f, imageUrl: url }));
       toast.success("Image uploaded");
     } catch (err) {

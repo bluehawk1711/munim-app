@@ -50,14 +50,29 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Build-time env — bake the API URL/key and the Cloudinary UNSIGNED
+      # upload preset into the APK. EXPO_PUBLIC_* vars are inlined by Expo at
+      # bundle time (release APK bundles JS during Gradle, so the env must be
+      # on these steps; debug dev-client APKs load JS from Metro at runtime).
+      # Create the matching secrets in Settings → Secrets and variables.
       - name: Build debug APK (dev client — loads JS from Metro)
         if: inputs.variant != 'release'
         working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_API_KEY: ${{ secrets.EXPO_PUBLIC_API_KEY }}
+          EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME }}
+          EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET }}
         run: pnpm build:android
 
       - name: Build release APK (bundled JS, debug-signed)
         if: inputs.variant == 'release'
         working-directory: apps/mobile
+        env:
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_API_KEY: ${{ secrets.EXPO_PUBLIC_API_KEY }}
+          EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME }}
+          EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET }}
         run: pnpm build:android:release
 
       - name: Upload APK

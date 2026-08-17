@@ -17,6 +17,11 @@ function buildKey(): string {
   return String(process.env.EXPO_PUBLIC_API_KEY ?? '').trim();
 }
 
+/** Build-time fallback URL (EXPO_PUBLIC_API_URL, inlined by Expo). */
+function buildUrl(): string {
+  return String(process.env.EXPO_PUBLIC_API_URL ?? '').trim();
+}
+
 let client: ApiClient | null = null;
 let clientKey = '';
 
@@ -83,7 +88,10 @@ export async function getActiveApiKey(): Promise<string> {
  * the base URL or key changes. Throws when no URL is configured yet.
  */
 export async function getApi(): Promise<ApiClient> {
-  const baseUrl = await getSavedApiUrl();
+  // Saved URL wins (onboarding/Settings); the build-time EXPO_PUBLIC_API_URL
+  // is the fallback so an app installed from a GitHub-built APK works without
+  // any setup when the URL is baked in.
+  const baseUrl = (await getSavedApiUrl()) ?? buildUrl();
   if (!baseUrl) {
     throw new Error(
       'No server URL configured. Set it in onboarding or Settings.',
