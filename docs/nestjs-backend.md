@@ -355,8 +355,10 @@ same-origin fallback for local dev). Next.js stays the renderer; `lib/db.ts`,
       from settings); swap all 11 pages (dashboard, products, catalog, sales,
       invoices, parties, advances, job-letters, reports, billing, settings).
 - [x] Settings Database → API connection (URL + key, `/readyz` test); shared
-      `PinGate` gained `onboardingMode="api"` (single API-URL step, no
-      Cloudinary); image upload via `api.upload` (Cloudinary).
+      `PinGate` onboarding is the single API-URL step (no Cloudinary); image
+      upload via `api.upload` (Cloudinary). (Later cleanup removed the legacy
+      `"database"` onboarding mode + Cloudinary/DB-URL storage helpers from
+      `pin-gate.tsx` — dead code after all platforms moved to the API.)
 - [x] **API parity fix:** shared `saleSchema` widened to mirror core `SaleInput`
       (sellingPrice/customerName/paid/etc.) so the desktop sale form works;
       sales controller passes full values through; live-DB e2e extended with a

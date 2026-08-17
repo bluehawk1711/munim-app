@@ -7,15 +7,16 @@
  *                                         "0" = lock disabled, else a 64-char hash
  *   - `munim.email`      localStorage — normalized (lowercased) account email
  *   - `munim.password`   localStorage — hashed account password
- *   - `munim.databaseUrl` localStorage — Neon connection string (set by onboarding / Settings)
- *   - `munim.cloudinary` localStorage — Cloudinary credentials JSON (set by onboarding)
+ *   - `munim.databaseUrl` localStorage — API base URL (set by onboarding / Settings;
+ *                          same key the desktop app's own `lib/env.ts` reads)
  *   - `munim.session`    cookie       — "1" while this device is unlocked
  *
- * First run on desktop: when `onboarding` is enabled and no database URL has
- * been saved yet, an onboarding flow (Neon URL + Cloudinary credentials)
- * runs BEFORE the login screen. The login screen has a "Connection settings"
- * link that opens a reset screen — clearing the saved env/config sends the
- * user back to onboarding.
+ * First run on desktop: when `onboarding` is enabled and no API URL has been
+ * saved yet, a single "connect to your server" step runs BEFORE the login
+ * screen (the API proxies the database AND Cloudinary, so no Neon URL or
+ * Cloudinary secrets ever live on the device). The login screen has a
+ * "Connection settings" link that opens a reset screen — clearing the saved
+ * URL sends the user back to onboarding.
  *
  * The login is two steps: email + password FIRST, then the 4-digit PIN
  * (typed into a real input — no keypad buttons). After a successful full
@@ -54,57 +55,32 @@ export type PinLockValue = {
 };
 /** Read the lock state. Must be used inside <PinGate>. */
 export declare function usePinLockContext(): PinLockValue;
-export type AppCloudinaryConfig = {
-    cloudName: string;
-    apiKey: string;
-    apiSecret: string;
-};
-export type AppSetupConfig = {
-    databaseUrl: string;
-    cloudinary: AppCloudinaryConfig | null;
-};
-/** Read the saved app setup — null until onboarding has been completed. */
-export declare function getSavedAppSetup(): AppSetupConfig | null;
-/** Persist the app setup (used by the onboarding screen). */
-export declare function saveAppSetup(cfg: {
-    databaseUrl: string;
-    cloudinary: AppCloudinaryConfig | null;
-}): void;
-/** Remove the saved DB URL + Cloudinary credentials (reset flow). */
-export declare function clearAppSetup(): void;
-/** Masked host of a connection string, e.g. "ep-…neon.tech". */
-export declare function maskDatabaseHost(databaseUrl: string): string;
-export declare function OnboardingScreen({ onComplete, pingDatabase, mode, }: {
+/** Read the saved API base URL — null until onboarding has been completed. */
+export declare function getSavedApiUrl(): string | null;
+/** Persist the API base URL (used by the onboarding screen). */
+export declare function saveApiUrl(url: string): void;
+/** Remove the saved API base URL (reset flow). */
+export declare function clearApiUrl(): void;
+/** Masked host of a URL, e.g. "api.munim.app". */
+export declare function maskApiHost(url: string): string;
+export declare function OnboardingScreen({ onComplete, pingApiUrl, }: {
     onComplete: () => void;
-    /** Platform DB ping (desktop: createAppDb → pingDatabase). Optional — lets
-     *  the user verify the URL before continuing. */
-    pingDatabase?: (url: string) => Promise<void>;
-    /**
-     * What the first-run flow collects:
-     *  - "database" (default): Neon DB URL + Cloudinary credentials (mobile/
-     *    web-on-desktop legacy — apps that still talk to Neon directly).
-     *  - "api": a single API base URL step (no Cloudinary — image uploads go
-     *    through the server). Used by the desktop app after the Phase 4 API
-     *    refactor.
-     */
-    mode?: "database" | "api";
+    /** Platform probe (desktop: pingApiUrl → GET /readyz). Optional — lets the
+     *  user verify the URL before continuing. */
+    pingApiUrl?: (url: string) => Promise<void>;
 }): React.JSX.Element;
-export declare function ResetConfigScreen({ onCleared, onCancel, mode, }: {
+export declare function ResetConfigScreen({ onCleared, onCancel, }: {
     onCleared: () => void;
     onCancel: () => void;
-    /** Matches the OnboardingScreen `mode` — affects labels only. */
-    mode?: "database" | "api";
 }): React.JSX.Element;
-export declare function PinGate({ children, onboarding, onboardingMode, pingDatabase, }: {
+export declare function PinGate({ children, onboarding, pingApiUrl, }: {
     children: React.ReactNode;
-    /** Enable the first-run onboarding when no setup is saved yet. Web keeps
+    /** Enable the first-run onboarding when no API URL is saved yet. Web keeps
      *  this off (env-driven); desktop enables it. */
     onboarding?: boolean;
-    /** What the onboarding collects: "database" (Neon + Cloudinary, default,
-     *  mobile/web) or "api" (single server-URL step, desktop post-Phase 4). */
-    onboardingMode?: "database" | "api";
-    /** Platform ping used by the onboarding "Test connection" button. */
-    pingDatabase?: (url: string) => Promise<void>;
+    /** Platform probe (desktop: pingApiUrl → GET /readyz) used by the onboarding
+     *  "Test connection" button. */
+    pingApiUrl?: (url: string) => Promise<void>;
 }): React.JSX.Element | null;
 export {};
 //# sourceMappingURL=pin-gate.d.ts.map

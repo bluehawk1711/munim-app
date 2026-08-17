@@ -41,8 +41,7 @@ export function App() {
     <DesktopQueryProvider>
       <PinGate
         onboarding
-        onboardingMode="api"
-        pingDatabase={async (url) => {
+        pingApiUrl={async (url) => {
           // API readiness probe through the Tauri HTTP plugin (no CORS).
           await pingApiUrl(url);
         }}
