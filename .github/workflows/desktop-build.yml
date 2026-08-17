@@ -1,9 +1,9 @@
 name: Desktop Build (Tauri)
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
+  # Manual only — a new installer is only needed when the native layer or
+  # bundled JS changes (e.g. adding a Tauri plugin). Trigger via Actions →
+  # "Run workflow". A push to main does NOT build a new installer.
   workflow_dispatch:
 
 jobs:
@@ -17,6 +17,20 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+
+      # Fail fast when the build-time secrets the app needs are not configured.
+      # Required: VITE_API_URL + VITE_API_KEY — the installed app uses them to
+      # reach the API without onboarding. Optional: the Cloudinary fallback vars
+      # (VITE_CLOUDINARY_*) — image uploads still work through the API.
+      - name: Verify required build secrets
+        if: ${{ secrets.VITE_API_URL == '' || secrets.VITE_API_KEY == '' }}
+        run: |
+          echo "::error::Desktop build requires these GitHub secrets (Settings → Secrets and variables → Actions):"
+          echo "::error::  VITE_API_URL   — deployed Munim API base URL"
+          echo "::error::  VITE_API_KEY   — desktop platform key"
+          echo "::error::Optional (direct Cloudinary upload fallback):"
+          echo "::error::  VITE_CLOUDINARY_CLOUD_NAME, VITE_CLOUDINARY_UPLOAD_PRESET"
+          exit 1
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4

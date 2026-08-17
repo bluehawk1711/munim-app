@@ -22,6 +22,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fail fast when the build-time secrets the app needs are not configured.
+      # Required: EXPO_PUBLIC_API_URL + EXPO_PUBLIC_API_KEY — the installed app
+      # uses them to reach the API without onboarding (inlined by Expo when the
+      # release JS is bundled). Optional: the Cloudinary fallback vars
+      # (EXPO_PUBLIC_CLOUDINARY_*) — image uploads still work through the API.
+      - name: Verify required build secrets
+        if: ${{ secrets.EXPO_PUBLIC_API_URL == '' || secrets.EXPO_PUBLIC_API_KEY == '' }}
+        run: |
+          echo "::error::Mobile build requires these GitHub secrets (Settings → Secrets and variables → Actions):"
+          echo "::error::  EXPO_PUBLIC_API_URL   — deployed Munim API base URL"
+          echo "::error::  EXPO_PUBLIC_API_KEY   — mobile platform key"
+          echo "::error::Optional (direct Cloudinary upload fallback):"
+          echo "::error::  EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME, EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET"
+          exit 1
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:

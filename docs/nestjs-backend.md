@@ -302,16 +302,20 @@ same-origin fallback for local dev). Next.js stays the renderer; `lib/db.ts`,
 - **New workflow `api-deploy.yml`:** on push to main → build `apps/api` →
   run `drizzle-kit migrate` (existing `db-migrate` flow) → deploy to
   Render/Railway with the API keys + Upstash + DB URL as env vars.
-- **Desktop build (`desktop-build.yml`):** injects `VITE_API_URL`,
+- **Desktop build (`desktop-build.yml`):** **manual-only** (`workflow_dispatch`
+  — a push to main does NOT build an installer). Injects `VITE_API_URL`,
   `VITE_API_KEY` (from `API_KEY_DESKTOP` secret) plus the Cloudinary
   direct-upload fallback `VITE_CLOUDINARY_CLOUD_NAME` +
   `VITE_CLOUDINARY_UPLOAD_PRESET` (unsigned preset — see .env.example) onto the
   tauri-action step; the installer works without onboarding when the URL is
-  baked in.
-- **Mobile build (`mobile-build.yml`):** injects `EXPO_PUBLIC_API_URL`,
-  `EXPO_PUBLIC_API_KEY` (from `API_KEY_MOBILE` secret) plus
-  `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` + `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET`
-  onto both APK build steps (inlined by Expo at bundle time).
+  baked in. A "Verify required build secrets" step **fails the build** when
+  `VITE_API_URL` or `VITE_API_KEY` are unset (Cloudinary vars are optional).
+- **Mobile build (`mobile-build.yml`):** already manual-only. Injects
+  `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_API_KEY` (from `API_KEY_MOBILE` secret)
+  plus `EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME` + `EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET`
+  onto both APK build steps (inlined by Expo at bundle time). A "Verify
+  required build secrets" step **fails the build** when `EXPO_PUBLIC_API_URL`
+  or `EXPO_PUBLIC_API_KEY` are unset (Cloudinary vars are optional).
 - **Cloudinary upload path:** primary = `POST /api/upload` (server-side signed
   with `CLOUDINARY_*`). Fallback (desktop + mobile only) = direct unsigned
   upload to Cloudinary when the API upload is unavailable — client builds
