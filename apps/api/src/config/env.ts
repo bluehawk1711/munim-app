@@ -12,9 +12,9 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(4000),
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
-  API_KEY_WEB: z.string().min(8).default(""),
-  API_KEY_DESKTOP: z.string().min(8).default(""),
-  API_KEY_MOBILE: z.string().min(8).default(""),
+  API_KEY_WEB: z.string().min(8).or(z.literal("")).default(""),
+  API_KEY_DESKTOP: z.string().min(8).or(z.literal("")).default(""),
+  API_KEY_MOBILE: z.string().min(8).or(z.literal("")).default(""),
   CORS_ORIGINS: z.string().default(""),
   /** Cloudinary (server-side signed uploads — secrets never reach clients). */
   CLOUDINARY_CLOUD_NAME: z.string().default(""),
