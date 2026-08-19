@@ -13,6 +13,8 @@ import {
   getSavedApiUrl,
   saveApiKey,
   saveApiUrl,
+  buildKey,
+  buildUrl,
 } from './api';
 
 export type AppSetupConfig = {
@@ -22,11 +24,13 @@ export type AppSetupConfig = {
   apiKey: string;
 };
 
-/** Read the saved app setup — null until onboarding has been completed. */
+/** Read the saved app setup — null until onboarding has been completed.
+ *  Falls back to the build-time EXPO_PUBLIC_* values when available so an
+ *  APK built with baked env vars works without an onboarding step. */
 export async function getSavedAppSetup(): Promise<AppSetupConfig | null> {
-  const apiUrl = await getSavedApiUrl();
+  const apiUrl = (await getSavedApiUrl()) || buildUrl();
   if (!apiUrl) return null;
-  return {apiUrl, apiKey: (await getSavedApiKey()) ?? ''};
+  return {apiUrl, apiKey: (await getSavedApiKey()) || buildKey()};
 }
 
 /** Persist the app setup (used by the onboarding screen). */

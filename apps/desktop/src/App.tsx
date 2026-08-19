@@ -41,6 +41,7 @@ export function App() {
     <DesktopQueryProvider>
       <PinGate
         onboarding
+        buildTimeApiUrl={import.meta.env.VITE_API_URL}
         pingApiUrl={async (url) => {
           // API readiness probe through the Tauri HTTP plugin (no CORS).
           await pingApiUrl(url);

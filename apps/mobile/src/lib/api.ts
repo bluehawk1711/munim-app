@@ -13,12 +13,12 @@ const URL_KEY = 'munim.databaseUrl';
 const KEY_KEY = 'munim.apiKey';
 
 /** Build-time fallback key (EXPO_PUBLIC_API_KEY, inlined by Expo). */
-function buildKey(): string {
+export function buildKey(): string {
   return String(process.env.EXPO_PUBLIC_API_KEY ?? '').trim();
 }
 
 /** Build-time fallback URL (EXPO_PUBLIC_API_URL, inlined by Expo). */
-function buildUrl(): string {
+export function buildUrl(): string {
   return String(process.env.EXPO_PUBLIC_API_URL ?? '').trim();
 }
 

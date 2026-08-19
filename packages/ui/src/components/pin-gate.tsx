@@ -800,6 +800,7 @@ export function PinGate({
   children,
   onboarding = false,
   pingApiUrl,
+  buildTimeApiUrl,
 }: {
   children: React.ReactNode;
   /** Enable the first-run onboarding when no API URL is saved yet. Web keeps
@@ -808,6 +809,10 @@ export function PinGate({
   /** Platform probe (desktop: pingApiUrl → GET /readyz) used by the onboarding
    *  "Test connection" button. */
   pingApiUrl?: (url: string) => Promise<void>;
+  /** Build-time API URL (VITE_API_URL) — when set alongside `onboarding`,
+   *  the onboarding screen is skipped because the app already knows where to
+   *  connect. */
+  buildTimeApiUrl?: string;
 }) {
   const lock = usePinLock();
   const [phase, setPhase] = React.useState<"onboarding" | "reset" | "gate">("gate");
@@ -819,9 +824,9 @@ export function PinGate({
       setSetupChecked(true);
       return;
     }
-    setPhase(getSavedApiUrl() ? "gate" : "onboarding");
+    setPhase(getSavedApiUrl() || buildTimeApiUrl ? "gate" : "onboarding");
     setSetupChecked(true);
-  }, [onboarding]);
+  }, [onboarding, buildTimeApiUrl]);
 
   if (!setupChecked || lock.status === "loading") return null;
 
