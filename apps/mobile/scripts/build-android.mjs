@@ -35,10 +35,17 @@ function run(cmd, args, cwd) {
   return res.status ?? 1;
 }
 
-console.log(`→ Building shared packages (@munim/core, @munim/api-client, @munim/query, @munim/store, @munim/ui, @munim/theme)…`);
-// turbo `^` builds only the app's upstream workspace deps (in dependency
-// order, respecting their own ^build deps) — same convention as CI.
-const status = run("pnpm", ["exec", "turbo", "run", "build", "--filter=@munim/mobile^"], repoRoot);
+console.log(`→ Building shared packages (@munim/core, @munim/api-client, @munim/query, @munim/store, @munim/theme)…`);
+// turbo `pkg...` = the app + its upstream workspace deps (in dependency
+// order, respecting their own ^build deps); the negated filter drops the app
+// itself since it has no `build` script — same convention as CI. (The older
+// `pkg^`/`pkg...^` syntax is NOT supported in turbo >= 2.9 — it's parsed as a
+// literal package name.)
+const status = run(
+  "pnpm",
+  ["exec", "turbo", "run", "build", "--filter=@munim/mobile...", "--filter=!@munim/mobile"],
+  repoRoot,
+);
 if (status !== 0) process.exit(status);
 
 if (!existsSync(androidDir)) {

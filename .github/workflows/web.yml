@@ -24,10 +24,11 @@ jobs:
 
       # Consumers import the shared packages (@munim/core, @munim/api-client,
       # @munim/query, @munim/store, @munim/ui, @munim/theme) from their dist/ —
-      # build the whole upstream graph (turbo `^` = dependencies only, not the
-      # app itself).
+      # build the whole upstream graph (turbo `pkg...` = deps of the app; the
+      # negated filter drops the app itself). Note: `pkg^`/`pkg...^` is NOT
+      # supported in turbo >= 2.9 — it's parsed as a literal package name.
       - name: Build shared packages
-        run: pnpm exec turbo run build --filter=@munim/web^
+        run: pnpm exec turbo run build --filter=@munim/web... --filter=!@munim/web
 
       - name: Typecheck
         run: pnpm --filter @munim/web typecheck
