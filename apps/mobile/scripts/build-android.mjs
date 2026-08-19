@@ -35,12 +35,11 @@ function run(cmd, args, cwd) {
   return res.status ?? 1;
 }
 
-console.log(`→ Building shared packages (@munim/core, @munim/api-client, @munim/theme)…`);
-// api-client depends on core's dist, so build order matters: core → api-client → theme.
-for (const pkg of ["core", "api-client", "theme"]) {
-  const status = run("pnpm", ["--filter", `@munim/${pkg}`, "build"], repoRoot);
-  if (status !== 0) process.exit(status);
-}
+console.log(`→ Building shared packages (@munim/core, @munim/api-client, @munim/query, @munim/store, @munim/ui, @munim/theme)…`);
+// turbo `^` builds only the app's upstream workspace deps (in dependency
+// order, respecting their own ^build deps) — same convention as CI.
+const status = run("pnpm", ["exec", "turbo", "run", "build", "--filter=@munim/mobile^"], repoRoot);
+if (status !== 0) process.exit(status);
 
 if (!existsSync(androidDir)) {
   console.error(
@@ -65,10 +64,10 @@ if (!win32) {
   }
 }
 
-const status = run(gradlew, [task], androidDir);
-if (status !== 0) {
+const gradleStatus = run(gradlew, [task], androidDir);
+if (gradleStatus !== 0) {
   console.error("\n✗ Android build failed — see the Gradle output above.");
-  process.exit(status);
+  process.exit(gradleStatus);
 }
 
 const apkName = isRelease ? "app-release.apk" : "app-debug.apk";
