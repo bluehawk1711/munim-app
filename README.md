@@ -121,7 +121,6 @@ prompts for:
 | `API_KEY_WEB` | optional | 8+ chars; must match the web app's `NEXT_PUBLIC_API_KEY` |
 | `API_KEY_DESKTOP` | optional | 8+ chars; must match the desktop secret `VITE_API_KEY` |
 | `API_KEY_MOBILE` | optional | 8+ chars; must match the mobile secret `EXPO_PUBLIC_API_KEY` |
-| `CORS_ORIGINS` | for web | Comma-separated browser origins, e.g. `https://munim-web.onrender.com` |
 | `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | optional | server-side signed uploads; `/api/upload` returns 503 when unset |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | optional | shared cache; falls back to in-process cache when unset |
 
@@ -138,8 +137,7 @@ Set these in the web hosting platform's environment (inlined at build time):
   (trailing slash optional — the client strips it)
 - `NEXT_PUBLIC_API_KEY` — must equal the server's `API_KEY_WEB`
 
-The web origin must also be listed in the server's `CORS_ORIGINS`, or browser
-calls are blocked.
+(CORS is fully open on the API — no origin allowlist needed.)
 
 ### Desktop & mobile — GitHub Actions secrets
 

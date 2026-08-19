@@ -18,8 +18,6 @@ services:
         sync: false
       - key: API_KEY_MOBILE
         sync: false
-      - key: CORS_ORIGINS
-        sync: false
       - key: CLOUDINARY_CLOUD_NAME
         sync: false
       - key: CLOUDINARY_API_KEY

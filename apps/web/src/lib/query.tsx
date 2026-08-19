@@ -15,8 +15,8 @@ import { createApiClient } from "@munim/api-client"
  *   NEXT_PUBLIC_API_KEY  — the web platform key the server accepts (x-api-key)
  *
  * When unset (local dev without a backend), it falls back to the same origin
- * so `next dev` still boots. The backend must also list the web origin in its
- * CORS_ORIGINS for browser calls to succeed.
+ * so `next dev` still boots. The API allows all origins (CORS open), so no
+ * allowlist entry is needed.
  */
 export function WebQueryProvider({ children }: { children: React.ReactNode }) {
   return (
