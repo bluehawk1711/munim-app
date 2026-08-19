@@ -166,9 +166,9 @@ URL/key in onboarding or Settings per device.
 | `render.yaml` (API) | push to `main` | Deploys `munim-api` on Render (build + start commands above) |
 | `.github/workflows/desktop-build.yml` | **manual** | Windows NSIS installer via `tauri-action`, uploaded as artifact |
 | `.github/workflows/mobile-build.yml` | **manual** / mobile native changes | Android APK built directly with Gradle (no EAS): `debug` dev-client shell or `release` APK with bundled JS, uploaded as an artifact |
-| `.github/workflows/web.yml` | push/PR | web typecheck + `next build` |
-| `.github/workflows/lint.yml` | push/PR | ESLint across the repo (typed no-any/no-unknown rules) |
-| `.github/workflows/db-migrate.yml` | push to main / manual | drift-check (migrations committed?) + apply pending Drizzle migrations to Neon |
+| `.github/workflows/web.yml` | **manual** | web typecheck + `next build` |
+| `.github/workflows/lint.yml` | **manual** | ESLint across the repo (typed no-any/no-unknown rules) |
+| `.github/workflows/db-migrate.yml` | **manual** | drift-check (migrations committed?) + apply pending Drizzle migrations to Neon |
 
 ## Rules & memory
 

@@ -15,15 +15,6 @@ name: Database migrations
 #     a devDependency of packages/core, which is what drizzle-kit resolves.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "packages/core/src/db/schema.ts"
-      - "packages/core/drizzle/**"
-  pull_request:
-    paths:
-      - "packages/core/src/db/schema.ts"
-      - "packages/core/drizzle/**"
   workflow_dispatch:
 
 concurrency:

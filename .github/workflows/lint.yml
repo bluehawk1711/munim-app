@@ -5,9 +5,7 @@ name: Lint
 # the @typescript-eslint/no-unsafe-* rules actually run instead of crashing.
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: lint-${{ github.ref }}

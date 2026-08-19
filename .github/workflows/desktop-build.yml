@@ -25,15 +25,20 @@ jobs:
       # Required: VITE_API_URL + VITE_API_KEY — the installed app uses them to
       # reach the API without onboarding. Optional: the Cloudinary fallback vars
       # (VITE_CLOUDINARY_*) — image uploads still work through the API.
+      # (Checked inside a run step: the `secrets` context is unavailable in `if:`.)
       - name: Verify required build secrets
-        if: ${{ secrets.VITE_API_URL == '' || secrets.VITE_API_KEY == '' }}
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
         run: |
-          echo "::error::Desktop build requires these GitHub secrets (Settings → Secrets and variables → Actions):"
-          echo "::error::  VITE_API_URL   — deployed Munim API base URL"
-          echo "::error::  VITE_API_KEY   — desktop platform key"
-          echo "::error::Optional (direct Cloudinary upload fallback):"
-          echo "::error::  VITE_CLOUDINARY_CLOUD_NAME, VITE_CLOUDINARY_UPLOAD_PRESET"
-          exit 1
+          if [ -z "$VITE_API_URL" ] || [ -z "$VITE_API_KEY" ]; then
+            echo "::error::Desktop build requires these GitHub secrets (Settings → Environments → Production → Environment secrets):"
+            echo "::error::  VITE_API_URL   — deployed Munim API base URL"
+            echo "::error::  VITE_API_KEY   — desktop platform key"
+            echo "::error::Optional (direct Cloudinary upload fallback):"
+            echo "::error::  VITE_CLOUDINARY_CLOUD_NAME, VITE_CLOUDINARY_UPLOAD_PRESET"
+            exit 1
+          fi
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
