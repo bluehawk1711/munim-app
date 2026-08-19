@@ -27,6 +27,7 @@ jobs:
       # (VITE_CLOUDINARY_*) — image uploads still work through the API.
       # (Checked inside a run step: the `secrets` context is unavailable in `if:`.)
       - name: Verify required build secrets
+        shell: bash
         env:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_API_KEY: ${{ secrets.VITE_API_KEY }}

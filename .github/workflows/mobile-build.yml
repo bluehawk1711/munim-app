@@ -33,6 +33,7 @@ jobs:
       # (EXPO_PUBLIC_CLOUDINARY_*) — image uploads still work through the API.
       # (Checked inside a run step: the `secrets` context is unavailable in `if:`.)
       - name: Verify required build secrets
+        shell: bash
         env:
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
           EXPO_PUBLIC_API_KEY: ${{ secrets.EXPO_PUBLIC_API_KEY }}
