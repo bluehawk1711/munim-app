@@ -22,8 +22,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build shared core
-        run: pnpm --filter @munim/core build
+      # Consumers import the shared packages (@munim/core, @munim/api-client,
+      # @munim/query, @munim/store, @munim/ui, @munim/theme) from their dist/ —
+      # build the whole upstream graph (turbo `^` = dependencies only, not the
+      # app itself).
+      - name: Build shared packages
+        run: pnpm exec turbo run build --filter=@munim/web^
 
       - name: Typecheck
         run: pnpm --filter @munim/web typecheck

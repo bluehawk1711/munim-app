@@ -61,9 +61,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Consumers import @munim/core from its dist/ — build it before the app.
-      - name: Build shared core
-        run: pnpm --filter @munim/core build
+      # Consumers import the shared packages (@munim/core, @munim/api-client,
+      # @munim/query, @munim/store, @munim/ui, @munim/theme) from their dist/ —
+      # build the whole upstream graph (turbo `^` = dependencies only, not the
+      # app itself; tauri-action rebuilds the app in beforeBuildCommand).
+      - name: Build shared packages
+        run: pnpm exec turbo run build --filter=@munim/desktop^
 
       # Build-time env — bake the API URL/key and the Cloudinary UNSIGNED
       # upload preset into the installer. VITE_* vars are inlined by Vite;
