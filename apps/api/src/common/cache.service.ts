@@ -92,8 +92,10 @@ export class CacheService {
     const full = this.ns(key);
     if (this.redis) {
       try {
-        const raw = await this.redis.get<string>(full);
-        return raw === null ? null : (JSON.parse(raw) as T);
+        // The Upstash SDK auto-serializes/deserializes — passing values to
+        // `set` as-is and reading them back here. Manual JSON.parse on the
+        // returned value would double-decode ("[object Object]" errors).
+        return await this.redis.get<T>(full);
       } catch (err) {
         this.warnOnce(`Cache: get failed for ${key} — ${(err as Error).message}`);
         return null;
@@ -110,14 +112,12 @@ export class CacheService {
 
   async set(key: string, value: unknown, ttlSeconds: number): Promise<void> {
     const full = this.ns(key);
-    const serialized = JSON.stringify(value);
     if (this.redis) {
-      // `ex` keeps the REST SDK from re-serializing the JSON string as JSON.
-      await this.redis.set(full, serialized, { ex: ttlSeconds });
+      await this.redis.set(full, value, { ex: ttlSeconds });
       return;
     }
     this.memory.set(full, {
-      value: serialized,
+      value: JSON.stringify(value),
       expiresAt: Date.now() + ttlSeconds * 1000,
     });
   }
