@@ -52,7 +52,7 @@ export function getAllowedApiKeys(env: ApiEnv): string[] {
 
 export function getCorsOrigins(env: ApiEnv): string[] {
   return env.CORS_ORIGINS.split(",")
-    .map((s) => s.trim())
+    .map((s) => s.trim().replace(/\/+$/, ""))
     .filter((s) => s.length > 0);
 }
 
