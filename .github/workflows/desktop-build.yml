@@ -8,6 +8,9 @@ on:
 
 jobs:
   build:
+    # Secrets (VITE_API_URL, VITE_API_KEY, …) are stored in the "Production"
+    # environment (Settings → Environments → Production → Environment secrets).
+    environment: production
     strategy:
       fail-fast: false
       matrix:

@@ -18,6 +18,10 @@ on:
 
 jobs:
   android-apk:
+    # Secrets (EXPO_PUBLIC_API_URL, EXPO_PUBLIC_API_KEY, …) are stored in the
+    # "Production" environment (Settings → Environments → Production →
+    # Environment secrets).
+    environment: production
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
