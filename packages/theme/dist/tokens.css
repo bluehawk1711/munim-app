@@ -1,6 +1,6 @@
 /* AUTO-GENERATED from packages/theme/src/tokens.ts — do not edit.
    Change tokens there, then run `pnpm --filter @munim/theme build`. */
-:root, [data-theme="apple"] {
+:root:not([data-theme]), [data-theme="apple"] {
   --radius: 0.75rem;
   --background: #fcfbf8;
   --foreground: #0c0b09;
@@ -38,7 +38,7 @@
   --sidebar-ring: #846324;
 }
 
-.dark, [data-theme="apple"].dark {
+.dark:not([data-theme]), [data-theme="apple"].dark {
   --radius: 0.75rem;
   --background: #080705;
   --foreground: #edebe7;

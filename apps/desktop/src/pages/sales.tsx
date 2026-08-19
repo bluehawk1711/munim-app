@@ -68,7 +68,7 @@ export function SalesPage() {
   const allProducts = allProductsData?.products;
 
   const { startDate, endDate } = rangeToDates(range);
-  const { data: recent, loading: loadingRecent } = useQueryState(
+  const { data: recent, loading: loadingRecent, refetching } = useQueryState(
     useInvoices({ search, startDate, endDate, pageSize: 200 }),
   );
 
@@ -181,6 +181,9 @@ export function SalesPage() {
               <SelectItem value="year">This year</SelectItem>
             </SelectContent>
           </Select>
+          {refetching && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          )}
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setRange("all") }} className="h-9 gap-1">
               <X className="h-3.5 w-3.5" /> Clear
@@ -243,7 +246,7 @@ export function SalesPage() {
             </label>
 
             <Button className="w-full" onClick={handleSell} disabled={saving}>
-              {saving ? "Selling…" : `Sell for ${money((Number(quantity) || 0) * (Number(price) || 0))}`}
+              {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Selling…</> : `Sell for ${money((Number(quantity) || 0) * (Number(price) || 0))}`}
             </Button>
           </CardContent>
         </Card>

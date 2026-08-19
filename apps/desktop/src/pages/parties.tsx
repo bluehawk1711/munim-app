@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, ArrowUpRight, ArrowDownLeft, Search, Trash2, Users } from "lucide-react";
+import { Plus, ArrowUpRight, ArrowDownLeft, Search, Trash2, Users, Loader2 } from "lucide-react";
 import { formatDate } from "@munim/core";
 import {
   usePartyBalances,
@@ -54,6 +54,7 @@ export function PartiesPage() {
   const [newType, setNewType] = useState<PartyType>("CUSTOMER");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [adding, setAdding] = useState(false);
 
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [advanceDirection, setAdvanceDirection] = useState<"GIVEN" | "TAKEN">("GIVEN");
@@ -78,6 +79,7 @@ export function PartiesPage() {
       toast.error("Party name is required");
       return;
     }
+    setAdding(true);
     try {
       const party = await createParty.mutateAsync({ name: newName.trim(), phone: newPhone.trim() || undefined, type: newType });
       setAddOpen(false);
@@ -88,6 +90,8 @@ export function PartiesPage() {
       toast.success("Party added");
     } catch (err) {
       toast.error("Failed to add party", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -393,7 +397,9 @@ export function PartiesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-            <Button onClick={handleAddParty}>Add</Button>
+            <Button onClick={handleAddParty} disabled={adding || !newName.trim()}>
+              {adding ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Adding…</> : "Add"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -407,7 +413,7 @@ export function PartiesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleteId(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="gap-1.5">
-              <Trash2 className="h-4 w-4" /> Delete
+              {deleting ? <><Loader2 className="h-4 w-4 animate-spin" /> Deleting…</> : <><Trash2 className="h-4 w-4" /> Delete</>}
             </Button>
           </DialogFooter>
         </DialogContent>

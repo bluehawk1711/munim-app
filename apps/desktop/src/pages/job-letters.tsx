@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Trash2, Download } from "lucide-react";
+import { Plus, Trash2, Download, Loader2 } from "lucide-react";
 import {
   jobLetterFromStored,
   formatDate,
@@ -216,8 +216,8 @@ export function JobLettersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button variant="outline" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
-            <Button onClick={handleSaveAndDownload} disabled={saving}>{saving ? "Working…" : "Save & Download PDF"}</Button>
+            <Button variant="outline" onClick={handleSave} disabled={saving}>{saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : "Save"}</Button>
+            <Button onClick={handleSaveAndDownload} disabled={saving}>{saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Working…</> : "Save & Download PDF"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Trash2, Download, Wallet } from "lucide-react";
+import { Plus, Trash2, Download, Wallet, Loader2 } from "lucide-react";
 import {
   buildBillDocument,
   type BillDocument,
@@ -151,6 +151,7 @@ export function BillingPage() {
 
   const [payingInvoice, setPayingInvoice] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState("");
+  const [recordingPayment, setRecordingPayment] = useState(false);
   const recordPayment = useRecordInvoicePayment(payingInvoice?.id ?? "");
 
   const distinct = twoInOne && mode === "distinct";
@@ -351,6 +352,7 @@ export function BillingPage() {
       toast.error("Enter a positive amount");
       return;
     }
+    setRecordingPayment(true);
     try {
       await recordPayment.mutateAsync({ amount, method: "cash" });
       toast.success("Payment recorded");
@@ -358,6 +360,8 @@ export function BillingPage() {
       setPayAmount("");
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setRecordingPayment(false);
     }
   }
 
@@ -489,7 +493,7 @@ export function BillingPage() {
               )}
 
               <Button className="w-full" onClick={handleCreate} disabled={saving}>
-                {saving ? "Saving…" : `Create invoice — ${money(total)}${distinct ? ` + ${money(secondTotal)}` : ""}`}
+                {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : `Create invoice — ${money(total)}${distinct ? ` + ${money(secondTotal)}` : ""}`}
               </Button>
             </div>
 
@@ -617,7 +621,9 @@ export function BillingPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPayingInvoice(null)}>Cancel</Button>
-            <Button onClick={handleRecordPayment}>Record payment</Button>
+            <Button onClick={handleRecordPayment} disabled={recordingPayment}>
+              {recordingPayment ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Recording…</> : "Record payment"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

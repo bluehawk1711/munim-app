@@ -15,6 +15,10 @@ export {
 } from "./billDocument.js";
 
 export {
+  generateBillPDF,
+} from "./generateBillPdf.js";
+
+export {
   defaultJobLetterData,
   formatJoiningDate,
   jobLetterFromStored,

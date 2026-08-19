@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon } from "lucide-react";
+import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2 } from "lucide-react";
 import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
 import { useSettings, useUpdateSettings, useQueryState } from "@munim/query";
@@ -75,6 +75,8 @@ export function SettingsPage() {
   const [testOpen, setTestOpen] = useState(false);
   const [testState, setTestState] = useState<ConnectionTestState>("testing");
   const [testError, setTestError] = useState<string | undefined>();
+  const [savingShop, setSavingShop] = useState(false);
+  const [savingUrl, setSavingUrl] = useState(false);
 
   // Masked host of the currently saved URL (shown instead of the raw string).
   const savedHost = maskApiHost(getSavedApiUrl());
@@ -92,6 +94,7 @@ export function SettingsPage() {
   }, [settings]);
 
   async function handleSaveShop() {
+    setSavingShop(true);
     try {
       await updateSettings.mutateAsync({
         shopName: shopName.trim() || "My Shop",
@@ -104,6 +107,8 @@ export function SettingsPage() {
       toast.success("Settings saved");
     } catch (err) {
       toast.error("Failed to save", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSavingShop(false);
     }
   }
 
@@ -142,6 +147,7 @@ export function SettingsPage() {
       toast.error("Enter the server URL first");
       return;
     }
+    setSavingUrl(true);
     setTestOpen(true);
     const ok = await runConnectionTest(url, apiKey);
     if (ok) {
@@ -152,6 +158,7 @@ export function SettingsPage() {
     } else {
       toast.error("Not saved — connection failed");
     }
+    setSavingUrl(false);
   }
 
   const sections: SettingsSection[] = [
@@ -224,8 +231,8 @@ export function SettingsPage() {
                 <Input id="st-threshold" type="number" min={0} value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} />
               </div>
             </div>
-            <Button onClick={handleSaveShop}>
-              <Save className="h-4 w-4" /> Save shop profile
+            <Button onClick={handleSaveShop} disabled={savingShop}>
+              {savingShop ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : <><Save className="h-4 w-4" /> Save shop profile</>}
             </Button>
           </CardContent>
         </Card>
@@ -354,8 +361,8 @@ export function SettingsPage() {
               <Button variant="outline" onClick={handleTestConnection} disabled={testState === "testing"}>
                 {testState === "testing" ? "Testing…" : "Test connection"}
               </Button>
-              <Button onClick={handleSaveUrl}>
-                <Save className="h-4 w-4" /> Save &amp; reconnect
+              <Button onClick={handleSaveUrl} disabled={savingUrl}>
+                {savingUrl ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : <><Save className="h-4 w-4" /> Save &amp; reconnect</>}
               </Button>
               <Button variant="ghost" onClick={() => { resetApi(); toast.success("Client reset"); }}>
                 <RotateCcw className="h-4 w-4" /> Reset client

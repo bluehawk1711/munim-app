@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Package } from "lucide-react";
+import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Package, Loader2 } from "lucide-react";
 import {
   swatchColor,
   type CatalogItem,
@@ -283,7 +283,7 @@ export function CatalogPage() {
                 Cancel
               </Button>
               <Button onClick={handleSubmit} disabled={saving || !name.trim()}>
-                {saving ? "Saving…" : dialog?.mode === "rename" ? "Save" : "Create"}
+                {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : dialog?.mode === "rename" ? "Save" : "Create"}
               </Button>
             </DialogFooter>
           </div>

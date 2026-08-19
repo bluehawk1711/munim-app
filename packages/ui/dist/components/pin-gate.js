@@ -425,7 +425,7 @@ function LoginScreen({ lock, onOpenConnectionSettings, }) {
 /* ────────────────────────────────────────────────────────────────
  * Gate
  * ──────────────────────────────────────────────────────────────── */
-export function PinGate({ children, onboarding = false, pingApiUrl, }) {
+export function PinGate({ children, onboarding = false, pingApiUrl, buildTimeApiUrl, }) {
     const lock = usePinLock();
     const [phase, setPhase] = React.useState("gate");
     const [setupChecked, setSetupChecked] = React.useState(false);
@@ -435,9 +435,9 @@ export function PinGate({ children, onboarding = false, pingApiUrl, }) {
             setSetupChecked(true);
             return;
         }
-        setPhase(getSavedApiUrl() ? "gate" : "onboarding");
+        setPhase(getSavedApiUrl() || buildTimeApiUrl ? "gate" : "onboarding");
         setSetupChecked(true);
-    }, [onboarding]);
+    }, [onboarding, buildTimeApiUrl]);
     if (!setupChecked || lock.status === "loading")
         return null;
     if (phase === "onboarding") {

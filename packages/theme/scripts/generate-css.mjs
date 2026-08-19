@@ -33,8 +33,19 @@ const lines = [
 for (const name of themeNames) {
   const t = themes[name];
   if (!t) continue;
-  const lightSel = name === defaultTheme ? ':root, [data-theme="apple"]' : `[data-theme="${name}"]`;
-  const darkSel = name === defaultTheme ? '.dark, [data-theme="apple"].dark' : `[data-theme="${name}"].dark`;
+  // Every theme uses the same [data-theme="X"] selector pattern so
+  // specificity is equal across themes. The default theme (apple) gets an
+  // extra :root/:root:not([data-theme]) fallback so CSS vars are present
+  // even before the JS sets data-theme on first paint. The :not() guard
+  // ensures that once a user picks a DIFFERENT theme its [data-theme="X"]
+  // wins over the :root fallback (attribute selector = higher specificity).
+  const isDefault = name === defaultTheme;
+  const lightSel = isDefault
+    ? ':root:not([data-theme]), [data-theme="apple"]'
+    : `[data-theme="${name}"]`;
+  const darkSel = isDefault
+    ? '.dark:not([data-theme]), [data-theme="apple"].dark'
+    : `[data-theme="${name}"].dark`;
 
   lines.push(`${lightSel} {`, `  --radius: ${radius};`);
   for (const [key, value] of Object.entries(t.light)) {

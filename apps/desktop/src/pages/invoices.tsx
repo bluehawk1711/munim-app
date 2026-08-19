@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Receipt, Trash2, IndianRupee, CheckCircle2, Clock, FileText } from "lucide-react";
+import { Search, Receipt, Trash2, IndianRupee, CheckCircle2, Clock, FileText, Loader2 } from "lucide-react";
 import { formatDate, formatCurrency } from "@munim/core";
 import type { InvoiceDto, InvoiceFilters } from "@munim/api-client";
 import {
@@ -33,7 +33,7 @@ export function InvoicesPage() {
   const [status, setStatus] = useState<InvoiceFilters["status"]>("all");
   const [page, setPage] = useState(1);
 
-  const { data, loading } = useQueryState(
+  const { data, loading, refetching } = useQueryState(
     useInvoices({ search, status, page, pageSize: 15 }),
   );
 
@@ -57,12 +57,15 @@ export function InvoicesPage() {
 
   async function confirmDelete() {
     if (!deleting) return;
+    setSaving(true);
     try {
       await deleteInvoice.mutateAsync(deleting.id);
       toast.success("Invoice deleted", { description: `${deleting.invoiceNumber} removed and stock restored.` });
       setDeleting(null);
     } catch (err) {
       toast.error("Delete failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -99,6 +102,9 @@ export function InvoicesPage() {
               aria-label="Search invoices"
             />
           </div>
+          {refetching && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          )}
           <Select value={status} onValueChange={(v) => setStatus(v as InvoiceFilters["status"])}>
             <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
               <SelectValue placeholder="Status" />

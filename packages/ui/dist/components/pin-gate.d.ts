@@ -73,7 +73,7 @@ export declare function ResetConfigScreen({ onCleared, onCancel, }: {
     onCleared: () => void;
     onCancel: () => void;
 }): React.JSX.Element;
-export declare function PinGate({ children, onboarding, pingApiUrl, }: {
+export declare function PinGate({ children, onboarding, pingApiUrl, buildTimeApiUrl, }: {
     children: React.ReactNode;
     /** Enable the first-run onboarding when no API URL is saved yet. Web keeps
      *  this off (env-driven); desktop enables it. */
@@ -81,6 +81,10 @@ export declare function PinGate({ children, onboarding, pingApiUrl, }: {
     /** Platform probe (desktop: pingApiUrl → GET /readyz) used by the onboarding
      *  "Test connection" button. */
     pingApiUrl?: (url: string) => Promise<void>;
+    /** Build-time API URL (VITE_API_URL) — when set alongside `onboarding`,
+     *  the onboarding screen is skipped because the app already knows where to
+     *  connect. */
+    buildTimeApiUrl?: string;
 }): React.JSX.Element | null;
 export {};
 //# sourceMappingURL=pin-gate.d.ts.map

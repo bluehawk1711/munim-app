@@ -61,7 +61,7 @@ function stockVariant(p: ProductDto): "success" | "warning" | "destructive" | "s
 
 export function ProductsPage() {
   const [search, setSearch] = useState("");
-  const { data, error, loading, reload } = useQueryState(useProducts({ search, pageSize: 200 }));
+  const { data, error, loading, refetching, reload } = useQueryState(useProducts({ search, pageSize: 200 }));
   const products = data?.products ?? [];
   const getClient = useApiClient();
   const createProduct = useCreateProduct();
@@ -81,6 +81,7 @@ export function ProductsPage() {
   const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
   const [adjustQty, setAdjustQty] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
+  const [isAdjustingStock, setIsAdjustingStock] = useState(false);
 
   const [labelTarget, setLabelTarget] = useState<ProductDto | null>(null);
   const [labelOpen, setLabelOpen] = useState(false);
@@ -272,6 +273,7 @@ export function ProductsPage() {
       toast.error("Enter a non-zero quantity");
       return;
     }
+    setIsAdjustingStock(true);
     try {
       await adjustStock.mutateAsync({ id: adjusting.id, values: { adjustment: qty, reason: adjustReason.trim() || undefined } });
       toast.success("Stock adjusted");
@@ -280,6 +282,8 @@ export function ProductsPage() {
       setAdjustReason("");
     } catch (err) {
       toast.error("Adjustment failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setIsAdjustingStock(false);
     }
   }
 
@@ -298,6 +302,9 @@ export function ProductsPage() {
           </div>
           {/* Scanner-friendly input: USB barcode scanners type here + Enter. */}
           <BarcodeLookupInput onLookup={handleBarcodeLookup} className="w-full sm:max-w-[240px]" />
+          {refetching && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          )}
         </div>
         <div className="flex items-center gap-2">
           {missingBarcodes && (
@@ -500,7 +507,9 @@ export function ProductsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setFormOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save"}</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -563,7 +572,9 @@ export function ProductsPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAdjusting(null)}>Cancel</Button>
-            <Button onClick={handleAdjust}>Adjust</Button>
+            <Button onClick={handleAdjust} disabled={isAdjustingStock}>
+              {isAdjustingStock ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Adjusting…</> : "Adjust"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
