@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "start": "expo start",
