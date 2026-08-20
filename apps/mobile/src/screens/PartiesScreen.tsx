@@ -1,6 +1,16 @@
+/**
+ * PartiesScreen — party management, ledger, advances, payments.
+ *
+ * Redesigned with:
+ * - Responsive party cards with balance indicators
+ * - BottomSheet-based ledger view
+ * - FlashList for party list
+ * - Keyboard-aware forms
+ */
+
 import React, {useState} from 'react';
-import {FlatList, StyleSheet, Text, View} from 'react-native';
-import Animated, {FadeInDown} from 'react-native-reanimated';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
 import {formatDate} from '@munim/core';
 import {
   useAdvances,
@@ -14,6 +24,7 @@ import {
 } from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
+import {rw, rh, rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
 import {
   Badge,
   Button,
@@ -23,7 +34,6 @@ import {
   Header,
   Loading,
   ModalSheet,
-  Row,
   Screen,
   colors,
 } from '../components/ui';
@@ -33,77 +43,53 @@ export function PartiesScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: balancesData, loading} = useQueryState(usePartyBalances());
   const parties = balancesData?.balances;
+
+  // Selection / ledger
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [addOpen, setAddOpen] = useState(false);
-  const [newName, setNewName] = useState('');
-
-  const [advanceOpen, setAdvanceOpen] = useState(false);
-  const [direction, setDirection] = useState<'GIVEN' | 'TAKEN'>('GIVEN');
-  const [amount, setAmount] = useState('');
-
-  const [paymentOpen, setPaymentOpen] = useState(false);
-  const [paymentDirection, setPaymentDirection] = useState<'IN' | 'OUT'>('IN');
-  const [paymentAmount, setPaymentAmount] = useState('');
-
-  const [saving, setSaving] = useState(false);
-
-  // Ledger + open advances are cached queries driven by the selected party.
   const partyQ = useQueryState(useParty(selectedId));
   const advancesQ = useQueryState(useAdvances(selectedId ?? undefined));
   const ledger = partyQ.data?.ledger ?? null;
   const ledgerLoading = partyQ.loading;
-  const openAdvances = (advancesQ.data ?? [])
-    .filter(a => a.status === 'OPEN')
-    .map(a => ({id: a.id, direction: a.direction, amount: a.amount, date: a.date}));
-
+  const openAdvances = (advancesQ.data ?? []).filter(a => a.status === 'OPEN');
   const selected = parties?.find(p => p.id === selectedId) ?? null;
 
+  // Sheets
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [advanceOpen, setAdvanceOpen] = useState(false);
+  const [direction, setDirection] = useState<'GIVEN' | 'TAKEN'>('GIVEN');
+  const [amount, setAmount] = useState('');
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentDirection, setPaymentDirection] = useState<'IN' | 'OUT'>('IN');
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  // Mutations
   const settleAdvance = useSettleAdvance();
   const createParty = useCreateParty();
   const createAdvance = useCreateAdvance();
   const recordPartyPayment = useRecordPartyPayment();
 
-  function openLedger(party: {id: string}) {
-    setSelectedId(party.id);
-  }
-
-  async function handleSettleAdvance(id: string) {
-    try {
-      await settleAdvance.mutateAsync(id);
-      successFeedback();
-    } catch {
-      errorFeedback();
-      // keep for retry
-    }
-  }
-
   async function handleAddParty() {
-    if (!newName.trim()) {
-      return;
-    }
+    if (!newName.trim()) return;
     setSaving(true);
     try {
       const party = await createParty.mutateAsync({name: newName.trim(), type: 'CUSTOMER'});
       successFeedback();
       setAddOpen(false);
       setNewName('');
-      void openLedger(party);
+      setSelectedId(party.id);
     } catch {
       errorFeedback();
-      // keep modal open
     } finally {
       setSaving(false);
     }
   }
 
   async function handleAdvance() {
-    if (!selectedId) {
-      return;
-    }
+    if (!selectedId) return;
     const value = Number(amount);
-    if (!value || value <= 0) {
-      return;
-    }
+    if (!value || value <= 0) return;
     setSaving(true);
     try {
       await createAdvance.mutateAsync({partyId: selectedId, direction, amount: value});
@@ -112,166 +98,134 @@ export function PartiesScreen() {
       setAmount('');
     } catch {
       errorFeedback();
-      // keep modal open
     } finally {
       setSaving(false);
     }
   }
 
   async function handlePayment() {
-    if (!selectedId) {
-      return;
-    }
+    if (!selectedId) return;
     const value = Number(paymentAmount);
-    if (!value || value <= 0) {
-      return;
-    }
+    if (!value || value <= 0) return;
     setSaving(true);
     try {
-      await recordPartyPayment.mutateAsync({
-        partyId: selectedId,
-        direction: paymentDirection,
-        amount: value,
-        method: 'cash',
-      });
+      await recordPartyPayment.mutateAsync({partyId: selectedId, direction: paymentDirection, amount: value, method: 'cash'});
       successFeedback();
       setPaymentOpen(false);
       setPaymentAmount('');
     } catch {
       errorFeedback();
-      // keep for retry
     } finally {
       setSaving(false);
     }
   }
 
+  async function handleSettleAdvance(id: string) {
+    try {
+      await settleAdvance.mutateAsync(id);
+      successFeedback();
+    } catch {
+      errorFeedback();
+    }
+  }
+
+  const renderParty = ({item, index}: {item: typeof parties extends Array<infer T> ? T : never; index: number}) => (
+    <Card style={{marginHorizontal: CARD_MARGIN}} index={index}>
+      <Pressable onPress={() => setSelectedId(item.id === selectedId ? null : item.id)} hitSlop={6}>
+        <View style={styles.partyRow}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
+          </View>
+          <View style={{flex: 1}}>
+            <Text style={styles.partyName} numberOfLines={1}>
+              {item.name}
+              {item.phone ? ` · ${item.phone}` : ''}
+            </Text>
+            <View style={{flexDirection: 'row', gap: spacing.sm, marginTop: rs(4)}}>
+              <Badge text={`Given ${money(item.given)}`} tone="danger" />
+              <Badge text={`Taken ${money(item.taken)}`} tone="success" />
+            </View>
+          </View>
+          <Text
+            style={[styles.partyBalance, {color: item.balance > 0 ? colors.danger : item.balance < 0 ? colors.success : colors.muted}]}>
+            {item.balance > 0 ? `${money(item.balance)} due` : item.balance < 0 ? `${money(-item.balance)} owed` : 'Settled'}
+          </Text>
+        </View>
+      </Pressable>
+
+      {/* Expanded actions */}
+      {item.id === selectedId ? (
+        <View style={styles.expandedActions}>
+          <View style={styles.actionRow}>
+            <Button title="Advance given" variant="outline" size="small" style={{flex: 1}} onPress={() => { setDirection('GIVEN'); setAmount(''); setAdvanceOpen(true); }} />
+            <Button title="Advance taken" variant="outline" size="small" style={{flex: 1}} onPress={() => { setDirection('TAKEN'); setAmount(''); setAdvanceOpen(true); }} />
+          </View>
+          <View style={styles.actionRow}>
+            <Button title="Money in" variant="outline" size="small" style={{flex: 1}} onPress={() => { setPaymentDirection('IN'); setPaymentAmount(''); setPaymentOpen(true); }} />
+            <Button title="Money out" variant="outline" size="small" style={{flex: 1}} onPress={() => { setPaymentDirection('OUT'); setPaymentAmount(''); setPaymentOpen(true); }} />
+          </View>
+          {openAdvances.length > 0 ? (
+            <View style={{marginTop: spacing.sm}}>
+              <Text style={styles.openLabel}>Open advances</Text>
+              {openAdvances.map(a => (
+                <View key={a.id} style={styles.advanceRow}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.advanceAmount}>
+                      {money(a.amount)}{' '}
+                      <Text style={{color: a.direction === 'GIVEN' ? colors.danger : colors.success, fontWeight: '400'}}>
+                        {a.direction === 'GIVEN' ? 'given' : 'taken'}
+                      </Text>
+                    </Text>
+                    <Text style={{fontSize: typography.caption, color: colors.muted}}>{formatDate(a.date)}</Text>
+                  </View>
+                  <Button title="Settle" variant="outline" size="small" onPress={() => handleSettleAdvance(a.id)} />
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+    </Card>
+  );
+
   return (
     <Screen>
-      <Header title="Parties & Khata" subtitle="Who owes whom — advances given & taken" />
+      <Header title="Parties & Khata" subtitle="Advances given & taken" />
+
       {loading || !parties ? (
         <Loading />
       ) : (
-        <FlatList
+        <FlashList
           data={parties}
+          renderItem={renderParty}
           keyExtractor={item => item.id}
+          estimatedItemSize={rs(120)}
           ListHeaderComponent={
-            <Animated.View entering={FadeInDown.duration(280)} style={{marginHorizontal: 16, marginBottom: 10}}>
+            <View style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}}>
               <Button title="+ Add party" onPress={() => setAddOpen(true)} />
-            </Animated.View>
+            </View>
           }
-          ListEmptyComponent={<Empty text="No parties yet — add customers, suppliers or workers" />}
-          contentContainerStyle={{paddingBottom: 90}}
-          renderItem={({item, index}) => (
-            <Card index={index}>
-              <Row
-                label={`${item.name}${item.phone ? ` · ${item.phone}` : ''}`}
-                value={
-                  item.balance > 0
-                    ? `${money(item.balance)} due`
-                    : item.balance < 0
-                    ? `${money(-item.balance)} owed`
-                    : 'Settled'
-                }
-                valueColor={item.balance > 0 ? colors.danger : item.balance < 0 ? colors.success : colors.muted}
-                onPress={() => openLedger(item)}
-              />
-              {item.id === selectedId ? (
-                <View style={{marginTop: 6, gap: 8}}>
-                  <View style={{flexDirection: 'row', gap: 8}}>
-                    <View style={{flex: 1}}>
-                      <Badge text={`Given ${money(item.given)}`} tone="danger" />
-                    </View>
-                    <View style={{flex: 1}}>
-                      <Badge text={`Taken ${money(item.taken)}`} tone="success" />
-                    </View>
-                  </View>
-                  <View style={{flexDirection: 'row', gap: 8}}>
-                    <Button
-                      title="Advance given"
-                      variant="outline"
-                      style={{flex: 1}}
-                      onPress={() => {
-                        setDirection('GIVEN');
-                        setAmount('');
-                        setAdvanceOpen(true);
-                      }}
-                    />
-                    <Button
-                      title="Advance taken"
-                      variant="outline"
-                      style={{flex: 1}}
-                      onPress={() => {
-                        setDirection('TAKEN');
-                        setAmount('');
-                        setAdvanceOpen(true);
-                      }}
-                    />
-                  </View>
-                  <View style={{flexDirection: 'row', gap: 8}}>
-                    <Button
-                      title="Money in"
-                      variant="outline"
-                      style={{flex: 1}}
-                      onPress={() => {
-                        setPaymentDirection('IN');
-                        setPaymentAmount('');
-                        setPaymentOpen(true);
-                      }}
-                    />
-                    <Button
-                      title="Money out"
-                      variant="outline"
-                      style={{flex: 1}}
-                      onPress={() => {
-                        setPaymentDirection('OUT');
-                        setPaymentAmount('');
-                        setPaymentOpen(true);
-                      }}
-                    />
-                  </View>
-                  {openAdvances && openAdvances.length > 0 ? (
-                    <View style={{gap: 6, marginTop: 4}}>
-                      <Text style={{fontSize: 11, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4}}>
-                        Open advances
-                      </Text>
-                      {openAdvances.map(a => (
-                        <View key={a.id} style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8}}>
-                          <View style={{flex: 1}}>
-                            <Text style={{fontSize: 13, color: colors.text, fontWeight: '600'}}>
-                              {money(a.amount)}{' '}
-                              <Text style={{color: a.direction === 'GIVEN' ? colors.danger : colors.success, fontWeight: '400'}}>
-                                {a.direction === 'GIVEN' ? 'given' : 'taken'}
-                              </Text>
-                            </Text>
-                            <Text style={{fontSize: 11, color: colors.muted}}>{formatDate(a.date)}</Text>
-                          </View>
-                          <Button title="Settle" variant="outline" onPress={() => handleSettleAdvance(a.id)} />
-                        </View>
-                      ))}
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
-            </Card>
-          )}
+          ListEmptyComponent={<Empty text="No parties yet" />}
+          contentContainerStyle={{paddingBottom: spacing.xxxl}}
         />
       )}
 
+      {/* Ledger display below list when a party is selected */}
       {ledger && selected ? (
-        <Card index={1}>
+        <Card style={{marginHorizontal: CARD_MARGIN, marginTop: spacing.sm}}>
           <Text style={styles.ledgerTitle}>Ledger — {selected.name}</Text>
           {ledgerLoading ? (
-            <Loading />
+            <Loading rows={3} />
           ) : ledger.lines.length === 0 ? (
-            <Text style={{color: colors.muted, fontSize: 13}}>No transactions yet</Text>
+            <Text style={{color: colors.muted, fontSize: typography.secondary}}>No transactions yet</Text>
           ) : (
             ledger.lines.map(line => (
               <View key={line.id} style={styles.ledgerLine}>
                 <View style={{flex: 1}}>
-                  <Text style={{fontSize: 13, color: colors.text}}>{line.description}</Text>
-                  <Text style={{fontSize: 11, color: colors.muted}}>{formatDate(line.date)}</Text>
+                  <Text style={{fontSize: typography.secondary, color: colors.text}}>{line.description}</Text>
+                  <Text style={{fontSize: typography.caption, color: colors.muted}}>{formatDate(line.date)}</Text>
                 </View>
-                <Text style={{fontSize: 13, fontWeight: '600', color: line.balance > 0 ? colors.danger : line.balance < 0 ? colors.success : colors.text}}>
+                <Text style={{fontSize: typography.secondary, fontWeight: '600', color: line.balance > 0 ? colors.danger : line.balance < 0 ? colors.success : colors.text}}>
                   {money(line.balance)}
                 </Text>
               </View>
@@ -280,23 +234,22 @@ export function PartiesScreen() {
         </Card>
       ) : null}
 
+      {/* Add party */}
       <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)} dismissable={!saving}>
-        <Field label="Name" value={newName} onChangeText={setNewName} placeholder="e.g. Ramesh (supplier)" />
-        <Button title="Add" onPress={handleAddParty} />
+        <Field label="Name" value={newName} onChangeText={setNewName} placeholder="e.g. Ramesh" />
+        <Button title={saving ? 'Adding…' : 'Add party'} onPress={handleAddParty} loading={saving} />
       </ModalSheet>
 
+      {/* Advance */}
       <ModalSheet visible={advanceOpen} title={direction === 'GIVEN' ? 'Advance given' : 'Advance taken'} onClose={() => setAdvanceOpen(false)} dismissable={!saving}>
         <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
-        <Button title="Save advance" onPress={handleAdvance} />
+        <Button title={saving ? 'Saving…' : 'Save advance'} onPress={handleAdvance} loading={saving} />
       </ModalSheet>
 
-      <ModalSheet
-        visible={paymentOpen}
-        title={paymentDirection === 'IN' ? 'Money in (received)' : 'Money out (paid)'}
-        onClose={() => setPaymentOpen(false)}
-        dismissable={!saving}>
+      {/* Payment */}
+      <ModalSheet visible={paymentOpen} title={paymentDirection === 'IN' ? 'Money in' : 'Money out'} onClose={() => setPaymentOpen(false)} dismissable={!saving}>
         <Field label="Amount" value={paymentAmount} onChangeText={setPaymentAmount} keyboardType="numeric" />
-        <Button title="Record payment" onPress={handlePayment} />
+        <Button title={saving ? 'Recording…' : 'Record payment'} onPress={handlePayment} loading={saving} />
       </ModalSheet>
     </Screen>
   );
@@ -304,13 +257,30 @@ export function PartiesScreen() {
 
 const makeStyles = () =>
   StyleSheet.create({
-    ledgerTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
+    partyRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
+    avatar: {
+      width: rs(36),
+      height: rs(36),
+      borderRadius: rs(18),
+      backgroundColor: colors.mutedSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {fontSize: typography.secondary, fontWeight: '700', color: colors.text},
+    partyName: {fontSize: typography.body, fontWeight: '600', color: colors.text},
+    partyBalance: {fontSize: typography.secondary, fontWeight: '600'},
+    expandedActions: {marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, gap: spacing.sm},
+    actionRow: {flexDirection: 'row', gap: spacing.sm},
+    openLabel: {fontSize: typography.caption, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: rs(0.4), marginBottom: spacing.xs},
+    advanceRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: spacing.xs},
+    advanceAmount: {fontSize: typography.secondary, fontWeight: '600', color: colors.text},
+    ledgerTitle: {fontSize: typography.h3, fontWeight: '700', color: colors.text, marginBottom: spacing.sm},
     ledgerLine: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      paddingVertical: 6,
-      borderBottomWidth: 1,
+      paddingVertical: spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
   });

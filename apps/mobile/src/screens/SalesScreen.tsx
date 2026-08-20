@@ -1,18 +1,21 @@
+/**
+ * SalesScreen — quick sale entry, recent sales, record payment.
+ *
+ * Redesigned with:
+ * - Clear visual hierarchy: product selection → quantity → sale action
+ * - BottomSheet-based product picker with search
+ * - Responsive layout
+ * - FlashList for recent sales
+ */
+
 import React, {useEffect, useMemo, useState} from 'react';
-import {FlatList, StyleSheet, Text, View} from 'react-native';
-import {
-  formatDate,
-  type InvoiceDto,
-} from '@munim/core';
-import {
-  useCreateSale,
-  useInvoices,
-  useProducts,
-  useQueryState,
-  useRecordInvoicePayment,
-} from '@munim/query';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {FlashList} from '@shopify/flash-list';
+import {formatDate, type InvoiceDto} from '@munim/core';
+import {useCreateSale, useInvoices, useProducts, useQueryState, useRecordInvoicePayment} from '@munim/query';
 import {successFeedback, errorFeedback} from '../lib/haptics';
 import {money} from '../lib/format';
+import {rw, rh, rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
 import {
   Badge,
   Button,
@@ -23,9 +26,7 @@ import {
   Header,
   Loading,
   ModalSheet,
-  Row,
   Screen,
-  Section,
   colors,
 } from '../components/ui';
 import {useThemeStyles} from '../theme';
@@ -36,14 +37,16 @@ export function SalesScreen() {
   const products = productsData?.products;
   const {data: recent, loading} = useQueryState(useInvoices({pageSize: 20}));
 
+  // Product selection
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [price, setPrice] = useState('');
   const [customer, setCustomer] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Invoice payment
+  // Payment
   const [paying, setPaying] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('cash');
@@ -51,46 +54,50 @@ export function SalesScreen() {
   const recordPayment = useRecordInvoicePayment(paying?.id ?? '');
   const createSale = useCreateSale();
 
+  const selected = useMemo(() => products?.find(p => p.id === productId) ?? null, [products, productId]);
+  const total = (Number(quantity) || 0) * (Number(price) || 0);
+
+  // Filtered products for picker
+  const filteredProducts = useMemo(() => {
+    const list = products ?? [];
+    if (!pickerQuery.trim()) return list;
+    const q = pickerQuery.toLowerCase();
+    return list.filter(
+      p =>
+        p.name.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        (p.barcode ?? '').toLowerCase().includes(q),
+    );
+  }, [products, pickerQuery]);
+
+  // Auto-select first product
   useEffect(() => {
     if (products && products.length > 0 && !productId) {
-      setProductId(products[0]?.id ?? '');
+      setProductId(products[0]!.id);
       setPrice(String(products[0]?.sellingPrice ?? 0));
     }
   }, [products, productId]);
 
-  const selected = useMemo(() => products?.find(p => p.id === productId) ?? null, [products, productId]);
-  const total = (Number(quantity) || 0) * (Number(price) || 0);
-
   async function handleRecordPayment() {
-    if (!paying) {
-      return;
-    }
+    if (!paying) return;
     const amount = Number(payAmount);
-    if (!amount || amount <= 0) {
-      return;
-    }
+    if (!amount || amount <= 0) return;
     setPayingNow(true);
     try {
-      await recordPayment.mutateAsync({
-        amount,
-        method: payMethod,
-      });
+      await recordPayment.mutateAsync({amount, method: payMethod});
       successFeedback();
       setPaying(null);
       setPayAmount('');
       setPayMethod('cash');
     } catch {
       errorFeedback();
-      // keep the sheet open so the user can retry
     } finally {
       setPayingNow(false);
     }
   }
 
   async function handleSell() {
-    if (!selected) {
-      return;
-    }
+    if (!selected) return;
     setSaving(true);
     try {
       await createSale.mutateAsync({
@@ -107,125 +114,183 @@ export function SalesScreen() {
       reloadProducts();
     } catch {
       errorFeedback();
-      // keep form for retry
     } finally {
       setSaving(false);
     }
   }
 
+  function selectProduct(p: {id: string; sellingPrice: number; name: string}) {
+    setProductId(p.id);
+    setPrice(String(p.sellingPrice));
+    setPickerOpen(false);
+    setPickerQuery('');
+  }
+
+  const renderSaleItem = useMemo(
+    () =>
+      ({item, index}: {item: InvoiceDto; index: number}) => {
+        const outstanding = Math.max(0, item.total - item.amountPaid);
+        const canPay = item.status !== 'PAID' && outstanding > 0;
+        return (
+          <Card style={{marginHorizontal: CARD_MARGIN}} index={index}>
+            <View style={styles.saleRow}>
+              <View style={{flex: 1}}>
+                <Text style={styles.saleNumber}>{item.invoiceNumber}</Text>
+                <Text style={styles.saleMeta}>
+                  {item.customerName ?? 'Walk-in'} · {formatDate(item.date)}
+                </Text>
+                {canPay ? (
+                  <Text style={styles.saleMeta}>
+                    Paid {money(item.amountPaid)} · Due {money(outstanding)}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={{alignItems: 'flex-end', gap: rs(4)}}>
+                <Text style={styles.saleTotal}>{money(item.total)}</Text>
+                <Badge
+                  text={item.status}
+                  tone={item.status === 'PAID' ? 'success' : item.status === 'PARTIAL' ? 'warning' : 'muted'}
+                />
+                {canPay ? (
+                  <Button
+                    title="Record payment"
+                    variant="outline"
+                    size="small"
+                    onPress={() => {
+                      setPaying(item);
+                      setPayAmount(String(outstanding));
+                      setPayMethod('cash');
+                    }}
+                  />
+                ) : null}
+              </View>
+            </View>
+          </Card>
+        );
+      },
+    [styles],
+  );
+
   return (
     <Screen>
       <Header title="Sales" subtitle="Record a quick sale" />
+
       {!selected ? (
-        <ErrorBox message="Add products in Products first, or set your database in Settings." />
+        <ErrorBox message="Add products in Stock tab first, or set your database in Settings." />
       ) : (
-        <Card index={0}>
-          <Row label="Product" value={selected.name} onPress={() => setPickerOpen(true)} />
-          <Field label="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="numeric" />
-          <Field label="Selling price" value={price} onChangeText={setPrice} keyboardType="numeric" />
-          <Field label="Customer name" value={customer} onChangeText={setCustomer} />
-          <Text style={styles.total}>Total: {money(total)}</Text>
-          <Button title={saving ? 'Selling…' : 'Sell (cash)'} onPress={handleSell} loading={saving} />
-        </Card>
+        <>
+          {/* Sale form card */}
+          <Card style={{marginHorizontal: CARD_MARGIN}} index={0}>
+            {/* Product selector */}
+            <Pressable onPress={() => setPickerOpen(true)} style={styles.productSelector}>
+              <View style={{flex: 1}}>
+                <Text style={styles.selectorLabel}>Product</Text>
+                <Text style={styles.selectorValue} numberOfLines={1}>
+                  {selected.name}
+                </Text>
+              </View>
+              <Text style={styles.selectorChange}>Change</Text>
+            </Pressable>
+
+            <View style={styles.formRow}>
+              <Field
+                label="Qty"
+                value={quantity}
+                onChangeText={setQuantity}
+                keyboardType="numeric"
+                style={{flex: 1}}
+              />
+              <Field
+                label="Price"
+                value={price}
+                onChangeText={setPrice}
+                keyboardType="numeric"
+                style={{flex: 1}}
+              />
+            </View>
+            <Field label="Customer name (optional)" value={customer} onChangeText={setCustomer} />
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>{money(total)}</Text>
+            </View>
+            <Button title={saving ? 'Selling…' : 'Sell (cash)'} onPress={handleSell} loading={saving} />
+          </Card>
+
+          {/* Recent sales */}
+          <Text style={styles.section}>Recent sales</Text>
+          {loading || !recent ? (
+            <Loading />
+          ) : recent.invoices.length === 0 ? (
+            <Empty text="No sales yet" />
+          ) : (
+            <FlashList
+              data={recent.invoices}
+              renderItem={renderSaleItem}
+              keyExtractor={item => item.id}
+              estimatedItemSize={rs(100)}
+              contentContainerStyle={{paddingBottom: spacing.xxxl}}
+            />
+          )}
+        </>
       )}
 
-      <Section title="Recent sales" />
-      {loading || !recent ? (
-        <Loading />
-      ) : recent.invoices.length === 0 ? (
-        <Empty text="No sales yet" />
-      ) : (
-        <FlatList
-          data={recent.invoices}
-          keyExtractor={item => item.id}
-          contentContainerStyle={{paddingBottom: 90}}
-          renderItem={({item, index}) => {
-            const outstanding = Math.max(0, item.total - item.amountPaid);
-            const canPay = item.status !== 'PAID' && outstanding > 0;
-            return (
-              <Card index={index}>
-                <View style={styles.row}>
-                  <View style={{flex: 1}}>
-                    <Text style={styles.name}>{item.invoiceNumber}</Text>
-                    <Text style={styles.meta}>
-                      {item.customerName ?? 'Walk-in'} · {formatDate(item.date)}
-                    </Text>
-                    {canPay ? (
-                      <Text style={styles.meta}>
-                        Paid {money(item.amountPaid)} · Due {money(outstanding)}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View style={{alignItems: 'flex-end', gap: 4}}>
-                    <Text style={styles.name}>{money(item.total)}</Text>
-                    <Badge
-                      text={item.status}
-                      tone={item.status === 'PAID' ? 'success' : item.status === 'PARTIAL' ? 'warning' : 'muted'}
-                    />
-                    {canPay ? (
-                      <Button
-                        title="Record payment"
-                        variant="outline"
-                        onPress={() => {
-                          setPaying(item);
-                          setPayAmount(String(outstanding));
-                          setPayMethod('cash');
-                        }}
-                      />
-                    ) : null}
-                  </View>
-                </View>
-              </Card>
-            );
-          }}
-        />
-      )}
+      {/* Product picker sheet */}
+      <ModalSheet visible={pickerOpen} title="Choose product" onClose={() => { setPickerOpen(false); setPickerQuery(''); }}>
+        <View style={styles.pickerSearch}>
+          <Text style={styles.pickerSearchIcon}>🔍</Text>
+          <Pressable style={{flex: 1}}>
+            <Text style={{fontSize: typography.body, color: colors.muted}}>Search products…</Text>
+          </Pressable>
+        </View>
+        <View style={{maxHeight: rs(400)}}>
+          {filteredProducts.map(p => (
+            <Pressable
+              key={p.id}
+              onPress={() => selectProduct(p)}
+              style={({pressed}) => [
+                styles.pickerRow,
+                p.id === productId && styles.pickerRowActive,
+                pressed && {backgroundColor: colors.mutedSoft},
+              ]}>
+              <View style={{flex: 1}}>
+                <Text
+                  style={[
+                    styles.pickerName,
+                    p.id === productId && {color: colors.primary, fontWeight: '700'},
+                  ]}
+                  numberOfLines={1}>
+                  {p.name}
+                </Text>
+                <Text style={styles.pickerMeta}>
+                  {p.sku} · Stock: {p.stock}
+                </Text>
+              </View>
+              <Text style={styles.pickerPrice}>{money(p.sellingPrice)}</Text>
+            </Pressable>
+          ))}
+          {filteredProducts.length === 0 ? (
+            <Text style={{textAlign: 'center', color: colors.muted, padding: spacing.xl}}>No products found</Text>
+          ) : null}
+        </View>
+      </ModalSheet>
 
+      {/* Payment sheet */}
       <ModalSheet
         visible={paying !== null}
-        title={`Record payment — ${paying?.invoiceNumber ?? ''}`}
+        title={`Payment — ${paying?.invoiceNumber ?? ''}`}
         onClose={() => setPaying(null)}
         dismissable={!payingNow}>
         {paying ? (
           <>
-            <Text style={styles.meta}>
+            <Text style={{fontSize: typography.secondary, color: colors.muted, marginBottom: spacing.md}}>
               Invoice {money(paying.total)} · Paid {money(paying.amountPaid)} · Due{' '}
               {money(Math.max(0, paying.total - paying.amountPaid))}
             </Text>
-            <Field
-              label="Amount"
-              value={payAmount}
-              onChangeText={setPayAmount}
-              keyboardType="numeric"
-            />
-            <Field
-              label="Method"
-              value={payMethod}
-              onChangeText={setPayMethod}
-              placeholder="cash / upi / bank / card"
-            />
-            <Button
-              title={payingNow ? 'Recording…' : 'Record payment'}
-              onPress={handleRecordPayment}
-              loading={payingNow}
-            />
+            <Field label="Amount" value={payAmount} onChangeText={setPayAmount} keyboardType="numeric" />
+            <Field label="Method" value={payMethod} onChangeText={setPayMethod} placeholder="cash / upi / card" />
+            <Button title={payingNow ? 'Recording…' : 'Record payment'} onPress={handleRecordPayment} loading={payingNow} />
           </>
         ) : null}
-      </ModalSheet>
-
-      <ModalSheet visible={pickerOpen} title="Choose product" onClose={() => setPickerOpen(false)}>
-        {products?.map(p => (
-          <Row
-            key={p.id}
-            label={`${p.name} (${p.stock} left)`}
-            value={money(p.sellingPrice)}
-            onPress={() => {
-              setProductId(p.id);
-              setPrice(String(p.sellingPrice));
-              setPickerOpen(false);
-            }}
-          />
-        ))}
       </ModalSheet>
     </Screen>
   );
@@ -233,8 +298,62 @@ export function SalesScreen() {
 
 const makeStyles = () =>
   StyleSheet.create({
-    row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
-    name: {fontSize: 15, fontWeight: '600', color: colors.text},
-    meta: {fontSize: 12, color: colors.muted, marginTop: 2},
-    total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
+    productSelector: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      marginBottom: spacing.md,
+    },
+    selectorLabel: {fontSize: typography.label, color: colors.muted, fontWeight: '600'},
+    selectorValue: {fontSize: typography.body, color: colors.text, fontWeight: '600', marginTop: rs(2)},
+    selectorChange: {fontSize: typography.secondary, color: colors.primary, fontWeight: '600'},
+    formRow: {flexDirection: 'row', gap: spacing.sm},
+    totalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      marginBottom: spacing.sm,
+    },
+    totalLabel: {fontSize: typography.body, fontWeight: '600', color: colors.muted},
+    totalValue: {fontSize: typography.h2, fontWeight: '700', color: colors.text},
+    section: {
+      fontSize: typography.h3,
+      fontWeight: '700',
+      color: colors.text,
+      marginHorizontal: CARD_MARGIN,
+      marginTop: spacing.xl,
+      marginBottom: spacing.sm,
+    },
+    saleRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+    saleNumber: {fontSize: typography.body, fontWeight: '600', color: colors.text},
+    saleMeta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
+    saleTotal: {fontSize: typography.body, fontWeight: '700', color: colors.text},
+    pickerSearch: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      padding: spacing.md,
+      marginBottom: spacing.sm,
+    },
+    pickerSearchIcon: {marginRight: spacing.sm},
+    pickerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: spacing.md,
+      paddingHorizontal: spacing.sm,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    pickerRowActive: {backgroundColor: colors.primarySoft},
+    pickerName: {fontSize: typography.body, fontWeight: '500', color: colors.text},
+    pickerMeta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
+    pickerPrice: {fontSize: typography.body, fontWeight: '600', color: colors.text},
   });

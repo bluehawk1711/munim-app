@@ -12,6 +12,7 @@
 
 import React from 'react';
 import {Pressable, StatusBar, StyleSheet, Text, View} from 'react-native';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 import Animated, {
   FadeIn,
@@ -150,28 +151,30 @@ function AppInner() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
-      <SafeScreen>
-        <View style={styles.content}>
-          <Animated.View
-            key={tab}
-            entering={FadeIn.duration(220).delay(40)}
-            exiting={FadeOut.duration(120)}
-            style={styles.screen}>
-            {tab === 'home' ? <HomeScreen /> : null}
-            {tab === 'products' ? <ProductsScreen /> : null}
-            {tab === 'sales' ? <SalesScreen /> : null}
-            {tab === 'billing' ? <BillingScreen /> : null}
-            {tab === 'parties' ? <PartiesScreen /> : null}
-            {tab === 'more' ? <MoreScreen /> : null}
+    <GestureHandlerRootView style={{flex: 1}}>
+      <SafeAreaProvider>
+        <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
+        <SafeScreen>
+          <View style={styles.content}>
+            <Animated.View
+              key={tab}
+              entering={FadeIn.duration(220).delay(40)}
+              exiting={FadeOut.duration(120)}
+              style={styles.screen}>
+              {tab === 'home' ? <HomeScreen /> : null}
+              {tab === 'products' ? <ProductsScreen /> : null}
+              {tab === 'sales' ? <SalesScreen /> : null}
+              {tab === 'billing' ? <BillingScreen /> : null}
+              {tab === 'parties' ? <PartiesScreen /> : null}
+              {tab === 'more' ? <MoreScreen /> : null}
+            </Animated.View>
+          </View>
+          <Animated.View entering={SlideInDown.duration(320)}>
+            <TabBar tab={tab} onSelect={setTab} />
           </Animated.View>
-        </View>
-        <Animated.View entering={SlideInDown.duration(320)}>
-          <TabBar tab={tab} onSelect={setTab} />
-        </Animated.View>
-      </SafeScreen>
-    </SafeAreaProvider>
+        </SafeScreen>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

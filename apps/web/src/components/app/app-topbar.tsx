@@ -132,7 +132,8 @@ export function AppTopbar() {
         <Plus className="h-4 w-4" />
       </Button>
 
-      <ThemeToggle />
+      {/* DO NOT USE IT , ITS BUGGED */}
+      {/* <ThemeToggle /> */}
     </header>
   )
 }

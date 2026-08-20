@@ -1,7 +1,19 @@
+/**
+ * Munim mobile UI primitives — the shared component kit for all screens.
+ *
+ * All sizes use responsive utilities from ../lib/responsive so the UI
+ * scales correctly across device widths.
+ *
+ * Components: Screen, Header, Section, Card, Button, Field, SelectField,
+ * Badge, StatBox, Row, Loading, Empty, ErrorBox, ModalSheet, SafeScreen,
+ * AccordionCard, EmptyState, ErrorState, InlineSpinner, ConfirmDialog.
+ */
+
 import React from 'react';
 import {
   ActivityIndicator,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -22,37 +34,49 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
-// Colors come from @munim/theme (via the dynamic proxy in ../theme) — the
-// single source of truth for web, desktop AND mobile. The proxy resolves the
-// active mode's palette, so these tokens flip with dark mode automatically.
+import {ChevronDown, ChevronRight, MoreVertical, X} from 'lucide-react-native';
 import {colors, useTheme, useThemeStyles} from '../theme';
 import {actionPress} from '../lib/haptics';
+import {
+  rw,
+  rh,
+  rs,
+  rFont,
+  spacing,
+  typography,
+  radii,
+  TOUCH_TARGET,
+  CARD_MARGIN,
+} from '../lib/responsive';
 
 export {colors};
+
+/* ─── Style factory ─────────────────────────────────────────────────── */
 
 const makeStyles = () =>
   StyleSheet.create({
     screen: {flex: 1, backgroundColor: colors.bg},
-    header: {paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12},
-    title: {fontSize: 22, fontWeight: '700', color: colors.text},
-    subtitle: {fontSize: 13, color: colors.muted, marginTop: 2},
+    header: {paddingHorizontal: CARD_MARGIN, paddingTop: rh(8), paddingBottom: rh(12)},
+    title: {fontSize: typography.h1, fontWeight: '700', color: colors.text},
+    subtitle: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
     card: {
       backgroundColor: colors.card,
-      borderRadius: 14,
+      borderRadius: radii.lg,
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 14,
-      marginHorizontal: 16,
-      marginBottom: 10,
+      padding: spacing.lg,
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: spacing.sm,
     },
     button: {
       backgroundColor: colors.primary,
-      borderRadius: 10,
-      paddingVertical: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
+      borderRadius: radii.md,
+      paddingVertical: spacing.md,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      minHeight: TOUCH_TARGET,
     },
-    buttonText: {color: colors.onPrimary, fontSize: 15, fontWeight: '600'},
+    buttonText: {color: colors.onPrimary, fontSize: typography.body, fontWeight: '600'},
     buttonOutline: {
       backgroundColor: colors.card,
       borderWidth: 1,
@@ -60,59 +84,87 @@ const makeStyles = () =>
     },
     buttonOutlineText: {color: colors.text},
     buttonDanger: {backgroundColor: colors.danger},
-    field: {marginBottom: 12},
-    label: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 5},
+    buttonSmall: {paddingVertical: spacing.sm, minHeight: rs(36)},
+    buttonTextSmall: {fontSize: typography.secondary},
+    field: {marginBottom: spacing.md},
+    label: {fontSize: typography.label, fontWeight: '600', color: colors.muted, marginBottom: rs(5)},
     input: {
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 10,
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      fontSize: 15,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      fontSize: typography.body,
       color: colors.text,
       backgroundColor: colors.card,
+      minHeight: TOUCH_TARGET,
     },
-    badge: {paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999},
-    badgeText: {fontSize: 11, fontWeight: '700'},
-    stat: {
-      backgroundColor: colors.card,
-      borderRadius: 14,
+    inputMultiline: {
+      minHeight: rs(80),
+      textAlignVertical: 'top' as const,
+      paddingTop: spacing.md,
+    },
+    select: {
       borderWidth: 1,
       borderColor: colors.border,
-      padding: 14,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
+      fontSize: typography.body,
+      color: colors.text,
+      backgroundColor: colors.card,
+      minHeight: TOUCH_TARGET,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+    },
+    badge: {paddingHorizontal: rs(8), paddingVertical: rs(3), borderRadius: radii.full},
+    badgeText: {fontSize: typography.badge, fontWeight: '700'},
+    stat: {
+      backgroundColor: colors.card,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.lg,
       flex: 1,
     },
-    statLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
-    statValue: {fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 4},
-    row: {flexDirection: 'row', alignItems: 'center', paddingVertical: 10},
-    modalOverlay: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end'},
+    statLabel: {fontSize: typography.label, color: colors.muted, fontWeight: '600'},
+    statValue: {fontSize: typography.h3, fontWeight: '700', color: colors.text, marginTop: rs(4)},
+    row: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      paddingVertical: spacing.md,
+    },
+    modalOverlay: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' as const},
     modalSheet: {
       backgroundColor: colors.card,
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
-      padding: 18,
+      borderTopLeftRadius: radii.xl,
+      borderTopRightRadius: radii.xl,
+      padding: spacing.lg,
       maxHeight: '85%',
     },
-    modalTitle: {fontSize: 17, fontWeight: '700', color: colors.text, marginBottom: 14},
+    modalTitle: {fontSize: typography.h2, fontWeight: '700', color: colors.text, marginBottom: spacing.lg},
     tabBar: {
-      flexDirection: 'row',
+      flexDirection: 'row' as const,
       backgroundColor: colors.card,
       borderTopWidth: 1,
       borderTopColor: colors.border,
-      paddingVertical: 6,
+      paddingVertical: rs(6),
     },
-    tabItem: {flex: 1, alignItems: 'center', paddingVertical: 4},
-    tabLabel: {fontSize: 10, marginTop: 2, color: colors.muted, fontWeight: '600'},
-    tabLabelActive: {color: colors.primary},
+    tabItem: {flex: 1, alignItems: 'center' as const, paddingVertical: rs(4)},
+    tabLabel: {fontSize: typography.tab, marginTop: rs(3), color: colors.muted, fontWeight: '600'},
+    tabLabelActive: {color: colors.primary, fontWeight: '700'},
     section: {
-      fontSize: 14,
+      fontSize: typography.h3,
       fontWeight: '700',
       color: colors.text,
-      marginHorizontal: 16,
-      marginTop: 18,
-      marginBottom: 10,
+      marginHorizontal: CARD_MARGIN,
+      marginTop: spacing.xl,
+      marginBottom: spacing.sm,
     },
   });
+
+/* ─── Screen ────────────────────────────────────────────────────────── */
 
 export function Screen({
   children,
@@ -124,6 +176,8 @@ export function Screen({
   const styles = useThemeStyles(makeStyles);
   return <View style={[styles.screen, style]}>{children}</View>;
 }
+
+/* ─── Header ────────────────────────────────────────────────────────── */
 
 export function Header({title, subtitle}: {title: string; subtitle?: string}) {
   const styles = useThemeStyles(makeStyles);
@@ -141,7 +195,8 @@ export function Header({title, subtitle}: {title: string; subtitle?: string}) {
   );
 }
 
-/** Animated section heading (Apple-style staggered entrance). */
+/* ─── Section heading ───────────────────────────────────────────────── */
+
 export function Section({title, index = 0}: {title: string; index?: number}) {
   const styles = useThemeStyles(makeStyles);
   return (
@@ -152,6 +207,8 @@ export function Section({title, index = 0}: {title: string; index?: number}) {
     </Animated.Text>
   );
 }
+
+/* ─── Card ──────────────────────────────────────────────────────────── */
 
 export function Card({
   children,
@@ -172,24 +229,36 @@ export function Card({
   );
 }
 
+/* ─── Button ────────────────────────────────────────────────────────── */
+
 type ButtonProps = {
   title: string;
   onPress: () => void;
   variant?: 'primary' | 'outline' | 'danger';
   disabled?: boolean;
   loading?: boolean;
+  size?: 'default' | 'small';
+  icon?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
-export function Button({title, onPress, variant = 'primary', disabled, loading, style}: ButtonProps) {
+export function Button({
+  title,
+  onPress,
+  variant = 'primary',
+  disabled,
+  loading,
+  size = 'default',
+  icon,
+  style,
+}: ButtonProps) {
   const styles = useThemeStyles(makeStyles);
   const isOutline = variant === 'outline';
   const isDanger = variant === 'danger';
+  const isSmall = size === 'small';
   return (
     <Pressable
       onPress={() => {
-        // Native feedback for confirmations; outline buttons (selectors,
-        // filters) stay quiet to avoid haptic noise.
         if (!isOutline && !disabled && !loading) {
           actionPress();
         }
@@ -200,18 +269,30 @@ export function Button({title, onPress, variant = 'primary', disabled, loading, 
         styles.button,
         isOutline && styles.buttonOutline,
         isDanger && styles.buttonDanger,
+        isSmall && styles.buttonSmall,
         (disabled || loading) && {opacity: 0.5},
         pressed && {transform: [{scale: 0.97}], opacity: 0.9},
         style,
       ]}>
       {loading ? (
-        <ActivityIndicator color={isOutline ? colors.text : colors.onPrimary} />
+        <ActivityIndicator color={isOutline ? colors.text : colors.onPrimary} size="small" />
+      ) : icon ? (
+        <View style={{flexDirection: 'row', alignItems: 'center', gap: rs(6)}}>
+          {icon}
+          <Text style={[styles.buttonText, isOutline && styles.buttonOutlineText, isSmall && styles.buttonTextSmall]}>
+            {title}
+          </Text>
+        </View>
       ) : (
-        <Text style={[styles.buttonText, isOutline && styles.buttonOutlineText]}>{title}</Text>
+        <Text style={[styles.buttonText, isOutline && styles.buttonOutlineText, isSmall && styles.buttonTextSmall]}>
+          {title}
+        </Text>
       )}
     </Pressable>
   );
 }
+
+/* ─── Field (text input) ────────────────────────────────────────────── */
 
 type FieldProps = {
   label: string;
@@ -221,8 +302,8 @@ type FieldProps = {
   keyboardType?: KeyboardTypeOptions;
   secureTextEntry?: boolean;
   maxLength?: number;
-  /** Renders a taller multi-line textarea (notes / terms). */
   multiline?: boolean;
+  editable?: boolean;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -235,6 +316,7 @@ export function Field({
   secureTextEntry,
   maxLength,
   multiline,
+  editable = true,
   style,
 }: FieldProps) {
   const styles = useThemeStyles(makeStyles);
@@ -249,13 +331,43 @@ export function Field({
         secureTextEntry={secureTextEntry}
         maxLength={maxLength}
         multiline={multiline}
-        style={[styles.input, multiline && {minHeight: 76, textAlignVertical: 'top', paddingTop: 10}]}
+        editable={editable}
+        style={[styles.input, multiline && styles.inputMultiline]}
         placeholderTextColor={colors.inputPlaceholder}
         autoCapitalize={multiline ? 'sentences' : 'none'}
       />
     </View>
   );
 }
+
+/* ─── SelectField (tap-to-open picker) ──────────────────────────────── */
+
+type SelectFieldProps = {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onPress: () => void;
+  style?: StyleProp<ViewStyle>;
+};
+
+export function SelectField({label, value, placeholder = 'Select…', onPress, style}: SelectFieldProps) {
+  const styles = useThemeStyles(makeStyles);
+  return (
+    <View style={[styles.field, style]}>
+      <Text style={styles.label}>{label}</Text>
+      <Pressable style={styles.select} onPress={onPress} hitSlop={6}>
+        <Text
+          style={{fontSize: typography.body, color: value ? colors.text : colors.inputPlaceholder, flex: 1}}
+          numberOfLines={1}>
+          {value || placeholder}
+        </Text>
+        <ChevronDown size={rs(16)} color={colors.muted} />
+      </Pressable>
+    </View>
+  );
+}
+
+/* ─── Badge ─────────────────────────────────────────────────────────── */
 
 export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' | 'danger' | 'muted'}) {
   const styles = useThemeStyles(makeStyles);
@@ -282,6 +394,8 @@ export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' |
   );
 }
 
+/* ─── StatBox ───────────────────────────────────────────────────────── */
+
 export function StatBox({label, value, valueColor, index = 0}: {label: string; value: string; valueColor?: string; index?: number}) {
   const styles = useThemeStyles(makeStyles);
   return (
@@ -294,6 +408,8 @@ export function StatBox({label, value, valueColor, index = 0}: {label: string; v
   );
 }
 
+/* ─── Row ───────────────────────────────────────────────────────────── */
+
 export function Row({
   label,
   value,
@@ -305,14 +421,13 @@ export function Row({
   valueColor?: string;
   onPress?: () => void;
 }) {
-  const styles = useThemeStyles(makeStyles);
   return (
-    <Pressable onPress={onPress} style={styles.row}>
-      <Text style={{flex: 1, fontSize: 14, color: colors.text}} numberOfLines={1}>
+    <Pressable onPress={onPress} style={{flexDirection: 'row', alignItems: 'center', paddingVertical: spacing.md}}>
+      <Text style={{flex: 1, fontSize: typography.body, color: colors.text}} numberOfLines={1}>
         {label}
       </Text>
       {value ? (
-        <Text style={{fontSize: 14, fontWeight: '600', color: valueColor ?? colors.text}} numberOfLines={1}>
+        <Text style={{fontSize: typography.body, fontWeight: '600', color: valueColor ?? colors.text}} numberOfLines={1}>
           {value}
         </Text>
       ) : null}
@@ -320,14 +435,12 @@ export function Row({
   );
 }
 
-/**
- * Shimmer loading blocks — a soft highlight sweeps left-to-right (premium
- * alternative to a spinner/pulse). Used by the list screens while data loads.
- */
+/* ─── ShimmerBlock ──────────────────────────────────────────────────── */
+
 function ShimmerBlock({
   height,
   width,
-  radius = 10,
+  radius = rs(10),
   style,
 }: {
   height: number;
@@ -375,50 +488,71 @@ function ShimmerBlock({
   );
 }
 
-/** Full list skeleton: header-ish lines + card-shaped placeholder rows. */
+/* ─── Loading skeleton ──────────────────────────────────────────────── */
+
 export function Loading({rows = 5}: {rows?: number}) {
-  const styles = useThemeStyles(makeStyles);
   return (
-    <View style={{padding: 16}}>
+    <View style={{padding: spacing.lg}}>
       {Array.from({length: rows}).map((_, i) => (
         <View
           key={i}
           style={[
-            styles.card,
-            {marginHorizontal: 0, marginBottom: 10, padding: 14, gap: 10},
+            {
+              backgroundColor: colors.card,
+              borderRadius: radii.lg,
+              borderWidth: 1,
+              borderColor: colors.border,
+              padding: spacing.lg,
+              marginBottom: spacing.sm,
+              gap: spacing.sm,
+            },
           ]}>
-          <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
-            <ShimmerBlock height={40} width={40} radius={8} />
-            <View style={{flex: 1, gap: 6}}>
-              <ShimmerBlock height={12} width="70%" />
-              <ShimmerBlock height={10} width="45%" />
+          <View style={{flexDirection: 'row', alignItems: 'center', gap: spacing.sm}}>
+            <ShimmerBlock height={rs(40)} width={rs(40)} radius={rs(8)} />
+            <View style={{flex: 1, gap: rs(6)}}>
+              <ShimmerBlock height={rs(12)} width="70%" />
+              <ShimmerBlock height={rs(10)} width="45%" />
             </View>
           </View>
-          <ShimmerBlock height={10} width="85%" />
+          <ShimmerBlock height={rs(10)} width="85%" />
         </View>
       ))}
     </View>
   );
 }
 
-export function Empty({text}: {text: string}) {
-  return (
-    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40}}>
-      <Text style={{color: colors.muted, fontSize: 14}}>{text}</Text>
-    </View>
-  );
-}
+/* ─── Empty state ───────────────────────────────────────────────────── */
 
-export function ErrorBox({message, onRetry}: {message: string; onRetry?: () => void}) {
+export function Empty({text, action}: {text: string; action?: {label: string; onPress: () => void}}) {
   return (
-    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32}}>
-      <Text style={{color: colors.danger, fontSize: 14, textAlign: 'center'}}>{message}</Text>
-      {onRetry ? (
-        <Button title="Retry" onPress={onRetry} style={{marginTop: 16, paddingHorizontal: 32}} />
+    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxxl}}>
+      <Text style={{color: colors.muted, fontSize: typography.body, textAlign: 'center'}}>{text}</Text>
+      {action ? (
+        <Button
+          title={action.label}
+          onPress={action.onPress}
+          variant="outline"
+          style={{marginTop: spacing.lg, paddingHorizontal: spacing.xxl}}
+        />
       ) : null}
     </View>
   );
 }
+
+/* ─── Error state ───────────────────────────────────────────────────── */
+
+export function ErrorBox({message, onRetry}: {message: string; onRetry?: () => void}) {
+  return (
+    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxxl}}>
+      <Text style={{color: colors.danger, fontSize: typography.body, textAlign: 'center'}}>{message}</Text>
+      {onRetry ? (
+        <Button title="Retry" onPress={onRetry} style={{marginTop: spacing.lg, paddingHorizontal: spacing.xxl}} />
+      ) : null}
+    </View>
+  );
+}
+
+/* ─── ModalSheet (legacy — kept for gradual migration) ──────────────── */
 
 export function ModalSheet({
   visible,
@@ -431,11 +565,8 @@ export function ModalSheet({
   title: string;
   onClose: () => void;
   children: React.ReactNode;
-  /** When false the sheet cannot be dismissed (no back button, no overlay
-   *  tap) — used for in-flight operations like the DB connection test. */
   dismissable?: boolean;
 }) {
-  const styles = useThemeStyles(makeStyles);
   return (
     <Modal
       visible={visible}
@@ -445,12 +576,22 @@ export function ModalSheet({
         if (dismissable) onClose();
       }}>
       <Pressable
-        style={styles.modalOverlay}
+        style={{flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end'}}
         onPress={() => {
           if (dismissable) onClose();
         }}>
-        <Pressable style={styles.modalSheet} onPress={() => {}}>
-          <Text style={styles.modalTitle}>{title}</Text>
+        <Pressable
+          style={{
+            backgroundColor: colors.card,
+            borderTopLeftRadius: radii.xl,
+            borderTopRightRadius: radii.xl,
+            padding: spacing.lg,
+            maxHeight: '85%',
+          }}
+          onPress={() => {}}>
+          <Text style={{fontSize: typography.h2, fontWeight: '700', color: colors.text, marginBottom: spacing.lg}}>
+            {title}
+          </Text>
           {children}
         </Pressable>
       </Pressable>
@@ -458,12 +599,198 @@ export function ModalSheet({
   );
 }
 
+/* ─── SafeScreen ────────────────────────────────────────────────────── */
+
 export function SafeScreen({children}: {children: React.ReactNode}) {
   const styles = useThemeStyles(makeStyles);
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
       {children}
     </SafeAreaView>
+  );
+}
+
+/* ─── AccordionCard ─────────────────────────────────────────────────── */
+
+type AccordionCardProps = {
+  /** Always-visible header content. */
+  header: React.ReactNode;
+  /** Expandable content. */
+  children: React.ReactNode;
+  /** Whether this card is currently expanded. */
+  expanded: boolean;
+  /** Called when the header is tapped. */
+  onToggle: () => void;
+  /** Optional trailing element in the header (e.g., 3-dot menu). */
+  trailing?: React.ReactNode;
+  /** Animation delay index. */
+  index?: number;
+};
+
+export function AccordionCard({
+  header,
+  children,
+  expanded,
+  onToggle,
+  trailing,
+  index = 0,
+}: AccordionCardProps) {
+  const styles = useThemeStyles(makeStyles);
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(260).delay(index * 50)}
+      style={styles.card}>
+      <Pressable
+        onPress={onToggle}
+        style={{flexDirection: 'row', alignItems: 'center'}}
+        hitSlop={6}>
+        <View style={{flex: 1}}>{header}</View>
+        {trailing ? <View style={{marginLeft: spacing.sm}}>{trailing}</View> : null}
+        <Animated.View
+          style={{transform: [{rotate: expanded ? '90deg' : '0deg'}], marginLeft: rs(4)}}>
+          <ChevronRight size={rs(16)} color={colors.muted} />
+        </Animated.View>
+      </Pressable>
+      {expanded ? (
+        <Animated.View
+          entering={FadeInDown.duration(200)}
+          style={{marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border}}>
+          {children}
+        </Animated.View>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+/* ─── InlineSpinner ─────────────────────────────────────────────────── */
+
+export function InlineSpinner({text}: {text?: string}) {
+  return (
+    <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: spacing.lg, gap: spacing.sm}}>
+      <ActivityIndicator size="small" color={colors.primary} />
+      {text ? <Text style={{fontSize: typography.secondary, color: colors.muted}}>{text}</Text> : null}
+    </View>
+  );
+}
+
+/* ─── ThreeDotMenu ──────────────────────────────────────────────────── */
+
+export function ThreeDotMenu({actions}: {actions: {label: string; onPress: () => void; destructive?: boolean}[]}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <View>
+      <Pressable
+        onPress={() => setOpen(!open)}
+        hitSlop={8}
+        style={{padding: rs(4)}}>
+        <MoreVertical size={rs(18)} color={colors.muted} />
+      </Pressable>
+      {open ? (
+        <>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+          />
+          <View
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: rs(28),
+              backgroundColor: colors.card,
+              borderRadius: radii.md,
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingVertical: rs(4),
+              minWidth: rs(140),
+              shadowColor: '#000',
+              shadowOffset: {width: 0, height: 2},
+              shadowOpacity: 0.15,
+              shadowRadius: 8,
+              elevation: 5,
+              zIndex: 100,
+            }}>
+            {actions.map((action, i) => (
+              <Pressable
+                key={i}
+                onPress={() => {
+                  setOpen(false);
+                  action.onPress();
+                }}
+                style={{
+                  paddingHorizontal: spacing.lg,
+                  paddingVertical: spacing.sm,
+                  minHeight: TOUCH_TARGET,
+                  justifyContent: 'center',
+                }}>
+                <Text
+                  style={{
+                    fontSize: typography.body,
+                    color: action.destructive ? colors.danger : colors.text,
+                  }}>
+                  {action.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </>
+      ) : null}
+    </View>
+  );
+}
+
+/* ─── ConfirmDialog ─────────────────────────────────────────────────── */
+
+export function ConfirmDialog({
+  visible,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
+  destructive = false,
+  onConfirm,
+  onCancel,
+}: {
+  visible: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  destructive?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable
+        style={{flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'center', alignItems: 'center', padding: spacing.xxl}}
+        onPress={onCancel}>
+        <Pressable
+          onPress={() => {}}
+          style={{
+            backgroundColor: colors.card,
+            borderRadius: radii.lg,
+            padding: spacing.xl,
+            width: '100%',
+            maxWidth: rs(320),
+          }}>
+          <Text style={{fontSize: typography.h2, fontWeight: '700', color: colors.text, marginBottom: spacing.sm}}>
+            {title}
+          </Text>
+          <Text style={{fontSize: typography.body, color: colors.muted, marginBottom: spacing.xl}}>
+            {message}
+          </Text>
+          <View style={{flexDirection: 'row', gap: spacing.sm}}>
+            <Button title={cancelLabel} variant="outline" onPress={onCancel} style={{flex: 1}} />
+            <Button
+              title={confirmLabel}
+              variant={destructive ? 'danger' : 'primary'}
+              onPress={onConfirm}
+              style={{flex: 1}}
+            />
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
