@@ -1,3 +1,4 @@
+import { isEan13 } from "../utils/barcode.js";
 import { formatWeight } from "../utils/format.js";
 import { LABEL_HEIGHT_MM, LABEL_WIDTH_MM, type ProductLabel } from "./labelDocument.js";
 
@@ -20,15 +21,19 @@ export type LabelPrinterInfo = {
   isDefault: boolean;
 };
 
-export type TsplLabelOptions = {
+/** Label-stock dimensions (device-local settings, e.g. Settings → Printing). */
+export type LabelSizeSettings = {
+  /** Label stock width in mm. */
+  widthMm: number;
+  /** Label stock height in mm. */
+  heightMm: number;
+  /** Gap between labels in mm (0 for continuous stock). */
+  gapMm: number;
+};
+
+export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   /** Physical labels to print of each entry. Default 1. */
   copies?: number;
-  /** Label stock width in mm. Default 63.5 (matches the A4 sheet label). */
-  widthMm?: number;
-  /** Label stock height in mm. Default 33.9. */
-  heightMm?: number;
-  /** Gap between labels in mm (0 for continuous stock). Default 2. */
-  gapMm?: number;
   /** Printer resolution in dpi (TE244 = 203). Default 203. */
   dpi?: number;
 };
@@ -54,10 +59,13 @@ const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25
 /** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128. */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string): string {
   const digits = value.replace(/\D/g, "");
-  if (digits.length === 13) {
-    return `BARCODE ${x},${y},"EAN13",${heightDots},1,0,2,4,"${digits}"`;
+  // EAN-13 only when the check digit is actually valid — an invalid one
+  // prints a barcode no scanner will read. Code 128 encodes the literal
+  // string, so the printed label still scans back to the stored value.
+  if (isEan13(digits)) {
+    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,2,4,"${digits}"`;
   }
-  return `BARCODE ${x},${y},"128",${heightDots},1,0,2,3,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},2,0,2,3,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
@@ -78,11 +86,15 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const h = mmToDots(heightMm, dpi);
   const m = Math.round(w * 0.032); // side margin
 
-  // Font-0 (Monotype scalable) sizes in dots, proportional to label height.
-  const shopSize = Math.round(h * 0.06);
-  const nameSize = Math.round(h * 0.075);
-  const detSize = Math.round(h * 0.052);
-  const priceSize = Math.round(h * 0.067);
+  // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
+  // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
+  // Sizes below are planned in dots (proportional to label height), then
+  // converted so the print is identical at 203 or 300 dpi.
+  const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
+  const shopSize = toPt(Math.round(h * 0.06));
+  const nameSize = toPt(Math.round(h * 0.075));
+  const detSize = toPt(Math.round(h * 0.052));
+  const priceSize = toPt(Math.round(h * 0.067));
   const barcodeHeight = Math.round(h * 0.24);
 
   const lines: string[] = [
@@ -96,7 +108,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     const shop = tsplText(label.shopName);
     const name = truncateToWidth(
       tsplText(label.productName),
-      Math.floor((w - 2 * m) / (nameSize * 0.55)),
+      Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9)),
     );
     const details = tsplText(
       [label.color, label.size, label.weightMg != null ? formatWeight(label.weightMg) : null]
@@ -105,10 +117,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     );
     const sku = truncateToWidth(
       tsplText(label.sku),
-      Math.floor((w * 0.62) / (detSize * 0.6)),
+      Math.floor((w * 0.62) / ((detSize * dpi) / 72 / 1.7)),
     );
     const price = priceText(label.sellingPrice);
-    const priceX = w - m - Math.round(price.length * priceSize * 0.55);
 
     lines.push("CLS");
     if (shop) lines.push(`TEXT ${m},${Math.round(h * 0.025)},"0",0,${shopSize},${shopSize},"${shop}"`);
@@ -120,7 +131,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     }
     if (details) lines.push(`TEXT ${m},${Math.round(h * 0.585)},"0",0,${detSize},${detSize},"${details}"`);
     lines.push(`TEXT ${m},${Math.round(h * 0.675)},"0",0,${detSize},${detSize},"${sku}"`);
-    lines.push(`TEXT ${Math.max(m, priceX)},${Math.round(h * 0.66)},"0",0,${priceSize},${priceSize},"${price}"`);
+    // Alignment 3 = right: the text ENDS at x = w - m (TSPL2 manual, TEXT).
+    lines.push(`TEXT ${w - m},${Math.round(h * 0.66)},"0",0,${priceSize},${priceSize},3,"${price}"`);
     lines.push(`PRINT ${copies},1`);
   }
 

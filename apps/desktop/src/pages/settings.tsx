@@ -2,7 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw } from "lucide-react";
 import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
-import { getSavedLabelPrinter, isDesktopApp, listLabelPrinters, printLabelsToThermal, saveLabelPrinter } from "@/lib/printer";
+import {
+  DEFAULT_LABEL_SIZE,
+  getSavedLabelPrinter,
+  getSavedLabelSize,
+  isDesktopApp,
+  listLabelPrinters,
+  printLabelsToThermal,
+  saveLabelPrinter,
+  saveLabelSize,
+} from "@/lib/printer";
 import { useSettings, useUpdateSettings, useQueryState } from "@munim/query";
 import { buildProductLabel, type LabelPrinterInfo } from "@munim/core";
 import { toast } from "@munim/ui";
@@ -86,6 +95,7 @@ export function SettingsPage() {
   const [labelPrintersLoading, setLabelPrintersLoading] = useState(false);
   const [labelPrinterError, setLabelPrinterError] = useState<string | null>(null);
   const [testingLabel, setTestingLabel] = useState(false);
+  const [labelSize, setLabelSize] = useState(() => getSavedLabelSize());
 
   // Masked host of the currently saved URL (shown instead of the raw string).
   const savedHost = maskApiHost(getSavedApiUrl());
@@ -205,7 +215,29 @@ export function SettingsPage() {
     toast.success(`Label printer set to ${name}`);
   }
 
-  /** Prints a sample label so the shop can verify alignment before real use. */
+  /** Parses one size field; returns the clamped number or null if invalid. */
+  function parseSizeField(value: string, min: number, max: number): number | null {
+    const n = Number(value);
+    return Number.isFinite(n) && n >= min && n <= max ? n : null;
+  }
+
+  function handleSaveLabelSize() {
+    const widthMm = parseSizeField(String(labelSize.widthMm), 10, 120);
+    const heightMm = parseSizeField(String(labelSize.heightMm), 10, 300);
+    const gapMm = parseSizeField(String(labelSize.gapMm), 0, 10);
+    if (widthMm == null || heightMm == null || gapMm == null) {
+      toast.error("Label size out of range", {
+        description: "Width 10–120 mm, height 10–300 mm, gap 0–10 mm.",
+      });
+      return;
+    }
+    const size = { widthMm, heightMm, gapMm };
+    setLabelSize(size);
+    saveLabelSize(size);
+    toast.success(`Label size saved — ${widthMm} × ${heightMm} mm, gap ${gapMm} mm`);
+  }
+
+  /** Prints a sample label so the shop can verify size/alignment before real use. */
   async function handleTestLabel() {
     if (!labelPrinter) {
       toast.error("Choose a label printer first");
@@ -213,6 +245,8 @@ export function SettingsPage() {
     }
     setTestingLabel(true);
     try {
+      // Save the size first so the test prints exactly what's on screen.
+      handleSaveLabelSize();
       await printLabelsToThermal(
         labelPrinter,
         [
@@ -428,9 +462,54 @@ export function SettingsPage() {
                     Saved on this device only{labelPrinter ? ` — currently ${labelPrinter}` : ""}.
                   </p>
                 </div>
+                <div className="space-y-1.5">
+                  <Label>Label size (your tag roll)</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="st-lbl-w" className="text-[11px] text-muted-foreground">Width (mm)</Label>
+                      <Input
+                        id="st-lbl-w"
+                        type="number"
+                        min={10}
+                        max={120}
+                        value={labelSize.widthMm}
+                        onChange={(e) => setLabelSize((s) => ({ ...s, widthMm: Number(e.target.value) }))}
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label htmlFor="st-lbl-h" className="text-[11px] text-muted-foreground">Height (mm)</Label>
+                      <Input
+                        id="st-lbl-h"
+                        type="number"
+                        min={10}
+                        max={300}
+                        value={labelSize.heightMm}
+                        onChange={(e) => setLabelSize((s) => ({ ...s, heightMm: Number(e.target.value) }))}
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <Label htmlFor="st-lbl-g" className="text-[11px] text-muted-foreground">Gap (mm)</Label>
+                      <Input
+                        id="st-lbl-g"
+                        type="number"
+                        min={0}
+                        max={10}
+                        value={labelSize.gapMm}
+                        onChange={(e) => setLabelSize((s) => ({ ...s, gapMm: Number(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Measure your tag roll (printable area, edge to edge) — default {DEFAULT_LABEL_SIZE.widthMm} ×{" "}
+                    {DEFAULT_LABEL_SIZE.heightMm} mm. Print the test label and adjust until it fits.
+                  </p>
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="outline" onClick={() => void handleTestLabel()} disabled={testingLabel || !labelPrinter}>
                     {testingLabel ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Printing…</> : <><Printer className="h-4 w-4" /> Print test label</>}
+                  </Button>
+                  <Button onClick={handleSaveLabelSize}>
+                    <Save className="h-4 w-4" /> Save label size
                   </Button>
                 </div>
               </>

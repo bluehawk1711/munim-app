@@ -182,7 +182,7 @@ export function LabelPrintDialog({
               ) : (
                 <p className="text-xs text-muted-foreground">
                   Prints TSPL2 commands straight to the thermal printer — native barcodes,
-                  no print dialog. Set the printer in Settings → Printing.
+                  no print dialog. Printer and label size are set in Settings → Printing.
                 </p>
               )}
               <Button

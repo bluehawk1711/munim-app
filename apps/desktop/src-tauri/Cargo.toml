@@ -29,4 +29,6 @@ tauri-plugin-single-instance = "2"
 
 [target.'cfg(windows)'.dependencies]
 # Win32 print spooler access — raw TSPL2 label printing to thermal printers.
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Printing"] }
+# Win32_Graphics_Gdi is required: PRINTER_DEFAULTSW/OpenPrinterW embed a Gdi
+# DEVMODEW pointer, so windows-rs gates them behind that feature.
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Graphics_Printing", "Win32_Graphics_Gdi"] }

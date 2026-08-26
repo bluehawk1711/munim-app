@@ -2,5 +2,5 @@ export { buildBillDocument, renderBillText, renderBillHtml, type BillDocument, t
 export { generateBillPDF, } from "./generateBillPdf.js";
 export { defaultJobLetterData, formatJoiningDate, jobLetterFromStored, renderJobLetterHtml, type JobLetterCompanyFallback, type JobLetterData, type JobLetterRowLike, } from "./jobLetterDocument.js";
 export { buildProductLabel, renderLabelMarkup, renderLabelSheetHtml, renderLabelText, LABEL_WIDTH_MM, LABEL_HEIGHT_MM, type ProductLabel, type LabelShop, type LabelSheetOptions, } from "./labelDocument.js";
-export { buildLabelTspl2, type LabelPrinterInfo, type TsplLabelOptions, } from "./labelTspl.js";
+export { buildLabelTspl2, type LabelPrinterInfo, type LabelSizeSettings, type TsplLabelOptions, } from "./labelTspl.js";
 //# sourceMappingURL=index.d.ts.map

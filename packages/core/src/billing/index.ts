@@ -43,5 +43,6 @@ export {
 export {
   buildLabelTspl2,
   type LabelPrinterInfo,
+  type LabelSizeSettings,
   type TsplLabelOptions,
 } from "./labelTspl.js";

@@ -29,7 +29,7 @@ mod imp {
     use std::ptr::null_mut;
 
     use super::PrinterInfo;
-    use windows::core::{w, PCWSTR, PWSTR};
+    use windows::core::{PCWSTR, PWSTR};
     use windows::Win32::Foundation::GetLastError;
     use windows::Win32::Graphics::Printing::{
         ClosePrinter, EndDocPrinter, EndPagePrinter, EnumPrintersW, GetDefaultPrinterW,
@@ -112,11 +112,12 @@ mod imp {
     pub fn print_raw(printer_name: &str, data: &[u8]) -> Result<(), String> {
         unsafe {
             let name = wide(printer_name);
+            let datatype = wide("RAW");
             let mut handle = PRINTER_HANDLE::default();
             // RAW datatype + DesiredAccess(0) = spooler passes our bytes
             // straight through to the device (no driver rendering).
             let defaults = PRINTER_DEFAULTSW {
-                pDatatype: PWSTR(w!("RAW").as_ptr() as *mut u16),
+                pDatatype: PWSTR(datatype.as_ptr() as *mut u16),
                 pDevMode: null_mut(),
                 DesiredAccess: PRINTER_ACCESS_RIGHTS(0),
             };
@@ -131,43 +132,49 @@ mod imp {
 
     unsafe fn write_job(handle: PRINTER_HANDLE, data: &[u8]) -> Result<(), String> {
         let doc_name = wide("Munim label");
+        let datatype = wide("RAW");
         let doc = DOC_INFO_1W {
             pDocName: PWSTR(doc_name.as_ptr() as *mut u16),
             pOutputFile: PWSTR::null(),
-            pDatatype: PWSTR(w!("RAW").as_ptr() as *mut u16),
+            pDatatype: PWSTR(datatype.as_ptr() as *mut u16),
         };
         if StartDocPrinterW(handle, 1, &doc) == 0 {
             return Err(last_error("Could not start print job"));
         }
 
-        let mut written = 0u32;
-        let outcome = StartPagePrinter(handle)
-            .ok()
-            .map_err(|_| last_error("Could not start page"));
-        let outcome = outcome.and_then(|()| {
-            WritePrinter(
-                handle,
-                data.as_ptr() as *const c_void,
-                data.len() as u32,
-                &mut written,
-            )
-            .ok()
-            .map_err(|_| last_error("Could not write to printer"))
-        });
-        let outcome = outcome.and_then(|()| {
+        let mut total = 0usize;
+        let outcome = (|| -> Result<(), String> {
+            StartPagePrinter(handle)
+                .ok()
+                .map_err(|_| last_error("Could not start page"))?;
+            // WritePrinter may accept fewer bytes than requested — keep
+            // pushing the remainder until the whole stream is spooled.
+            while total < data.len() {
+                let mut written = 0u32;
+                WritePrinter(
+                    handle,
+                    data.as_ptr().add(total) as *const c_void,
+                    (data.len() - total) as u32,
+                    &mut written,
+                )
+                .ok()
+                .map_err(|_| last_error("Could not write to printer"))?;
+                if written == 0 {
+                    return Err("Print job stalled".to_string());
+                }
+                total += written as usize;
+            }
             EndPagePrinter(handle)
                 .ok()
                 .map_err(|_| last_error("Could not end page"))
-        });
+        })();
+
         if let Err(err) = outcome {
             let _ = EndDocPrinter(handle);
             return Err(err);
         }
         if !EndDocPrinter(handle).as_bool() {
             return Err(last_error("Could not finish print job"));
-        }
-        if written != data.len() as u32 {
-            return Err("Print job was truncated".to_string());
         }
         Ok(())
     }
