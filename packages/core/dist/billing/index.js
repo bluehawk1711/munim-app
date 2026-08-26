@@ -2,4 +2,5 @@ export { buildBillDocument, renderBillText, renderBillHtml, } from "./billDocume
 export { generateBillPDF, } from "./generateBillPdf.js";
 export { defaultJobLetterData, formatJoiningDate, jobLetterFromStored, renderJobLetterHtml, } from "./jobLetterDocument.js";
 export { buildProductLabel, renderLabelMarkup, renderLabelSheetHtml, renderLabelText, LABEL_WIDTH_MM, LABEL_HEIGHT_MM, } from "./labelDocument.js";
+export { buildLabelTspl2, } from "./labelTspl.js";
 //# sourceMappingURL=index.js.map

@@ -39,3 +39,9 @@ export {
   type LabelShop,
   type LabelSheetOptions,
 } from "./labelDocument.js";
+
+export {
+  buildLabelTspl2,
+  type LabelPrinterInfo,
+  type TsplLabelOptions,
+} from "./labelTspl.js";

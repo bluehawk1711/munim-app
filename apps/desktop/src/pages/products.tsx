@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Search, Pencil, Trash2, PackagePlus, UploadCloud, Image as ImageIcon, Loader2, X, Barcode, Tag, Eye } from "lucide-react";
 import {
   buildProductLabel,
+  type LabelPrinterInfo,
   type ProductLabel,
 } from "@munim/core";
 import type { ProductDto } from "@munim/api-client";
@@ -18,6 +19,7 @@ import {
 } from "@munim/query";
 import { money, formatWeight } from "@/lib/format";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
+import { getSavedLabelPrinter, isDesktopApp, listLabelPrinters, printLabelsToThermal, saveLabelPrinter } from "@/lib/printer";
 import { uploadImageDirect } from "@/lib/cloudinary";
 import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, BarcodeSvg, BarcodeLookupInput, LabelPrintDialog, ProductDetailsDialog } from "@munim/ui";
@@ -88,6 +90,60 @@ export function ProductsPage() {
   const [labelCopies, setLabelCopies] = useState(1);
   const [detailsProduct, setDetailsProduct] = useState<ProductDto | null>(null);
   const [backfilling, setBackfilling] = useState(false);
+
+  // Direct thermal label printing (desktop only — see lib/printer.ts).
+  const [labelPrinters, setLabelPrinters] = useState<LabelPrinterInfo[]>([]);
+  const [labelPrinterName, setLabelPrinterName] = useState<string | undefined>(() => getSavedLabelPrinter());
+  const [labelPrintersLoading, setLabelPrintersLoading] = useState(false);
+  const [labelPrintBusy, setLabelPrintBusy] = useState(false);
+  const [labelPrintError, setLabelPrintError] = useState<string | null>(null);
+  const labelPrintersLoadedRef = useRef(false);
+
+  const loadLabelPrinters = useCallback(async () => {
+    setLabelPrintersLoading(true);
+    setLabelPrintError(null);
+    try {
+      const printers = await listLabelPrinters();
+      setLabelPrinters(printers);
+      const saved = getSavedLabelPrinter();
+      const chosen =
+        printers.find((p) => p.name === saved)?.name ??
+        printers.find((p) => p.isDefault)?.name ??
+        printers[0]?.name;
+      if (chosen) setLabelPrinterName(chosen);
+    } catch (err: unknown) {
+      setLabelPrintError(err instanceof Error ? err.message : "Could not list printers");
+    } finally {
+      labelPrintersLoadedRef.current = true;
+      setLabelPrintersLoading(false);
+    }
+  }, []);
+
+  // Load the OS printer list once, when the label dialog first opens.
+  useEffect(() => {
+    if (labelOpen && isDesktopApp() && !labelPrintersLoadedRef.current) {
+      void loadLabelPrinters();
+    }
+  }, [labelOpen, loadLabelPrinters]);
+
+  function handleSelectLabelPrinter(name: string) {
+    setLabelPrinterName(name);
+    saveLabelPrinter(name);
+  }
+
+  async function handleLabelDirectPrint() {
+    if (!labelPrinterName) return;
+    setLabelPrintBusy(true);
+    try {
+      await printLabelsToThermal(labelPrinterName, labelLabels, labelCopies);
+      toast.success(`Sent ${labelCopies} label${labelCopies !== 1 ? "s" : ""} to ${labelPrinterName}`);
+      setLabelOpen(false);
+    } catch (err) {
+      toast.error("Label print failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setLabelPrintBusy(false);
+    }
+  }
 
   const missingBarcodes = products.some((p) => !p.barcode);
 
@@ -228,28 +284,26 @@ export function ProductsPage() {
     }
   }
 
-  const labelLabels = useMemo<ProductLabel[]>(
-    () =>
-      labelTarget
-        ? [
-            buildProductLabel(
-              {
-                id: labelTarget.id,
-                name: labelTarget.name,
-                sku: labelTarget.sku,
-                barcode: labelTarget.barcode,
-                weight: labelTarget.weight,
-                sellingPrice: labelTarget.sellingPrice,
-                colorName: labelTarget.color || null,
-                sizeName: labelTarget.size || null,
-                categoryName: labelTarget.category || null,
-              },
-              { name: "" },
-            ),
-          ]
-        : [],
-    [labelTarget],
-  )
+  // Plain computation — the React compiler memoizes this automatically
+  // (manual useMemo here made the compiler skip the whole component).
+  const labelLabels: ProductLabel[] = labelTarget
+    ? [
+        buildProductLabel(
+          {
+            id: labelTarget.id,
+            name: labelTarget.name,
+            sku: labelTarget.sku,
+            barcode: labelTarget.barcode,
+            weight: labelTarget.weight,
+            sellingPrice: labelTarget.sellingPrice,
+            colorName: labelTarget.color || null,
+            sizeName: labelTarget.size || null,
+            categoryName: labelTarget.category || null,
+          },
+          { name: "" },
+        ),
+      ]
+    : []
 
   function handleLabelPrint(html: string) {
     setLabelOpen(false);
@@ -552,6 +606,20 @@ export function ProductsPage() {
         onCopiesChange={setLabelCopies}
         onPrint={handleLabelPrint}
         onDownloadPdf={handleLabelDownload}
+        directPrint={
+          isDesktopApp()
+            ? {
+                printers: labelPrinters,
+                selected: labelPrinterName,
+                onSelect: handleSelectLabelPrinter,
+                onPrint: () => void handleLabelDirectPrint(),
+                onRefresh: () => void loadLabelPrinters(),
+                loading: labelPrintersLoading,
+                busy: labelPrintBusy,
+                error: labelPrintError,
+              }
+            : undefined
+        }
       />
 
       <Dialog open={adjusting !== null} onOpenChange={(open) => !open && setAdjusting(null)}>

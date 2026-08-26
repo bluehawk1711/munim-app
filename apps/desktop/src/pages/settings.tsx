@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2 } from "lucide-react";
+import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw } from "lucide-react";
 import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
+import { getSavedLabelPrinter, isDesktopApp, listLabelPrinters, printLabelsToThermal, saveLabelPrinter } from "@/lib/printer";
 import { useSettings, useUpdateSettings, useQueryState } from "@munim/query";
+import { buildProductLabel, type LabelPrinterInfo } from "@munim/core";
 import { toast } from "@munim/ui";
 import {
   ThemeSelect,
@@ -77,6 +79,13 @@ export function SettingsPage() {
   const [testError, setTestError] = useState<string | undefined>();
   const [savingShop, setSavingShop] = useState(false);
   const [savingUrl, setSavingUrl] = useState(false);
+
+  // Thermal label printer (TSC TE244 etc.) — device-local choice.
+  const [labelPrinters, setLabelPrinters] = useState<LabelPrinterInfo[]>([]);
+  const [labelPrinter, setLabelPrinter] = useState<string>(() => getSavedLabelPrinter() ?? "");
+  const [labelPrintersLoading, setLabelPrintersLoading] = useState(false);
+  const [labelPrinterError, setLabelPrinterError] = useState<string | null>(null);
+  const [testingLabel, setTestingLabel] = useState(false);
 
   // Masked host of the currently saved URL (shown instead of the raw string).
   const savedHost = maskApiHost(getSavedApiUrl());
@@ -161,6 +170,71 @@ export function SettingsPage() {
     setSavingUrl(false);
   }
 
+  async function refreshLabelPrinters() {
+    if (!isDesktopApp()) return;
+    setLabelPrintersLoading(true);
+    setLabelPrinterError(null);
+    try {
+      const printers = await listLabelPrinters();
+      setLabelPrinters(printers);
+      if (printers.length === 0) {
+        setLabelPrinterError(
+          "No printers found — connect the label printer and install its Windows driver (e.g. TSC TE244), then refresh.",
+        );
+      } else if (!printers.some((p) => p.name === labelPrinter)) {
+        setLabelPrinter(printers.find((p) => p.isDefault)?.name ?? printers[0]?.name ?? "");
+      }
+    } catch (err) {
+      setLabelPrinterError(err instanceof Error ? err.message : "Could not list printers");
+    } finally {
+      setLabelPrintersLoading(false);
+    }
+  }
+
+  // Load the printer list once when the Printing section is opened.
+  useEffect(() => {
+    if (section === "printing" && labelPrinters.length === 0 && !labelPrintersLoading) {
+      void refreshLabelPrinters();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section]);
+
+  function handleSelectLabelPrinter(name: string) {
+    setLabelPrinter(name);
+    saveLabelPrinter(name);
+    toast.success(`Label printer set to ${name}`);
+  }
+
+  /** Prints a sample label so the shop can verify alignment before real use. */
+  async function handleTestLabel() {
+    if (!labelPrinter) {
+      toast.error("Choose a label printer first");
+      return;
+    }
+    setTestingLabel(true);
+    try {
+      await printLabelsToThermal(
+        labelPrinter,
+        [
+          buildProductLabel({
+            id: "test",
+            name: "Munim test label",
+            sku: "TEST-0001",
+            barcode: "8901234567890",
+            weight: 1000,
+            sellingPrice: 99.5,
+          }),
+        ],
+        1,
+      );
+      toast.success(`Test label sent to ${labelPrinter}`);
+    } catch (err) {
+      toast.error("Test print failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setTestingLabel(false);
+    }
+  }
+
   const sections: SettingsSection[] = [
     {
       id: "shop",
@@ -180,6 +254,13 @@ export function SettingsPage() {
       description: "PIN lock & sign-in",
       icon: ShieldCheck,
       badge: pin.lockEnabled ? "Locked" : "Off",
+    },
+    {
+      id: "printing",
+      label: "Printing",
+      description: "Label printer (thermal)",
+      icon: Printer,
+      badge: labelPrinter ? labelPrinter.slice(0, 18) : undefined,
     },
     {
       id: "server",
@@ -286,6 +367,77 @@ export function SettingsPage() {
       )}
 
       {section === "security" && <PinSettingsCard />}
+
+      {section === "printing" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Printer className="h-4 w-4" /> Label printer
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Product labels print directly to a thermal barcode printer (e.g.{" "}
+              <strong>TSC TE244</strong>) as raw TSPL2 commands — native sharp barcodes,
+              no print dialog. The printer must be installed in Windows with its driver.
+            </p>
+            {!isDesktopApp() ? (
+              <p className="text-sm text-muted-foreground">
+                Direct label printing is available in the desktop app only. On the web,
+                print labels to an A4 sheet or download the PDF.
+              </p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="st-printer">Printer</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => void refreshLabelPrinters()}
+                      disabled={labelPrintersLoading}
+                    >
+                      <RefreshCw className={`mr-1 h-3 w-3 ${labelPrintersLoading ? "animate-spin" : ""}`} />
+                      Refresh
+                    </Button>
+                  </div>
+                  <Select value={labelPrinter} onValueChange={handleSelectLabelPrinter}>
+                    <SelectTrigger id="st-printer" className="w-full">
+                      <SelectValue
+                        placeholder={
+                          labelPrintersLoading
+                            ? "Looking for printers…"
+                            : labelPrinters.length === 0
+                              ? "No printers found"
+                              : "Choose printer"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {labelPrinters.map((p) => (
+                        <SelectItem key={p.name} value={p.name}>
+                          {p.name}
+                          {p.isDefault ? " (default)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {labelPrinterError && <p className="text-xs text-destructive">{labelPrinterError}</p>}
+                  <p className="text-[11px] text-muted-foreground">
+                    Saved on this device only{labelPrinter ? ` — currently ${labelPrinter}` : ""}.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" onClick={() => void handleTestLabel()} disabled={testingLabel || !labelPrinter}>
+                    {testingLabel ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Printing…</> : <><Printer className="h-4 w-4" /> Print test label</>}
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {section === "server" && (
         <Card>
