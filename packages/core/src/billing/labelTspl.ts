@@ -92,14 +92,17 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
-  const m = Math.round(w * 0.03); // side margin
+  const m = Math.round(w * 0.025); // tight side margin (~1mm)
 
   // ── Stacked layout: name → barcode → weight ──
+  // All positions and sizes are proportional to label height so the
+  // layout scales correctly across different label stock sizes.
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
-  const nameSize = toPt(Math.round(h * 0.08));
-  const weightSize = toPt(Math.round(h * 0.055));
-  // Barcode takes most of the label for reliable scanning.
-  const barcodeHeight = Math.round(h * 0.30);
+  // 5pt name, 4pt weight — compact for small label stock.
+  const nameSize = toPt(Math.round(h * 0.06));
+  const weightSize = toPt(Math.round(h * 0.045));
+  // Barcode: 32% of height — fills the middle for reliable scanning.
+  const barcodeHeight = Math.round(h * 0.32);
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -117,16 +120,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
     lines.push("CLS");
 
-    // Name at the top.
-    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.04)},"0",0,${nameSize},${nameSize},"${name}"`);
-    // Barcode in the middle — big and scannable.
+    // Name at the top (~1mm from edge).
+    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.03)},"0",0,${nameSize},${nameSize},"${name}"`);
+    // Barcode in the middle — tight gap from name, big and scannable.
     if (label.barcode?.trim()) {
-      lines.push(barcodeCommand(m, Math.round(h * 0.22), barcodeHeight, label.barcode));
+      lines.push(barcodeCommand(m, Math.round(h * 0.15), barcodeHeight, label.barcode));
     } else {
-      lines.push(`TEXT ${m},${Math.round(h * 0.35)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
+      lines.push(`TEXT ${m},${Math.round(h * 0.30)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
-    // Weight at the bottom.
-    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.78)},"0",0,${weightSize},${weightSize},"${weight}"`);
+    // Weight at the bottom (~1mm from edge).
+    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.82)},"0",0,${weightSize},${weightSize},"${weight}"`);
 
     lines.push(`PRINT ${copies},1`);
   }
