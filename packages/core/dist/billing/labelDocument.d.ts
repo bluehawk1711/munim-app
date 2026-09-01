@@ -39,14 +39,7 @@ export declare function buildProductLabel(product: {
 /** One physical label: 63.5 × 33.9 mm (3 × 8 grid = 24 per A4 sheet). */
 export declare const LABEL_WIDTH_MM = 63.5;
 export declare const LABEL_HEIGHT_MM = 33.9;
-/**
- * Renders ONE label's inner markup (shared by the sheet + previews).
- * Uses INLINE STYLES so the markup is self-contained — works in the
- * dialog preview, the A4 print sheet, the PDF, and expo-print's WebView
- * without needing any external CSS file.
- *
- * Layout: name on top, barcode in middle, weight at bottom.
- */
+/** Renders ONE label's inner markup (shared by the sheet + previews). */
 export declare function renderLabelMarkup(label: ProductLabel): string;
 export type LabelSheetOptions = {
     /** Total physical labels (each copy = one label on the sheet). Default 1. */

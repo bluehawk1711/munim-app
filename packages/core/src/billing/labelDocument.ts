@@ -70,24 +70,23 @@ const esc = (s: string | null | undefined): string =>
 export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
 
-/**
- * Renders ONE label's inner markup (shared by the sheet + previews).
- * Uses INLINE STYLES so the markup is self-contained — works in the
- * dialog preview, the A4 print sheet, the PDF, and expo-print's WebView
- * without needing any external CSS file.
- *
- * Layout: name on top, barcode in middle, weight at bottom.
- */
+/** Renders ONE label's inner markup (shared by the sheet + previews). */
 export function renderLabelMarkup(label: ProductLabel): string {
-  const barcode = label.barcode
-    ? barcodeSvg(label.barcode, { height: 34, scale: 2, fontSize: 8 })
-    : "";
-  const weight = label.weightMg != null ? formatWeight(label.weightMg) : null;
+  const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 34, scale: 2, fontSize: 8 }) : "";
+  const details = [
+    label.color,
+    label.size,
+    label.weightMg != null ? formatWeight(label.weightMg) : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-  return `<div style="display:flex;flex-direction:column;width:${LABEL_WIDTH_MM}mm;height:${LABEL_HEIGHT_MM}mm;padding:3mm 2.5mm;box-sizing:border-box;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
-    <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(label.productName)}</div>
-    <div style="display:flex;justify-content:center;margin-top:2px;flex-shrink:0;">${barcode || `<span style="font-size:9px;color:#999;padding:8px 0;">NO BARCODE</span>`}</div>
-    <div style="margin-top:auto;font-size:9px;font-weight:600;color:#333;">${weight ? esc(weight) : "&nbsp;"}</div>
+  return `<div class="label">
+    <div class="l-shop">${esc(label.shopName) || "&nbsp;"}</div>
+    <div class="l-name">${esc(label.productName)}</div>
+    <div class="l-barcode">${barcode || `<span class="l-nocode">NO BARCODE</span>`}</div>
+    <div class="l-details">${details ? esc(details) : "&nbsp;"}</div>
+    <div class="l-foot"><span>${esc(label.sku)}</span><span>₹${Number(label.sellingPrice).toFixed(2)}</span></div>
   </div>`;
 }
 
@@ -153,11 +152,13 @@ export function renderLabelSheetHtml(
     flex-direction: column;
   }
   .label-empty { border: none; }
-  .l-name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .l-barcode { display: flex; justify-content: center; margin-top: 2px; }
+  .l-shop { font-size: 7px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .l-name { font-size: 11px; font-weight: 700; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .l-barcode { display: flex; justify-content: center; margin-top: 1px; }
   .l-barcode svg { display: block; }
-  .l-nocode { font-size: 9px; color: #999; padding: 8px 0; }
-  .l-weight { margin-top: auto; font-size: 9px; font-weight: 600; color: #333; }
+  .l-nocode { font-size: 9px; color: #999; padding: 6px 0; }
+  .l-details { font-size: 8px; color: #444; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .l-foot { margin-top: auto; display: flex; justify-content: space-between; font-size: 8px; font-weight: 600; color: #111; }
 </style>
 </head>
 <body>${pages.join("")}</body>
