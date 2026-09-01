@@ -44,11 +44,6 @@ function tsplText(value: string): string {
   return value.replace(/["\r\n\x00-\x1f]/g, " ").trim();
 }
 
-/** The ₹ glyph isn't in the printer's fonts — spell it out instead. */
-function priceText(sellingPrice: number): string {
-  return `Rs.${Number(sellingPrice).toFixed(2)}`;
-}
-
 function truncateToWidth(text: string, maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, Math.max(0, maxChars - 2))}..` : text;
 }
@@ -71,9 +66,8 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
 /**
  * Builds the full TSPL2 command stream for a batch of labels.
  *
- * Layout (proportional to stock size, tuned for the 63.5 × 33.9 mm label):
- * shop name → product name → native barcode (human-readable digits below)
- * → details (color · size · weight) → SKU + price footer.
+ * Layout (3 fields only — tuned for 45×30mm thermal stock):
+ * product name (top) → native barcode (middle) → weight (bottom).
  */
 export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions = {}): string {
   const copies = Math.min(999, Math.max(1, Math.floor(opts.copies ?? 1)));
@@ -88,14 +82,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
   // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
-  // Sizes below are planned in dots (proportional to label height), then
-  // converted so the print is identical at 203 or 300 dpi.
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
-  const shopSize = toPt(Math.round(h * 0.06));
-  const nameSize = toPt(Math.round(h * 0.075));
-  const detSize = toPt(Math.round(h * 0.052));
-  const priceSize = toPt(Math.round(h * 0.067));
-  const barcodeHeight = Math.round(h * 0.24);
+  const nameSize = toPt(Math.round(h * 0.08));  // product name — larger since only 3 fields
+  const weightSize = toPt(Math.round(h * 0.065)); // weight — slightly smaller than name
+  const barcodeHeight = Math.round(h * 0.35);     // barcode — 35% of label height, big & scannable
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -105,34 +95,23 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   ];
 
   for (const label of labels) {
-    const shop = tsplText(label.shopName);
     const name = truncateToWidth(
       tsplText(label.productName),
       Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9)),
     );
-    const details = tsplText(
-      [label.color, label.size, label.weightMg != null ? formatWeight(label.weightMg) : null]
-        .filter(Boolean)
-        .join(" · "),
-    );
-    const sku = truncateToWidth(
-      tsplText(label.sku),
-      Math.floor((w * 0.62) / ((detSize * dpi) / 72 / 1.7)),
-    );
-    const price = priceText(label.sellingPrice);
+    const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
     lines.push("CLS");
-    if (shop) lines.push(`TEXT ${m},${Math.round(h * 0.025)},"0",0,${shopSize},${shopSize},"${shop}"`);
-    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.11)},"0",0,${nameSize},${nameSize},"${name}"`);
+    // Name at top
+    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.03)},"0",0,${nameSize},${nameSize},"${name}"`);
+    // Barcode in middle — horizontal, upright, number below
     if (label.barcode) {
-      lines.push(barcodeCommand(m, Math.round(h * 0.22), barcodeHeight, label.barcode));
+      lines.push(barcodeCommand(m, Math.round(h * 0.25), barcodeHeight, label.barcode));
     } else {
-      lines.push(`TEXT ${m},${Math.round(h * 0.3)},"0",0,${detSize},${detSize},"NO BARCODE"`);
+      lines.push(`TEXT ${m},${Math.round(h * 0.4)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
-    if (details) lines.push(`TEXT ${m},${Math.round(h * 0.585)},"0",0,${detSize},${detSize},"${details}"`);
-    lines.push(`TEXT ${m},${Math.round(h * 0.675)},"0",0,${detSize},${detSize},"${sku}"`);
-    // Alignment 3 = right: the text ENDS at x = w - m (TSPL2 manual, TEXT).
-    lines.push(`TEXT ${w - m},${Math.round(h * 0.66)},"0",0,${priceSize},${priceSize},3,"${price}"`);
+    // Weight at bottom
+    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.82)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     lines.push(`PRINT ${copies},1`);
   }
 
