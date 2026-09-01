@@ -66,8 +66,11 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
 /**
  * Builds the full TSPL2 command stream for a batch of labels.
  *
- * Layout (3 fields only — tuned for 45×30mm thermal stock):
- * product name (top) → native barcode (middle) → weight (bottom).
+ * Side-by-side layout (3 fields — tuned for 45×30mm thermal stock):
+ * LEFT  half: product name (top) + weight (bottom)
+ * RIGHT half: horizontal barcode (fills the right side)
+ *
+ * No rotation, no LINE commands — only basic TSPL2 that the TE244 supports.
  */
 export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions = {}): string {
   const copies = Math.min(999, Math.max(1, Math.floor(opts.copies ?? 1)));
@@ -80,12 +83,20 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const h = mmToDots(heightMm, dpi);
   const m = Math.round(w * 0.032); // side margin
 
+  // --- Left zone (text): x = m … 42% of width ---
+  const leftMaxX = Math.round(w * 0.42);
+  const textMaxChars = leftMaxX - m; // rough char budget for left zone
+
+  // --- Right zone (barcode): x = 48% … w-m ---
+  const barcodeX = Math.round(w * 0.48);
+  const barcodeMaxW = w - m - barcodeX;
+
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
   // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
-  const nameSize = toPt(Math.round(h * 0.08));  // product name — larger since only 3 fields
-  const weightSize = toPt(Math.round(h * 0.065)); // weight — slightly smaller than name
-  const barcodeHeight = Math.round(h * 0.35);     // barcode — 35% of label height, big & scannable
+  const nameSize = toPt(Math.round(h * 0.09));   // product name — 9% of height
+  const weightSize = toPt(Math.round(h * 0.07)); // weight — 7% of height
+  const barcodeHeight = Math.round(h * 0.6);     // barcode — 60% of height, fills right side
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -97,21 +108,21 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   for (const label of labels) {
     const name = truncateToWidth(
       tsplText(label.productName),
-      Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9)),
+      Math.floor(textMaxChars / ((nameSize * dpi) / 72 / 1.9)),
     );
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
     lines.push("CLS");
-    // Name at top
-    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.03)},"0",0,${nameSize},${nameSize},"${name}"`);
-    // Barcode in middle — horizontal, upright, number below
+    // LEFT — Name at top
+    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.04)},"0",0,${nameSize},${nameSize},"${name}"`);
+    // LEFT — Weight at bottom
+    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.78)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+    // RIGHT — Barcode (horizontal, upright, number below)
     if (label.barcode) {
-      lines.push(barcodeCommand(m, Math.round(h * 0.25), barcodeHeight, label.barcode));
+      lines.push(barcodeCommand(barcodeX, Math.round(h * 0.12), barcodeHeight, label.barcode));
     } else {
-      lines.push(`TEXT ${m},${Math.round(h * 0.4)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
+      lines.push(`TEXT ${barcodeX},${Math.round(h * 0.4)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
-    // Weight at bottom
-    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.82)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     lines.push(`PRINT ${copies},1`);
   }
 

@@ -71,16 +71,18 @@ export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
 
 /** Renders ONE label's inner markup (shared by the sheet + previews).
- * 3 fields only: product name (top) → barcode (middle) → weight (bottom).
+ * Side-by-side: LEFT = name + weight, RIGHT = barcode.
  */
 export function renderLabelMarkup(label: ProductLabel): string {
-  const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 34, scale: 2, fontSize: 8 }) : "";
+  const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 50, scale: 2, fontSize: 8 }) : "";
   const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
   return `<div class="label">
-    <div class="l-name">${esc(label.productName)}</div>
-    <div class="l-barcode">${barcode || `<span class="l-nocode">NO BARCODE</span>`}</div>
-    <div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>
+    <div class="l-left">
+      <div class="l-name">${esc(label.productName)}</div>
+      <div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>
+    </div>
+    <div class="l-right">${barcode || `<span class="l-nocode">NO BARCODE</span>`}</div>
   </div>`;
 }
 
@@ -139,18 +141,21 @@ export function renderLabelSheetHtml(
     width: ${LABEL_WIDTH_MM}mm;
     height: ${LABEL_HEIGHT_MM}mm;
     float: left;
-    padding: 3mm 2.5mm;
+    padding: 2mm 2mm;
     overflow: hidden;
     border: 1px dashed #ddd;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
+    align-items: center;
+    gap: 2mm;
   }
   .label-empty { border: none; }
+  .l-left { flex: 0 0 42%; display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; }
+  .l-right { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; }
+  .l-right svg { display: block; max-width: 100%; height: auto; }
   .l-name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .l-barcode { display: flex; justify-content: center; margin-top: 1px; }
-  .l-barcode svg { display: block; }
-  .l-nocode { font-size: 9px; color: #999; padding: 6px 0; }
-  .l-weight { font-size: 9px; font-weight: 600; color: #333; margin-top: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .l-nocode { font-size: 8px; color: #999; }
+  .l-weight { font-size: 9px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body>${pages.join("")}</body>
