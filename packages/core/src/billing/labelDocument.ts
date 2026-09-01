@@ -71,16 +71,22 @@ export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
 
 /** Renders ONE label's inner markup (shared by the sheet + previews).
- * Thermal layout: name on top, barcode in middle, weight at bottom.
+ * Uses INLINE STYLES so the markup is self-contained — works in the
+ * dialog preview, the A4 print sheet, the PDF, and expo-print's WebView
+ * without needing any external CSS file.
+ *
+ * Layout: name on top, barcode in middle, weight at bottom.
  */
 export function renderLabelMarkup(label: ProductLabel): string {
-  const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 40, scale: 2, fontSize: 8 }) : "";
+  const barcode = label.barcode
+    ? barcodeSvg(label.barcode, { height: 40, scale: 2, fontSize: 8 })
+    : "";
   const weight = label.weightMg != null ? formatWeight(label.weightMg) : null;
 
-  return `<div class="label">
-    <div class="l-name">${esc(label.productName)}</div>
-    <div class="l-barcode">${barcode || `<span class="l-nocode">NO BARCODE</span>`}</div>
-    <div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>
+  return `<div style="display:flex;flex-direction:column;width:${LABEL_WIDTH_MM}mm;height:${LABEL_HEIGHT_MM}mm;padding:3mm 2.5mm;box-sizing:border-box;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
+    <div style="font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(label.productName)}</div>
+    <div style="display:flex;justify-content:center;margin-top:2px;flex-shrink:0;">${barcode || `<span style="font-size:9px;color:#999;padding:8px 0;">NO BARCODE</span>`}</div>
+    <div style="margin-top:auto;font-size:9px;font-weight:600;color:#333;">${weight ? esc(weight) : "&nbsp;"}</div>
   </div>`;
 }
 

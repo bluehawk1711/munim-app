@@ -51,16 +51,22 @@ function truncateToWidth(text: string, maxChars: number): string {
 /** mm → printer dots (TSPL2: 203 dpi ⇒ 1 mm = 8 dots). */
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
 
-/** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128. */
+/** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128.
+ *
+ * TSPL2 BARCODE params: x, y, "type", height, rotation, hri, font, module, data
+ *   rotation: 0=0° 1=90° 2=180° 3=270°
+ *   hri: 0=off 1=above 2=below 3=both
+ *   module: narrow-bar width in dots (EAN-13 standard=2, Code128=3)
+ */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string): string {
   const digits = value.replace(/\D/g, "");
   // EAN-13 only when the check digit is actually valid — an invalid one
   // prints a barcode no scanner will read. Code 128 encodes the literal
   // string, so the printed label still scans back to the stored value.
   if (isEan13(digits)) {
-    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,2,4,"${digits}"`;
+    return `BARCODE ${x},${y},"EAN13",${heightDots},0,2,2,2,"${digits}"`;
   }
-  return `BARCODE ${x},${y},"128",${heightDots},2,0,2,3,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},0,2,2,3,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**

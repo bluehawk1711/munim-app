@@ -99,12 +99,12 @@ export function LabelPrintDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Label preview — the exact markup that prints, slightly scaled. */}
+          {/* Label preview — matches the thermal printer label aspect ratio (45:30 = 3:2). */}
           <div className="flex items-center justify-center rounded-lg border bg-muted/40 p-4">
-            <div className="overflow-hidden rounded-md bg-white shadow-sm" style={{ width: "240px", height: "128px" }}>
+            <div className="overflow-hidden rounded-md bg-white shadow-sm" style={{ width: "240px", height: "160px" }}>
               {first ? (
                 <div
-                  style={{ transform: "scale(0.99)", transformOrigin: "top left", width: "240px", height: "128px" }}
+                  style={{ transform: "scale(0.95)", transformOrigin: "center", width: "240px", height: "160px" }}
                   dangerouslySetInnerHTML={{ __html: renderLabelMarkup(first) }}
                 />
               ) : (
