@@ -70,7 +70,8 @@ const esc = (s: string | null | undefined): string =>
 export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
 
-/** Renders ONE label's inner markup (shared by the sheet + previews).
+/**
+ * Renders ONE label's inner markup (shared by the sheet + previews).
  * Uses INLINE STYLES so the markup is self-contained — works in the
  * dialog preview, the A4 print sheet, the PDF, and expo-print's WebView
  * without needing any external CSS file.
@@ -79,7 +80,7 @@ export const LABEL_HEIGHT_MM = 33.9;
  */
 export function renderLabelMarkup(label: ProductLabel): string {
   const barcode = label.barcode
-    ? barcodeSvg(label.barcode, { height: 40, scale: 2, fontSize: 8 })
+    ? barcodeSvg(label.barcode, { height: 34, scale: 2, fontSize: 8 })
     : "";
   const weight = label.weightMg != null ? formatWeight(label.weightMg) : null;
 

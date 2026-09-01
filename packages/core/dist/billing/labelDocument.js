@@ -23,7 +23,8 @@ const esc = (s) => (s ?? "")
 /** One physical label: 63.5 × 33.9 mm (3 × 8 grid = 24 per A4 sheet). */
 export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
-/** Renders ONE label's inner markup (shared by the sheet + previews).
+/**
+ * Renders ONE label's inner markup (shared by the sheet + previews).
  * Uses INLINE STYLES so the markup is self-contained — works in the
  * dialog preview, the A4 print sheet, the PDF, and expo-print's WebView
  * without needing any external CSS file.
@@ -32,7 +33,7 @@ export const LABEL_HEIGHT_MM = 33.9;
  */
 export function renderLabelMarkup(label) {
     const barcode = label.barcode
-        ? barcodeSvg(label.barcode, { height: 40, scale: 2, fontSize: 8 })
+        ? barcodeSvg(label.barcode, { height: 34, scale: 2, fontSize: 8 })
         : "";
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : null;
     return `<div style="display:flex;flex-direction:column;width:${LABEL_WIDTH_MM}mm;height:${LABEL_HEIGHT_MM}mm;padding:3mm 2.5mm;box-sizing:border-box;overflow:hidden;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;">
