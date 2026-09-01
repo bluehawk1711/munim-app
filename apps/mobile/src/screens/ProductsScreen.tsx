@@ -202,7 +202,9 @@ export function ProductsScreen() {
   // Data
   const {data: listData, error, loading, reload} = useQueryState(useProducts({pageSize: 500}));
   const data = listData?.products;
-  const {data: catalogData} = useQueryState(useCatalog());
+  const {data: colorsCatalog} = useQueryState(useCatalog('color'));
+  const {data: sizesCatalog} = useQueryState(useCatalog('size'));
+  const {data: categoriesCatalog} = useQueryState(useCatalog('category'));
   const {data: settings} = useQueryState(useSettings());
 
   // Mutations
@@ -236,9 +238,9 @@ export function ProductsScreen() {
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [sizePickerOpen, setSizePickerOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
-  const catalogColors = useMemo(() => (catalogData?.colors ?? []).map(c => ({label: c.name, value: c.name})), [catalogData]);
-  const catalogSizes = useMemo(() => (catalogData?.sizes ?? []).map(s => ({label: s.name, value: s.name})), [catalogData]);
-  const catalogCategories = useMemo(() => (catalogData?.categories ?? []).map(c => ({label: c.name, value: c.name})), [catalogData]);
+  const catalogColors = useMemo(() => (colorsCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [colorsCatalog]);
+  const catalogSizes = useMemo(() => (sizesCatalog ?? []).map((s: {name: string}) => ({label: s.name, value: s.name})), [sizesCatalog]);
+  const catalogCategories = useMemo(() => (categoriesCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [categoriesCatalog]);
 
   // Stock adjustment
   const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
@@ -529,7 +531,6 @@ export function ProductsScreen() {
           data={filtered}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          estimatedItemSize={rs(80)}
           contentContainerStyle={{padding: CARD_MARGIN, paddingBottom: spacing.xxxl}}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={

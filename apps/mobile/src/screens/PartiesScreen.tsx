@@ -129,7 +129,7 @@ export function PartiesScreen() {
     }
   }
 
-  const renderParty = ({item, index}: {item: typeof parties extends Array<infer T> ? T : never; index: number}) => (
+  const renderParty = ({item, index}: {item: {id: string; name: string; phone: string | null; balance: number; given: number; taken: number; type: string}; index: number}) => (
     <Card style={{marginHorizontal: CARD_MARGIN}} index={index}>
       <Pressable onPress={() => setSelectedId(item.id === selectedId ? null : item.id)} hitSlop={6}>
         <View style={styles.partyRow}>
@@ -199,7 +199,6 @@ export function PartiesScreen() {
           data={parties}
           renderItem={renderParty}
           keyExtractor={item => item.id}
-          estimatedItemSize={rs(120)}
           ListHeaderComponent={
             <View style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}}>
               <Button title="+ Add party" onPress={() => setAddOpen(true)} />

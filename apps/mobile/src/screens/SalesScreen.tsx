@@ -227,7 +227,6 @@ export function SalesScreen() {
               data={recent.invoices}
               renderItem={renderSaleItem}
               keyExtractor={item => item.id}
-              estimatedItemSize={rs(100)}
               contentContainerStyle={{paddingBottom: spacing.xxxl}}
             />
           )}
@@ -352,7 +351,7 @@ const makeStyles = () =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    pickerRowActive: {backgroundColor: colors.primarySoft},
+    pickerRowActive: {backgroundColor: colors.mutedSoft},
     pickerName: {fontSize: typography.body, fontWeight: '500', color: colors.text},
     pickerMeta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
     pickerPrice: {fontSize: typography.body, fontWeight: '600', color: colors.text},

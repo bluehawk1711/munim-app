@@ -198,7 +198,7 @@ const pickerStyles = StyleSheet.create({
     minHeight: TOUCH_TARGET,
   },
   rowActive: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.mutedSoft,
   },
   rowText: {
     flex: 1,

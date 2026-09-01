@@ -66,9 +66,15 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
 /**
  * Builds the full TSPL2 command stream for a batch of labels.
  *
- * Layout (proportional to stock size, tuned for the 63.5 × 33.9 mm label):
- * shop name → product name → native barcode (human-readable digits below)
- * → details (color · size · weight) → SKU + price footer.
+ * Layout — side-by-side (left/right):
+ * ┌───────────────────────────┐
+ * │ Name         │            │
+ * │              │  BARCODE   │
+ * │ Weight       │  (rot 90°) │
+ * │              │            │
+ * └───────────────────────────┘
+ * Left ~40%: product name (top) + weight (bottom)
+ * Right ~60%: barcode rotated 90° (vertical, fills height)
  */
 export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions = {}): string {
   const copies = Math.min(999, Math.max(1, Math.floor(opts.copies ?? 1)));
@@ -79,18 +85,29 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
-  const m = Math.round(w * 0.032); // side margin
+  const m = Math.round(w * 0.03); // side margin
 
-  // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
-  // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
-  // Sizes below are planned in dots (proportional to label height), then
-  // converted so the print is identical at 203 or 300 dpi.
+  // ── Split point: left ~40%, right ~60% ──
+  const splitX = Math.round(w * 0.42);
+  // Vertical separator line between halves.
+  const sepX = Math.round(w * 0.44);
+
+  // ── Left side: text ──
+  // Font "0" scalable: x/y params are font size in POINTS (1 pt = 1/72").
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
-  // Only 3 elements: barcode, name, weight — larger fonts, clean layout.
-  const nameSize = toPt(Math.round(h * 0.08));
-  const weightSize = toPt(Math.round(h * 0.055));
-  // Barcode takes most of the label for reliable scanning.
-  const barcodeHeight = Math.round(h * 0.30);
+  const nameSize = toPt(Math.round(h * 0.11)); // ~27pt on 240-dot label
+  const weightSize = toPt(Math.round(h * 0.09)); // ~22pt
+  const maxTextWidth = splitX - m - 4; // dots available for text
+
+  // ── Right side: barcode rotated 90° ──
+  // With rotation=90 the barcode prints top→bottom; the "height" param
+  // becomes the horizontal width of the barcode bars.
+  const bcX = Math.round(w * 0.50); // barcode left edge
+  const bcY = Math.round(h * 0.06); // top margin
+  const bcWidth = Math.round(w * 0.30); // horizontal width of barcode (~14mm)
+  // The barcode extends downward; EAN-13 at module=2 ≈ 190 dots long.
+  // For label height 240 dots, max barcode height before clipping:
+  const bcMaxLen = h - bcY - Math.round(h * 0.08); // leave room for digits below
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -102,21 +119,48 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   for (const label of labels) {
     const name = truncateToWidth(
       tsplText(label.productName),
-      Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9)),
+      Math.floor(maxTextWidth / ((nameSize * dpi) / 72 / 1.8)),
     );
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
     lines.push("CLS");
-    // Name at the top.
-    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.04)},"0",0,${nameSize},${nameSize},"${name}"`);
-    // Barcode in the middle — big and scannable.
-    if (label.barcode?.trim()) {
-      lines.push(barcodeCommand(m, Math.round(h * 0.22), barcodeHeight, label.barcode));
-    } else {
-      lines.push(`TEXT ${m},${Math.round(h * 0.35)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
+
+    // ── Vertical separator line ──
+    lines.push(`LINE ${sepX},${Math.round(h * 0.06)},${sepX},${Math.round(h * 0.94)},1`);
+
+    // ── Left side: product name (top) ──
+    if (name) {
+      lines.push(
+        `TEXT ${m},${Math.round(h * 0.12)},"0",0,${nameSize},${nameSize},"${name}"`,
+      );
     }
-    // Weight at the bottom.
-    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.78)},"0",0,${weightSize},${weightSize},"${weight}"`);
+
+    // ── Left side: weight (bottom) ──
+    if (weight) {
+      lines.push(
+        `TEXT ${m},${Math.round(h * 0.65)},"0",0,${weightSize},${weightSize},"${weight}"`,
+      );
+    }
+
+    // ── Right side: barcode (rotated 90°) ──
+    if (label.barcode?.trim()) {
+      const digits = label.barcode.replace(/\D/g, "");
+      const isEan = isEan13(digits);
+      const bcType = isEan ? "EAN13" : "128";
+      const bcData = isEan ? digits : tsplText(label.barcode).toUpperCase();
+      const bcHr = isEan ? 4 : 3; // human-readable below barcode
+      // rotation=90: barcode prints top→bottom, height param = horizontal width
+      lines.push(
+        `BARCODE ${bcX},${bcY},"${bcType}",${bcWidth},90,${bcHr},2,4,"${bcData}"`,
+      );
+    } else {
+      // No barcode — put "NO BARCODE" centered in the right half.
+      const noBcSize = toPt(Math.round(h * 0.07));
+      lines.push(
+        `TEXT ${bcX + 4},${Math.round(h * 0.40)},"0",0,${noBcSize},${noBcSize},"NO BARCODE"`,
+      );
+    }
+
     lines.push(`PRINT ${copies},1`);
   }
 

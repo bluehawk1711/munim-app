@@ -1,2 +1,0 @@
-1. Web build working perfectly
-2. Desktop working

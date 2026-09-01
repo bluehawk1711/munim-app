@@ -47,15 +47,17 @@ import {rw, rh, rs, typography, spacing, radii, SCREEN} from '../lib/responsive'
 
 /* ─── Handle ─────────────────────────────────────────────────────────── */
 
-function Handle(props: BottomSheetHandleProps) {
-  return (
-    <View style={handleStyles.container}>
-      <View style={handleStyles.indicator} />
-      {props.title ? (
-        <Text style={handleStyles.title}>{props.title}</Text>
-      ) : null}
-    </View>
-  );
+function createHandle(title?: string) {
+  return function Handle(props: BottomSheetHandleProps) {
+    return (
+      <View style={handleStyles.container}>
+        <View style={handleStyles.indicator} />
+        {title ? (
+          <Text style={handleStyles.title}>{title}</Text>
+        ) : null}
+      </View>
+    );
+  };
 }
 
 const handleStyles = StyleSheet.create({
@@ -168,8 +170,8 @@ export const MunimBottomSheet = forwardRef<BottomSheet, MunimBottomSheetProps>(
       onClose?.();
     }, [onClose]);
 
-    const renderHandle = useCallback(
-      (props: BottomSheetHandleProps) => <Handle {...props} title={title} />,
+    const renderHandle = useMemo(
+      () => createHandle(title),
       [title],
     );
 

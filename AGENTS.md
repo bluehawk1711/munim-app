@@ -46,14 +46,9 @@ These rules are **mandatory**. Read them before touching any code.
 - Reuse existing UI primitives (shadcn/ui in web & desktop, RN core components
   in mobile). Do not build parallel component sets.
 
-## 4. Architecture: no API server
+## 4. Architecture:
 
-- The database is **Neon Postgres**, accessed via `drizzle-orm/pg-proxy` (pure
-  `fetch`) from ALL THREE runtimes (Node/Next.js, Tauri webview, React Native).
-- **Do not** introduce an API server / backend microservice. Business logic is
-  the `core` package, imported directly by every app.
-- The only secrets are database connection strings (`.env` per app, or runtime
-  config). Never hardcode credentials, never commit `.env`.
+- OLD RULE NOW THERE IS A SERVER
 
 ## 4b. Web ⇄ Desktop feature parity (mandatory)
 
