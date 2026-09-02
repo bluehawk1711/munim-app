@@ -58,9 +58,11 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
   // prints a barcode no scanner will read. Code 128 encodes the literal
   // string, so the printed label still scans back to the stored value.
   if (isEan13(digits)) {
-    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,2,4,"${digits}"`;
+    // TSPL2 EAN13 expects 12 data digits; the printer calculates the check digit.
+    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,1,2,"${digits.slice(0, 12)}"`;
   }
-  return `BARCODE ${x},${y},"128",${heightDots},2,0,2,3,"${tsplText(value).toUpperCase()}"`;
+  // narrow=1 wide=2 — fits Code 128 in the right half of a 45mm label.
+  return `BARCODE ${x},${y},"128",${heightDots},2,0,1,2,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
@@ -93,10 +95,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
   // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
-  // Use simple fixed font sizes that work well on 45×30mm labels.
-  const nameSize = 3;    // Font 0 at 3pt — small but readable
-  const weightSize = 2;  // Font 0 at 2pt — very small, fits bottom
-  const barcodeHeight = Math.round(h * 0.35);  // 35% of height (~84 dots for 30mm label)
+  const nameSize = 8;    // Font 0 at 8pt — readable product name
+  const weightSize = 7;  // Font 0 at 7pt — readable weight text
+  const barcodeHeight = Math.round(h * 0.32);  // 32% of height (~77 dots for 30mm label)
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -115,14 +116,14 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     lines.push("CLS");
     // With DIRECTION 0: Y=0 is top, increases downward.
     // LEFT side — Name at top
-    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.06)},"0",0,${nameSize},${nameSize},"${name}"`);
+    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.08)},"0",0,${nameSize},${nameSize},"${name}"`);
     // LEFT side — Weight at bottom
-    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.82)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.78)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     // RIGHT side — Barcode (horizontal, upright, number below)
     if (label.barcode) {
-      lines.push(barcodeCommand(barcodeX, Math.round(h * 0.25), barcodeHeight, label.barcode));
+      lines.push(barcodeCommand(barcodeX, Math.round(h * 0.20), barcodeHeight, label.barcode));
     } else {
-      lines.push(`TEXT ${barcodeX},${Math.round(h * 0.5)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
+      lines.push(`TEXT ${barcodeX},${Math.round(h * 0.45)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
     lines.push(`PRINT ${copies},1`);
   }
