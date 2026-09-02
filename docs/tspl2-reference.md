@@ -232,3 +232,24 @@ END
 2. **Font "0" is scalable** - Use multiplication factors for size control
 3. **Rotation=90 may not work** on all firmware versions
 4. **LINE command may not work** on some TE244 firmware
+5. **EAN-13 expects 12 digits** - The printer calculates the check digit itself. Send `digits.slice(0, 12)`, not the full 13-digit code.
+6. **Narrow/Wide for Code 128** - Use `narrow=1, wide=2` (not `2,4`) to fit barcodes in small label zones. At `2,4` a 12-char Code 128 is ~190 dots wide — too much for a 45mm label's right half.
+7. **Font 0 at 3pt/2pt is too small** - On 45×30mm labels, use 7–8pt for names and 6–7pt for details. Below 6pt the text is barely readable on thermal stock.
+
+### Recommended Layout for 45×30mm (203 DPI)
+```
+SIZE 45 mm,30 mm
+GAP 2 mm,0
+DIRECTION 0
+CODEPAGE UTF-8
+CLS
+TEXT 12,19,"0",0,8,8,"Product Name"
+BARCODE 173,48,"EAN13",77,2,0,1,2,"521839443640"
+TEXT 12,187,"0",0,7,7,"24.5 g"
+PRINT 1
+```
+- Name: x=12, y=19 (2.4mm from top), font 0 at 8pt
+- Barcode: x=173 (48% width), y=48, height=77 dots (32%), narrow=1, wide=2
+- Weight: x=12, y=187 (23.4mm from top), font 0 at 7pt
+- EAN-13: 12 digits only (printer adds check digit)
+- Code 128 fallback: narrow=1, wide=2 (fits ~155 dots in right zone)
