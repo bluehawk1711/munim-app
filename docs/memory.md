@@ -341,7 +341,7 @@ The label system prints product labels — either on a normal printer (A4 sheet)
 | 40 × 25mm | 320 | 200 |
 | 50 × 30mm | 400 | 240 |
 
-Full TSPL2 reference: `docs/tspl2-reference.md`
+Full TSPL2 reference + TE244 audit: `docs/tspl2-reference.md`
 
 ---
 
