@@ -59,9 +59,11 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
   // string, so the printed label still scans back to the stored value.
   if (isEan13(digits)) {
     // TSPL2 EAN13 expects 12 data digits; the printer calculates the check digit.
+    // narrow/wide params are IGNORED for EAN-13 (fixed module widths per ISO 13633).
     return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,1,2,"${digits.slice(0, 12)}"`;
   }
   // narrow=1 wide=2 — fits Code 128 in the right half of a 45mm label.
+  // (At narrow=2 wide=4 a 12-char Code 128 is ~190 dots — overflows.)
   return `BARCODE ${x},${y},"128",${heightDots},2,0,1,2,"${tsplText(value).toUpperCase()}"`;
 }
 
@@ -94,16 +96,18 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const barcodeMaxW = w - m - barcodeX;
 
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
-  // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
-  const nameSize = 8;    // Font 0 at 8pt — readable product name
-  const weightSize = 7;  // Font 0 at 7pt — readable weight text
+  // are scale factors 1–10 (NOT point sizes). Base height ~12 dots (1.5mm)
+  // at 203 DPI, so scale 8 = ~96 dots (~12mm), scale 5 = ~60 dots (~7.5mm).
+  const nameSize = 8;    // Font 0 scale 8 — ~12mm, readable product name
+  const weightSize = 5;  // Font 0 scale 5 — ~7.5mm, fits within label bounds
   const barcodeHeight = Math.round(h * 0.32);  // 32% of height (~77 dots for 30mm label)
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
     gapMm > 0 ? `GAP ${gapMm} mm,0` : `GAP 0,0`,
     "DIRECTION 0",
-    "CODEPAGE UTF-8",
+    // CODEPAGE intentionally omitted — not in standard TSPL codepage list;
+    // ASCII text (product names, weights) works on any codepage.
   ];
 
   for (const label of labels) {
@@ -117,8 +121,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     // With DIRECTION 0: Y=0 is top, increases downward.
     // LEFT side — Name at top
     if (name) lines.push(`TEXT ${m},${Math.round(h * 0.08)},"0",0,${nameSize},${nameSize},"${name}"`);
-    // LEFT side — Weight at bottom
-    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.78)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+    // LEFT side — Weight at bottom (y=70% keeps scale-5 text within label bounds)
+    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.70)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     // RIGHT side — Barcode (horizontal, upright, number below)
     if (label.barcode) {
       lines.push(barcodeCommand(barcodeX, Math.round(h * 0.20), barcodeHeight, label.barcode));
@@ -128,5 +132,6 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     lines.push(`PRINT ${copies},1`);
   }
 
+  lines.push("END");
   return lines.join("\r\n") + "\r\n";
 }
