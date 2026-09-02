@@ -93,15 +93,15 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
   // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
-  const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
-  const nameSize = toPt(Math.round(h * 0.09));   // product name — 9% of height
-  const weightSize = toPt(Math.round(h * 0.07)); // weight — 7% of height
-  const barcodeHeight = Math.round(h * 0.6);     // barcode — 60% of height, fills right side
+  // Use simple fixed font sizes that work well on 45×30mm labels.
+  const nameSize = 3;    // Font 0 at 3pt — small but readable
+  const weightSize = 2;  // Font 0 at 2pt — very small, fits bottom
+  const barcodeHeight = Math.round(h * 0.35);  // 35% of height (~84 dots for 30mm label)
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
     gapMm > 0 ? `GAP ${gapMm} mm,0` : `GAP 0,0`,
-    "DIRECTION 1",
+    "DIRECTION 0",
     "CODEPAGE UTF-8",
   ];
 
@@ -113,15 +113,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
     lines.push("CLS");
-    // LEFT — Name at top
-    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.04)},"0",0,${nameSize},${nameSize},"${name}"`);
-    // LEFT — Weight at bottom
-    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.78)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
-    // RIGHT — Barcode (horizontal, upright, number below)
+    // With DIRECTION 0: Y=0 is top, increases downward.
+    // LEFT side — Name at top
+    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.06)},"0",0,${nameSize},${nameSize},"${name}"`);
+    // LEFT side — Weight at bottom
+    if (weight) lines.push(`TEXT ${m},${Math.round(h * 0.82)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+    // RIGHT side — Barcode (horizontal, upright, number below)
     if (label.barcode) {
-      lines.push(barcodeCommand(barcodeX, Math.round(h * 0.12), barcodeHeight, label.barcode));
+      lines.push(barcodeCommand(barcodeX, Math.round(h * 0.25), barcodeHeight, label.barcode));
     } else {
-      lines.push(`TEXT ${barcodeX},${Math.round(h * 0.4)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
+      lines.push(`TEXT ${barcodeX},${Math.round(h * 0.5)},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
     lines.push(`PRINT ${copies},1`);
   }
