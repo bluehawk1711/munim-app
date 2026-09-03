@@ -14,12 +14,12 @@ import { LABEL_HEIGHT_MM, LABEL_WIDTH_MM, type ProductLabel } from "./labelDocum
  *
  * Same label model as the A4 sheet (`ProductLabel`) — one source of truth.
  *
- * Why this layout (matches commit ac66510, the last version that printed
- * correctly on the shop's TE244):
+ * Why this layout (proven on the shop's TE244, see commit ac66510):
  *   • DIRECTION 1   — origin at bottom-left, Y increases upward. This is
- *     the default for TE244 label rolls loaded in the shop's printer.
+ *     the default for the shop's TE244 label roll.
+ *   • Three fields: name (top), barcode (middle), weight (bottom).
+ *     That's it — the only data the admin wants on the tag.
  *   • Single column — everything aligned at the left margin (x = m).
- *     The barcode sits below the name, not next to it.
  *   • Font "0"      — Monotype CG Triumvirate Bold scalable. Its x/y
  *     parameters are the size in POINTS (1 pt = 1/72 inch), so we plan
  *     in dots and convert via toPt() — identical at 203/300 dpi.
@@ -56,11 +56,6 @@ function tsplText(value: string): string {
   return value.replace(/["\r\n\x00-\x1f]/g, " ").trim();
 }
 
-/** The ₹ glyph isn't in the printer's fonts — spell it out instead. */
-function priceText(sellingPrice: number): string {
-  return `Rs.${Number(sellingPrice).toFixed(2)}`;
-}
-
 function truncateToWidth(text: string, maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, Math.max(0, maxChars - 2))}..` : text;
 }
@@ -83,12 +78,10 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
 /**
  * Builds the full TSPL2 command stream for a batch of labels.
  *
- * Layout (proportional to stock size, tuned for the 63.5 × 33.9 mm label):
- * shop name → product name → native barcode (human-readable digits below)
- * → details (color · size · weight) → SKU + price footer.
- *
- * DIRECTION 1 means Y is measured from the BOTTOM of the label, so all
- * Y values are written as `h * fraction` (where 0 = bottom edge, 1 = top).
+ * Three-field stacked layout (DIRECTION 1: Y from bottom):
+ *   • Name    — top of the label (y ≈ 90% of height)
+ *   • Barcode — middle of the label (y ≈ 75% of height, left-aligned)
+ *   • Weight  — bottom of the label (y ≈ 15% of height)
  */
 export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions = {}): string {
   const copies = Math.min(999, Math.max(1, Math.floor(opts.copies ?? 1)));
@@ -103,14 +96,11 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
   // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
-  // Sizes below are planned in dots (proportional to label height), then
-  // converted so the print is identical at 203 or 300 dpi.
+  // Plan in dots (proportional to label height), then convert.
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * dpi) / 72 / 1.5));
-  const shopSize = toPt(Math.round(h * 0.06));
-  const nameSize = toPt(Math.round(h * 0.075));
-  const detSize = toPt(Math.round(h * 0.052));
-  const priceSize = toPt(Math.round(h * 0.067));
-  const barcodeHeight = Math.round(h * 0.24);
+  const nameSize = toPt(Math.round(h * 0.09));   // ~name
+  const weightSize = toPt(Math.round(h * 0.07)); // ~weight
+  const barcodeHeight = Math.round(h * 0.28);    // barcode band
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -120,34 +110,30 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   ];
 
   for (const label of labels) {
-    const shop = tsplText(label.shopName);
     const name = truncateToWidth(
       tsplText(label.productName),
       Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9)),
     );
-    const details = tsplText(
-      [label.color, label.size, label.weightMg != null ? formatWeight(label.weightMg) : null]
-        .filter(Boolean)
-        .join(" · "),
-    );
-    const sku = truncateToWidth(
-      tsplText(label.sku),
-      Math.floor((w * 0.62) / ((detSize * dpi) / 72 / 1.7)),
-    );
-    const price = priceText(label.sellingPrice);
+    const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
     lines.push("CLS");
-    if (shop) lines.push(`TEXT ${m},${Math.round(h * 0.975)},"0",0,${shopSize},${shopSize},"${shop}"`);
-    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.89)},"0",0,${nameSize},${nameSize},"${name}"`);
-    if (label.barcode) {
-      lines.push(barcodeCommand(m, Math.round(h * 0.78), barcodeHeight, label.barcode));
-    } else {
-      lines.push(`TEXT ${m},${Math.round(h * 0.7)},"0",0,${detSize},${detSize},"NO BARCODE"`);
+    // DIRECTION 1: y=0 is the bottom edge, y=h is the top. So the largest
+    // y-value is the top of the label.
+    if (name) {
+      lines.push(`TEXT ${m},${Math.round(h * 0.9)},"0",0,${nameSize},${nameSize},"${name}"`);
     }
-    if (details) lines.push(`TEXT ${m},${Math.round(h * 0.415)},"0",0,${detSize},${detSize},"${details}"`);
-    lines.push(`TEXT ${m},${Math.round(h * 0.325)},"0",0,${detSize},${detSize},"${sku}"`);
-    // Alignment 3 = right: the text ENDS at x = w - m (TSPL2 manual, TEXT).
-    lines.push(`TEXT ${w - m},${Math.round(h * 0.34)},"0",0,${priceSize},${priceSize},3,"${price}"`);
+    if (label.barcode) {
+      lines.push(barcodeCommand(m, Math.round(h * 0.75), barcodeHeight, label.barcode));
+    } else {
+      lines.push(
+        `TEXT ${m},${Math.round(h * 0.7)},"0",0,${weightSize},${weightSize},"NO BARCODE"`,
+      );
+    }
+    if (weight) {
+      lines.push(
+        `TEXT ${m},${Math.round(h * 0.15)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`,
+      );
+    }
     lines.push(`PRINT ${copies},1`);
   }
 
