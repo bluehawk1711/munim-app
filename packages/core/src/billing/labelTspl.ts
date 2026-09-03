@@ -70,7 +70,8 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
   // prints a barcode no scanner will read. Code 128 encodes the literal
   // string, so the printed label still scans back to the stored value.
   if (isEan13(digits)) {
-    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,2,4,"${digits}"`;
+    // TSPL2 EAN13 expects 12 data digits; the printer calculates the check digit.
+    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,2,4,"${digits.slice(0, 12)}"`;
   }
   return `BARCODE ${x},${y},"128",${heightDots},2,0,2,3,"${tsplText(value).toUpperCase()}"`;
 }
@@ -96,10 +97,13 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
   // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
-  // Plan in dots (proportional to label height), then convert.
-  const toPt = (dots: number): number => Math.max(2, Math.round((dots * dpi) / 72 / 1.5));
-  const nameSize = toPt(Math.round(h * 0.09));   // ~name
-  const weightSize = toPt(Math.round(h * 0.07)); // ~weight
+  // Plan in dots (proportional to label height), then convert to points.
+  // 1 pt = 1/72 inch; 1 inch = dpi dots ⇒ dots = pt * dpi / 72 ⇒
+  // pt = dots * 72 / dpi. For a 45×30mm label (h=240 dots @ 203 dpi),
+  // h*0.09 = 22 dots → 8pt, h*0.07 = 17 dots → 6pt.
+  const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
+  const nameSize = toPt(Math.round(h * 0.09));   // ~8pt
+  const weightSize = toPt(Math.round(h * 0.07)); // ~6pt
   const barcodeHeight = Math.round(h * 0.28);    // barcode band
 
   const lines: string[] = [
@@ -112,7 +116,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   for (const label of labels) {
     const name = truncateToWidth(
       tsplText(label.productName),
-      Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9)),
+      Math.max(2, Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9))),
     );
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
