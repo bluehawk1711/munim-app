@@ -17,13 +17,17 @@ import {
  *
  * Printer + label-stock size are device-local (like the API URL in env.ts) —
  * a printer/roll attached to this machine is meaningless on other devices.
+ *
+ * All print operations are also mirrored to `~/Downloads/munim-print-debug.log`
+ * from the Rust side so a misprint can be diagnosed afterwards.
  */
 
 const LABEL_PRINTER_KEY = "munim.labelPrinter";
 const LABEL_SIZE_KEY = "munim.labelSize";
 
 /** Defaults matched to the shop's jewellery tag roll — adjustable in
- * Settings → Printing (test-print to calibrate). */
+ * Settings → Printing (test-print to calibrate). 45×30mm matches the
+ * TSC TE244 spec sheet for the 1-up roll the shop is using. */
 export const DEFAULT_LABEL_SIZE: LabelSizeSettings = {
   widthMm: 45,
   heightMm: 30,
@@ -88,5 +92,15 @@ export async function printLabelsToThermal(
   const size = getSavedLabelSize();
   const tspl = buildLabelTspl2(labels, { ...size, copies });
   const data = Array.from(new TextEncoder().encode(tspl));
+  // Mirror to the browser console (visible in devtools) — the Rust side
+  // also writes the same stream to ~/Downloads/munim-print-debug.log.
+  console.info("[Munim label print]", {
+    printer: printerName,
+    labels: labels.length,
+    copies,
+    labelSizeMm: size,
+    tsplBytes: data.length,
+  });
+  console.debug("[Munim label print] TSPL2 stream:\n" + tspl);
   await invoke("print_raw", { printerName, data });
 }
