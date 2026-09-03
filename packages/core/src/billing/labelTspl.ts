@@ -14,25 +14,17 @@ import { LABEL_HEIGHT_MM, LABEL_WIDTH_MM, type ProductLabel } from "./labelDocum
  *
  * Same label model as the A4 sheet (`ProductLabel`) — one source of truth.
  *
- * FONT CHOICE — bitmap, not scalable
- * ───────────────────────────────────
- * The TE244 has 8 internal bitmap fonts (Font 1–8) and one scalable font
- * (Font "0" — Monotype CG Triumvirate Bold). The x/y parameters mean
- * different things for each:
- *
- *   • Bitmap fonts (1–8):  x/y = horizontal/vertical **multiplication**
- *     of the font's native cell. Base sizes are fixed per font number
- *     (Font 2 ≈ 3mm tall, Font 3 ≈ 4mm, Font 4 ≈ 5mm …).
- *   • Scalable font ("0"): x/y = **scale factors 1–10** of a ~12-dot
- *     base (so scale 8 ≈ 96 dots ≈ 12mm).
- *
- * The shop's previous TSC BarTender UltraLite template uses "TSC Sans Serif
- * Size 12pt" — that maps to **Font 2 at x-multiplication 1, y-multiplication
- * 2** (Font 2 base ≈ 3mm × 2 = ~6mm, which renders 12pt text crisply at
- * 203 DPI). We stick with bitmap Font 2/3 here because:
- *   1. They render predictably (no surprises between firmware versions).
- *   2. The native cell already provides good readability at 203 DPI.
- *   3. They are the same fonts BarTender selected for this printer.
+ * Why this layout (matches commit ac66510, the last version that printed
+ * correctly on the shop's TE244):
+ *   • DIRECTION 1   — origin at bottom-left, Y increases upward. This is
+ *     the default for TE244 label rolls loaded in the shop's printer.
+ *   • Single column — everything aligned at the left margin (x = m).
+ *     The barcode sits below the name, not next to it.
+ *   • Font "0"      — Monotype CG Triumvirate Bold scalable. Its x/y
+ *     parameters are the size in POINTS (1 pt = 1/72 inch), so we plan
+ *     in dots and convert via toPt() — identical at 203/300 dpi.
+ *   • CODEPAGE UTF-8 — used in the working version; ASCII product names
+ *     and weights are unaffected, so the codepage choice is harmless.
  */
 
 /** A printer installed on the OS (desktop `list_printers` result). */
@@ -64,27 +56,17 @@ function tsplText(value: string): string {
   return value.replace(/["\r\n\x00-\x1f]/g, " ").trim();
 }
 
+/** The ₹ glyph isn't in the printer's fonts — spell it out instead. */
+function priceText(sellingPrice: number): string {
+  return `Rs.${Number(sellingPrice).toFixed(2)}`;
+}
+
 function truncateToWidth(text: string, maxChars: number): string {
   return text.length > maxChars ? `${text.slice(0, Math.max(0, maxChars - 2))}..` : text;
 }
 
 /** mm → printer dots (TSPL2: 203 dpi ⇒ 1 mm = 8 dots). */
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
-
-/**
- * Bitmap font geometry at 203 DPI (TSPL2 manual, table 4).
- * Used to clamp multiplication factors so text never overflows the label.
- * Heights/widths are the font's *native* cell in dots before multiplication.
- */
-const BITMAP_FONT_NATIVE: Record<
-  string,
-  { baseHeightDots: number; baseWidthDots: number }
-> = {
-  "1": { baseHeightDots: 16, baseWidthDots: 12 },
-  "2": { baseHeightDots: 24, baseWidthDots: 16 },
-  "3": { baseHeightDots: 32, baseWidthDots: 24 },
-  "4": { baseHeightDots: 40, baseWidthDots: 32 },
-};
 
 /** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128. */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string): string {
@@ -93,23 +75,20 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
   // prints a barcode no scanner will read. Code 128 encodes the literal
   // string, so the printed label still scans back to the stored value.
   if (isEan13(digits)) {
-    // TSPL2 EAN13 expects 12 data digits; the printer calculates the check digit.
-    // narrow/wide params are IGNORED for EAN-13 (fixed module widths per ISO 13633).
-    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,1,2,"${digits.slice(0, 12)}"`;
+    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,2,4,"${digits}"`;
   }
-  // narrow=1 wide=2 — fits Code 128 in the right half of a 45mm label.
-  // (At narrow=2 wide=4 a 12-char Code 128 is ~190 dots — overflows.)
-  return `BARCODE ${x},${y},"128",${heightDots},2,0,1,2,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},2,0,2,3,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
  * Builds the full TSPL2 command stream for a batch of labels.
  *
- * Side-by-side layout (3 fields — tuned for 45×30mm thermal stock):
- * LEFT  half: product name (top) + weight (bottom)
- * RIGHT half: horizontal barcode (fills the right side)
+ * Layout (proportional to stock size, tuned for the 63.5 × 33.9 mm label):
+ * shop name → product name → native barcode (human-readable digits below)
+ * → details (color · size · weight) → SKU + price footer.
  *
- * No rotation, no LINE commands — only basic TSPL2 that the TE244 supports.
+ * DIRECTION 1 means Y is measured from the BOTTOM of the label, so all
+ * Y values are written as `h * fraction` (where 0 = bottom edge, 1 = top).
  */
 export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions = {}): string {
   const copies = Math.min(999, Math.max(1, Math.floor(opts.copies ?? 1)));
@@ -120,74 +99,56 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
-  const m = Math.round(w * 0.04); // side margin (~1.8mm on 45mm)
+  const m = Math.round(w * 0.032); // side margin
 
-  // --- Left zone (text): x = m … 42% of width ---
-  const leftMaxX = Math.round(w * 0.42);
-  const textMaxChars = leftMaxX - m; // rough char budget for left zone
-
-  // --- Right zone (barcode): x = 48% … w-m ---
-  const barcodeX = Math.round(w * 0.48);
-
-  // Bitmap Font 2 (TSC Sans Serif equivalent) — 24 dots tall, 16 dots wide
-  // at 1× multiplication. 2× multiplication renders the same look as
-  // BarTender's "12pt" preset on the TE244 (~6mm tall, very readable).
-  const NAME_FONT = "2";
-  const NAME_X_MULT = 2;
-  const NAME_Y_MULT = 2;
-  const nameHeightDots = BITMAP_FONT_NATIVE[NAME_FONT]!.baseHeightDots * NAME_Y_MULT; // 48
-  const nameWidthDots = BITMAP_FONT_NATIVE[NAME_FONT]!.baseWidthDots * NAME_X_MULT;  // 32
-
-  // Bitmap Font 2 at 1× for the weight — smaller, matches a "9pt" BarTender preset.
-  const WEIGHT_FONT = "2";
-  const WEIGHT_X_MULT = 1;
-  const WEIGHT_Y_MULT = 1;
-  const weightHeightDots = BITMAP_FONT_NATIVE[WEIGHT_FONT]!.baseHeightDots * WEIGHT_Y_MULT; // 24
-
-  // Barcode: 30% of label height (~72 dots = ~9mm), comfortably above the
-  // 12.5mm minimum for reliable scanning and within the 30mm label height.
-  const barcodeHeight = Math.round(h * 0.30);
+  // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
+  // are the font size in POINTS (1 pt = 1/72"), not dots (TSPL2 manual, TEXT).
+  // Sizes below are planned in dots (proportional to label height), then
+  // converted so the print is identical at 203 or 300 dpi.
+  const toPt = (dots: number): number => Math.max(2, Math.round((dots * dpi) / 72 / 1.5));
+  const shopSize = toPt(Math.round(h * 0.06));
+  const nameSize = toPt(Math.round(h * 0.075));
+  const detSize = toPt(Math.round(h * 0.052));
+  const priceSize = toPt(Math.round(h * 0.067));
+  const barcodeHeight = Math.round(h * 0.24);
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
     gapMm > 0 ? `GAP ${gapMm} mm,0` : `GAP 0,0`,
-    "DIRECTION 0",
-    "CLS",
+    "DIRECTION 1",
+    "CODEPAGE UTF-8",
   ];
 
   for (const label of labels) {
-    const nameMaxChars = Math.max(1, Math.floor(textMaxChars / nameWidthDots));
-    const name = truncateToWidth(tsplText(label.productName), nameMaxChars);
-    const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
+    const shop = tsplText(label.shopName);
+    const name = truncateToWidth(
+      tsplText(label.productName),
+      Math.floor((w - 2 * m) / ((nameSize * dpi) / 72 / 1.9)),
+    );
+    const details = tsplText(
+      [label.color, label.size, label.weightMg != null ? formatWeight(label.weightMg) : null]
+        .filter(Boolean)
+        .join(" · "),
+    );
+    const sku = truncateToWidth(
+      tsplText(label.sku),
+      Math.floor((w * 0.62) / ((detSize * dpi) / 72 / 1.7)),
+    );
+    const price = priceText(label.sellingPrice);
 
-    // Layout: name at top of the left zone, weight at the bottom of the
-    // left zone, barcode on the right side. All Y values measured from the
-    // top edge under DIRECTION 0.
-    const nameY = m;                          // ~1.8mm from top
-    const barcodeY = m;                       // top-aligned with the name
-    const weightY = h - weightHeightDots - m; // bottom of label, with side margin
-
-    // LEFT side — Product name (top)
-    if (name) {
-      lines.push(`TEXT ${m},${nameY},"${NAME_FONT}",0,${NAME_X_MULT},${NAME_Y_MULT},"${name}"`);
-    }
-    // LEFT side — Weight (bottom)
-    if (weight) {
-      lines.push(
-        `TEXT ${m},${weightY},"${WEIGHT_FONT}",0,${WEIGHT_X_MULT},${WEIGHT_Y_MULT},"${tsplText(weight)}"`,
-      );
-    }
-    // RIGHT side — Barcode (horizontal, upright, number below the bars)
-    if (label.barcode) {
-      lines.push(barcodeCommand(barcodeX, barcodeY, barcodeHeight, label.barcode));
-    } else {
-      lines.push(
-        `TEXT ${barcodeX},${weightY},"${WEIGHT_FONT}",0,${WEIGHT_X_MULT},${WEIGHT_Y_MULT},"NO BARCODE"`,
-      );
-    }
-
-    lines.push(`PRINT ${copies},1`);
     lines.push("CLS");
+    if (shop) lines.push(`TEXT ${m},${Math.round(h * 0.975)},"0",0,${shopSize},${shopSize},"${shop}"`);
+    if (name) lines.push(`TEXT ${m},${Math.round(h * 0.89)},"0",0,${nameSize},${nameSize},"${name}"`);
+    if (label.barcode) {
+      lines.push(barcodeCommand(m, Math.round(h * 0.78), barcodeHeight, label.barcode));
+    } else {
+      lines.push(`TEXT ${m},${Math.round(h * 0.7)},"0",0,${detSize},${detSize},"NO BARCODE"`);
+    }
+    if (details) lines.push(`TEXT ${m},${Math.round(h * 0.415)},"0",0,${detSize},${detSize},"${details}"`);
+    lines.push(`TEXT ${m},${Math.round(h * 0.325)},"0",0,${detSize},${detSize},"${sku}"`);
+    // Alignment 3 = right: the text ENDS at x = w - m (TSPL2 manual, TEXT).
+    lines.push(`TEXT ${w - m},${Math.round(h * 0.34)},"0",0,${priceSize},${priceSize},3,"${price}"`);
+    lines.push(`PRINT ${copies},1`);
   }
 
   lines.push("END");
