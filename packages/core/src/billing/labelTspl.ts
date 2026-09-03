@@ -71,9 +71,11 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string)
   // string, so the printed label still scans back to the stored value.
   if (isEan13(digits)) {
     // TSPL2 EAN13 expects 12 data digits; the printer calculates the check digit.
-    return `BARCODE ${x},${y},"EAN13",${heightDots},2,0,2,4,"${digits.slice(0, 12)}"`;
+    // human_readable=0 hides the HRI digits so the barcode band is exactly
+    // `heightDots` tall (avoids overlap with the weight text below).
+    return `BARCODE ${x},${y},"EAN13",${heightDots},0,0,2,4,"${digits.slice(0, 12)}"`;
   }
-  return `BARCODE ${x},${y},"128",${heightDots},2,0,2,3,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},0,0,2,3,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
@@ -104,7 +106,12 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
   const nameSize = toPt(Math.round(h * 0.09));   // ~8pt
   const weightSize = toPt(Math.round(h * 0.07)); // ~6pt
-  const barcodeHeight = Math.round(h * 0.28);    // barcode band
+  // Text height in dots (for layout math) = pt * dpi / 72.
+  const nameHeightDots = Math.round((nameSize * dpi) / 72);
+  const weightHeightDots = Math.round((weightSize * dpi) / 72);
+  // Barcode band: ~22% of height (~53 dots = ~6.6mm) — comfortably above the
+  // 12.5mm minimum for reliable scanning and small enough to leave room.
+  const barcodeHeight = Math.round(h * 0.22);
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -120,23 +127,36 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     );
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
+    // DIRECTION 1: y=0 is the bottom edge, y=h is the top. The coordinate
+    // is the BOTTOM-LEFT of the text/barcode, and the element extends
+    // UPWARD (toward larger y). Stack top→bottom in visual order means
+    // LARGE y → SMALL y. HRI is disabled on the barcode, so its band is
+    // exactly `barcodeHeight` dots tall — no hidden extra height.
+    const topMargin = 4;
+    const bottomMargin = 4;
+    const elementGap = 6;
+
+    // Name sits at the top of the label. Baseline = h - nameHeight - margin.
+    const nameY = h - nameHeightDots - topMargin;
+    // Weight sits at the bottom. Baseline = bottomMargin.
+    const weightY = bottomMargin;
+    // Barcode is centered in the gap between weight top and name bottom.
+    const weightTop = weightY + weightHeightDots + elementGap;
+    const nameBottom = nameY - elementGap;
+    const available = nameBottom - weightTop;
+    const barcodeY = weightTop + Math.max(0, Math.floor((available - barcodeHeight) / 2));
+
     lines.push("CLS");
-    // DIRECTION 1: y=0 is the bottom edge, y=h is the top. So the largest
-    // y-value is the top of the label.
     if (name) {
-      lines.push(`TEXT ${m},${Math.round(h * 0.9)},"0",0,${nameSize},${nameSize},"${name}"`);
+      lines.push(`TEXT ${m},${nameY},"0",0,${nameSize},${nameSize},"${name}"`);
     }
     if (label.barcode) {
-      lines.push(barcodeCommand(m, Math.round(h * 0.75), barcodeHeight, label.barcode));
+      lines.push(barcodeCommand(m, barcodeY, barcodeHeight, label.barcode));
     } else {
-      lines.push(
-        `TEXT ${m},${Math.round(h * 0.7)},"0",0,${weightSize},${weightSize},"NO BARCODE"`,
-      );
+      lines.push(`TEXT ${m},${barcodeY},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
     if (weight) {
-      lines.push(
-        `TEXT ${m},${Math.round(h * 0.15)},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`,
-      );
+      lines.push(`TEXT ${m},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     }
     lines.push(`PRINT ${copies},1`);
   }
