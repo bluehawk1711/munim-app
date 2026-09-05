@@ -47,4 +47,6 @@ export {
   type LabelPrintSettings,
   type TsplLabelOptions,
   DEFAULT_LABEL_PRINT_SETTINGS,
+  LABEL_WIDTH_MM as THERMAL_LABEL_WIDTH_MM,
+  LABEL_HEIGHT_MM as THERMAL_LABEL_HEIGHT_MM,
 } from "./labelTspl.js";

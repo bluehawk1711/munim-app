@@ -28,9 +28,9 @@ const LABEL_PRINT_KEY = "munim.labelPrint";
 /** Defaults matched to the shop's jewellery tag roll — adjustable in
  * Settings → Printing (test-print to calibrate). */
 export const DEFAULT_LABEL_SIZE: LabelSizeSettings = {
-  widthMm: 45,
-  heightMm: 30,
-  gapMm: 2,
+    widthMm: 101,
+    heightMm: 15,
+    gapMm: 2,
 };
 
 /** True when running inside the Tauri desktop shell. */
