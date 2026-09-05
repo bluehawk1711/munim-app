@@ -1,4 +1,3 @@
-import { isEan13 } from "../utils/barcode.js";
 import { formatWeight } from "../utils/format.js";
 import { type ProductLabel } from "./labelDocument.js";
 
@@ -89,15 +88,10 @@ export const LABEL_WIDTH_MM = 101;
 export const LABEL_HEIGHT_MM = 15;
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
 
-/** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128.
- *  EAN-13 ignores narrow/wide (fixed by ISO). Code 128 uses narrow=2, wide=5
- *  for wide readable bars on a 101mm-wide label. */
+/** Native TSPL2 barcode — always Code 128 so narrow/wide params take effect.
+ *  narrow=3, wide=7 for wide readable bars on a 101mm-wide label. */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string, hri: number): string {
-  const digits = value.replace(/\D/g, "");
-  if (isEan13(digits)) {
-    return `BARCODE ${x},${y},"EAN13",${heightDots},${hri},0,2,5,"${digits.slice(0, 12)}"`;
-  }
-  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,2,5,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,3,7,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
@@ -130,24 +124,23 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // Font "0" — x/y params are POINTS (1 pt = 1/72").
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
 
-  // Layout: LEFT = name+weight stacked (~16%), RIGHT = barcode (~84%)
+  // Layout: LEFT = name+weight stacked (~24%), RIGHT = barcode (~76%)
   const gapBetween = mmToDots(2, dpi);
-  const textAreaW = Math.round(printableW * 0.16);  // ~15.7mm for name + weight
+  const textAreaW = Math.round(printableW * 0.24);  // ~23.6mm for name + weight
   const barcodeX = leftMargin + textAreaW + gapBetween;
 
   // Font sizes — 15mm tall = 120 dots at 203 DPI
-  const nameSize = toPt(Math.round(h * 0.38));    // ~5pt
-  const weightSize = toPt(Math.round(h * 0.32));  // ~4pt
+  const nameSize = toPt(Math.round(h * 0.40));    // ~5pt, slightly larger for name
+  const weightSize = toPt(Math.round(h * 0.25));  // ~3pt, smaller for weight
   const nameHeightDots = Math.round((nameSize * dpi) / 72);
   const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
   // Barcode: fills remaining width, height ~80% of label
   const barcodeHeight = Math.round(h * 0.80);
 
-  // Vertical positions
-  const topMargin = 3;
-  const bottomMargin = 3;
-  const textGap = 2;
+  // Vertical positions — name at top, weight pushed to very bottom
+  const topMargin = 2;
+  const bottomMargin = 1;
   const nameY = topMargin;
   const weightY = h - weightHeightDots - bottomMargin;
   const barcodeY = Math.round((h - barcodeHeight) / 2);
@@ -163,7 +156,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   for (const label of labels) {
     const name = truncateToWidth(
       tsplText(label.productName),
-      Math.max(2, Math.floor(textAreaW / ((nameSize * dpi) / 72 / 1.9))),
+      Math.max(2, Math.floor(textAreaW / ((nameSize * dpi) / 72 * 0.6))),
     );
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
