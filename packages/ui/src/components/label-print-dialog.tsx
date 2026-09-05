@@ -121,19 +121,19 @@ export function LabelPrintDialog({
               <DialogTitle>Print product labels</DialogTitle>
               <DialogDescription>
                 {labels.length} label{labels.length !== 1 ? "s" : ""} · {copies} copy
-                {copies !== 1 ? "ies" : ""} · 24-up A4 sheet (63.5 × 33.9 mm each)
+                {copies !== 1 ? "ies" : ""} · 101 × 15 mm thermal label
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Label preview — matches the thermal printer label aspect ratio (45:30 = 3:2). */}
+          {/* Label preview — matches thermal label aspect ratio (101:15 ≈ 6.7:1). */}
           <div className="flex items-center justify-center rounded-lg border bg-muted/40 p-4">
-            <div className="overflow-hidden rounded-md bg-white shadow-sm" style={{ width: "240px", height: "160px" }}>
+            <div className="overflow-hidden rounded-md bg-white shadow-sm" style={{ width: "390px", height: "58px" }}>
               {first ? (
                 <div
-                  style={{ transform: "scale(0.95)", transformOrigin: "center", width: "240px", height: "160px" }}
+                  style={{ transform: "scale(0.95)", transformOrigin: "center", width: "390px", height: "58px" }}
                   dangerouslySetInnerHTML={{ __html: renderLabelMarkupHTML(first) }}
                 />
               ) : (
@@ -401,12 +401,23 @@ export function LabelPrintDialog({
 }
 
 function renderLabelMarkupHTML(label: ProductLabel): string {
-  // Inline markup — same layout as renderLabelMarkup but avoids importing
-  // the full SVG barcode (not needed for the tiny preview).
+  // Inline preview matching the thermal label layout:
+  // LEFT: name (top) + weight (bottom), RIGHT: barcode
   const weight = label.weightMg != null ? formatWeightLocal(label.weightMg) : "";
-  return `<div style="display:flex;flex-direction:column;justify-content:space-between;height:100%;padding:4px;font-family:system-ui,sans-serif;font-size:10px;font-weight:600;line-height:1.2">
-    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(label.productName)}</div>
-    <div style="font-size:9px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>
+  const barcodeDigits = label.barcode?.replace(/\D/g, "") ?? "";
+  let barcodeBars = "";
+  if (barcodeDigits.length >= 12) {
+    const pattern = [1,1,1,...barcodeDigits.slice(0, 6).split("").flatMap((d) => { const n = Number(d); const left = [[3,2,1,1],[2,2,2,1],[2,1,2,2],[1,4,1,1],[1,1,3,2],[1,2,3,1],[1,1,1,4],[1,3,1,2],[1,2,1,3],[3,1,1,2]]; return left[n] ?? [2,1,1,2]; }),1,1,1,1,1,...barcodeDigits.slice(6, 12).split("").flatMap((d) => { const n = Number(d); const right = [[2,1,1,2],[1,2,1,2],[2,2,1,1],[1,1,2,2],[2,1,2,1],[1,2,2,1],[1,1,4,1],[1,3,2,1],[2,1,3,1],[1,1,2,3]]; return right[n] ?? [1,1,2,2]; }),1,1,1];
+    barcodeBars = `<div style="display:flex;align-items:center;height:90%;gap:0">${pattern.map((w, i) => `<div style="width:${w * 2}px;height:100%;background:${i % 2 === 0 ? "#000" : "transparent"};flex-shrink:0"></div>`).join("")}</div>`;
+  } else {
+    barcodeBars = `<div style="font-size:7px;color:#999">NO BARCODE</div>`;
+  }
+  return `<div style="display:flex;align-items:stretch;height:100%;padding:4px 6px;font-family:system-ui,sans-serif;font-weight:600;line-height:1.2">
+    <div style="flex:0 0 22%;display:flex;flex-direction:column;justify-content:space-between">
+      <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px">${escHTML(label.productName)}</div>
+      <div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">${barcodeBars}</div>
   </div>`;
 }
 
