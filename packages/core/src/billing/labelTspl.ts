@@ -135,8 +135,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const nameHeightDots = Math.round((nameSize * dpi) / 72);
   const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
-  // Barcode: centered vertically, 80% of label height
-  const barcodeHeight = Math.round(h * 0.95);
+  // Barcode: 10% of label height (user-set override — see docs/label-print-debug.md)
+  // NOTE: do NOT change without testing a print. Previous attempts at DIRECTION
+  // 1 Y-flipping for weight/name failed repeatedly; values were reversed.
+  const barcodeHeight = Math.round(h * 0.10);
 
   // Vertical positions — name at top, weight at bottom.
   // In BOTH directions, TEXT/BARCODE Y = top of element, extends downward on

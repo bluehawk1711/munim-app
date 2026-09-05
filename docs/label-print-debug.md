@@ -33,6 +33,7 @@ firmware-version dependent.
 - Connection: Windows print spooler, RAW datatype (no driver rasterization)
 - Old software: TSC BarTender UltraLite (used as reference for font/positioning)
 - Stock: 45 × 30 mm thermal labels, 2 mm gap
+- Currently: 101 × 15 mm wide strip label
 
 ## Working baseline (commit ac66510, 2026-08-26)
 DIRECTION 1, single column at left margin, font "0" with point sizes,
@@ -96,6 +97,42 @@ BARCODE 12,90,"EAN13",53,0,0,2,4,"521383944364"  ← 53 dots tall, no HRI
 TEXT 12,4,"0",0,6,6,"2.5 mg"             ← 6pt, bottom of label
 PRINT 1,1
 END
+```
+
+## Break: DIRECTION 1 Y-flipping — weight and name positions reversed (2026-09-05)
+
+After switching to 101 × 15 mm wide-strip labels with DIRECTION 1, the
+Y-position math for TEXT/BARCODE was wrong repeatedly. The core confusion:
+
+**In TSPL2, TEXT/BARCODE Y is always the TOP of the element, and the
+element always extends DOWNWARD on the physical label.** The DIRECTION
+command only changes where Y=0 sits:
+
+| DIRECTION | Y=0 at | Y+ direction | Y near 0 = | Y near h = |
+|-----------|--------|-------------|------------|------------|
+| 0         | top    | downward    | top        | bottom     |
+| 1         | bottom | upward      | bottom     | top        |
+
+So for DIRECTION 1:
+- name at top → `nameY = h - margin` (large Y = near top)
+- weight at bottom → `weightY = weightHeight + margin` (small Y = near bottom)
+
+**Failed attempts (do NOT repeat):**
+1. `nameY = h - nameHeight - topMargin` → name appeared at center (text
+   height estimate was wrong, or the Y interpretation was inverted).
+2. `nameY = h - topMargin` → name disappeared entirely (text extended
+   upward off the label — assumed Y was bottom of text, which was wrong).
+3. `weightY = bottomMargin` → weight never appeared (same inversion).
+
+**Current correct formulas (commit 9ef77ca):**
+```ts
+const nameY = direction === 0 ? topMargin : h - topMargin;
+const weightY = direction === 0
+  ? h - weightHeightDots - bottomMargin
+  : weightHeightDots + bottomMargin;
+const barcodeY = direction === 0
+  ? Math.round((h - barcodeHeight) / 2)
+  : Math.round((h + barcodeHeight) / 2);
 ```
 
 ## How to read the log
