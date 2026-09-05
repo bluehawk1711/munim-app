@@ -3,6 +3,7 @@ import { Plus, Search, Pencil, Trash2, PackagePlus, UploadCloud, Image as ImageI
 import {
   buildProductLabel,
   type LabelPrinterInfo,
+  type LabelPrintSettings,
   type ProductLabel,
 } from "@munim/core";
 import type { ProductDto } from "@munim/api-client";
@@ -19,7 +20,7 @@ import {
 } from "@munim/query";
 import { money, formatWeight } from "@/lib/format";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
-import { getSavedLabelPrinter, isDesktopApp, listLabelPrinters, printLabelsToThermal, saveLabelPrinter } from "@/lib/printer";
+import { getSavedLabelPrinter, getSavedLabelPrintSettings, isDesktopApp, listLabelPrinters, printLabelsToThermal, saveLabelPrinter, saveLabelPrintSettings } from "@/lib/printer";
 import { uploadImageDirect } from "@/lib/cloudinary";
 import { toast } from "@munim/ui";
 import { Button, Input, Label, Badge, Card, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, BarcodeSvg, BarcodeLookupInput, LabelPrintDialog, ProductDetailsDialog } from "@munim/ui";
@@ -131,11 +132,11 @@ export function ProductsPage() {
     saveLabelPrinter(name);
   }
 
-  async function handleLabelDirectPrint() {
+  async function handleLabelDirectPrint(settings: LabelPrintSettings) {
     if (!labelPrinterName) return;
     setLabelPrintBusy(true);
     try {
-      await printLabelsToThermal(labelPrinterName, labelLabels, labelCopies);
+      await printLabelsToThermal(labelPrinterName, labelLabels, labelCopies, settings);
       toast.success(`Sent ${labelCopies} label${labelCopies !== 1 ? "s" : ""} to ${labelPrinterName}`);
       setLabelOpen(false);
     } catch (err) {
@@ -612,11 +613,13 @@ export function ProductsPage() {
                 printers: labelPrinters,
                 selected: labelPrinterName,
                 onSelect: handleSelectLabelPrinter,
-                onPrint: () => void handleLabelDirectPrint(),
+                onPrint: (settings) => void handleLabelDirectPrint(settings),
                 onRefresh: () => void loadLabelPrinters(),
                 loading: labelPrintersLoading,
                 busy: labelPrintBusy,
                 error: labelPrintError,
+                savedSettings: getSavedLabelPrintSettings(),
+                onSaveSettings: (settings) => saveLabelPrintSettings(settings),
               }
             : undefined
         }

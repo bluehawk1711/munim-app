@@ -17,11 +17,12 @@
  * so the preview, the printed sheet and the PDF are always identical.
  */
 import * as React from "react";
-import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb } from "lucide-react";
+import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
 import {
-  renderLabelMarkup,
   renderLabelSheetHtml,
+  DEFAULT_LABEL_PRINT_SETTINGS,
   type LabelPrinterInfo,
+  type LabelPrintSettings,
   type ProductLabel,
 } from "@munim/core";
 import { cn } from "../lib/utils";
@@ -41,11 +42,13 @@ export type DirectLabelPrint = {
   printers: LabelPrinterInfo[];
   selected: string | undefined;
   onSelect: (name: string) => void;
-  onPrint: () => void;
+  onPrint: (settings: LabelPrintSettings) => void;
   onRefresh: () => void;
   loading?: boolean;
   busy?: boolean;
   error?: string | null;
+  savedSettings: LabelPrintSettings;
+  onSaveSettings: (settings: LabelPrintSettings) => void;
 };
 
 export function LabelPrintDialog({
@@ -73,10 +76,36 @@ export function LabelPrintDialog({
   busy?: boolean;
 }) {
   const [previewIndex, setPreviewIndex] = React.useState(0);
+  const [advancedOpen, setAdvancedOpen] = React.useState(false);
+
+  // Per-dialog print settings (reset from saved on open)
+  const [printSettings, setPrintSettings] = React.useState<LabelPrintSettings>(
+    () => directPrint?.savedSettings ?? { ...DEFAULT_LABEL_PRINT_SETTINGS },
+  );
 
   React.useEffect(() => {
-    if (open) setPreviewIndex(0);
-  }, [open]);
+    if (open) {
+      setPreviewIndex(0);
+      setAdvancedOpen(false);
+      if (directPrint) setPrintSettings(directPrint.savedSettings);
+    }
+  }, [open, directPrint]);
+
+  function updateSetting<K extends keyof LabelPrintSettings>(key: K, value: LabelPrintSettings[K]) {
+    setPrintSettings((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function handleSaveSettings() {
+    directPrint?.onSaveSettings(printSettings);
+  }
+
+  function handleResetDefaults() {
+    setPrintSettings({ ...DEFAULT_LABEL_PRINT_SETTINGS });
+  }
+
+  function handlePrint() {
+    directPrint?.onPrint(printSettings);
+  }
 
   const first = labels[previewIndex] ?? labels[0];
 
@@ -105,7 +134,7 @@ export function LabelPrintDialog({
               {first ? (
                 <div
                   style={{ transform: "scale(0.95)", transformOrigin: "center", width: "240px", height: "160px" }}
-                  dangerouslySetInnerHTML={{ __html: renderLabelMarkup(first) }}
+                  dangerouslySetInnerHTML={{ __html: renderLabelMarkupHTML(first) }}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
@@ -185,9 +214,121 @@ export function LabelPrintDialog({
                   no print dialog. Printer and label size are set in Settings → Printing.
                 </p>
               )}
+
+              {/* Advanced TSPL2 settings */}
+              <div>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between rounded border bg-background/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-background/80 transition-colors"
+                  onClick={() => setAdvancedOpen((v) => !v)}
+                >
+                  <span>Advanced TSPL2 settings</span>
+                  {advancedOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+                {advancedOpen && (
+                  <div className="mt-2 space-y-3 rounded border bg-background/40 p-3">
+                    {/* Direction */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-direction">Direction</label>
+                        <Select
+                          value={String(printSettings.direction)}
+                          onValueChange={(v) => updateSetting("direction", Number(v) as 0 | 1)}
+                        >
+                          <SelectTrigger id="lbl-direction" className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">DIRECTION 0 (Y from top)</SelectItem>
+                            <SelectItem value="1">DIRECTION 1 (Y from bottom)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">
+                          0 = origin at top-left (default). 1 = origin at bottom-left. Try both if labels split.
+                        </p>
+                      </div>
+
+                      {/* HRI */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-hri">Barcode digits (HRI)</label>
+                        <Select
+                          value={String(printSettings.hri)}
+                          onValueChange={(v) => updateSetting("hri", Number(v) as 0 | 1 | 2 | 3)}
+                        >
+                          <SelectTrigger id="lbl-hri" className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">Hidden</SelectItem>
+                            <SelectItem value="1">Left of barcode</SelectItem>
+                            <SelectItem value="2">Center below</SelectItem>
+                            <SelectItem value="3">Right of barcode</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">
+                          Show digits below the barcode bars. Hidden saves space.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* GAP */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-gap">Gap (mm)</label>
+                        <input
+                          id="lbl-gap"
+                          type="number"
+                          min={0}
+                          max={10}
+                          step={0.5}
+                          value={printSettings.gapMm}
+                          onChange={(e) => updateSetting("gapMm", Number(e.target.value) || 0)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
+                        <p className="text-[10px] text-muted-foreground">
+                          0 = continuous (no gap). 2 = standard die-cut. Try 0 if labels split.
+                        </p>
+                      </div>
+
+                      {/* CODEPAGE */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-codepage">Codepage</label>
+                        <Select
+                          value={printSettings.codepage}
+                          onValueChange={(v) => updateSetting("codepage", v)}
+                        >
+                          <SelectTrigger id="lbl-codepage" className="h-8 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="UTF-8">UTF-8</SelectItem>
+                            <SelectItem value="USA">USA (ASCII)</SelectItem>
+                            <SelectItem value="UK">UK</SelectItem>
+                            <SelectItem value="HEX8859-1">ISO 8859-1</SelectItem>
+                            <SelectItem value="HEX8859-15">ISO 8859-15</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">
+                          ASCII labels work on any codepage. UTF-8 if unsure.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleResetDefaults}>
+                        <RotateCcw className="mr-1 h-3 w-3" /> Reset defaults
+                      </Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleSaveSettings}>
+                        Save to device
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <Button
                 className="w-full"
-                onClick={directPrint.onPrint}
+                onClick={handlePrint}
                 disabled={
                   directPrint.busy ||
                   busy ||
@@ -257,6 +398,29 @@ export function LabelPrintDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function renderLabelMarkupHTML(label: ProductLabel): string {
+  // Inline markup — same layout as renderLabelMarkup but avoids importing
+  // the full SVG barcode (not needed for the tiny preview).
+  const weight = label.weightMg != null ? formatWeightLocal(label.weightMg) : "";
+  return `<div style="display:flex;flex-direction:column;justify-content:space-between;height:100%;padding:4px;font-family:system-ui,sans-serif;font-size:10px;font-weight:600;line-height:1.2">
+    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(label.productName)}</div>
+    <div style="font-size:9px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>
+  </div>`;
+}
+
+function escHTML(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function formatWeightLocal(mg: number): string {
+  const safe = Number.isFinite(mg) ? mg : 0;
+  if (safe === 0) return "—";
+  const trim = (n: number) => String(Math.round(n * 100) / 100);
+  if (safe >= 1_000_000) return `${trim(safe / 1_000_000)} kg`;
+  if (safe >= 1000) return `${trim(safe / 1000)} g`;
+  return `${safe} mg`;
 }
 
 function renderLabelSheetHtmlFor(labels: ProductLabel[], copies: number): string {

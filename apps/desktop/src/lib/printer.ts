@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   buildLabelTspl2,
+  DEFAULT_LABEL_PRINT_SETTINGS,
   type LabelPrinterInfo,
+  type LabelPrintSettings,
   type LabelSizeSettings,
   type ProductLabel,
 } from "@munim/core";
@@ -15,19 +17,16 @@ import {
  * TSC thermal printers like the TE244 speak natively), so every app shares
  * the same label model; this layer is only the platform pipe.
  *
- * Printer + label-stock size are device-local (like the API URL in env.ts) —
- * a printer/roll attached to this machine is meaningless on other devices.
- *
- * All print operations are also mirrored to `~/Downloads/munim-print-debug.log`
+ * All print operations are mirrored to `~/Downloads/munim-print-debug.log`
  * from the Rust side so a misprint can be diagnosed afterwards.
  */
 
 const LABEL_PRINTER_KEY = "munim.labelPrinter";
 const LABEL_SIZE_KEY = "munim.labelSize";
+const LABEL_PRINT_KEY = "munim.labelPrint";
 
 /** Defaults matched to the shop's jewellery tag roll — adjustable in
- * Settings → Printing (test-print to calibrate). 45×30mm matches the
- * TSC TE244 spec sheet for the 1-up roll the shop is using. */
+ * Settings → Printing (test-print to calibrate). */
 export const DEFAULT_LABEL_SIZE: LabelSizeSettings = {
   widthMm: 45,
   heightMm: 30,
@@ -74,6 +73,32 @@ export function saveLabelSize(size: LabelSizeSettings): void {
   localStorage.setItem(LABEL_SIZE_KEY, JSON.stringify(size));
 }
 
+/** Per-device print settings (direction, gap, codepage, HRI, copies). */
+export function getSavedLabelPrintSettings(): LabelPrintSettings {
+  try {
+    const raw = localStorage.getItem(LABEL_PRINT_KEY);
+    if (!raw) return { ...DEFAULT_LABEL_PRINT_SETTINGS };
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      const s = parsed as Partial<LabelPrintSettings>;
+      return {
+        direction: s.direction === 1 ? 1 : 0,
+        gapMm: typeof s.gapMm === "number" && s.gapMm >= 0 && s.gapMm <= 10 ? s.gapMm : 2,
+        codepage: typeof s.codepage === "string" && s.codepage.trim() ? s.codepage.trim() : "UTF-8",
+        hri: typeof s.hri === "number" && s.hri >= 0 && s.hri <= 3 ? s.hri as 0 | 1 | 2 | 3 : 0,
+        copies: typeof s.copies === "number" && s.copies >= 1 && s.copies <= 999 ? s.copies : 1,
+      };
+    }
+  } catch {
+    // fall through
+  }
+  return { ...DEFAULT_LABEL_PRINT_SETTINGS };
+}
+
+export function saveLabelPrintSettings(settings: LabelPrintSettings): void {
+  localStorage.setItem(LABEL_PRINT_KEY, JSON.stringify(settings));
+}
+
 /** Installed printers from the OS (default printer first). */
 export async function listLabelPrinters(): Promise<LabelPrinterInfo[]> {
   return invoke<LabelPrinterInfo[]>("list_printers");
@@ -81,24 +106,32 @@ export async function listLabelPrinters(): Promise<LabelPrinterInfo[]> {
 
 /**
  * Prints labels straight to a thermal printer: builds the TSPL2 stream in
- * core (with the device's saved stock size) and hands the raw bytes to the
- * spooler. No print dialog.
+ * core (with the device's saved stock size + print settings) and hands the
+ * raw bytes to the spooler. No print dialog.
  */
 export async function printLabelsToThermal(
   printerName: string,
   labels: ProductLabel[],
   copies = 1,
+  printSettings?: Partial<LabelPrintSettings>,
 ): Promise<void> {
   const size = getSavedLabelSize();
-  const tspl = buildLabelTspl2(labels, { ...size, copies });
+  const ps = { ...getSavedLabelPrintSettings(), ...printSettings };
+  const tspl = buildLabelTspl2(labels, {
+    ...size,
+    copies,
+    direction: ps.direction,
+    gapMm: ps.gapMm,
+    codepage: ps.codepage,
+    hri: ps.hri,
+  });
   const data = Array.from(new TextEncoder().encode(tspl));
-  // Mirror to the browser console (visible in devtools) — the Rust side
-  // also writes the same stream to ~/Downloads/munim-print-debug.log.
   console.info("[Munim label print]", {
     printer: printerName,
     labels: labels.length,
     copies,
     labelSizeMm: size,
+    printSettings: ps,
     tsplBytes: data.length,
   });
   console.debug("[Munim label print] TSPL2 stream:\n" + tspl);
