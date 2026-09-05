@@ -135,8 +135,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const nameHeightDots = Math.round((nameSize * dpi) / 72);
   const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
-  // Barcode: fills remaining width, height ~80% of label
-  const barcodeHeight = Math.round(h * 0.60);
+  // Barcode: centered vertically, 60 dots (~7.5mm) tall
+  const barcodeHeight = 60;
 
   // Vertical positions — name at top, weight pushed to very bottom.
   // DIRECTION 0: Y=0 at top. DIRECTION 1: Y=0 at bottom.
