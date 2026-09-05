@@ -90,13 +90,14 @@ export const LABEL_HEIGHT_MM = 15;
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
 
 /** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128.
- *  Horizontal module 3 for wide readable bars on a 101mm-wide label. */
+ *  EAN-13 ignores narrow/wide (fixed by ISO). Code 128 uses narrow=2, wide=5
+ *  for wide readable bars on a 101mm-wide label. */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string, hri: number): string {
   const digits = value.replace(/\D/g, "");
   if (isEan13(digits)) {
-    return `BARCODE ${x},${y},"EAN13",${heightDots},${hri},0,1,3,"${digits.slice(0, 12)}"`;
+    return `BARCODE ${x},${y},"EAN13",${heightDots},${hri},0,2,5,"${digits.slice(0, 12)}"`;
   }
-  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,1,3,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,2,5,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
