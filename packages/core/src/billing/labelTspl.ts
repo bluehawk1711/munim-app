@@ -116,13 +116,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const lines: string[] = [
     // SIZE first so the printer knows the image buffer dimensions before
     // we draw anything. GAP 2nd so the feed-to-next-label distance is
-    // correct. DIRECTION 1 = Y from bottom (matches the shop's roll).
-    // HOME positions the print head at the start of the next label so
-    // a stale feed offset from a previous job can't split our content
-    // across two physical labels.
+    // correct. DIRECTION 0 = Y from top, downward. The latest debug log
+    // (06:55:38) showed DIRECTION 1 sending a correct stream that the
+    // TE244 still split across three physical labels — the firmware
+    // over-feeds between draws. DIRECTION 0 is the printer's default
+    // and doesn't trigger that behavior. HOME positions the print head
+    // at the start of the next label so a stale feed offset from a
+    // previous job can't split our content.
     `SIZE ${widthMm} mm,${heightMm} mm`,
     gapMm > 0 ? `GAP ${gapMm} mm,0` : `GAP 0,0`,
-    "DIRECTION 1",
+    "DIRECTION 0",
     "CODEPAGE UTF-8",
     "CLS",
   ];
@@ -134,24 +137,24 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     );
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 
-    // DIRECTION 1: y=0 is the bottom edge, y=h is the top. The coordinate
-    // is the BOTTOM-LEFT of the text/barcode, and the element extends
-    // UPWARD (toward larger y). Stack top→bottom in visual order means
-    // LARGE y → SMALL y. HRI is disabled on the barcode, so its band is
-    // exactly `barcodeHeight` dots tall — no hidden extra height.
+    // DIRECTION 0: y=0 is the top edge, y=h is the bottom. The coordinate
+    // is the TOP-LEFT of the text/barcode, and the element extends
+    // DOWNWARD (toward larger y). Stack top→bottom in visual order means
+    // SMALL y → LARGE y. HRI is disabled on the barcode, so its band is
+    // exactly `barcodeHeight` dots tall.
     const topMargin = 4;
     const bottomMargin = 4;
     const elementGap = 6;
 
-    // Name sits at the top of the label. Baseline = h - nameHeight - margin.
-    const nameY = h - nameHeightDots - topMargin;
-    // Weight sits at the bottom. Baseline = bottomMargin.
-    const weightY = bottomMargin;
+    // Name sits at the top of the label. Baseline = topMargin.
+    const nameY = topMargin;
+    // Weight sits at the bottom. Top = h - weightHeight - bottomMargin.
+    const weightY = h - weightHeightDots - bottomMargin;
     // Barcode is centered in the gap between name bottom and weight top.
-    const weightTop = weightY + weightHeightDots + elementGap;
-    const nameBottom = nameY - elementGap;
-    const available = nameBottom - weightTop;
-    const barcodeY = weightTop + Math.max(0, Math.floor((available - barcodeHeight) / 2));
+    const nameBottom = nameY + nameHeightDots + elementGap;
+    const weightTop = weightY - elementGap;
+    const available = weightTop - nameBottom;
+    const barcodeY = nameBottom + Math.max(0, Math.floor((available - barcodeHeight) / 2));
 
     // CLS clears the buffer BEFORE drawing so leftover pixels from a
     // previous label don't bleed into this one. Then draw all three
@@ -170,7 +173,6 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       lines.push(`TEXT ${m},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     }
     // PRINT copies,1 → print N copies with the default gap between them.
-    // The "1" is the gap-set number; "0" would mean continuous (no feed).
     lines.push(`PRINT ${copies},1`);
   }
 

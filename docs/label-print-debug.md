@@ -6,34 +6,27 @@ thermal printer. The desktop app appends to
 below are the historical breakpoints — keep this file up to date when
 a new regression is caught and fixed.
 
-## Current state — commit ab547ba (2026-09-02)
+## Current state — commit a2a72c1 (2026-09-02)
 
-**Status: stable baseline, known minor issues.**
+**Status: stable baseline, known minor issue — elements split across labels.**
 
 The barcode prints correctly, centered between the name and weight.
 Font sizes (8pt name, 6pt weight) match the BarTender reference.
 EAN-13 sends 12 digits, the printer adds the check digit, scanners
 read it back cleanly.
 
-**Known issue (open):** the three fields (name / barcode / weight) can
-land on DIFFERENT physical labels when the gap sensor on the TE244 is
-faint or the die-cut shape has long gaps. The TSPL2 stream itself is
-correct (single `CLS`, three `TEXT`/`BARCODE` lines, one `PRINT`) — the
-printer is over-feeding between draws. The most likely cause is one of:
+**Known issue (open):** when printing a batch, the three fields
+(name / barcode / weight) for ONE product land on THREE different
+physical labels. The latest debug log
+(`~/Downloads/munim-print-debug.log`, 2026-07-25) shows the TSPL2
+stream is correct for each print — `CLS`, three `TEXT`/`BARCODE`
+lines, one `PRINT 1,1` — and the spooler reports success. The
+printer firmware is over-feeding between draws.
 
-  1. The label-size settings in Settings → Printing don't match the
-     physical stock (try bumping `gapMm` from 2 to 3, or measuring the
-     stock with calipers and updating width/height).
-  2. The TE244's gap sensor is dirty or miscalibrated — run the
-     printer's auto-calibration routine (hold the feed button at
-     power-on until it flashes twice, or send `~JC` from the TSC
-     console).
-  3. The label stock has black marks on the back instead of a gap;
-     in that case the printer needs `GAP` swapped for `BLINE` in the
-     TSPL2 stream.
-
-The next test print should capture a new `munim-print-debug.log` entry.
-Compare the `SIZE` and `GAP` lines against the actual stock to confirm.
+Most likely cause: DIRECTION 1 on this particular TE244 triggers a
+re-feed between the `BARCODE` draw and the second `TEXT` draw. The
+ac66510 working baseline used DIRECTION 1 too, so this is probably
+firmware-version dependent.
 
 ## Environment
 - Printer: **TSC TE244** (203 DPI, 8 dots/mm)
