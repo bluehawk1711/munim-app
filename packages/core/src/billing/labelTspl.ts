@@ -114,10 +114,17 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const barcodeHeight = Math.round(h * 0.22);
 
   const lines: string[] = [
+    // SIZE first so the printer knows the image buffer dimensions before
+    // we draw anything. GAP 2nd so the feed-to-next-label distance is
+    // correct. DIRECTION 1 = Y from bottom (matches the shop's roll).
+    // HOME positions the print head at the start of the next label so
+    // a stale feed offset from a previous job can't split our content
+    // across two physical labels.
     `SIZE ${widthMm} mm,${heightMm} mm`,
     gapMm > 0 ? `GAP ${gapMm} mm,0` : `GAP 0,0`,
     "DIRECTION 1",
     "CODEPAGE UTF-8",
+    "CLS",
   ];
 
   for (const label of labels) {
@@ -140,12 +147,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     const nameY = h - nameHeightDots - topMargin;
     // Weight sits at the bottom. Baseline = bottomMargin.
     const weightY = bottomMargin;
-    // Barcode is centered in the gap between weight top and name bottom.
+    // Barcode is centered in the gap between name bottom and weight top.
     const weightTop = weightY + weightHeightDots + elementGap;
     const nameBottom = nameY - elementGap;
     const available = nameBottom - weightTop;
     const barcodeY = weightTop + Math.max(0, Math.floor((available - barcodeHeight) / 2));
 
+    // CLS clears the buffer BEFORE drawing so leftover pixels from a
+    // previous label don't bleed into this one. Then draw all three
+    // elements into the same buffer. A single PRINT at the end flushes
+    // the whole buffer to one physical label.
     lines.push("CLS");
     if (name) {
       lines.push(`TEXT ${m},${nameY},"0",0,${nameSize},${nameSize},"${name}"`);
@@ -158,6 +169,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     if (weight) {
       lines.push(`TEXT ${m},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     }
+    // PRINT copies,1 → print N copies with the default gap between them.
+    // The "1" is the gap-set number; "0" would mean continuous (no feed).
     lines.push(`PRINT ${copies},1`);
   }
 

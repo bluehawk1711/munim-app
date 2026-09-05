@@ -6,6 +6,35 @@ thermal printer. The desktop app appends to
 below are the historical breakpoints — keep this file up to date when
 a new regression is caught and fixed.
 
+## Current state — commit ab547ba (2026-09-02)
+
+**Status: stable baseline, known minor issues.**
+
+The barcode prints correctly, centered between the name and weight.
+Font sizes (8pt name, 6pt weight) match the BarTender reference.
+EAN-13 sends 12 digits, the printer adds the check digit, scanners
+read it back cleanly.
+
+**Known issue (open):** the three fields (name / barcode / weight) can
+land on DIFFERENT physical labels when the gap sensor on the TE244 is
+faint or the die-cut shape has long gaps. The TSPL2 stream itself is
+correct (single `CLS`, three `TEXT`/`BARCODE` lines, one `PRINT`) — the
+printer is over-feeding between draws. The most likely cause is one of:
+
+  1. The label-size settings in Settings → Printing don't match the
+     physical stock (try bumping `gapMm` from 2 to 3, or measuring the
+     stock with calipers and updating width/height).
+  2. The TE244's gap sensor is dirty or miscalibrated — run the
+     printer's auto-calibration routine (hold the feed button at
+     power-on until it flashes twice, or send `~JC` from the TSC
+     console).
+  3. The label stock has black marks on the back instead of a gap;
+     in that case the printer needs `GAP` swapped for `BLINE` in the
+     TSPL2 stream.
+
+The next test print should capture a new `munim-print-debug.log` entry.
+Compare the `SIZE` and `GAP` lines against the actual stock to confirm.
+
 ## Environment
 - Printer: **TSC TE244** (203 DPI, 8 dots/mm)
 - Connection: Windows print spooler, RAW datatype (no driver rasterization)
@@ -62,7 +91,7 @@ Fix shipped: set `human_readable=0` on the BARCODE command so the
 barcode band is exactly `barcodeHeight` dots tall, and compute the
 barcode Y so it is centered in the gap between name and weight.
 
-## Current stream (expected, 45 × 30 mm @ 203 dpi)
+## Current stream (expected, 45 × 30 mm @ 203 dpi, commit ab547ba)
 ```
 SIZE 45 mm,30 mm
 GAP 2 mm,0
