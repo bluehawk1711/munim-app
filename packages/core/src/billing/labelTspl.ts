@@ -138,11 +138,12 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // Barcode: centered vertically, 60 dots (~7.5mm) tall
   const barcodeHeight = 60;
 
-  // Vertical positions — name at top, weight pushed to very bottom.
-  // DIRECTION 0: Y=0 at top. DIRECTION 1: Y=0 at bottom.
+  // Vertical positions — name at top, weight at bottom.
+  // DIRECTION 0: Y=0 at top, increases downward.
+  // DIRECTION 1: Y=0 at bottom, increases upward.
   const topMargin = 2;
-  const bottomMargin = 1;
-  const nameY = direction === 0 ? topMargin : h - nameHeightDots - topMargin;
+  const bottomMargin = 2;
+  const nameY = direction === 0 ? topMargin : h - topMargin;
   const weightY = direction === 0 ? h - weightHeightDots - bottomMargin : bottomMargin;
   const barcodeY = direction === 0
     ? Math.round((h - barcodeHeight) / 2)
