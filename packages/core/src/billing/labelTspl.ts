@@ -14,9 +14,9 @@ import { type ProductLabel } from "./labelDocument.js";
  *
  * Same label model as the A4 sheet (`ProductLabel`) — one source of truth.
  *
- * Side-by-side layout (101 × 15 mm wide label, 98.5 mm printable):
+ * Side-by-side layout (15 × 101 mm jewelry tag strip):
  *   LEFT:  product name + weight with unit
- *   RIGHT: barcode (EAN-13 or Code 128)
+ *   RIGHT: barcode rotated 90° (horizontal bars, uses the 101mm height)
  * Font "0" (Monotype CG Triumvirate Bold) — scalable, x/y = point size.
  */
 
@@ -83,27 +83,40 @@ function truncateToWidth(text: string, maxChars: number): string {
 }
 
 /** Default label-stock dimensions (matches the shop's TSC TE244 roll).
- *  Page = 101 × 15 mm; template (printable area) = 98.5 × 15 mm
- *  after 1.3 mm left/right margins. SIZE command uses the page size. */
-export const LABEL_WIDTH_MM = 101;
-export const LABEL_HEIGHT_MM = 15;
+ *  Jewelry tag strip: 15 mm wide × 101 mm long (feed direction).
+ *  Printable area = 12.4 mm wide × 101 mm long after 1.3 mm margins.
+ *  Barcode is rotated 90° so it uses the full 101mm height. */
+export const LABEL_WIDTH_MM = 15;
+export const LABEL_HEIGHT_MM = 101;
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
 
-/** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128. */
+/** Native TSPL2 barcode for a value: 13 digits → EAN-13, else Code 128.
+ *  Module width 1 for narrow labels (15mm wide ≈ 100 dots printable). */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string, hri: number): string {
   const digits = value.replace(/\D/g, "");
   if (isEan13(digits)) {
-    return `BARCODE ${x},${y},"EAN13",${heightDots},${hri},0,2,4,"${digits.slice(0, 12)}"`;
+    return `BARCODE ${x},${y},"EAN13",${heightDots},${hri},0,1,1,"${digits.slice(0, 12)}"`;
   }
-  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,2,3,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,1,1,"${tsplText(value).toUpperCase()}"`;
+}
+
+/** Rotated barcode (rotation=1 = 90°): bars run horizontally.
+ *  heightDots = width perpendicular to bars (across the narrow label width).
+ *  barcodeWidth = length of barcode along the label height. */
+function barcodeRotatedCommand(x: number, y: number, heightDots: number, value: string, hri: number): string {
+  const digits = value.replace(/\D/g, "");
+  if (isEan13(digits)) {
+    return `BARCODE ${x},${y},"EAN13",${heightDots},${hri},1,1,1,"${digits.slice(0, 12)}"`;
+  }
+  return `BARCODE ${x},${y},"128",${heightDots},${hri},1,1,1,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
  * Builds the full TSPL2 command stream for a batch of labels.
  *
- * Side-by-side layout (101 × 15 mm wide label, 98.5 mm printable):
- *   LEFT (25%):  product name (top) + weight with unit (below)
- *   RIGHT (75%): barcode (vertically centered)
+ * Side-by-side layout (15 × 101 mm jewelry tag strip):
+ *   LEFT:  product name + weight with unit (stacked vertically)
+ *   RIGHT: barcode rotated 90° (horizontal bars, uses the 101mm height)
  *
  * Direction 0: Y from top (downward). Direction 1: Y from bottom (upward).
  */
@@ -120,37 +133,41 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
 
-  // Printer margins: 1.3 mm each side → printable area = 98.5 mm wide.
-  // TSPL2 coordinates are absolute from page origin (0,0).
-  const leftMargin = mmToDots(1.3, dpi);  // 10 dots at 203 DPI
+  // Printer margins: 1.3 mm each side → printable area = 12.4 mm wide.
+  const leftMargin = mmToDots(1.3, dpi);
   const rightMargin = mmToDots(1.3, dpi);
-  const printableW = w - leftMargin - rightMargin; // 98.5mm in dots
+  const printableW = w - leftMargin - rightMargin;
 
   // Font "0" (Monotype CG Triumvirate Bold) is scalable: its x/y parameters
   // are the font size in POINTS (1 pt = 1/72"), not dots.
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
 
-  // Side-by-side layout within the printable area:
-  // LEFT = name + weight stacked, RIGHT = barcode
-  const gapBetween = mmToDots(2, dpi); // 2mm gap between text and barcode
-  const leftAreaW = Math.round(printableW * 0.25);  // 25% of printable width for text
-  const rightAreaX = leftMargin + leftAreaW + gapBetween; // barcode left edge
-  const rightAreaW = printableW - leftAreaW - gapBetween; // barcode available width
+  // Side-by-side layout:
+  // LEFT  = name + weight (stacked), uses ~40% of printable width
+  // RIGHT = barcode rotated 90°, uses ~60% of printable width
+  const gapBetween = mmToDots(1.5, dpi);
+  const leftAreaW = Math.round(printableW * 0.40);
+  const rightAreaX = leftMargin + leftAreaW + gapBetween;
+  const rightAreaW = printableW - leftAreaW - gapBetween;
 
-  // Vertical sizing (label is only ~15mm tall ≈ 120 dots at 203 DPI)
-  const nameSize = toPt(Math.round(h * 0.32));   // ~5pt on a 15mm label
-  const weightSize = toPt(Math.round(h * 0.28)); // ~4pt
+  // Vertical sizing — label is tall (101mm ≈ 807 dots)
+  const nameSize = toPt(Math.round(h * 0.065));    // ~5pt
+  const weightSize = toPt(Math.round(h * 0.05));   // ~4pt
   const nameHeightDots = Math.round((nameSize * dpi) / 72);
   const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
-  // Barcode height: fill ~75% of label height, leave room for text
-  const barcodeHeight = Math.round(h * 0.75);
+  // Barcode: rotated 90° so bars run horizontally.
+  // "height" param = barcode width perpendicular to bars (across the 15mm label width).
+  // Must fit within rightAreaW (≈5mm ≈ 40 dots).
+  const barcodeBarWidth = Math.min(rightAreaW - 4, Math.round(h * 0.65)); // bars span ~65% of height
+  const barcodeHeightDots = rightAreaW - 4; // width across the label (perpendicular to bars)
 
-  // Vertical positions: name at top, weight below it, barcode vertically centered
-  const topMargin = 2;
+  // Vertical positions for name/weight
+  const topMargin = 4;
+  const bottomMargin = 4;
+  const elementGap = 6;
   const nameY = topMargin;
-  const weightY = nameY + nameHeightDots + 2;
-  const barcodeY = Math.round((h - barcodeHeight) / 2); // centered
+  const weightY = h - weightHeightDots - bottomMargin;
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -176,10 +193,12 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     if (weight) {
       lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     }
-    // RIGHT SIDE: barcode (left-aligned within its area)
+    // RIGHT SIDE: barcode rotated 90° (rotation=1), vertically centered
     if (label.barcode) {
-      lines.push(barcodeCommand(rightAreaX, barcodeY, barcodeHeight, label.barcode, hri));
+      const barcodeY = Math.round((h - barcodeBarWidth) / 2);
+      lines.push(barcodeRotatedCommand(rightAreaX, barcodeY, barcodeHeightDots, label.barcode, hri));
     } else {
+      const barcodeY = Math.round((h - weightHeightDots) / 2);
       lines.push(`TEXT ${rightAreaX},${barcodeY},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
     lines.push(`PRINT ${copies},1`);
