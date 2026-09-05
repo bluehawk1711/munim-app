@@ -28,8 +28,8 @@ const LABEL_PRINT_KEY = "munim.labelPrint";
 /** Defaults matched to the shop's jewellery tag roll — adjustable in
  * Settings → Printing (test-print to calibrate). */
 export const DEFAULT_LABEL_SIZE: LabelSizeSettings = {
-    widthMm: 15,
-    heightMm: 101,
+    widthMm: 101,
+    heightMm: 15,
     gapMm: 2,
 };
 
