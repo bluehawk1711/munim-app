@@ -89,9 +89,9 @@ export const LABEL_HEIGHT_MM = 15;
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
 
 /** Native TSPL2 barcode — always Code 128 so narrow/wide params take effect.
- *  narrow=3, wide=7 for wide readable bars on a 101mm-wide label. */
+ *  narrow=2, wide=4 for readable bars that fit within the 101mm label width. */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string, hri: number): string {
-  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,3,7,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,2,4,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
@@ -136,18 +136,22 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
   // Barcode: centered vertically, 80% of label height
-  const barcodeHeight = Math.round(h * 0.80);
+  const barcodeHeight = Math.round(h * 0.95);
 
   // Vertical positions — name at top, weight at bottom.
-  // DIRECTION 0: Y=0 at top. TEXT Y = top of text, extends downward.
-  // DIRECTION 1: Y=0 at bottom. TEXT Y = bottom of text, extends upward.
+  // In BOTH directions, TEXT/BARCODE Y = top of element, extends downward on
+  // the physical label. The DIRECTION only changes where Y=0 sits:
+  //   DIRECTION 0: Y=0 at top, Y+ goes downward → Y near 0 = top
+  //   DIRECTION 1: Y=0 at bottom, Y+ goes upward → Y near h = top
   const topMargin = 2;
   const bottomMargin = 2;
-  const nameY = direction === 0 ? topMargin : h - nameHeightDots - topMargin;
-  const weightY = direction === 0 ? h - weightHeightDots - bottomMargin : bottomMargin;
+  const nameY = direction === 0 ? topMargin : h - topMargin;
+  const weightY = direction === 0
+    ? h - weightHeightDots - bottomMargin
+    : weightHeightDots + bottomMargin;
   const barcodeY = direction === 0
     ? Math.round((h - barcodeHeight) / 2)
-    : Math.round((h - barcodeHeight) / 2);
+    : Math.round((h + barcodeHeight) / 2);
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
