@@ -167,8 +167,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const barcodeHeight = 65;
   const defaultBarcodeX = leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
   const defaultBarcodeY = Math.round((h - barcodeHeight) / 2) - 8;
-  const barcodeX = opts.barcodeX ?? defaultBarcodeX;
-  const barcodeY = opts.barcodeY ?? defaultBarcodeY;
+  const barcodeX = (opts.barcodeX && opts.barcodeX > 0) ? opts.barcodeX : defaultBarcodeX;
+  const barcodeY = (opts.barcodeY && opts.barcodeY > 0) ? opts.barcodeY : defaultBarcodeY;
   const nameY = opts.nameY ?? 80;
   const weightY = opts.weightY ?? 40;
 
