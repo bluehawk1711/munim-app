@@ -6,27 +6,43 @@ thermal printer. The desktop app appends to
 below are the historical breakpoints — keep this file up to date when
 a new regression is caught and fixed.
 
-## Current state — commit a2a72c1 (2026-09-02)
+## Current state — 2026-09-06 (101 × 15 mm wide-strip)
 
-**Status: stable baseline, known minor issue — elements split across labels.**
+**Status: mostly stable — name + barcode correct, weight position wrong.**
 
-The barcode prints correctly, centered between the name and weight.
-Font sizes (8pt name, 6pt weight) match the BarTender reference.
-EAN-13 sends 12 digits, the printer adds the check digit, scanners
-read it back cleanly.
+Label: 101 mm × 15 mm (SIZE 101 mm,15 mm), DIRECTION 1.
+Name "ring1" prints correctly at the top-left.
+Barcode (Code 128, narrow=2, wide=4) prints on the right side.
+**Weight "2.5 mg" position is the only open issue** — it appears above
+the name but too high, going off the label. Only the bottom sliver of
+the weight text is visible. Changing weightY (tried 2–100) does NOT
+move the text vertically; it stays at the same physical position.
 
-**Known issue (open):** when printing a batch, the three fields
-(name / barcode / weight) for ONE product land on THREE different
-physical labels. The latest debug log
-(`~/Downloads/munim-print-debug.log`, 2026-07-25) shows the TSPL2
-stream is correct for each print — `CLS`, three `TEXT`/`BARCODE`
-lines, one `PRINT 1,1` — and the spooler reports success. The
-printer firmware is over-feeding between draws.
+### STABLE values (do NOT change without explicit request)
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| SIZE | 101 mm, 15 mm | Wide strip, confirmed correct |
+| DIRECTION | 1 | Origin bottom-left |
+| CODEPAGE | UTF-8 | |
+| barcodeHeight | 15 dots | User-calibrated, fixed |
+| barcodeY | centered | (h - barcodeHeight) / 2 |
+| barcode narrow/wide | 2 / 4 | Code 128, fits label width |
+| nameY | 4 | Top of label, confirmed working |
+| nameSize | toPt(h * 0.40) | ~17pt |
+| weightSize | toPt(h * 0.25) | ~11pt |
+| textAreaW | 24% of printable | ~23.6mm for name+weight |
+| gapBetween | 2mm | Between text and barcode |
+| leftMargin | 1.3mm | Printer physical margin |
+| rightMargin | 1.3mm | Printer physical margin |
+| barcodeHRI | 0 (off) | No human-readable digits |
+| barcodeCodepage | 128 (Code 128) | Not EAN-13 (12 digits) |
 
-Most likely cause: DIRECTION 1 on this particular TE244 triggers a
-re-feed between the `BARCODE` draw and the second `TEXT` draw. The
-ac66510 working baseline used DIRECTION 1 too, so this is probably
-firmware-version dependent.
+### Known issue
+Weight text: changing `weightY` from 2→100 does not move the text.
+The text always appears at the same physical position (above name,
+going off the label). This suggests the TEXT command's Y parameter for
+font "0" at small point sizes may be interpreted differently than
+expected by the TE244 firmware, or there is a buffer-origin offset.
 
 ## Environment
 - Printer: **TSC TE244** (203 DPI, 8 dots/mm)
@@ -134,6 +150,12 @@ const barcodeY = direction === 0
   ? Math.round((h - barcodeHeight) / 2)
   : Math.round((h + barcodeHeight) / 2);
 ```
+
+## Break: percentage-based barcode height (2026-09-05)
+
+`Math.round(h * 0.10)` / `0.80` / `0.95` all pushed the barcode
+outside the label — the percentage was applied to the wrong axis or
+the Y math inverted it. Fixed: `barcodeHeight = 40` (fixed dots).
 
 ## How to read the log
 - Every entry is `[ISO-timestamp] | message`.

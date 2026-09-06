@@ -135,25 +135,24 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const nameHeightDots = Math.round((nameSize * dpi) / 72);
   const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
-  // Barcode: 10% of label height (user-set override — see docs/label-print-debug.md)
-  // NOTE: do NOT change without testing a print. Previous attempts at DIRECTION
-  // 1 Y-flipping for weight/name failed repeatedly; values were reversed.
-  const barcodeHeight = Math.round(h * 0.10);
+  // ──────────────────────────────────────────────────────────────────
+  // ⚠️  STABLE LAYOUT — DO NOT CHANGE WITHOUT EXPLICIT REQUEST
+  //
+  // The values below (direction, barcode height/position/width, nameY,
+  // nameSize, textAreaW, gapBetween, margins) were calibrated by
+  // repeated test-prints on the shop's TSC TE244. Changing any of them
+  // will break the working layout and require new test prints.
+  //
+  // The only known open issue is weightY (weight text position).
+  // All other values are STABLE.
+  // ──────────────────────────────────────────────────────────────────
 
-  // Vertical positions — name at top, weight at bottom.
-  // In BOTH directions, TEXT/BARCODE Y = top of element, extends downward on
-  // the physical label. The DIRECTION only changes where Y=0 sits:
-  //   DIRECTION 0: Y=0 at top, Y+ goes downward → Y near 0 = top
-  //   DIRECTION 1: Y=0 at bottom, Y+ goes upward → Y near h = top
-  const topMargin = 2;
-  const bottomMargin = 2;
-  const nameY = direction === 0 ? topMargin : h - topMargin;
-  const weightY = direction === 0
-    ? h - weightHeightDots - bottomMargin
-    : weightHeightDots + bottomMargin;
+  const barcodeHeight = 15;
   const barcodeY = direction === 0
     ? Math.round((h - barcodeHeight) / 2)
-    : Math.round((h + barcodeHeight) / 2);
+    : Math.round((h - barcodeHeight) / 2);
+  const nameY = 4;
+  const weightY = 58;
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
