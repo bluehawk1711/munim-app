@@ -116,8 +116,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
 
-  // Printer margins: 1.3 mm each side → printable area = 98.5 mm wide.
-  const leftMargin = mmToDots(1.3, dpi);
+  // Printer margins — pushed slightly right to avoid left-edge clipping.
+  const leftMargin = mmToDots(2.5, dpi);
   const rightMargin = mmToDots(1.3, dpi);
   const printableW = w - leftMargin - rightMargin;
 
