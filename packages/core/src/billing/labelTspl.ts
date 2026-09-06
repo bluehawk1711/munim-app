@@ -127,7 +127,6 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // Layout: LEFT = name+weight stacked (~24%), RIGHT = barcode (~76%)
   const gapBetween = mmToDots(2, dpi);
   const textAreaW = Math.round(printableW * 0.24);  // ~23.6mm for name + weight
-  const barcodeX = leftMargin + textAreaW + gapBetween;
 
   // Font sizes — 15mm tall = 120 dots at 203 DPI
   const nameSize = toPt(Math.round(h * 0.40));    // ~5pt, slightly larger for name
@@ -149,8 +148,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // ──────────────────────────────────────────────────────────────────
 
   const barcodeHeight = 65;
-  const barcodeY = Math.round((h - barcodeHeight) / 2);
-  const nameY = 70;
+  const barcodeX = leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
+  const barcodeY = Math.round((h - barcodeHeight) / 2) - 8;
+  const nameY = 80;
   const weightY = 40;
 
   const lines: string[] = [
