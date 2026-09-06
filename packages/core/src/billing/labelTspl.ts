@@ -152,7 +152,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     ? Math.round((h - barcodeHeight) / 2)
     : Math.round((h - barcodeHeight) / 2);
   const nameY = 4;
-  const weightY = 58;
+  const weightY = nameY;
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
