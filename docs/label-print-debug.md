@@ -8,26 +8,29 @@ a new regression is caught and fixed.
 
 ## Current state — 2026-09-06 (101 × 15 mm wide-strip)
 
-**Status: mostly stable — name + barcode correct, weight position wrong.**
+**Status: mostly stable — name + barcode correct, weight position being tuned.**
 
-Label: 101 mm × 15 mm (SIZE 101 mm,15 mm), DIRECTION 1.
-Name "ring1" prints correctly at the top-left.
+Label: 101 mm × 15 mm (SIZE 101 mm,15 mm).
+Name "ring1" prints correctly on the left side.
 Barcode (Code 128, narrow=2, wide=4) prints on the right side.
-**Weight "2.5 mg" position is the only open issue** — it appears above
-the name but too high, going off the label. Only the bottom sliver of
-the weight text is visible. Changing weightY (tried 2–100) does NOT
-move the text vertically; it stays at the same physical position.
+Weight "2.5 mg" position is being calibrated — currently at weightY=40.
+
+### ⚠️ DIRECTION: MUST be 1 (confirmed by test-prints)
+- **DIRECTION 0 mirrors/reverses the entire label** — text and barcode
+  are flipped horizontally. NEVER use DIRECTION 0 on this printer.
+- **DIRECTION 1 is the ONLY correct approach** for the TSC TE244.
 
 ### STABLE values (do NOT change without explicit request)
 | Parameter | Value | Notes |
 |-----------|-------|-------|
 | SIZE | 101 mm, 15 mm | Wide strip, confirmed correct |
-| DIRECTION | 1 | Origin bottom-left |
+| **DIRECTION** | **1** | **MANDATORY — DIRECTION 0 reverses the label** |
 | CODEPAGE | UTF-8 | |
-| barcodeHeight | 15 dots | User-calibrated, fixed |
+| barcodeHeight | 60 dots | User-calibrated, fixed |
 | barcodeY | centered | (h - barcodeHeight) / 2 |
 | barcode narrow/wide | 2 / 4 | Code 128, fits label width |
-| nameY | 4 | Top of label, confirmed working |
+| nameY | 20 | Away from physical margin |
+| weightY | 40 | Above name (higher Y = higher on label) |
 | nameSize | toPt(h * 0.40) | ~17pt |
 | weightSize | toPt(h * 0.25) | ~11pt |
 | textAreaW | 24% of printable | ~23.6mm for name+weight |
@@ -37,12 +40,11 @@ move the text vertically; it stays at the same physical position.
 | barcodeHRI | 0 (off) | No human-readable digits |
 | barcodeCodepage | 128 (Code 128) | Not EAN-13 (12 digits) |
 
-### Known issue
-Weight text: changing `weightY` from 2→100 does not move the text.
-The text always appears at the same physical position (above name,
-going off the label). This suggests the TEXT command's Y parameter for
-font "0" at small point sizes may be interpreted differently than
-expected by the TE244 firmware, or there is a buffer-origin offset.
+### Y-axis behavior (DIRECTION 1 on TSC TE244)
+- Y=0 is at the BOTTOM of the label, Y increases UPWARD
+- Y < ~5 clips at the physical bottom margin
+- Higher Y = higher position on the label
+- Confirmed by test: weightY=58 went above name, off the top of the label
 
 ## Environment
 - Printer: **TSC TE244** (203 DPI, 8 dots/mm)

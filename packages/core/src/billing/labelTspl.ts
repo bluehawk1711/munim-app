@@ -138,19 +138,18 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // ──────────────────────────────────────────────────────────────────
   // ⚠️  STABLE LAYOUT — DO NOT CHANGE WITHOUT EXPLICIT REQUEST
   //
-  // The values below (direction, barcode height/position/width, nameY,
-  // nameSize, textAreaW, gapBetween, margins) were calibrated by
-  // repeated test-prints on the shop's TSC TE244. Changing any of them
-  // will break the working layout and require new test prints.
+  // DIRECTION: MUST be 1 (confirmed by test-prints on TSC TE244).
+  //   DIRECTION 0 mirrors/reverses the entire label — text and barcode
+  //   are flipped. NEVER use DIRECTION 0 on this printer.
   //
-  // The only known open issue is weightY (weight text position).
-  // All other values are STABLE.
+  // The values below (barcode height/position/width, nameY, weightY,
+  // nameSize, textAreaW, gapBetween, margins) were calibrated by
+  // repeated test-prints. Changing any of them will break the layout
+  // and require new test prints.
   // ──────────────────────────────────────────────────────────────────
 
   const barcodeHeight = 60;
-  const barcodeY = direction === 0
-    ? Math.round((h - barcodeHeight) / 2)
-    : Math.round((h - barcodeHeight) / 2);
+  const barcodeY = Math.round((h - barcodeHeight) / 2);
   const nameY = 20;
   const weightY = 40;
 
