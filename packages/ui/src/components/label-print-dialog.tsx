@@ -227,24 +227,22 @@ export function LabelPrintDialog({
                 </button>
                 {advancedOpen && (
                   <div className="mt-2 space-y-3 rounded border bg-background/40 p-3">
-                    {/* Direction */}
                     <div className="grid grid-cols-2 gap-3">
+                      {/* GAP */}
                       <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-direction">Direction</label>
-                        <Select
-                          value={String(printSettings.direction)}
-                          onValueChange={(v) => updateSetting("direction", Number(v) as 0 | 1)}
-                        >
-                          <SelectTrigger id="lbl-direction" className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="0">DIRECTION 0 (Y from top)</SelectItem>
-                            <SelectItem value="1">DIRECTION 1 (Y from bottom)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-gap">Gap (mm)</label>
+                        <input
+                          id="lbl-gap"
+                          type="number"
+                          min={0}
+                          max={10}
+                          step={0.5}
+                          value={printSettings.gapMm}
+                          onChange={(e) => updateSetting("gapMm", Number(e.target.value) || 0)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
                         <p className="text-[10px] text-muted-foreground">
-                          0 = origin at top-left (default). 1 = origin at bottom-left. Try both if labels split.
+                          0 = continuous (no gap). 2 = standard die-cut.
                         </p>
                       </div>
 
@@ -266,50 +264,124 @@ export function LabelPrintDialog({
                           </SelectContent>
                         </Select>
                         <p className="text-[10px] text-muted-foreground">
-                          Show digits below the barcode bars. Hidden saves space.
+                          Show digits below the barcode bars.
                         </p>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
-                      {/* GAP */}
+                      {/* Narrow */}
                       <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-gap">Gap (mm)</label>
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-narrow">Narrow (dots)</label>
                         <input
-                          id="lbl-gap"
+                          id="lbl-narrow"
+                          type="number"
+                          min={1}
+                          max={10}
+                          step={1}
+                          value={printSettings.narrow}
+                          onChange={(e) => updateSetting("narrow", Number(e.target.value) || 2)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
+                      </div>
+
+                      {/* Wide */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-wide">Wide (dots)</label>
+                        <input
+                          id="lbl-wide"
+                          type="number"
+                          min={2}
+                          max={20}
+                          step={1}
+                          value={printSettings.wide}
+                          onChange={(e) => updateSetting("wide", Number(e.target.value) || 4)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      {/* nameY */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-nameY">Name Y</label>
+                        <input
+                          id="lbl-nameY"
+                          type="number"
+                          min={0}
+                          max={120}
+                          step={1}
+                          value={printSettings.nameY}
+                          onChange={(e) => updateSetting("nameY", Number(e.target.value) || 20)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
+                      </div>
+
+                      {/* weightY */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-weightY">Weight Y</label>
+                        <input
+                          id="lbl-weightY"
+                          type="number"
+                          min={0}
+                          max={120}
+                          step={1}
+                          value={printSettings.weightY}
+                          onChange={(e) => updateSetting("weightY", Number(e.target.value) || 72)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
+                      </div>
+
+                      {/* leftMarginMm */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-leftMargin">Left Margin (mm)</label>
+                        <input
+                          id="lbl-leftMargin"
                           type="number"
                           min={0}
                           max={10}
                           step={0.5}
-                          value={printSettings.gapMm}
-                          onChange={(e) => updateSetting("gapMm", Number(e.target.value) || 0)}
+                          value={printSettings.leftMarginMm}
+                          onChange={(e) => updateSetting("leftMarginMm", Number(e.target.value) || 3.5)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* barcodeX */}
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-barcodeX">Barcode X (dots)</label>
+                        <input
+                          id="lbl-barcodeX"
+                          type="number"
+                          min={0}
+                          max={800}
+                          step={1}
+                          value={printSettings.barcodeX}
+                          onChange={(e) => updateSetting("barcodeX", Number(e.target.value) || 0)}
                           className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
                         />
                         <p className="text-[10px] text-muted-foreground">
-                          0 = continuous (no gap). 2 = standard die-cut. Try 0 if labels split.
+                          0 = auto-computed
                         </p>
                       </div>
 
-                      {/* CODEPAGE */}
+                      {/* barcodeY */}
                       <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-codepage">Codepage</label>
-                        <Select
-                          value={printSettings.codepage}
-                          onValueChange={(v) => updateSetting("codepage", v)}
-                        >
-                          <SelectTrigger id="lbl-codepage" className="h-8 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="UTF-8">UTF-8</SelectItem>
-                            <SelectItem value="USA">USA (ASCII)</SelectItem>
-                            <SelectItem value="UK">UK</SelectItem>
-                            <SelectItem value="HEX8859-1">ISO 8859-1</SelectItem>
-                            <SelectItem value="HEX8859-15">ISO 8859-15</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-barcodeY">Barcode Y (dots)</label>
+                        <input
+                          id="lbl-barcodeY"
+                          type="number"
+                          min={0}
+                          max={120}
+                          step={1}
+                          value={printSettings.barcodeY}
+                          onChange={(e) => updateSetting("barcodeY", Number(e.target.value) || 0)}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                        />
                         <p className="text-[10px] text-muted-foreground">
-                          ASCII labels work on any codepage. UTF-8 if unsure.
+                          0 = auto-computed (vertically centered)
                         </p>
                       </div>
                     </div>

@@ -82,11 +82,16 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
     if (parsed && typeof parsed === "object") {
       const s = parsed as Partial<LabelPrintSettings>;
       return {
-        direction: s.direction === 1 ? 1 : 0,
         gapMm: typeof s.gapMm === "number" && s.gapMm >= 0 && s.gapMm <= 10 ? s.gapMm : 2,
-        codepage: typeof s.codepage === "string" && s.codepage.trim() ? s.codepage.trim() : "UTF-8",
         hri: typeof s.hri === "number" && s.hri >= 0 && s.hri <= 3 ? s.hri as 0 | 1 | 2 | 3 : 0,
         copies: typeof s.copies === "number" && s.copies >= 1 && s.copies <= 999 ? s.copies : 1,
+        narrow: typeof s.narrow === "number" && s.narrow >= 1 && s.narrow <= 10 ? s.narrow : 2,
+        wide: typeof s.wide === "number" && s.wide >= 2 && s.wide <= 20 ? s.wide : 4,
+        nameY: typeof s.nameY === "number" && s.nameY >= 0 && s.nameY <= 120 ? s.nameY : 20,
+        weightY: typeof s.weightY === "number" && s.weightY >= 0 && s.weightY <= 120 ? s.weightY : 72,
+        leftMarginMm: typeof s.leftMarginMm === "number" && s.leftMarginMm >= 0 && s.leftMarginMm <= 10 ? s.leftMarginMm : 3.5,
+        barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 0,
+        barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 0,
       };
     }
   } catch {
@@ -120,10 +125,15 @@ export async function printLabelsToThermal(
   const tspl = buildLabelTspl2(labels, {
     ...size,
     copies,
-    direction: ps.direction,
     gapMm: ps.gapMm,
-    codepage: ps.codepage,
     hri: ps.hri,
+    narrow: ps.narrow,
+    wide: ps.wide,
+    nameY: ps.nameY,
+    weightY: ps.weightY,
+    leftMarginMm: ps.leftMarginMm,
+    barcodeX: ps.barcodeX,
+    barcodeY: ps.barcodeY,
   });
   const data = Array.from(new TextEncoder().encode(tspl));
   console.info("[Munim label print]", {

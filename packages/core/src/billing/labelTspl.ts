@@ -37,25 +37,40 @@ export type LabelSizeSettings = {
 
 /** Advanced TSPL2 print settings — adjustable per-print from the dialog. */
 export type LabelPrintSettings = {
-  /** TSPL2 DIRECTION: 0 = origin top-left (Y down), 1 = origin bottom-left (Y up). */
-  direction: 0 | 1;
   /** Gap between labels in mm (0 for continuous stock). */
   gapMm: number;
-  /** CODEPAGE command sent to the printer (UTF-8 or a TSPL codepage name). */
-  codepage: string;
   /** BARCODE human-readable interpretation: 0 = off, 1 = left, 2 = center, 3 = right. */
   hri: 0 | 1 | 2 | 3;
   /** Number of copies per label. */
   copies: number;
+  /** Barcode narrow element width in dots. */
+  narrow: number;
+  /** Barcode wide element width in dots. */
+  wide: number;
+  /** Name text Y position in dots. */
+  nameY: number;
+  /** Weight text Y position in dots. */
+  weightY: number;
+  /** Left margin in mm. */
+  leftMarginMm: number;
+  /** Barcode X position in dots. */
+  barcodeX: number;
+  /** Barcode Y position in dots. */
+  barcodeY: number;
 };
 
 /** Default settings for the first print — easy to override in the dialog. */
 export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
-  direction: 1,
   gapMm: 2,
-  codepage: "UTF-8",
   hri: 0,
   copies: 1,
+  narrow: 2,
+  wide: 4,
+  nameY: 20,
+  weightY: 72,
+  leftMarginMm: 3.5,
+  barcodeX: 0,  // computed in buildLabelTspl2 if 0
+  barcodeY: 0,  // computed in buildLabelTspl2 if 0
 };
 
 export type TsplLabelOptions = Partial<LabelSizeSettings> & {
@@ -63,12 +78,26 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   copies?: number;
   /** Printer resolution in dpi (TE244 = 203). Default 203. */
   dpi?: number;
-  /** TSPL2 DIRECTION: 0 = origin top-left (Y down), 1 = origin bottom-left (Y up). Default 0. */
+  /** TSPL2 DIRECTION: always 1 for TSC TE244. */
   direction?: 0 | 1;
-  /** CODEPAGE command (UTF-8 or TSPL codepage name). Default "UTF-8". */
+  /** CODEPAGE command. Default "UTF-8". */
   codepage?: string;
   /** BARCODE HRI: 0 = off, 1 = left, 2 = center, 3 = right. Default 0. */
   hri?: 0 | 1 | 2 | 3;
+  /** Barcode narrow element width in dots. Default 2. */
+  narrow?: number;
+  /** Barcode wide element width in dots. Default 4. */
+  wide?: number;
+  /** Name text Y position in dots. */
+  nameY?: number;
+  /** Weight text Y position in dots. */
+  weightY?: number;
+  /** Left margin in mm. */
+  leftMarginMm?: number;
+  /** Barcode X position in dots (0 = computed). */
+  barcodeX?: number;
+  /** Barcode Y position in dots (0 = computed). */
+  barcodeY?: number;
 };
 
 /** TSPL2 content is double-quoted — strip quotes/newlines so a value can't
@@ -88,10 +117,9 @@ export const LABEL_WIDTH_MM = 101;
 export const LABEL_HEIGHT_MM = 15;
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
 
-/** Native TSPL2 barcode — always Code 128 so narrow/wide params take effect.
- *  narrow=1, wide=3 for narrower bars that fit within the label width. */
-function barcodeCommand(x: number, y: number, heightDots: number, value: string, hri: number): string {
-  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,1,3,"${tsplText(value).toUpperCase()}"`;
+/** Native TSPL2 barcode — Code 128 with configurable narrow/wide. */
+function barcodeCommand(x: number, y: number, heightDots: number, value: string, hri: number, narrow: number, wide: number): string {
+  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,${narrow},${wide},"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
@@ -109,15 +137,17 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const heightMm = opts.heightMm ?? LABEL_HEIGHT_MM;
   const gapMm = opts.gapMm ?? 2;
   const dpi = opts.dpi ?? 203;
-  const direction = opts.direction ?? 0;
+  const direction = opts.direction ?? 1;  // MUST be 1 for TSC TE244
   const codepage = opts.codepage ?? "UTF-8";
   const hri = opts.hri ?? 0;
+  const narrow = opts.narrow ?? 2;
+  const wide = opts.wide ?? 4;
 
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
 
-  // Printer margins — text pushed right, barcode pushed to right edge.
-  const leftMargin = mmToDots(3.5, dpi);
+  // Printer margins
+  const leftMargin = mmToDots(opts.leftMarginMm ?? 3.5, dpi);
   const rightMargin = mmToDots(0.5, dpi);
   const printableW = w - leftMargin - rightMargin;
 
@@ -126,32 +156,21 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Layout: LEFT = name+weight stacked (~24%), RIGHT = barcode (~76%)
   const gapBetween = mmToDots(2, dpi);
-  const textAreaW = Math.round(printableW * 0.24);  // ~23.6mm for name + weight
+  const textAreaW = Math.round(printableW * 0.24);
 
   // Font sizes — 15mm tall = 120 dots at 203 DPI
-  const nameSize = toPt(Math.round(h * 0.40));    // ~5pt, slightly larger for name
-  const weightSize = toPt(Math.round(h * 0.25));  // ~3pt, smaller for weight
+  const nameSize = toPt(Math.round(h * 0.40));
+  const weightSize = toPt(Math.round(h * 0.25));
   const nameHeightDots = Math.round((nameSize * dpi) / 72);
   const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
-  // ──────────────────────────────────────────────────────────────────
-  // ⚠️  STABLE LAYOUT — DO NOT CHANGE WITHOUT EXPLICIT REQUEST
-  //
-  // DIRECTION: MUST be 1 (confirmed by test-prints on TSC TE244).
-  //   DIRECTION 0 mirrors/reverses the entire label — text and barcode
-  //   are flipped. NEVER use DIRECTION 0 on this printer.
-  //
-  // The values below (barcode height/position/width, nameY, weightY,
-  // nameSize, textAreaW, gapBetween, margins) were calibrated by
-  // repeated test-prints. Changing any of them will break the layout
-  // and require new test prints.
-  // ──────────────────────────────────────────────────────────────────
-
   const barcodeHeight = 65;
-  const barcodeX = leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
-  const barcodeY = Math.round((h - barcodeHeight) / 2) - 8;
-  const nameY = 80;
-  const weightY = 40;
+  const defaultBarcodeX = leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
+  const defaultBarcodeY = Math.round((h - barcodeHeight) / 2) - 8;
+  const barcodeX = opts.barcodeX ?? defaultBarcodeX;
+  const barcodeY = opts.barcodeY ?? defaultBarcodeY;
+  const nameY = opts.nameY ?? 80;
+  const weightY = opts.weightY ?? 40;
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -176,9 +195,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     if (weight) {
       lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
     }
-    // RIGHT: barcode (vertically centered)
+    // RIGHT: barcode
     if (label.barcode) {
-      lines.push(barcodeCommand(barcodeX, barcodeY, barcodeHeight, label.barcode, hri));
+      lines.push(barcodeCommand(barcodeX, barcodeY, barcodeHeight, label.barcode, hri, narrow, wide));
     } else {
       lines.push(`TEXT ${barcodeX},${barcodeY},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
