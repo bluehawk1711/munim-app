@@ -6,14 +6,13 @@ thermal printer. The desktop app appends to
 below are the historical breakpoints — keep this file up to date when
 a new regression is caught and fixed.
 
-## Current state — 2026-09-06 (101 × 15 mm wide-strip)
+## Current state — 2026-09-06 (101 × 15 mm wide-strip) ✅ STABLE
 
-**Status: mostly stable — name + barcode correct, weight position being tuned.**
+**Status: STABLE — all elements visible and correctly positioned.**
 
-Label: 101 mm × 15 mm (SIZE 101 mm,15 mm).
-Name "ring1" prints correctly on the left side.
-Barcode (Code 128, narrow=2, wide=4) prints on the right side.
-Weight "2.5 mg" position is being calibrated — currently at weightY=40.
+Label: 101 mm × 15 mm (SIZE 101 mm,15 mm), DIRECTION 1.
+Weight "2.5 mg" at top-left, name "ring1" below it, barcode on right.
+All three elements are visible, no overlap, no clipping.
 
 ### ⚠️ DIRECTION: MUST be 1 (confirmed by test-prints)
 - **DIRECTION 0 mirrors/reverses the entire label** — text and barcode
@@ -28,15 +27,15 @@ Weight "2.5 mg" position is being calibrated — currently at weightY=40.
 | CODEPAGE | UTF-8 | |
 | barcodeHeight | 60 dots | User-calibrated, fixed |
 | barcodeY | centered | (h - barcodeHeight) / 2 |
-| barcode narrow/wide | 2 / 4 | Code 128, fits label width |
-| nameY | 20 | Away from physical margin |
-| weightY | 40 | Above name (higher Y = higher on label) |
+| barcode narrow/wide | 1 / 3 | Code 128, narrower bars |
+| nameY | 20 | Below weight (lower Y = lower on label) |
+| weightY | 72 | Above name (higher Y = higher on label) |
 | nameSize | toPt(h * 0.40) | ~17pt |
 | weightSize | toPt(h * 0.25) | ~11pt |
 | textAreaW | 24% of printable | ~23.6mm for name+weight |
 | gapBetween | 2mm | Between text and barcode |
-| leftMargin | 1.3mm | Printer physical margin |
-| rightMargin | 1.3mm | Printer physical margin |
+| leftMargin | 3.5mm | Pushed right to avoid left-edge clipping |
+| rightMargin | 0.5mm | Pushed right so barcode reaches label edge |
 | barcodeHRI | 0 (off) | No human-readable digits |
 | barcodeCodepage | 128 (Code 128) | Not EAN-13 (12 digits) |
 

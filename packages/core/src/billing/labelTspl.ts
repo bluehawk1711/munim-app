@@ -89,9 +89,9 @@ export const LABEL_HEIGHT_MM = 15;
 const mmToDots = (mm: number, dpi: number): number => Math.round((mm * dpi) / 25.4);
 
 /** Native TSPL2 barcode — always Code 128 so narrow/wide params take effect.
- *  narrow=2, wide=4 for readable bars that fit within the 101mm label width. */
+ *  narrow=1, wide=3 for narrower bars that fit within the label width. */
 function barcodeCommand(x: number, y: number, heightDots: number, value: string, hri: number): string {
-  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,2,4,"${tsplText(value).toUpperCase()}"`;
+  return `BARCODE ${x},${y},"128",${heightDots},${hri},0,1,3,"${tsplText(value).toUpperCase()}"`;
 }
 
 /**
@@ -116,9 +116,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
 
-  // Printer margins — pushed slightly right to avoid left-edge clipping.
-  const leftMargin = mmToDots(2.5, dpi);
-  const rightMargin = mmToDots(1.3, dpi);
+  // Printer margins — text pushed right, barcode pushed to right edge.
+  const leftMargin = mmToDots(3.5, dpi);
+  const rightMargin = mmToDots(0.5, dpi);
   const printableW = w - leftMargin - rightMargin;
 
   // Font "0" — x/y params are POINTS (1 pt = 1/72").
