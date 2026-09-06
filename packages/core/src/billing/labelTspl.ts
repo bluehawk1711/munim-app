@@ -148,9 +148,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // and require new test prints.
   // ──────────────────────────────────────────────────────────────────
 
-  const barcodeHeight = 60;
+  const barcodeHeight = 65;
   const barcodeY = Math.round((h - barcodeHeight) / 2);
-  const nameY = 65;
+  const nameY = 70;
   const weightY = 40;
 
   const lines: string[] = [
