@@ -145,5 +145,24 @@ export async function printLabelsToThermal(
     tsplBytes: data.length,
   });
   console.debug("[Munim label print] TSPL2 stream:\n" + tspl);
+
+  // After first print, save computed barcodeX/barcodeY so future opens show actual values
+  if ((ps.barcodeX === 0 || ps.barcodeY === 0) && labels.length > 0) {
+    const dpi = 203;
+    const mmToDots = (mm: number): number => Math.round((mm * dpi) / 25.4);
+    const w = mmToDots(size.widthMm ?? 101);
+    const h = mmToDots(size.heightMm ?? 15);
+    const leftMargin = mmToDots(ps.leftMarginMm ?? 3.5);
+    const rightMargin = mmToDots(0.5);
+    const printableW = w - leftMargin - rightMargin;
+    const gapBetween = mmToDots(2);
+    const textAreaW = Math.round(printableW * 0.24);
+    const barcodeHeight = 65;
+    const computedX = ps.barcodeX === 0 ? leftMargin + textAreaW + gapBetween + mmToDots(10) : ps.barcodeX;
+    const computedY = ps.barcodeY === 0 ? Math.round((h - barcodeHeight) / 2) - 8 : ps.barcodeY;
+    const updated = { ...ps, barcodeX: computedX, barcodeY: computedY };
+    saveLabelPrintSettings(updated);
+  }
+
   await invoke("print_raw", { printerName, data });
 }
