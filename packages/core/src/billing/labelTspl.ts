@@ -150,7 +150,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   const barcodeHeight = 60;
   const barcodeY = Math.round((h - barcodeHeight) / 2);
-  const nameY = 20;
+  const nameY = 65;
   const weightY = 40;
 
   const lines: string[] = [

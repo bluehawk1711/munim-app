@@ -21,6 +21,7 @@ next-env.d.ts
 
 # compiled output (core, api, etc.)
 dist/
+dist/*/**
 
 # expo / react native
 .expo/
