@@ -3,6 +3,7 @@ import {ScrollView, Share, StyleSheet, Text, View} from 'react-native';
 import {reportToCsv, formatWeight, type ReportType} from '@munim/core';
 import {useQueryState, useReport} from '@munim/query';
 import {money} from '../lib/format';
+import {successFeedback} from '../lib/haptics';
 import {Button, Card, Empty, ErrorBox, Header, Loading, Screen, Section, colors} from '../components/ui';
 import {DateField} from '../components/date-field';
 import {useThemeStyles} from '../theme';
@@ -51,6 +52,7 @@ export function ReportsScreen() {
         title: `${report.title}.csv`,
         message: `${report.title}\n${report.periodLabel}\n\n${csv}\n${summary}`,
       });
+      successFeedback(`${report.title} exported`);
     } catch {
       // user dismissed the share sheet — nothing to do
     }

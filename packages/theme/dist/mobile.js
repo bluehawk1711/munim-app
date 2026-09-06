@@ -32,6 +32,11 @@ export function mobileColorsFor(mode, themeName = "apple") {
         dangerSoft: softIsDark ? "#401418" : "#fee2e2",
         mutedSoft: t.border,
         inputPlaceholder: softIsDark ? "#6f6d68" : "#9aa1ac",
+        chart1: t.chart1,
+        chart2: t.chart2,
+        chart3: t.chart3,
+        chart4: t.chart4,
+        chart5: t.chart5,
     };
 }
 /** Light palette — kept for back-compat; use `mobileColorsFor(mode, theme)` for theming. */

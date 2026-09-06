@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {
   ArrowLeftRight,
@@ -19,8 +19,7 @@ import {InvoicesScreen} from './InvoicesScreen';
 import {JobLettersScreen} from './JobLettersScreen';
 import {ReportsScreen} from './ReportsScreen';
 import {SettingsScreen} from './SettingsScreen';
-
-type Section = 'letters' | 'reports' | 'catalog' | 'invoices' | 'advances' | 'settings';
+import {useNavStore, type MoreSection as Section} from '../lib/nav-store';
 
 const SECTIONS: {
   key: Section;
@@ -54,46 +53,49 @@ function SectionView({children, onBack}: {children: React.ReactNode; onBack: () 
 
 export function MoreScreen() {
   const styles = useThemeStyles(makeStyles);
-  const [section, setSection] = useState<Section | null>(null);
+  // Sub-section lives in the nav store so Home (e.g. the invoice-status
+  // chart) can deep-link into a specific More screen.
+  const section = useNavStore(s => s.moreSection) as Section;
+  const closeMore = useNavStore(s => s.closeMore);
 
   if (section === 'letters') {
     return (
-      <SectionView onBack={() => setSection(null)}>
+      <SectionView onBack={closeMore}>
         <JobLettersScreen />
       </SectionView>
     );
   }
   if (section === 'reports') {
     return (
-      <SectionView onBack={() => setSection(null)}>
+      <SectionView onBack={closeMore}>
         <ReportsScreen />
       </SectionView>
     );
   }
   if (section === 'catalog') {
     return (
-      <SectionView onBack={() => setSection(null)}>
+      <SectionView onBack={closeMore}>
         <CatalogScreen />
       </SectionView>
     );
   }
   if (section === 'invoices') {
     return (
-      <SectionView onBack={() => setSection(null)}>
+      <SectionView onBack={closeMore}>
         <InvoicesScreen />
       </SectionView>
     );
   }
   if (section === 'advances') {
     return (
-      <SectionView onBack={() => setSection(null)}>
+      <SectionView onBack={closeMore}>
         <AdvancesScreen />
       </SectionView>
     );
   }
   if (section === 'settings') {
     return (
-      <SectionView onBack={() => setSection(null)}>
+      <SectionView onBack={closeMore}>
         <SettingsScreen />
       </SectionView>
     );
@@ -110,7 +112,7 @@ export function MoreScreen() {
               key={item.key}
               onPress={() => {
                 sectionPress();
-                setSection(item.key);
+                useNavStore.getState().openMore(item.key);
               }}
               style={({pressed}) => [
                 styles.row,

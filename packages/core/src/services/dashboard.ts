@@ -173,6 +173,14 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
   const productsSoldToday = todayStats[0]?.qty ?? 0;
   const monthlyRevenue = monthStats[0]?.total ?? 0;
 
+  // Ledger split (real receivables vs payables):
+  //  - receivables = unpaid invoice balance (customers owe us) + open advances
+  //    we GAVE (parties owe us that money back)
+  //  - payables    = open advances we TOOK (we owe the parties)
+  const unpaidInvoices = unpaidStats[0]?.total ?? 0;
+  const givenAdvances = advanceRows.find((r) => r.direction === "GIVEN")?.total ?? 0;
+  const takenAdvances = advanceRows.find((r) => r.direction === "TAKEN")?.total ?? 0;
+
   // Advances enriched with party name
   const partyNameMap = new Map(parties.map((p) => [p.id, p.name]));
   const recentAdvancesWithNames = recentAdvances.map((a) => ({
@@ -223,8 +231,8 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
     .sort((a, b) => b.value - a.value);
 
   // Open advances split.
-  const given = advanceRows.find((r) => r.direction === "GIVEN")?.total ?? 0;
-  const taken = advanceRows.find((r) => r.direction === "TAKEN")?.total ?? 0;
+  const given = givenAdvances;
+  const taken = takenAdvances;
   const advanceSplit = [
     ...(given > 0 ? [{ name: "Given by us", value: given, color: "var(--chart-4)" }] : []),
     ...(taken > 0 ? [{ name: "Taken by us", value: taken, color: "var(--chart-2)" }] : []),
@@ -240,9 +248,9 @@ export async function getDashboard(db: DbClient): Promise<DashboardStats> {
     monthlyRevenue,
     averageSale: totalInvoices > 0 ? totalRevenue / totalInvoices : 0,
     invoicesCount: totalInvoices,
-    unpaidAmount: unpaidStats[0]?.total ?? 0,
-    receivables: unpaidStats[0]?.total ?? 0,
-    payables: unpaidStats[0]?.total ?? 0,
+    unpaidAmount: unpaidInvoices,
+    receivables: unpaidInvoices + givenAdvances,
+    payables: takenAdvances,
     recentInvoices,
     monthlySales: monthRanges.map((r, i) => ({
       month: r.label,

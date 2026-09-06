@@ -6,7 +6,7 @@ import {useDeleteJobLetter, useJobLetters, useQueryState, useSaveJobLetter, useS
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
 import {rs, typography, spacing, CARD_MARGIN} from '../lib/responsive';
-import {Button, Card, Empty, ErrorBox, Field, Header, Loading, ModalSheet, Screen} from '../components/ui';
+import {Button, Card, Empty, ErrorBox, Field, Header, Loading, ModalSheet, Screen, colors} from '../components/ui';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -59,10 +59,10 @@ export function JobLettersScreen() {
           additionalTasks: tasks.trim() || undefined,
         },
       });
-      successFeedback();
+      successFeedback(`Job letter for ${empName} saved`);
       setOpen(false);
       reset();
-    } catch { errorFeedback(); } finally { setSaving(false); }
+    } catch { errorFeedback('Failed to save job letter'); } finally { setSaving(false); }
   }
 
   async function handleSharePdf(letter: JobLetterDto) {
@@ -88,8 +88,8 @@ export function JobLettersScreen() {
             <Card style={{marginHorizontal: CARD_MARGIN}}>
               <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
                 <View style={{flex: 1}}>
-                  <Text style={{fontSize: typography.body, fontWeight: '600', color: '#0c0b09'}}>{item.title}</Text>
-                  <Text style={{fontSize: typography.caption, color: '#7f7971', marginTop: rs(2)}}>
+                  <Text style={{fontSize: typography.body, fontWeight: '600', color: colors.text}}>{item.title}</Text>
+                  <Text style={{fontSize: typography.caption, color: colors.muted, marginTop: rs(2)}}>
                     {item.employeeName ?? '—'}{item.position ? ` · ${item.position}` : ''} · {formatDate(item.createdAt)}
                   </Text>
                   {item.monthlySalary > 0 ? <Text style={{fontSize: typography.secondary, fontWeight: '600', marginTop: rs(4)}}>{money(item.monthlySalary)}/month</Text> : null}
@@ -104,7 +104,7 @@ export function JobLettersScreen() {
         />
       )}
 
-      <ModalSheet visible={open} title="New job letter" onClose={() => setOpen(false)} dismissable={!saving}>
+      <ModalSheet visible={open} title="New job letter" onClose={() => setOpen(false)} dismissable={!saving} centered scrollable>
         <Field label="Title" value={title} onChangeText={setTitle} placeholder="Job Letter" />
         <Field label="Employee name *" value={empName} onChangeText={setEmpName} />
         <Field label="Employee address" value={empAddr} onChangeText={setEmpAddr} placeholder="Full address" />

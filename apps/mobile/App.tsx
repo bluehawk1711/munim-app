@@ -37,6 +37,7 @@ import {MobileQueryProvider} from './src/lib/query';
 import {useAppStore} from './src/lib/store';
 import {loadHapticsEnabled, selectionTick} from './src/lib/haptics';
 import {loadForceTransition} from './src/lib/force-transition';
+import {ToastProvider} from './src/lib/toast';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
@@ -183,7 +184,9 @@ export default function App() {
     <ThemeProvider>
       <PinProvider>
         <MobileQueryProvider>
-          <AppInner />
+          <ToastProvider>
+            <AppInner />
+          </ToastProvider>
         </MobileQueryProvider>
       </PinProvider>
     </ThemeProvider>

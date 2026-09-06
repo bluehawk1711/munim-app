@@ -3,14 +3,18 @@ import {
   FlatList,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import {Search, Trash2} from 'lucide-react-native';
+import * as Print from 'expo-print';
+import {Search, Trash2, Download, Share2} from 'lucide-react-native';
 import {
+  buildBillDocument,
   formatDate,
+  renderBillHtml,
   type InvoiceFilters,
   type InvoiceDto,
 } from '@munim/core';
@@ -19,6 +23,7 @@ import {
   useInvoices,
   useQueryState,
   useRecordInvoicePayment,
+  useSettings,
 } from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
@@ -36,6 +41,7 @@ import {
   colors,
 } from '../components/ui';
 import {useThemeStyles} from '../theme';
+import {useNavStore} from '../lib/nav-store';
 
 type StatusFilter = 'all' | 'PAID' | 'PARTIAL' | 'UNPAID' | 'DRAFT';
 
@@ -52,7 +58,12 @@ const PAGE_SIZE = 15;
 export function InvoicesScreen() {
   const styles = useThemeStyles(makeStyles);
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<StatusFilter>('all');
+  // Deep-linked status filter (Home → invoice status chart). Consumed once on
+  // mount, then reset so a manual visit defaults back to All.
+  const [status, setStatus] = useState<StatusFilter>(() => useNavStore.getState().invoiceFilter);
+  React.useEffect(() => {
+    useNavStore.getState().setInvoiceFilter('all');
+  }, []);
   const [page, setPage] = useState(1);
 
   const filters: InvoiceFilters = {search, status, page, pageSize: PAGE_SIZE};
@@ -79,8 +90,11 @@ export function InvoicesScreen() {
   const [payBusy, setPayBusy] = useState(false);
   const [deleting, setDeleting] = useState<InvoiceDto | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [exporting, setExporting] = useState<InvoiceDto | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
   const recordPayment = useRecordInvoicePayment(paying?.id ?? '');
   const deleteInvoice = useDeleteInvoice();
+  const {data: settings} = useQueryState(useSettings());
 
   const summary = invoices.reduce(
     (acc, inv) => ({
@@ -107,10 +121,10 @@ export function InvoicesScreen() {
     setPayBusy(true);
     try {
       await recordPayment.mutateAsync({amount, method: 'cash'});
-      successFeedback();
+      successFeedback(`Payment of ${money(amount)} recorded for ${paying.invoiceNumber}`);
       setPaying(null);
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to record payment');
     } finally {
       setPayBusy(false);
     }
@@ -123,12 +137,51 @@ export function InvoicesScreen() {
     setDeleteBusy(true);
     try {
       await deleteInvoice.mutateAsync(deleting.id);
-      successFeedback();
+      successFeedback(`${deleting.invoiceNumber} deleted`);
       setDeleting(null);
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to delete invoice');
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function handleExportInvoice(inv: InvoiceDto) {
+    if (!settings) return;
+    setExporting(inv);
+    setExportBusy(true);
+    try {
+      const shop = {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones, email: settings.shopEmail ?? ''};
+      const doc = buildBillDocument({
+        billNo: inv.invoiceNumber,
+        date: inv.date,
+        customerName: inv.customerName ?? '',
+        customerPhone: inv.customerPhone ?? '',
+        customerAddress: inv.customerAddress ?? '',
+        shop: shop ?? {name: settings.shopName, address: '', phones: [], email: ''},
+        lines: inv.items.map(it => ({
+          productName: it.productName,
+          sku: it.sku ?? '',
+          color: it.color ?? '',
+          size: it.size ?? '',
+          quantity: it.quantity,
+          price: it.price,
+        })),
+        discount: inv.discount,
+        deliveryCharge: inv.deliveryCharge,
+        amountPaid: inv.amountPaid,
+        status: inv.status,
+        currency: settings.currency ?? 'INR',
+      });
+      const html = renderBillHtml(doc);
+      const {uri} = await Print.printToFileAsync({html, base64: false});
+      await Share.share({url: uri, message: `Invoice ${inv.invoiceNumber} — ${settings.shopName}`});
+      successFeedback(`Invoice ${inv.invoiceNumber} exported`);
+    } catch {
+      // user cancelled or print failed
+    } finally {
+      setExporting(null);
+      setExportBusy(false);
     }
   }
 
@@ -207,6 +260,7 @@ export function InvoicesScreen() {
         contentContainerStyle={{paddingBottom: 40}}
         renderItem={({item, index}) => {
           const outstanding = item.total - item.amountPaid;
+          const exportingThis = exporting?.id === item.id;
           return (
             <Card index={index}>
               <View style={styles.row}>
@@ -222,7 +276,7 @@ export function InvoicesScreen() {
                     {item.items[0]?.productName ? ` · ${item.items[0].productName}` : ''}
                   </Text>
                 </View>
-                <View style={{alignItems: 'flex-end', gap: 4}}>
+                <View style={{alignItems: 'flex-end', gap: 6, marginTop: 2}}>
                   <Text style={styles.total}>{money(item.total)}</Text>
                   {outstanding > 0 ? (
                     <Text style={{fontSize: 11, color: colors.warning, fontWeight: '600'}}>
@@ -231,13 +285,21 @@ export function InvoicesScreen() {
                   ) : (
                     <Text style={{fontSize: 11, color: colors.success, fontWeight: '600'}}>Paid ✓</Text>
                   )}
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2}}>
+                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                    <Button
+                      title={exportingThis ? 'Preparing…' : 'Export'}
+                      variant="outline"
+                      onPress={() => handleExportInvoice(item)}
+                      loading={exportingThis}
+                      icon={<Download size={14} />}
+                      style={{paddingVertical: 6, paddingHorizontal: 12}}
+                    />
                     <Button
                       title="Pay"
                       variant="outline"
                       disabled={outstanding <= 0}
                       onPress={() => openPayment(item)}
-                      style={{paddingVertical: 6, paddingHorizontal: 14}}
+                      style={{paddingVertical: 6, paddingHorizontal: 12}}
                     />
                     <Pressable
                       onPress={() => setDeleting(item)}
@@ -277,12 +339,14 @@ export function InvoicesScreen() {
         }
       />
 
-      {/* Record payment */}
+      {/* Record payment — centered modal */}
       <ModalSheet
         visible={!!paying}
         title={paying ? `Record payment — ${paying.invoiceNumber}` : ''}
         onClose={() => setPaying(null)}
-        dismissable={!payBusy}>
+        dismissable={!payBusy}
+        centered
+      >
         {paying ? (
           <>
             <View style={styles.paySummary}>
@@ -311,12 +375,14 @@ export function InvoicesScreen() {
         ) : null}
       </ModalSheet>
 
-      {/* Delete confirm */}
+      {/* Delete confirm — centered modal */}
       <ModalSheet
         visible={!!deleting}
         title={deleting ? `Delete ${deleting.invoiceNumber}?` : ''}
         onClose={() => setDeleting(null)}
-        dismissable={!deleteBusy}>
+        dismissable={!deleteBusy}
+        centered
+      >
         <Text style={styles.deleteNote}>
           This invoice will be removed and its stock restored — the same as deleting it on web or
           desktop.

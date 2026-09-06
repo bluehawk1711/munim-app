@@ -31,6 +31,13 @@ export interface MobileColors {
     dangerSoft: string;
     mutedSoft: string;
     inputPlaceholder: string;
+    /** Chart palette (tokens `chart1`–`chart5`) — for SVG charts on Home,
+     *  Reports, etc. Mode-appropriate, so they stay legible in dark mode. */
+    chart1: string;
+    chart2: string;
+    chart3: string;
+    chart4: string;
+    chart5: string;
 }
 /** Maps the shared tokens for a given mode + theme onto the mobile palette. */
 export declare function mobileColorsFor(mode: ThemeMode, themeName?: ThemeName): MobileColors;

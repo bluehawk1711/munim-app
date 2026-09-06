@@ -17,28 +17,82 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  * so the preview, the printed sheet and the PDF are always identical.
  */
 import * as React from "react";
-import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb } from "lucide-react";
-import { renderLabelMarkup, renderLabelSheetHtml, } from "@munim/core";
+import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { renderLabelSheetHtml, DEFAULT_LABEL_PRINT_SETTINGS, } from "@munim/core";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "./dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 export function LabelPrintDialog({ open, onOpenChange, labels, copies, onCopiesChange, onPrint, onDownloadPdf, directPrint, busy, }) {
     const [previewIndex, setPreviewIndex] = React.useState(0);
+    const [advancedOpen, setAdvancedOpen] = React.useState(false);
+    // Per-dialog print settings (reset from saved on open)
+    const [printSettings, setPrintSettings] = React.useState(() => directPrint?.savedSettings ?? { ...DEFAULT_LABEL_PRINT_SETTINGS });
     React.useEffect(() => {
-        if (open)
+        if (open) {
             setPreviewIndex(0);
-    }, [open]);
+            setAdvancedOpen(false);
+            if (directPrint)
+                setPrintSettings(directPrint.savedSettings);
+        }
+    }, [open, directPrint]);
+    function updateSetting(key, value) {
+        setPrintSettings((prev) => ({ ...prev, [key]: value }));
+    }
+    function handleSaveSettings() {
+        directPrint?.onSaveSettings(printSettings);
+    }
+    function handleResetDefaults() {
+        setPrintSettings({ ...DEFAULT_LABEL_PRINT_SETTINGS });
+    }
+    function handlePrint() {
+        directPrint?.onPrint(printSettings);
+    }
     const first = labels[previewIndex] ?? labels[0];
-    return (_jsx(Dialog, { open: open, onOpenChange: onOpenChange, children: _jsxs(DialogContent, { className: "sm:max-w-lg", children: [_jsx(DialogHeader, { children: _jsxs("div", { className: "flex items-center gap-2", children: [_jsx("div", { className: "flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary", children: _jsx(Tag, { className: "h-5 w-5" }) }), _jsxs("div", { children: [_jsx(DialogTitle, { children: "Print product labels" }), _jsxs(DialogDescription, { children: [labels.length, " label", labels.length !== 1 ? "s" : "", " \u00B7 ", copies, " copy", copies !== 1 ? "ies" : "", " \u00B7 24-up A4 sheet (63.5 \u00D7 33.9 mm each)"] })] })] }) }), _jsxs("div", { className: "space-y-4", children: [_jsx("div", { className: "flex items-center justify-center rounded-lg border bg-muted/40 p-4", children: _jsx("div", { className: "overflow-hidden rounded-md bg-white shadow-sm", style: { width: "240px", height: "160px" }, children: first ? (_jsx("div", { style: { transform: "scale(0.95)", transformOrigin: "center", width: "240px", height: "160px" }, dangerouslySetInnerHTML: { __html: renderLabelMarkup(first) } })) : (_jsx("div", { className: "flex h-full items-center justify-center text-xs text-muted-foreground", children: "No label data" })) }) }), labels.length > 1 && (_jsx("div", { className: "flex items-center justify-center gap-1.5", children: labels.map((l, i) => (_jsx("button", { type: "button", onClick: () => setPreviewIndex(i), title: l.productName, className: cn("h-2 w-6 rounded-full transition-colors", i === previewIndex ? "bg-primary" : "bg-muted hover:bg-muted-foreground/40"), "aria-label": `Preview label ${i + 1}` }, l.productId))) })), directPrint && (_jsxs("div", { className: "space-y-2 rounded-lg border border-primary/25 bg-primary/5 p-3", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx(Usb, { className: "h-4 w-4 text-primary" }), _jsx("p", { className: "text-sm font-medium", children: "Label printer (direct)" })] }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs(Select, { value: directPrint.selected ?? "", onValueChange: directPrint.onSelect, disabled: directPrint.loading || directPrint.printers.length === 0, children: [_jsx(SelectTrigger, { className: "h-8 w-full text-xs", children: _jsx(SelectValue, { placeholder: directPrint.loading
+    return (_jsx(Dialog, { open: open, onOpenChange: onOpenChange, children: _jsxs(DialogContent, { className: "sm:max-w-lg", children: [_jsx(DialogHeader, { children: _jsxs("div", { className: "flex items-center gap-2", children: [_jsx("div", { className: "flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary", children: _jsx(Tag, { className: "h-5 w-5" }) }), _jsxs("div", { children: [_jsx(DialogTitle, { children: "Print product labels" }), _jsxs(DialogDescription, { children: [labels.length, " label", labels.length !== 1 ? "s" : "", " \u00B7 ", copies, " copy", copies !== 1 ? "ies" : "", " \u00B7 101 \u00D7 15 mm thermal label"] })] })] }) }), _jsxs("div", { className: "space-y-4", children: [_jsx("div", { className: "flex items-center justify-center rounded-lg border bg-muted/40 p-4", children: _jsx("div", { className: "overflow-hidden rounded-md bg-white shadow-sm", style: { width: "390px", height: "58px" }, children: first ? (_jsx("div", { style: { transform: "scale(0.95)", transformOrigin: "center", width: "390px", height: "58px" }, dangerouslySetInnerHTML: { __html: renderLabelMarkupHTML(first) } })) : (_jsx("div", { className: "flex h-full items-center justify-center text-xs text-muted-foreground", children: "No label data" })) }) }), labels.length > 1 && (_jsx("div", { className: "flex items-center justify-center gap-1.5", children: labels.map((l, i) => (_jsx("button", { type: "button", onClick: () => setPreviewIndex(i), title: l.productName, className: cn("h-2 w-6 rounded-full transition-colors", i === previewIndex ? "bg-primary" : "bg-muted hover:bg-muted-foreground/40"), "aria-label": `Preview label ${i + 1}` }, l.productId))) })), directPrint && (_jsxs("div", { className: "space-y-2 rounded-lg border border-primary/25 bg-primary/5 p-3", children: [_jsxs("div", { className: "flex items-center gap-2", children: [_jsx(Usb, { className: "h-4 w-4 text-primary" }), _jsx("p", { className: "text-sm font-medium", children: "Label printer (direct)" })] }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs(Select, { value: directPrint.selected ?? "", onValueChange: directPrint.onSelect, disabled: directPrint.loading || directPrint.printers.length === 0, children: [_jsx(SelectTrigger, { className: "h-8 w-full text-xs", children: _jsx(SelectValue, { placeholder: directPrint.loading
                                                             ? "Looking for printers…"
                                                             : directPrint.printers.length === 0
                                                                 ? "No label printers found"
-                                                                : "Choose printer" }) }), _jsx(SelectContent, { children: directPrint.printers.map((p) => (_jsxs(SelectItem, { value: p.name, children: [p.name, p.isDefault ? " (default)" : ""] }, p.name))) })] }), _jsx(Button, { variant: "ghost", size: "icon", className: "h-8 w-8 shrink-0", onClick: directPrint.onRefresh, disabled: directPrint.loading, "aria-label": "Refresh printer list", children: _jsx(RefreshCw, { className: cn("h-3.5 w-3.5", directPrint.loading && "animate-spin") }) })] }), directPrint.error ? (_jsx("p", { className: "text-xs text-destructive", children: directPrint.error })) : (_jsx("p", { className: "text-xs text-muted-foreground", children: "Prints TSPL2 commands straight to the thermal printer \u2014 native barcodes, no print dialog. Printer and label size are set in Settings \u2192 Printing." })), _jsxs(Button, { className: "w-full", onClick: directPrint.onPrint, disabled: directPrint.busy ||
+                                                                : "Choose printer" }) }), _jsx(SelectContent, { children: directPrint.printers.map((p) => (_jsxs(SelectItem, { value: p.name, children: [p.name, p.isDefault ? " (default)" : ""] }, p.name))) })] }), _jsx(Button, { variant: "ghost", size: "icon", className: "h-8 w-8 shrink-0", onClick: directPrint.onRefresh, disabled: directPrint.loading, "aria-label": "Refresh printer list", children: _jsx(RefreshCw, { className: cn("h-3.5 w-3.5", directPrint.loading && "animate-spin") }) })] }), directPrint.error ? (_jsx("p", { className: "text-xs text-destructive", children: directPrint.error })) : (_jsx("p", { className: "text-xs text-muted-foreground", children: "Prints TSPL2 commands straight to the thermal printer \u2014 native barcodes, no print dialog. Printer and label size are set in Settings \u2192 Printing." })), _jsxs("div", { children: [_jsxs("button", { type: "button", className: "flex w-full items-center justify-between rounded border bg-background/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-background/80 transition-colors", onClick: () => setAdvancedOpen((v) => !v), children: [_jsx("span", { children: "Advanced TSPL2 settings" }), advancedOpen ? _jsx(ChevronUp, { className: "h-3 w-3" }) : _jsx(ChevronDown, { className: "h-3 w-3" })] }), advancedOpen && (_jsxs("div", { className: "mt-2 space-y-3 rounded border bg-background/40 p-3", children: [_jsxs("div", { className: "grid grid-cols-2 gap-3", children: [_jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-[11px] font-medium text-muted-foreground", htmlFor: "lbl-direction", children: "Direction" }), _jsxs(Select, { value: String(printSettings.direction), onValueChange: (v) => updateSetting("direction", Number(v)), children: [_jsx(SelectTrigger, { id: "lbl-direction", className: "h-8 text-xs", children: _jsx(SelectValue, {}) }), _jsxs(SelectContent, { children: [_jsx(SelectItem, { value: "0", children: "DIRECTION 0 (Y from top)" }), _jsx(SelectItem, { value: "1", children: "DIRECTION 1 (Y from bottom)" })] })] }), _jsx("p", { className: "text-[10px] text-muted-foreground", children: "0 = origin at top-left (default). 1 = origin at bottom-left. Try both if labels split." })] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-[11px] font-medium text-muted-foreground", htmlFor: "lbl-hri", children: "Barcode digits (HRI)" }), _jsxs(Select, { value: String(printSettings.hri), onValueChange: (v) => updateSetting("hri", Number(v)), children: [_jsx(SelectTrigger, { id: "lbl-hri", className: "h-8 text-xs", children: _jsx(SelectValue, {}) }), _jsxs(SelectContent, { children: [_jsx(SelectItem, { value: "0", children: "Hidden" }), _jsx(SelectItem, { value: "1", children: "Left of barcode" }), _jsx(SelectItem, { value: "2", children: "Center below" }), _jsx(SelectItem, { value: "3", children: "Right of barcode" })] })] }), _jsx("p", { className: "text-[10px] text-muted-foreground", children: "Show digits below the barcode bars. Hidden saves space." })] })] }), _jsxs("div", { className: "grid grid-cols-2 gap-3", children: [_jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-[11px] font-medium text-muted-foreground", htmlFor: "lbl-gap", children: "Gap (mm)" }), _jsx("input", { id: "lbl-gap", type: "number", min: 0, max: 10, step: 0.5, value: printSettings.gapMm, onChange: (e) => updateSetting("gapMm", Number(e.target.value) || 0), className: "flex h-8 w-full rounded-md border bg-background px-2 text-xs" }), _jsx("p", { className: "text-[10px] text-muted-foreground", children: "0 = continuous (no gap). 2 = standard die-cut. Try 0 if labels split." })] }), _jsxs("div", { className: "space-y-1", children: [_jsx("label", { className: "text-[11px] font-medium text-muted-foreground", htmlFor: "lbl-codepage", children: "Codepage" }), _jsxs(Select, { value: printSettings.codepage, onValueChange: (v) => updateSetting("codepage", v), children: [_jsx(SelectTrigger, { id: "lbl-codepage", className: "h-8 text-xs", children: _jsx(SelectValue, {}) }), _jsxs(SelectContent, { children: [_jsx(SelectItem, { value: "UTF-8", children: "UTF-8" }), _jsx(SelectItem, { value: "USA", children: "USA (ASCII)" }), _jsx(SelectItem, { value: "UK", children: "UK" }), _jsx(SelectItem, { value: "HEX8859-1", children: "ISO 8859-1" }), _jsx(SelectItem, { value: "HEX8859-15", children: "ISO 8859-15" })] })] }), _jsx("p", { className: "text-[10px] text-muted-foreground", children: "ASCII labels work on any codepage. UTF-8 if unsure." })] })] }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsxs(Button, { variant: "ghost", size: "sm", className: "h-7 text-xs", onClick: handleResetDefaults, children: [_jsx(RotateCcw, { className: "mr-1 h-3 w-3" }), " Reset defaults"] }), _jsx(Button, { variant: "outline", size: "sm", className: "h-7 text-xs", onClick: handleSaveSettings, children: "Save to device" })] })] }))] }), _jsxs(Button, { className: "w-full", onClick: handlePrint, disabled: directPrint.busy ||
                                         busy ||
                                         labels.length === 0 ||
                                         !directPrint.selected ||
                                         directPrint.printers.length === 0, children: [_jsx(Printer, { className: "h-4 w-4" }), directPrint.busy ? "Printing…" : `Print ${copies} label${copies !== 1 ? "s" : ""} to ${directPrint.selected ?? "printer"}`] })] })), _jsxs("div", { className: "flex items-center justify-between rounded-lg border p-3", children: [_jsxs("div", { children: [_jsx("p", { className: "text-sm font-medium", children: "Number of copies" }), _jsx("p", { className: "text-xs text-muted-foreground", children: "Each copy adds one physical label to the sheet." })] }), _jsxs("div", { className: "flex items-center gap-2", children: [_jsx(Button, { variant: "outline", size: "icon", className: "h-8 w-8", onClick: () => onCopiesChange(Math.max(1, copies - 1)), disabled: copies <= 1, "aria-label": "Fewer copies", children: _jsx(Minus, { className: "h-4 w-4" }) }), _jsx("span", { className: "w-10 text-center text-sm font-semibold tabular-nums", children: copies }), _jsx(Button, { variant: "outline", size: "icon", className: "h-8 w-8", onClick: () => onCopiesChange(Math.min(100, copies + 1)), disabled: copies >= 100, "aria-label": "More copies", children: _jsx(Plus, { className: "h-4 w-4" }) })] })] })] }), _jsxs(DialogFooter, { children: [_jsx(Button, { variant: "outline", onClick: () => onOpenChange(false), children: "Cancel" }), _jsxs(Button, { variant: "outline", onClick: () => onPrint(renderLabelSheetHtmlFor(labels, copies)), disabled: busy || labels.length === 0, children: [_jsx(Printer, { className: "h-4 w-4" }), " Print"] }), _jsxs(Button, { onClick: () => onDownloadPdf(renderLabelSheetHtmlFor(labels, copies)), disabled: busy || labels.length === 0, children: [_jsx(FileDown, { className: "h-4 w-4" }), " Download PDF"] })] })] }) }));
+}
+function renderLabelMarkupHTML(label) {
+    // Inline preview matching the thermal label layout:
+    // LEFT: name (top) + weight (bottom), RIGHT: barcode
+    const weight = label.weightMg != null ? formatWeightLocal(label.weightMg) : "";
+    const barcodeDigits = label.barcode?.replace(/\D/g, "") ?? "";
+    let barcodeBars = "";
+    if (barcodeDigits.length >= 12) {
+        const pattern = [1, 1, 1, ...barcodeDigits.slice(0, 6).split("").flatMap((d) => { const n = Number(d); const left = [[3, 2, 1, 1], [2, 2, 2, 1], [2, 1, 2, 2], [1, 4, 1, 1], [1, 1, 3, 2], [1, 2, 3, 1], [1, 1, 1, 4], [1, 3, 1, 2], [1, 2, 1, 3], [3, 1, 1, 2]]; return left[n] ?? [2, 1, 1, 2]; }), 1, 1, 1, 1, 1, ...barcodeDigits.slice(6, 12).split("").flatMap((d) => { const n = Number(d); const right = [[2, 1, 1, 2], [1, 2, 1, 2], [2, 2, 1, 1], [1, 1, 2, 2], [2, 1, 2, 1], [1, 2, 2, 1], [1, 1, 4, 1], [1, 3, 2, 1], [2, 1, 3, 1], [1, 1, 2, 3]]; return right[n] ?? [1, 1, 2, 2]; }), 1, 1, 1];
+        barcodeBars = `<div style="display:flex;align-items:center;height:90%;gap:0">${pattern.map((w, i) => `<div style="width:${w * 2}px;height:100%;background:${i % 2 === 0 ? "#000" : "transparent"};flex-shrink:0"></div>`).join("")}</div>`;
+    }
+    else {
+        barcodeBars = `<div style="font-size:7px;color:#999">NO BARCODE</div>`;
+    }
+    return `<div style="display:flex;align-items:stretch;height:100%;padding:4px 6px;font-family:system-ui,sans-serif;font-weight:600;line-height:1.2">
+    <div style="flex:0 0 22%;display:flex;flex-direction:column;justify-content:space-between">
+      <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px">${escHTML(label.productName)}</div>
+      <div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>
+    </div>
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">${barcodeBars}</div>
+  </div>`;
+}
+function escHTML(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function formatWeightLocal(mg) {
+    const safe = Number.isFinite(mg) ? mg : 0;
+    if (safe === 0)
+        return "—";
+    const trim = (n) => String(Math.round(n * 100) / 100);
+    if (safe >= 1_000_000)
+        return `${trim(safe / 1_000_000)} kg`;
+    if (safe >= 1000)
+        return `${trim(safe / 1000)} g`;
+    return `${safe} mg`;
 }
 function renderLabelSheetHtmlFor(labels, copies) {
     return renderLabelSheetHtml(labels, { copies });

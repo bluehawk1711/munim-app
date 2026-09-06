@@ -9,9 +9,10 @@
  */
 
 import React, {useEffect, useMemo, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {FlashList} from '@shopify/flash-list';
-import {formatDate, type InvoiceDto} from '@munim/core';
+import {ChevronDown, ChevronUp} from 'lucide-react-native';
+import {formatDate, type InvoiceDto, type ProductDto} from '@munim/core';
 import {useCreateSale, useInvoices, useProducts, useQueryState, useRecordInvoicePayment} from '@munim/query';
 import {successFeedback, errorFeedback} from '../lib/haptics';
 import {money} from '../lib/format';
@@ -45,6 +46,7 @@ export function SalesScreen() {
   const [price, setPrice] = useState('');
   const [customer, setCustomer] = useState('');
   const [saving, setSaving] = useState(false);
+  const [formCollapsed, setFormCollapsed] = useState(false);
 
   // Payment
   const [paying, setPaying] = useState<InvoiceDto | null>(null);
@@ -108,12 +110,12 @@ export function SalesScreen() {
         paid: true,
         paymentMethod: 'cash',
       });
-      successFeedback();
+      successFeedback(`${selected.name} sold for ${money(total)}`);
       setQuantity('1');
       setCustomer('');
       reloadProducts();
     } catch {
-      errorFeedback();
+      errorFeedback('Sale failed');
     } finally {
       setSaving(false);
     }
@@ -179,41 +181,55 @@ export function SalesScreen() {
         <ErrorBox message="Add products in Stock tab first, or set your database in Settings." />
       ) : (
         <>
-          {/* Sale form card */}
+          {/* Sale form card — collapsible so recent sales stay reachable */}
           <Card style={{marginHorizontal: CARD_MARGIN}} index={0}>
-            {/* Product selector */}
-            <Pressable onPress={() => setPickerOpen(true)} style={styles.productSelector}>
-              <View style={{flex: 1}}>
-                <Text style={styles.selectorLabel}>Product</Text>
-                <Text style={styles.selectorValue} numberOfLines={1}>
-                  {selected.name}
-                </Text>
-              </View>
-              <Text style={styles.selectorChange}>Change</Text>
-            </Pressable>
+            {formCollapsed ? (
+              <Pressable onPress={() => setFormCollapsed(false)} style={styles.collapseToggle}>
+                <ChevronDown size={rs(16)} color={colors.muted} />
+                <Text style={styles.collapseText}>Expand sale form</Text>
+              </Pressable>
+            ) : (
+              <>
+                {/* Product selector */}
+                <Pressable onPress={() => setPickerOpen(true)} style={styles.productSelector}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.selectorLabel}>Product</Text>
+                    <Text style={styles.selectorValue} numberOfLines={1}>
+                      {selected.name}
+                    </Text>
+                  </View>
+                  <Text style={styles.selectorChange}>Change</Text>
+                </Pressable>
 
-            <View style={styles.formRow}>
-              <Field
-                label="Qty"
-                value={quantity}
-                onChangeText={setQuantity}
-                keyboardType="numeric"
-                style={{flex: 1}}
-              />
-              <Field
-                label="Price"
-                value={price}
-                onChangeText={setPrice}
-                keyboardType="numeric"
-                style={{flex: 1}}
-              />
-            </View>
-            <Field label="Customer name (optional)" value={customer} onChangeText={setCustomer} />
-            <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{money(total)}</Text>
-            </View>
-            <Button title={saving ? 'Selling…' : 'Sell (cash)'} onPress={handleSell} loading={saving} />
+                <View style={styles.formRow}>
+                  <Field
+                    label="Qty"
+                    value={quantity}
+                    onChangeText={setQuantity}
+                    keyboardType="numeric"
+                    style={{flex: 1}}
+                  />
+                  <Field
+                    label="Price"
+                    value={price}
+                    onChangeText={setPrice}
+                    keyboardType="numeric"
+                    style={{flex: 1}}
+                  />
+                </View>
+                <Field label="Customer name (optional)" value={customer} onChangeText={setCustomer} />
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={styles.totalValue}>{money(total)}</Text>
+                </View>
+                <Button title={saving ? 'Selling…' : 'Sell (cash)'} onPress={handleSell} loading={saving} />
+                {/* Collapse option below the form section */}
+                <Pressable onPress={() => setFormCollapsed(true)} style={[styles.collapseToggle, {marginTop: spacing.sm}]}>
+                  <ChevronUp size={rs(16)} color={colors.muted} />
+                  <Text style={styles.collapseText}>Collapse sale form</Text>
+                </Pressable>
+              </>
+            )}
           </Card>
 
           {/* Recent sales */}
@@ -233,52 +249,53 @@ export function SalesScreen() {
         </>
       )}
 
-      {/* Product picker sheet */}
-      <ModalSheet visible={pickerOpen} title="Choose product" onClose={() => { setPickerOpen(false); setPickerQuery(''); }}>
-        <View style={styles.pickerSearch}>
-          <Text style={styles.pickerSearchIcon}>🔍</Text>
-          <Pressable style={{flex: 1}}>
-            <Text style={{fontSize: typography.body, color: colors.muted}}>Search products…</Text>
-          </Pressable>
-        </View>
-        <View style={{maxHeight: rs(400)}}>
-          {filteredProducts.map(p => (
-            <Pressable
-              key={p.id}
-              onPress={() => selectProduct(p)}
-              style={({pressed}) => [
-                styles.pickerRow,
-                p.id === productId && styles.pickerRowActive,
-                pressed && {backgroundColor: colors.mutedSoft},
-              ]}>
-              <View style={{flex: 1}}>
-                <Text
-                  style={[
-                    styles.pickerName,
-                    p.id === productId && {color: colors.primary, fontWeight: '700'},
-                  ]}
-                  numberOfLines={1}>
-                  {p.name}
-                </Text>
-                <Text style={styles.pickerMeta}>
-                  {p.sku} · Stock: {p.stock}
-                </Text>
-              </View>
-              <Text style={styles.pickerPrice}>{money(p.sellingPrice)}</Text>
-            </Pressable>
-          ))}
-          {filteredProducts.length === 0 ? (
-            <Text style={{textAlign: 'center', color: colors.muted, padding: spacing.xl}}>No products found</Text>
-          ) : null}
-        </View>
+      {/* Product picker sheet — centered modal */}
+      <ModalSheet visible={pickerOpen} title="Choose product" onClose={() => { setPickerOpen(false); setPickerQuery(''); }} centered scrollable>
+        {filteredProducts.length === 0 ? (
+          <Empty text="No products found" />
+        ) : (
+          <FlashList
+            data={filteredProducts}
+            keyExtractor={item => item.id}
+            renderItem={({item}) => (
+              <Pressable
+                onPress={() => selectProduct(item)}
+                style={({pressed}) => [
+                  styles.pickerRow,
+                  item.id === productId && styles.pickerRowActive,
+                  pressed && {backgroundColor: colors.mutedSoft},
+                ]}>
+                {item.imageUrl ? (
+                  <Image source={{uri: item.imageUrl}} style={styles.pickerThumb} />
+                ) : null}
+                <View style={{flex: 1, marginLeft: spacing.sm}}>
+                  <Text
+                    style={[
+                      styles.pickerName,
+                      item.id === productId && {color: colors.primary, fontWeight: '700'},
+                    ]}
+                    numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={styles.pickerMeta}>
+                    {item.sku} · Stock: {item.stock}
+                  </Text>
+                </View>
+                <Text style={styles.pickerPrice}>{money(item.sellingPrice)}</Text>
+              </Pressable>
+            )}
+          />
+        )}
       </ModalSheet>
 
-      {/* Payment sheet */}
+      {/* Payment sheet — centered modal */}
       <ModalSheet
         visible={paying !== null}
         title={`Payment — ${paying?.invoiceNumber ?? ''}`}
         onClose={() => setPaying(null)}
-        dismissable={!payingNow}>
+        dismissable={!payingNow}
+        centered
+      >
         {paying ? (
           <>
             <Text style={{fontSize: typography.secondary, color: colors.muted, marginBottom: spacing.md}}>
@@ -333,6 +350,14 @@ const makeStyles = () =>
     saleNumber: {fontSize: typography.body, fontWeight: '600', color: colors.text},
     saleMeta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
     saleTotal: {fontSize: typography.body, fontWeight: '700', color: colors.text},
+    collapseToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: rs(4),
+      paddingVertical: spacing.xs,
+    },
+    collapseText: {fontSize: typography.caption, fontWeight: '600', color: colors.muted},
     pickerSearch: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -355,4 +380,5 @@ const makeStyles = () =>
     pickerName: {fontSize: typography.body, fontWeight: '500', color: colors.text},
     pickerMeta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
     pickerPrice: {fontSize: typography.body, fontWeight: '600', color: colors.text},
+    pickerThumb: {width: rs(40), height: rs(40), borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, marginRight: spacing.sm},
   });

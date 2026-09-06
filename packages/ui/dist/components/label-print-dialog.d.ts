@@ -15,17 +15,19 @@
  * so the preview, the printed sheet and the PDF are always identical.
  */
 import * as React from "react";
-import { type LabelPrinterInfo, type ProductLabel } from "@munim/core";
+import { type LabelPrinterInfo, type LabelPrintSettings, type ProductLabel } from "@munim/core";
 /** Host-provided bridge for direct thermal printing (desktop only). */
 export type DirectLabelPrint = {
     printers: LabelPrinterInfo[];
     selected: string | undefined;
     onSelect: (name: string) => void;
-    onPrint: () => void;
+    onPrint: (settings: LabelPrintSettings) => void;
     onRefresh: () => void;
     loading?: boolean;
     busy?: boolean;
     error?: string | null;
+    savedSettings: LabelPrintSettings;
+    onSaveSettings: (settings: LabelPrintSettings) => void;
 };
 export declare function LabelPrintDialog({ open, onOpenChange, labels, copies, onCopiesChange, onPrint, onDownloadPdf, directPrint, busy, }: {
     open: boolean;

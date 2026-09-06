@@ -9,7 +9,7 @@
  */
 
 import React, {useMemo, useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {FlashList} from '@shopify/flash-list';
 import {TrendingDown, TrendingUp} from 'lucide-react-native';
 import {type PartyBalanceDto} from '@munim/core';
@@ -32,6 +32,7 @@ import {
   Loading,
   ModalSheet,
   Screen,
+  ThreeDotMenu,
   colors,
 } from '../components/ui';
 import {useThemeStyles} from '../theme';
@@ -83,13 +84,14 @@ export function AdvancesScreen() {
     try {
       if (action.kind === 'GIVEN' || action.kind === 'TAKEN') {
         await createAdvance.mutateAsync({partyId: action.party.id, direction: action.kind, amount: value, note: note.trim() || undefined});
+        successFeedback(`Advance ${action.kind === 'GIVEN' ? 'given' : 'taken'} for ${money(value)}`);
       } else {
         await recordPartyPayment.mutateAsync({partyId: action.party.id, direction: action.kind === 'PAYMENT_IN' ? 'IN' : 'OUT', amount: value, method: 'cash', note: note.trim() || undefined});
+        successFeedback(`Payment ${action.kind === 'PAYMENT_IN' ? 'received' : 'made'} for ${money(value)}`);
       }
-      successFeedback();
       setAction(null);
     } catch {
-      errorFeedback();
+      errorFeedback('Action failed');
     } finally {
       setBusy(false);
     }
@@ -102,12 +104,12 @@ export function AdvancesScreen() {
     setBusy(true);
     try {
       await createAdvance.mutateAsync({partyId: quickPartyId, direction: quickKind, amount: value, note: quickNote.trim() || undefined});
-      successFeedback();
+      successFeedback(`Quick record: ${quickKind === 'GIVEN' ? 'advance given' : 'advance taken'} for ${money(value)}`);
       setQuickAmount('');
       setQuickNote('');
       setQuickOpen(false);
     } catch {
-      errorFeedback();
+      errorFeedback('Quick record failed');
     } finally {
       setBusy(false);
     }
@@ -122,17 +124,26 @@ export function AdvancesScreen() {
           {item.name.charAt(0).toUpperCase()}
         </Text>
       </View>
-      <View style={{flex: 1}}>
+      <View style={{flex: 1, minWidth: 0}}>
         <Text style={styles.partyName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.partyType}>{TYPE_LABELS[item.type] ?? item.type.toLowerCase()}</Text>
       </View>
-      <Text style={[styles.partyBalance, {color: type === 'receivable' ? colors.success : colors.danger}]}>
+      <Text style={[styles.partyBalance, {color: type === 'receivable' ? colors.success : colors.danger}]} numberOfLines={1}>
         {money(Math.abs(item.balance))}
       </Text>
-      <View style={{flexDirection: 'row', gap: spacing.xs}}>
-        <Button title={type === 'receivable' ? 'Collect' : 'Pay'} variant="outline" size="small" onPress={() => openAction(item, type === 'receivable' ? 'PAYMENT_IN' : 'PAYMENT_OUT')} />
-        <Button title={type === 'receivable' ? '+Give' : '+Take'} variant="outline" size="small" onPress={() => openAction(item, type === 'receivable' ? 'GIVEN' : 'TAKEN')} />
-      </View>
+      <ThreeDotMenu
+        actions={
+          type === 'receivable'
+            ? [
+                {label: 'Collect payment', onPress: () => openAction(item, 'PAYMENT_IN')},
+                {label: 'Give advance', onPress: () => openAction(item, 'GIVEN')},
+              ]
+            : [
+                {label: 'Make payment', onPress: () => openAction(item, 'PAYMENT_OUT')},
+                {label: 'Take advance', onPress: () => openAction(item, 'TAKEN')},
+              ]
+        }
+      />
     </View>
   );
 
@@ -140,109 +151,113 @@ export function AdvancesScreen() {
     <Screen>
       <Header title="Advances" subtitle="Money overview" />
 
-      {/* Summary cards — 2-column */}
-      <View style={styles.summaryGrid}>
-        <View style={styles.summaryRow}>
-          <Card style={styles.summaryCard} index={0}>
-            <View style={[styles.summaryIcon, {backgroundColor: colors.successSoft}]}>
-              <TrendingUp size={rs(16)} color={colors.success} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.summaryLabel}>You will receive</Text>
-            <Text style={[styles.summaryValue, {color: colors.success}]}>{money(totalReceivable)}</Text>
-          </Card>
-          <Card style={styles.summaryCard} index={1}>
-            <View style={[styles.summaryIcon, {backgroundColor: colors.dangerSoft}]}>
-              <TrendingDown size={rs(16)} color={colors.danger} strokeWidth={2.2} />
-            </View>
-            <Text style={styles.summaryLabel}>You will pay</Text>
-            <Text style={[styles.summaryValue, {color: colors.danger}]}>{money(totalPayable)}</Text>
-          </Card>
-        </View>
-        <Card style={[styles.summaryCard, {marginHorizontal: CARD_MARGIN}]} index={2}>
-          <Text style={styles.summaryLabel}>Net position</Text>
-          <Text style={[styles.summaryValue, {color: totalReceivable - totalPayable >= 0 ? colors.success : colors.danger}]}>
-            {money(totalReceivable - totalPayable)}
-          </Text>
-        </Card>
-      </View>
-
-      {/* Quick record */}
-      <Card style={{marginHorizontal: CARD_MARGIN}} index={0}>
-        <Text style={styles.cardTitle}>Quick record</Text>
-        <Pressable onPress={() => setQuickOpen(true)} style={styles.partyPicker}>
-          <View style={{flex: 1}}>
-            <Text style={styles.pickerLabel}>Party</Text>
-            <Text style={styles.pickerValue}>{quickParty ? quickParty.name : 'Select party…'}</Text>
-          </View>
-          <Text style={{color: colors.muted}}>▾</Text>
-        </Pressable>
-        <View style={styles.kindRow}>
-          <Pressable onPress={() => { selectionTick(); setQuickKind('GIVEN'); }} style={[styles.kindChip, quickKind === 'GIVEN' && styles.kindChipActive]}>
-            <Text style={[styles.kindChipText, quickKind === 'GIVEN' && styles.kindChipTextActive]}>I gave (they owe me)</Text>
-          </Pressable>
-          <Pressable onPress={() => { selectionTick(); setQuickKind('TAKEN'); }} style={[styles.kindChip, quickKind === 'TAKEN' && styles.kindChipActive]}>
-            <Text style={[styles.kindChipText, quickKind === 'TAKEN' && styles.kindChipTextActive]}>I took (I owe them)</Text>
-          </Pressable>
-        </View>
-        <View style={{flexDirection: 'row', gap: spacing.sm}}>
-          <Field label="Amount" value={quickAmount} onChangeText={setQuickAmount} keyboardType="numeric" style={{flex: 1}} />
-          <Field label="Note" value={quickNote} onChangeText={setQuickNote} style={{flex: 2}} />
-        </View>
-        <Button
-          title={busy ? 'Saving…' : 'Record advance'}
-          onPress={() => void submitQuick()}
-          loading={busy}
-          disabled={!quickPartyId || !Number(quickAmount) || Number(quickAmount) <= 0}
-        />
-      </Card>
-
-      {/* Party lists */}
-      {loading || !balances ? (
-        <Loading rows={4} />
-      ) : error ? (
-        <Empty text={error} />
-      ) : (
-        <>
-          {/* Receivables */}
-          <Card style={{marginHorizontal: CARD_MARGIN}} index={1}>
-            <View style={styles.khataHeader}>
-              <View style={[styles.khataIcon, {backgroundColor: colors.successSoft}]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{paddingBottom: spacing.xxxl}}>
+        {/* Summary cards — 2-column */}
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryRow}>
+            <Card style={styles.summaryCard} index={0}>
+              <View style={[styles.summaryIcon, {backgroundColor: colors.successSoft}]}>
                 <TrendingUp size={rs(16)} color={colors.success} strokeWidth={2.2} />
               </View>
-              <View>
-                <Text style={styles.khataTitle}>Receivables</Text>
-                <Text style={styles.khataSubtitle}>These parties owe us</Text>
-              </View>
-            </View>
-            {receivables.length === 0 ? (
-              <Text style={styles.emptyText}>No receivables</Text>
-            ) : (
-              receivables.map(p => renderPartyCard({item: p, type: 'receivable'}))
-            )}
-          </Card>
-
-          {/* Payables */}
-          <Card style={{marginHorizontal: CARD_MARGIN}} index={2}>
-            <View style={styles.khataHeader}>
-              <View style={[styles.khataIcon, {backgroundColor: colors.dangerSoft}]}>
+              <Text style={styles.summaryLabel}>You will receive</Text>
+              <Text style={[styles.summaryValue, {color: colors.success}]}>{money(totalReceivable)}</Text>
+            </Card>
+            <Card style={styles.summaryCard} index={1}>
+              <View style={[styles.summaryIcon, {backgroundColor: colors.dangerSoft}]}>
                 <TrendingDown size={rs(16)} color={colors.danger} strokeWidth={2.2} />
               </View>
-              <View>
-                <Text style={styles.khataTitle}>Payables</Text>
-                <Text style={styles.khataSubtitle}>We owe these parties</Text>
-              </View>
-            </View>
-            {payables.length === 0 ? (
-              <Text style={styles.emptyText}>No payables</Text>
-            ) : (
-              payables.map(p => renderPartyCard({item: p, type: 'payable'}))
-            )}
+              <Text style={styles.summaryLabel}>You will pay</Text>
+              <Text style={[styles.summaryValue, {color: colors.danger}]}>{money(totalPayable)}</Text>
+            </Card>
+          </View>
+          <Card style={[styles.summaryCard, {marginHorizontal: CARD_MARGIN}]} index={2}>
+            <Text style={styles.summaryLabel}>Net position</Text>
+            <Text style={[styles.summaryValue, {color: totalReceivable - totalPayable >= 0 ? colors.success : colors.danger}]}>
+              {money(totalReceivable - totalPayable)}
+            </Text>
           </Card>
-        </>
-      )}
+        </View>
 
-      {/* Quick party picker */}
-      <ModalSheet visible={quickOpen} title="Select party" onClose={() => setQuickOpen(false)}>
+        {/* Quick record */}
+        <Card style={{marginHorizontal: CARD_MARGIN}} index={0}>
+          <Text style={styles.cardTitle}>Quick record</Text>
+          <Pressable onPress={() => setQuickOpen(true)} style={styles.partyPicker}>
+            <View style={{flex: 1}}>
+              <Text style={styles.pickerLabel}>Party</Text>
+              <Text style={styles.pickerValue}>{quickParty ? quickParty.name : 'Select party…'}</Text>
+            </View>
+            <Text style={{color: colors.muted}}>▾</Text>
+          </Pressable>
+          <View style={styles.kindRow}>
+            <Pressable onPress={() => { selectionTick(); setQuickKind('GIVEN'); }} style={[styles.kindChip, quickKind === 'GIVEN' && styles.kindChipActive]}>
+              <Text style={[styles.kindChipText, quickKind === 'GIVEN' && styles.kindChipTextActive]}>I gave (they owe me)</Text>
+            </Pressable>
+            <Pressable onPress={() => { selectionTick(); setQuickKind('TAKEN'); }} style={[styles.kindChip, quickKind === 'TAKEN' && styles.kindChipActive]}>
+              <Text style={[styles.kindChipText, quickKind === 'TAKEN' && styles.kindChipTextActive]}>I took (I owe them)</Text>
+            </Pressable>
+          </View>
+          <View style={{flexDirection: 'row', gap: spacing.sm}}>
+            <Field label="Amount" value={quickAmount} onChangeText={setQuickAmount} keyboardType="numeric" style={{flex: 1}} />
+            <Field label="Note" value={quickNote} onChangeText={setQuickNote} style={{flex: 2}} />
+          </View>
+          <Button
+            title={busy ? 'Saving…' : 'Record advance'}
+            onPress={() => void submitQuick()}
+            loading={busy}
+            disabled={!quickPartyId || !Number(quickAmount) || Number(quickAmount) <= 0}
+          />
+        </Card>
+
+        {/* Party lists */}
+        {loading || !balances ? (
+          <Loading rows={4} />
+        ) : error ? (
+          <Empty text={error} />
+        ) : (
+          <>
+            {/* Receivables */}
+            <Card style={{marginHorizontal: CARD_MARGIN}} index={1}>
+              <View style={styles.khataHeader}>
+                <View style={[styles.khataIcon, {backgroundColor: colors.successSoft}]}>
+                  <TrendingUp size={rs(16)} color={colors.success} strokeWidth={2.2} />
+                </View>
+                <View>
+                  <Text style={styles.khataTitle}>Receivables</Text>
+                  <Text style={styles.khataSubtitle}>These parties owe us</Text>
+                </View>
+              </View>
+              {receivables.length === 0 ? (
+                <Text style={styles.emptyText}>No receivables</Text>
+              ) : (
+                receivables.map(p => renderPartyCard({item: p, type: 'receivable'}))
+              )}
+            </Card>
+
+            {/* Payables */}
+            <Card style={{marginHorizontal: CARD_MARGIN}} index={2}>
+              <View style={styles.khataHeader}>
+                <View style={[styles.khataIcon, {backgroundColor: colors.dangerSoft}]}>
+                  <TrendingDown size={rs(16)} color={colors.danger} strokeWidth={2.2} />
+                </View>
+                <View>
+                  <Text style={styles.khataTitle}>Payables</Text>
+                  <Text style={styles.khataSubtitle}>We owe these parties</Text>
+                </View>
+              </View>
+              {payables.length === 0 ? (
+                <Text style={styles.emptyText}>No payables</Text>
+              ) : (
+                payables.map(p => renderPartyCard({item: p, type: 'payable'}))
+              )}
+            </Card>
+          </>
+        )}
+      </ScrollView>
+
+      {/* Quick party picker — centered modal */}
+      <ModalSheet visible={quickOpen} title="Select party" onClose={() => setQuickOpen(false)} centered scrollable>
         <FlashList
           data={parties ?? []}
           renderItem={({item}) => (
@@ -257,8 +272,8 @@ export function AdvancesScreen() {
         />
       </ModalSheet>
 
-      {/* Action sheet */}
-      <ModalSheet visible={!!action} title={actionTitle} onClose={() => setAction(null)} dismissable={!busy}>
+      {/* Action sheet — centered modal */}
+      <ModalSheet visible={!!action} title={actionTitle} onClose={() => setAction(null)} dismissable={!busy} centered>
         {action ? (
           <>
             <View style={styles.actionParty}>
@@ -324,7 +339,7 @@ const makeStyles = () =>
     khataTitle: {fontSize: typography.h3, fontWeight: '700', color: colors.text},
     khataSubtitle: {fontSize: typography.caption, color: colors.muted, marginTop: rs(1)},
     emptyText: {fontSize: typography.secondary, color: colors.muted, textAlign: 'center', paddingVertical: spacing.xl},
-    partyRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border},
+    partyRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border},
     avatar: {width: rs(32), height: rs(32), borderRadius: rs(16), alignItems: 'center', justifyContent: 'center'},
     avatarText: {fontSize: typography.secondary, fontWeight: '700'},
     partyName: {fontSize: typography.secondary, fontWeight: '600', color: colors.text},

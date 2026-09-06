@@ -7,9 +7,13 @@
  * Users can disable haptics from Settings — the module keeps a persisted
  * flag in AsyncStorage (`munim.hapticsEnabled`, default ON). While disabled,
  * every helper below no-ops, so callers never need to check the flag.
+ *
+ * Visual toast notifications are shown alongside haptics when a toast message
+ * is provided.
  */
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {toastSuccess, toastError} from './toast';
 
 const STORAGE_KEY = 'munim.hapticsEnabled';
 
@@ -59,14 +63,20 @@ export function actionPress() {
   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
 }
 
-/** Success confirmation — after a mutation completes (iOS-style ding). */
-export function successFeedback() {
+/** Success confirmation — after a mutation completes (iOS-style ding + toast). */
+export function successFeedback(msg?: string) {
   if (!enabled) return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  if (msg) {
+    toastSuccess(msg);
+  }
 }
 
-/** Error / destructive confirmation — when an action fails. */
-export function errorFeedback() {
+/** Error / destructive confirmation — when an action fails (error ding + toast). */
+export function errorFeedback(msg?: string) {
   if (!enabled) return;
   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+  if (msg) {
+    toastError(msg);
+  }
 }

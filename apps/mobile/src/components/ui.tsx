@@ -15,6 +15,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -47,6 +48,7 @@ import {
   radii,
   TOUCH_TARGET,
   CARD_MARGIN,
+  SCREEN,
 } from '../lib/responsive';
 
 export {colors};
@@ -58,6 +60,7 @@ const makeStyles = () =>
     screen: {flex: 1, backgroundColor: colors.bg},
     header: {paddingHorizontal: CARD_MARGIN, paddingTop: rh(8), paddingBottom: rh(12)},
     title: {fontSize: typography.h1, fontWeight: '700', color: colors.text},
+    titleLarge: {fontSize: rFont(28)},
     subtitle: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
     card: {
       backgroundColor: colors.card,
@@ -162,6 +165,31 @@ const makeStyles = () =>
       marginTop: spacing.xl,
       marginBottom: spacing.sm,
     },
+    menuTrigger: {padding: rs(4), borderRadius: radii.sm},
+    menuTriggerPressed: {backgroundColor: colors.mutedBg},
+    menuDropdown: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      backgroundColor: colors.card,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: rs(4),
+      minWidth: MENU_WIDTH,
+      shadowColor: '#000',
+      shadowOffset: {width: 0, height: 3},
+      shadowOpacity: 0.18,
+      shadowRadius: 10,
+      elevation: 6,
+    },
+    menuItem: {
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+      minHeight: TOUCH_TARGET,
+      justifyContent: 'center' as const,
+    },
+    menuItemPressed: {backgroundColor: colors.mutedBg},
   });
 
 /* ─── Screen ────────────────────────────────────────────────────────── */
@@ -179,11 +207,22 @@ export function Screen({
 
 /* ─── Header ────────────────────────────────────────────────────────── */
 
-export function Header({title, subtitle}: {title: string; subtitle?: string}) {
+export function Header({
+  title,
+  subtitle,
+  size = 'default',
+}: {
+  title: string;
+  subtitle?: string;
+  /** 'large' for home/dashboard screens where the title is the hero element. */
+  size?: 'default' | 'large';
+}) {
   const styles = useThemeStyles(makeStyles);
   return (
     <View style={styles.header}>
-      <Animated.Text entering={FadeInDown.duration(260)} style={styles.title}>
+      <Animated.Text
+        entering={FadeInDown.duration(260)}
+        style={[styles.title, size === 'large' && styles.titleLarge]}>
         {title}
       </Animated.Text>
       {subtitle ? (
@@ -550,49 +589,72 @@ export function ErrorBox({message, onRetry}: {message: string; onRetry?: () => v
       ) : null}
     </View>
   );
-}
-
-/* ─── ModalSheet (legacy — kept for gradual migration) ──────────────── */
-
+}/* ─── ModalSheet (legacy — kept for gradual migration) ──────────────── */
 export function ModalSheet({
   visible,
   title,
   onClose,
   children,
   dismissable = true,
+  centered = false,
+  scrollable = false,
 }: {
   visible: boolean;
   title: string;
   onClose: () => void;
   children: React.ReactNode;
   dismissable?: boolean;
+  centered?: boolean;
+  scrollable?: boolean;
 }) {
   return (
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={centered ? 'fade' : 'slide'}
       onRequestClose={() => {
         if (dismissable) onClose();
       }}>
       <Pressable
-        style={{flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end'}}
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(15,23,42,0.45)',
+          justifyContent: centered ? 'center' : 'flex-end',
+          alignItems: centered ? 'center' : 'stretch',
+          padding: centered ? spacing.xxl : 0,
+        }}
         onPress={() => {
           if (dismissable) onClose();
         }}>
         <Pressable
           style={{
             backgroundColor: colors.card,
-            borderTopLeftRadius: radii.xl,
-            borderTopRightRadius: radii.xl,
-            padding: spacing.lg,
-            maxHeight: '85%',
+            ...(centered
+              ? {
+                  borderRadius: radii.lg,
+                  width: '100%',
+                  maxWidth: rs(360),
+                  padding: spacing.lg,
+                  maxHeight: '80%',
+                }
+              : {
+                  borderTopLeftRadius: radii.xl,
+                  borderTopRightRadius: radii.xl,
+                  padding: spacing.lg,
+                  maxHeight: '85%',
+                }),
           }}
           onPress={() => {}}>
           <Text style={{fontSize: typography.h2, fontWeight: '700', color: colors.text, marginBottom: spacing.lg}}>
             {title}
           </Text>
-          {children}
+          {scrollable ? (
+            <ScrollView style={{maxHeight: centered ? 400 : 500}}>
+              {children}
+            </ScrollView>
+          ) : (
+            children
+          )}
         </Pressable>
       </Pressable>
     </Modal>
@@ -639,13 +701,13 @@ export function AccordionCard({
   return (
     <Animated.View
       entering={FadeInDown.duration(260).delay(index * 50)}
-      style={styles.card}>
+      style={[styles.card, {overflow: 'visible'}]}>
       <Pressable
         onPress={onToggle}
         style={{flexDirection: 'row', alignItems: 'center'}}
         hitSlop={6}>
         <View style={{flex: 1}}>{header}</View>
-        {trailing ? <View style={{marginLeft: spacing.sm}}>{trailing}</View> : null}
+        {trailing ? <View style={{marginLeft: spacing.sm, zIndex: 1}}>{trailing}</View> : null}
         <Animated.View
           style={{transform: [{rotate: expanded ? '90deg' : '0deg'}], marginLeft: rs(4)}}>
           <ChevronRight size={rs(16)} color={colors.muted} />
@@ -675,66 +737,80 @@ export function InlineSpinner({text}: {text?: string}) {
 
 /* ─── ThreeDotMenu ──────────────────────────────────────────────────── */
 
-export function ThreeDotMenu({actions}: {actions: {label: string; onPress: () => void; destructive?: boolean}[]}) {
+const MENU_WIDTH = rs(176);
+
+export function ThreeDotMenu({
+  actions,
+}: {
+  actions: {label: string; onPress: () => void; destructive?: boolean}[];
+}) {
+  const styles = useThemeStyles(makeStyles);
   const [open, setOpen] = React.useState(false);
+  const [pos, setPos] = React.useState({x: 0, y: 0, w: 0, h: 0});
+  const triggerRef = React.useRef<View | null>(null);
+
+  const toggle = React.useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    el.measureInWindow((x, y, w, h) => {
+      setPos({x, y, w, h});
+      setOpen(prev => !prev);
+    });
+  }, []);
+
+  // Render the dropdown in a transparent Modal so it ALWAYS paints above the
+  // list/card hierarchy — previously it was clipped behind neighbouring cards
+  // (especially when the card was collapsed). The trigger's window position
+  // anchors the menu; the solid card background adapts to light/dark via
+  // theme tokens.
+  const rightEdge = pos.x + pos.w;
+  const left = Math.min(rightEdge - MENU_WIDTH, SCREEN.width - MENU_WIDTH - rs(8));
+
   return (
-    <View>
-      <Pressable
-        onPress={() => setOpen(!open)}
-        hitSlop={8}
-        style={{padding: rs(4)}}>
-        <MoreVertical size={rs(18)} color={colors.muted} />
-      </Pressable>
+    <>
+      <View ref={triggerRef} collapsable={false}>
+        <Pressable
+          onPress={toggle}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="More actions"
+          style={({pressed}) => [styles.menuTrigger, pressed && styles.menuTriggerPressed]}>
+          <MoreVertical size={rs(18)} color={colors.muted} />
+        </Pressable>
+      </View>
       {open ? (
-        <>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={() => setOpen(false)}
-          />
-          <View
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: rs(28),
-              backgroundColor: colors.card,
-              borderRadius: radii.md,
-              borderWidth: 1,
-              borderColor: colors.border,
-              paddingVertical: rs(4),
-              minWidth: rs(140),
-              shadowColor: '#000',
-              shadowOffset: {width: 0, height: 2},
-              shadowOpacity: 0.15,
-              shadowRadius: 8,
-              elevation: 5,
-              zIndex: 100,
-            }}>
-            {actions.map((action, i) => (
-              <Pressable
-                key={i}
-                onPress={() => {
-                  setOpen(false);
-                  action.onPress();
-                }}
-                style={{
-                  paddingHorizontal: spacing.lg,
-                  paddingVertical: spacing.sm,
-                  minHeight: TOUCH_TARGET,
-                  justifyContent: 'center',
-                }}>
-                <Text
-                  style={{
-                    fontSize: typography.body,
-                    color: action.destructive ? colors.danger : colors.text,
-                  }}>
-                  {action.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
+        <Modal transparent visible animationType="fade" onRequestClose={() => setOpen(false)}>
+          <Pressable style={{flex: 1}} onPress={() => setOpen(false)}>
+            <View
+              style={[
+                styles.menuDropdown,
+                {left: Math.max(rs(4), left), top: pos.y + pos.h + rs(6)},
+              ]}>
+              {actions.map((action, i) => (
+                <Pressable
+                  key={i}
+                  onPress={() => {
+                    setOpen(false);
+                    action.onPress();
+                  }}
+                  style={({pressed}) => [
+                    styles.menuItem,
+                    pressed && styles.menuItemPressed,
+                  ]}>
+                  <Text
+                    style={{
+                      fontSize: typography.body,
+                      color: action.destructive ? colors.danger : colors.text,
+                    }}>
+                    {action.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
       ) : null}
-    </View>
+    </>
   );
 }
 

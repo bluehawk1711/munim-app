@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from 'react';
-import {Alert, FlatList, Pressable, ScrollView, Share, StyleSheet, Switch, Text, View} from 'react-native';
+import {Alert, FlatList, ListRenderItemInfo, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
 import * as Print from 'expo-print';
-import {ChevronDown} from 'lucide-react-native';
+import {ChevronDown, Search} from 'lucide-react-native';
 import {
   buildBillDocument,
   renderBillText,
@@ -14,11 +14,13 @@ import {
   type BillTemplateSettings,
   type PartyDto,
   type InvoiceDto,
+  type ProductDto,
 } from '@munim/core';
 import {
   useCreateInvoice,
   useInvoices,
   useParties,
+  useProducts,
   useQueryState,
   useSettings,
 } from '@munim/query';
@@ -39,6 +41,8 @@ import {
 } from '../components/ui';
 import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
+import {rw, rs, spacing, typography, radii} from '../lib/responsive';
+import {StyleSheet as RNStyleSheet} from 'react-native';
 
 type LineState = {
   productId: string;
@@ -55,6 +59,92 @@ const TYPE_LABELS: Record<string, string> = {
   WORKER: 'Worker',
   OTHER: 'Other',
 };
+
+/** Product picker — select a product from the catalog to add to a bill line. */
+function ProductPicker({
+  products,
+  productId,
+  onSelect,
+}: {
+  products: ProductDto[] | null | undefined;
+  productId: string;
+  onSelect: (id: string, product?: ProductDto) => void;
+}) {
+  const styles = useThemeStyles(makeStyles);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(
+    () =>
+      query
+        ? (products ?? []).filter(
+            p =>
+              p.name.toLowerCase().includes(query.toLowerCase()) ||
+              p.sku.toLowerCase().includes(query.toLowerCase()),
+          )
+        : products ?? [],
+    [products, query],
+  );
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={({pressed}) => [styles.productPicker, pressed && {opacity: 0.7}]}>
+        <View style={{flex: 1}}>
+          <Text style={styles.pickerLabel}>Product</Text>
+          <Text style={styles.pickerValue} numberOfLines={1}>
+            {productId
+              ? products?.find(p => p.id === productId)?.name ?? ''
+              : 'Select product (optional)'}
+          </Text>
+        </View>
+        <ChevronDown size={18} color={colors.muted} />
+      </Pressable>
+      <ModalSheet visible={open} title="Select product" onClose={() => setOpen(false)} centered scrollable>
+        <View style={styles.searchWrap}>
+          <Search size={rs(16)} color={colors.muted} />
+          <TextInput
+            style={[styles.searchInput, {flex: 1}]}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search products…"
+            placeholderTextColor={colors.inputPlaceholder}
+            autoCapitalize="none"
+          />
+        </View>
+        <FlatList
+          data={filtered}
+          keyExtractor={item => item.id}
+          style={{maxHeight: 340}}
+          ListEmptyComponent={<Empty text="No products found" />}
+          renderItem={({item}: ListRenderItemInfo<ProductDto>) => (
+            <Pressable
+              onPress={() => {
+                selectionTick();
+                onSelect(item.id, item);
+                setOpen(false);
+                setQuery('');
+              }}
+              style={({pressed}) => [
+                styles.pickRow,
+                productId === item.id && {backgroundColor: colors.mutedBg},
+                pressed && {backgroundColor: colors.mutedBg},
+              ]}>
+              <View style={{flex: 1}}>
+                <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={{fontSize: 12, color: colors.muted}}>{item.sku}</Text>
+              </View>
+              <Text style={{fontSize: 14, color: colors.text, fontWeight: '700', marginLeft: spacing.sm}}>
+                ₹{Number(item.sellingPrice).toFixed(0)}
+              </Text>
+            </Pressable>
+          )}
+        />
+      </ModalSheet>
+    </>
+  );
+}
 
 /** "Link to khata party" picker — same behaviour as web: selecting a party
  * pre-fills the customer name/phone/address; "None (walk-in)" clears it. */
@@ -82,7 +172,7 @@ function PartyPicker({
         </View>
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
-      <ModalSheet visible={open} title="Select party" onClose={() => setOpen(false)}>
+      <ModalSheet visible={open} title="Select party" onClose={() => setOpen(false)} centered scrollable>
         <FlatList
           data={parties ?? []}
           keyExtractor={item => item.id}
@@ -105,7 +195,7 @@ function PartyPicker({
             </Pressable>
           }
           ListEmptyComponent={<Empty text="No parties yet — add one from the Khata tab first" />}
-          renderItem={({item}) => (
+          renderItem={({item}: ListRenderItemInfo<PartyDto>) => (
             <Pressable
               onPress={() => {
                 selectionTick();
@@ -137,21 +227,33 @@ function LineItemsEditor({
   onChange,
   onRemove,
   onAdd,
+  products,
+  productIds,
+  onSelectProduct,
 }: {
   lines: LineState[];
   onChange: (index: number, patch: Partial<LineState>) => void;
   onRemove: (index: number) => void;
   onAdd: () => void;
+  products: ProductDto[] | null | undefined;
+  productIds: string[];
+  onSelectProduct: (lineIndex: number, productId: string, product?: ProductDto) => void;
 }) {
   const styles = useThemeStyles(makeStyles);
   return (
     <>
       {lines.map((line, index) => (
         <View key={index} style={styles.lineBox}>
+          <ProductPicker
+            products={products}
+            productId={line.productId}
+            onSelect={(id, product) => onSelectProduct(index, id, product)}
+          />
           <Field
-            label={`Item ${index + 1} name`}
+            label="Item name"
             value={line.productName}
             onChangeText={text => onChange(index, {productName: text})}
+            placeholder="Or type manually"
           />
           <View style={styles.lineRow}>
             <Field
@@ -183,6 +285,8 @@ export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: settings} = useQueryState(useSettings());
   const {data: parties} = useQueryState(useParties());
+  const {data: productsData, loading: productsLoading} = useQueryState(useProducts({pageSize: 500}));
+  const products = productsData?.products;
   const {data: list, loading} = useQueryState(useInvoices({pageSize: 50}));
   const createInvoice = useCreateInvoice();
 
@@ -232,12 +336,30 @@ export function BillingScreen() {
   );
   const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0) + (Number(secondDelivery) || 0));
 
+  const productIds = useMemo(() => lines.map(l => l.productId), [lines]);
+
   function updateLine(index: number, patch: Partial<LineState>) {
     setLines(prev => prev.map((l, i) => (i === index ? {...l, ...patch} : l)));
   }
 
   function updateSecondLine(index: number, patch: Partial<LineState>) {
     setSecondLines(prev => prev.map((l, i) => (i === index ? {...l, ...patch} : l)));
+  }
+
+  function onSelectProduct(lineIndex: number, productId: string, product?: ProductDto) {
+    updateLine(lineIndex, {
+      productId,
+      productName: product?.name ?? '',
+      price: product ? String(product.sellingPrice) : '',
+    });
+  }
+
+  function onSecondSelectProduct(lineIndex: number, productId: string, product?: ProductDto) {
+    updateSecondLine(lineIndex, {
+      productId,
+      productName: product?.name ?? '',
+      price: product ? String(product.sellingPrice) : '',
+    });
   }
 
   function collectItems(list: LineState[]) {
@@ -378,9 +500,9 @@ export function BillingScreen() {
         setSecondPreview(secondDoc);
       }
       resetForm();
-      successFeedback();
+      successFeedback(`Bill ${invoice.invoiceNumber} created`);
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to create bill');
       // keep form for retry
     } finally {
       setSaving(false);
@@ -547,6 +669,9 @@ export function BillingScreen() {
             onChange={updateLine}
             onRemove={index => setLines(prev => prev.filter((_, i) => i !== index))}
             onAdd={() => setLines(prev => [...prev, emptyLine()])}
+            products={products}
+            productIds={productIds}
+            onSelectProduct={onSelectProduct}
           />
           <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
           <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="numeric" />
@@ -583,6 +708,9 @@ export function BillingScreen() {
               onChange={updateSecondLine}
               onRemove={index => setSecondLines(prev => prev.filter((_, i) => i !== index))}
               onAdd={() => setSecondLines(prev => [...prev, emptyLine()])}
+              products={products}
+              productIds={productIds}
+              onSelectProduct={onSecondSelectProduct}
             />
             <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="numeric" />
             <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="numeric" />
@@ -647,13 +775,24 @@ export function BillingScreen() {
 }
 
 const makeStyles = () =>
-  StyleSheet.create({
+  RNStyleSheet.create({
     lineBox: {
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 12,
       padding: 10,
       marginBottom: 10,
+    },
+    productPicker: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 8,
+      backgroundColor: colors.card,
     },
     partyPicker: {
       flexDirection: 'row',
@@ -668,12 +807,23 @@ const makeStyles = () =>
     },
     pickerLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
     pickerValue: {fontSize: 15, color: colors.text, marginTop: 2},
+    searchWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingHorizontal: spacing.md,
+      marginBottom: spacing.md,
+      backgroundColor: colors.card,
+    },
+    searchInput: {paddingVertical: spacing.md, fontSize: typography.body},
     pickRow: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingVertical: 12,
       paddingHorizontal: 4,
-      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomWidth: RNStyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
     lineRow: {flexDirection: 'row'},

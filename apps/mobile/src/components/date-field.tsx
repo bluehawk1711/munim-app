@@ -120,7 +120,7 @@ export function DateField({
         <CalendarDays size={16} color={colors.muted} />
       </Pressable>
       {Platform.OS === 'ios' ? (
-        <ModalSheet visible={iosOpen} title={label} onClose={() => setIosOpen(false)}>
+        <ModalSheet visible={iosOpen} title={label} onClose={() => setIosOpen(false)} centered>
           <DateTimePicker
             value={draft}
             mode="date"

@@ -602,7 +602,9 @@ export function SettingsScreen() {
               : 'Connection failed'
         }
         onClose={() => setTestOpen(false)}
-        dismissable={testState !== 'testing'}>
+        dismissable={testState !== 'testing'}
+        centered
+      >
         {testState === 'testing' ? (
           <View style={{alignItems: 'center', paddingVertical: 18, gap: 12}}>
             <ActivityIndicator size="large" color={colors.primary} />

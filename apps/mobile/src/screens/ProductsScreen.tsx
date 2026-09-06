@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import Animated, {FadeInUp} from 'react-native-reanimated';
 import {FlashList} from '@shopify/flash-list';
-import {Search, X, ScanLine, Barcode} from 'lucide-react-native';
+import {Search, X, ScanLine, Barcode, Package} from 'lucide-react-native';
 import {SvgXml} from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
 import {CameraView, useCameraPermissions} from 'expo-camera';
@@ -79,9 +79,9 @@ function toneFor(p: ProductDto): 'success' | 'warning' | 'danger' | 'muted' {
 }
 
 function BarcodeChip({value}: {value: string}) {
-  const xml = React.useMemo(() => barcodeSvg(value, {showText: false, height: 36}), [value]);
+  const xml = React.useMemo(() => barcodeSvg(value, {showText: true, height: 40}), [value]);
   if (!value) return null;
-  return <SvgXml xml={xml} width={rw(140)} height={rs(36)} />;
+  return <SvgXml xml={xml} width={rw(200)} height={rs(40)} />;
 }
 
 /* ─── Product row (memoized for FlashList) ───────────────────────────── */
@@ -122,10 +122,15 @@ const ProductRow = React.memo(function ProductRow({
       trailing={<ThreeDotMenu actions={menuActions} />}
       header={
         <View style={productStyles.header}>
-          {item.imageUrl ? (
-            <Image source={{uri: item.imageUrl}} style={productStyles.thumb} />
-          ) : null}
-          <View style={{flex: 1}}>
+          {/* Product thumbnail — always visible; icon placeholder when no photo */}
+          <View style={productStyles.thumb}>
+            {item.imageUrl ? (
+              <Image source={{uri: item.imageUrl}} style={productStyles.thumbImg} />
+            ) : (
+              <Package size={rs(20)} color={colors.muted} />
+            )}
+          </View>
+          <View style={{flex: 1, minWidth: 0}}>
             <Text style={productStyles.name} numberOfLines={1}>
               {item.name}
             </Text>
@@ -136,7 +141,7 @@ const ProductRow = React.memo(function ProductRow({
                 : ''}
             </Text>
             <View style={productStyles.priceRow}>
-              <Text style={productStyles.price}>₹{Number(item.sellingPrice).toFixed(0)}</Text>
+              <Text style={productStyles.price}>{money(item.sellingPrice)}</Text>
               <Badge
                 text={item.stock <= 0 ? 'Out' : `${item.stock} in stock`}
                 tone={toneFor(item)}
@@ -355,15 +360,16 @@ export function ProductsScreen() {
       };
       if (editing) {
         await updateProduct.mutateAsync({id: editing.id, values: input});
+        successFeedback(`${name} updated`);
       } else {
         await createProduct.mutateAsync(input);
+        successFeedback(`${name} created`);
       }
-      successFeedback();
       setFormOpen(false);
       setEditing(null);
       resetForm();
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to save product');
     } finally {
       setSaving(false);
     }
@@ -376,12 +382,12 @@ export function ProductsScreen() {
     setAdjustBusy(true);
     try {
       await adjustStock.mutateAsync({id: adjusting.id, values: {adjustment: qty, reason: adjustReason.trim() || undefined}});
-      successFeedback();
+      successFeedback(`Stock adjusted for ${adjusting.name}`);
       setAdjusting(null);
       setAdjustQty('');
       setAdjustReason('');
     } catch {
-      errorFeedback();
+      errorFeedback('Stock adjustment failed');
     } finally {
       setAdjustBusy(false);
     }
@@ -391,40 +397,47 @@ export function ProductsScreen() {
     if (!deleteTarget) return;
     try {
       await deleteProduct.mutateAsync(deleteTarget.id);
-      successFeedback();
+      successFeedback(`${deleteTarget.name} deleted`);
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to delete product');
     }
     setDeleteTarget(null);
   }
 
   async function handlePickImage() {
-    const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!mediaPermission.granted) {
-      errorFeedback();
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.8,
-      allowsEditing: true,
-      aspect: [1, 1],
-    });
-    if (result.canceled || result.assets.length === 0) return;
-    const asset = result.assets[0];
-    setUploading(true);
     try {
+      const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!mediaPermission.granted) {
+        errorFeedback();
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: false,
+      });
+      if (result.canceled || result.assets.length === 0) return;
+      const asset = result.assets[0];
+      setUploading(true);
       const file = {uri: asset.uri, name: asset.fileName ?? `product-${Date.now()}.jpg`, type: asset.mimeType ?? 'image/jpeg'};
       try {
         const {url} = await uploadImage.mutateAsync(file);
         setImageUrl(url);
-      } catch {
-        const url = await uploadImageDirect(file);
-        setImageUrl(url);
+        successFeedback();
+      } catch (uploadErr) {
+        // Fallback to direct Cloudinary upload if API endpoint unavailable
+        try {
+          const url = await uploadImageDirect(file);
+          setImageUrl(url);
+          successFeedback();
+        } catch (directErr) {
+          errorFeedback();
+          console.error('Image upload failed:', uploadErr, directErr);
+        }
       }
-      successFeedback();
-    } catch {
+    } catch (err) {
       errorFeedback();
+      console.error('Image picker failed:', err);
     } finally {
       setUploading(false);
     }
@@ -453,9 +466,9 @@ export function ProductsScreen() {
     setBackfilling(true);
     try {
       await backfillBarcodes.mutateAsync();
-      successFeedback();
+      successFeedback('Barcodes generated');
     } catch {
-      errorFeedback();
+      errorFeedback('Barcode generation failed');
     } finally {
       setBackfilling(false);
     }
@@ -491,7 +504,7 @@ export function ProductsScreen() {
 
   return (
     <Screen>
-      <Header title="Products & Stock" subtitle={`${filtered.length} products`} />
+      <Header title="Inventory" subtitle={`${filtered.length} products`} />
 
       {/* Search bar */}
       <View style={styles.searchWrap}>
@@ -531,7 +544,7 @@ export function ProductsScreen() {
           data={filtered}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          contentContainerStyle={{padding: CARD_MARGIN, paddingBottom: spacing.xxxl}}
+          contentContainerStyle={{padding: spacing.sm, paddingBottom: spacing.xxxl}}
           keyboardShouldPersistTaps="handled"
           ListEmptyComponent={
             query ? <Empty text="No products match your search" /> : <Empty text="No products yet" />
@@ -544,8 +557,8 @@ export function ProductsScreen() {
         <Button title="+ Add product" onPress={openAdd} />
       </Animated.View>
 
-      {/* Product form sheet */}
-      <ModalSheet visible={formOpen} title={editing ? `Edit — ${editing.name}` : 'Add product'} onClose={() => setFormOpen(false)} dismissable={!saving && !uploading}>
+      {/* Product form sheet — centered modal */}
+      <ModalSheet visible={formOpen} title={editing ? `Edit — ${editing.name}` : 'Add product'} onClose={() => setFormOpen(false)} dismissable={!saving && !uploading} centered scrollable>
         <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
         <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
           {imageUrl ? (
@@ -564,15 +577,15 @@ export function ProductsScreen() {
         <Button title={saving ? 'Saving…' : editing ? 'Save changes' : 'Save product'} onPress={handleSave} loading={saving} />
       </ModalSheet>
 
-      {/* Stock adjustment sheet */}
-      <ModalSheet visible={adjusting !== null} title={`Adjust stock — ${adjusting?.name ?? ''}`} onClose={() => setAdjusting(null)} dismissable={!adjustBusy}>
+      {/* Stock adjustment sheet — centered modal */}
+      <ModalSheet visible={adjusting !== null} title={`Adjust stock — ${adjusting?.name ?? ''}`} onClose={() => setAdjusting(null)} dismissable={!adjustBusy} centered scrollable>
         <Field label="Quantity (+/−)" value={adjustQty} onChangeText={setAdjustQty} keyboardType="numeric" placeholder="e.g. 10 or -2" />
         <Field label="Reason (optional)" value={adjustReason} onChangeText={setAdjustReason} multiline placeholder="e.g. Restocked, damaged…" />
         <Button title="Adjust" onPress={handleAdjust} loading={adjustBusy} />
       </ModalSheet>
 
-      {/* Label sheet */}
-      <ModalSheet visible={labelOpen} title={`Print label — ${labelTarget?.name ?? ''}`} onClose={() => setLabelOpen(false)} dismissable={!labelBusy}>
+      {/* Label sheet — centered modal */}
+      <ModalSheet visible={labelOpen} title={`Print label — ${labelTarget?.name ?? ''}`} onClose={() => setLabelOpen(false)} dismissable={!labelBusy} centered scrollable>
         {labelTarget?.barcode ? <BarcodeChip value={labelTarget.barcode} /> : null}
         <Text style={{fontSize: typography.caption, color: colors.muted, marginTop: spacing.sm}}>
           {labelTarget?.sku}
@@ -596,8 +609,8 @@ export function ProductsScreen() {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* Catalog pickers */}
-      <ModalSheet visible={colorPickerOpen} title="Select color" onClose={() => setColorPickerOpen(false)}>
+      {/* Catalog pickers — centered modals with scroll */}
+      <ModalSheet visible={colorPickerOpen} title="Select color" onClose={() => setColorPickerOpen(false)} centered scrollable>
         {catalogColors.map(c => (
           <Pressable key={c.value} onPress={() => { setColor(c.value); setColorPickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
             <Text style={{fontSize: typography.body, color: c.value === color ? colors.primary : colors.text, fontWeight: c.value === color ? '700' : '400'}}>{c.label}</Text>
@@ -608,7 +621,7 @@ export function ProductsScreen() {
         </Pressable>
       </ModalSheet>
 
-      <ModalSheet visible={sizePickerOpen} title="Select size" onClose={() => setSizePickerOpen(false)}>
+      <ModalSheet visible={sizePickerOpen} title="Select size" onClose={() => setSizePickerOpen(false)} centered scrollable>
         {catalogSizes.map(s => (
           <Pressable key={s.value} onPress={() => { setSize(s.value); setSizePickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
             <Text style={{fontSize: typography.body, color: s.value === size ? colors.primary : colors.text, fontWeight: s.value === size ? '700' : '400'}}>{s.label}</Text>
@@ -619,7 +632,7 @@ export function ProductsScreen() {
         </Pressable>
       </ModalSheet>
 
-      <ModalSheet visible={categoryPickerOpen} title="Select category" onClose={() => setCategoryPickerOpen(false)}>
+      <ModalSheet visible={categoryPickerOpen} title="Select category" onClose={() => setCategoryPickerOpen(false)} centered scrollable>
         {catalogCategories.map(c => (
           <Pressable key={c.value} onPress={() => { setCategory(c.value); setCategoryPickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
             <Text style={{fontSize: typography.body, color: c.value === category ? colors.primary : colors.text, fontWeight: c.value === category ? '700' : '400'}}>{c.label}</Text>
@@ -643,15 +656,15 @@ export function ProductsScreen() {
                 <View style={styles.scanFrame} />
                 <Text style={styles.scanTitle}>Point at a product barcode</Text>
                 {scanMsg ? <Text style={styles.scanMsg}>{scanMsg}</Text> : null}
-                <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: spacing.lg}} />
+                <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: spacing.lg, width: '100%'}} />
               </View>
             </CameraView>
           ) : (
             <View style={styles.scanPerm}>
               <Barcode size={rs(40)} color={colors.muted} />
               <Text style={styles.scanTitle}>Camera permission needed</Text>
-              <Button title="Allow camera" onPress={() => void requestPermission()} style={{marginTop: spacing.md}} />
-              <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: spacing.sm}} />
+              <Button title="Allow camera" onPress={() => void requestPermission()} style={{marginTop: spacing.md, width: '100%'}} />
+              <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: spacing.sm, width: '100%'}} />
             </View>
           )}
         </View>
@@ -663,8 +676,20 @@ export function ProductsScreen() {
 /* ─── Styles ─────────────────────────────────────────────────────────── */
 
 const productStyles = StyleSheet.create({
-  header: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
-  thumb: {width: rs(44), height: rs(44), borderRadius: radii.md, borderWidth: 1, borderColor: colors.border},
+  header: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
+  thumb: {
+    width: rs(48),
+    height: rs(48),
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.mutedSoft,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    overflow: 'hidden' as const,
+    flexShrink: 0,
+  },
+  thumbImg: {width: '100%', height: '100%'},
   name: {fontSize: typography.body, fontWeight: '600', color: colors.text},
   meta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
   priceRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: rs(4)},
@@ -693,9 +718,9 @@ const makeStyles = () =>
     searchInput: {flex: 1, fontSize: typography.secondary, color: colors.text, paddingVertical: 0},
     searchClear: {padding: rs(4)},
     scanButton: {padding: rs(4), marginLeft: spacing.sm},
-    fab: {position: 'absolute', bottom: spacing.xxl, left: CARD_MARGIN, right: CARD_MARGIN},
+    fab: {position: 'absolute', bottom: rs(32), left: CARD_MARGIN, right: CARD_MARGIN, elevation: 4},
     imagePicker: {
-      height: rs(96),
+      height: rs(120),
       borderRadius: radii.lg,
       borderWidth: 1,
       borderStyle: 'dashed',

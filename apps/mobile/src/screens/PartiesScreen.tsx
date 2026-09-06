@@ -75,12 +75,12 @@ export function PartiesScreen() {
     setSaving(true);
     try {
       const party = await createParty.mutateAsync({name: newName.trim(), type: 'CUSTOMER'});
-      successFeedback();
+      successFeedback(`${newName} added to khata`);
       setAddOpen(false);
       setNewName('');
       setSelectedId(party.id);
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to add party');
     } finally {
       setSaving(false);
     }
@@ -93,11 +93,11 @@ export function PartiesScreen() {
     setSaving(true);
     try {
       await createAdvance.mutateAsync({partyId: selectedId, direction, amount: value});
-      successFeedback();
+      successFeedback(`Advance ${direction === 'GIVEN' ? 'given' : 'taken'} for ${money(value)}`);
       setAdvanceOpen(false);
       setAmount('');
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to record advance');
     } finally {
       setSaving(false);
     }
@@ -110,11 +110,11 @@ export function PartiesScreen() {
     setSaving(true);
     try {
       await recordPartyPayment.mutateAsync({partyId: selectedId, direction: paymentDirection, amount: value, method: 'cash'});
-      successFeedback();
+      successFeedback(`Payment ${paymentDirection === 'IN' ? 'received' : 'made'} for ${money(value)}`);
       setPaymentOpen(false);
       setPaymentAmount('');
     } catch {
-      errorFeedback();
+      errorFeedback('Failed to record payment');
     } finally {
       setSaving(false);
     }
@@ -136,12 +136,16 @@ export function PartiesScreen() {
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
           </View>
-          <View style={{flex: 1}}>
+          <View style={{flex: 1, minWidth: 0}}>
             <Text style={styles.partyName} numberOfLines={1}>
               {item.name}
-              {item.phone ? ` · ${item.phone}` : ''}
             </Text>
-            <View style={{flexDirection: 'row', gap: spacing.sm, marginTop: rs(4)}}>
+            {item.phone ? (
+              <Text style={[styles.partyPhone, {color: colors.muted}]} numberOfLines={1}>
+                {item.phone}
+              </Text>
+            ) : null}
+            <View style={{flexDirection: 'row', gap: spacing.xs, marginTop: rs(4)}}>
               <Badge text={`Given ${money(item.given)}`} tone="danger" />
               <Badge text={`Taken ${money(item.taken)}`} tone="success" />
             </View>
@@ -169,16 +173,16 @@ export function PartiesScreen() {
               <Text style={styles.openLabel}>Open advances</Text>
               {openAdvances.map(a => (
                 <View key={a.id} style={styles.advanceRow}>
-                  <View style={{flex: 1}}>
-                    <Text style={styles.advanceAmount}>
-                      {money(a.amount)}{' '}
-                      <Text style={{color: a.direction === 'GIVEN' ? colors.danger : colors.success, fontWeight: '400'}}>
+                  <View style={{flex: 1, minWidth: 0}}>
+                    <Text style={[styles.advanceAmount, {fontSize: typography.body}]}>
+                      {money(a.amount)}
+                      <Text style={{color: a.direction === 'GIVEN' ? colors.danger : colors.success, fontWeight: '400', marginLeft: rs(4)}}>
                         {a.direction === 'GIVEN' ? 'given' : 'taken'}
                       </Text>
                     </Text>
-                    <Text style={{fontSize: typography.caption, color: colors.muted}}>{formatDate(a.date)}</Text>
+                    <Text style={[styles.advanceDate, {color: colors.muted}]}>{formatDate(a.date)}</Text>
                   </View>
-                  <Button title="Settle" variant="outline" size="small" onPress={() => handleSettleAdvance(a.id)} />
+                  <Button title="Settle" variant="outline" size="small" onPress={() => handleSettleAdvance(a.id)} style={{minWidth: rs(80)}} />
                 </View>
               ))}
             </View>
@@ -233,20 +237,20 @@ export function PartiesScreen() {
         </Card>
       ) : null}
 
-      {/* Add party */}
-      <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)} dismissable={!saving}>
+      {/* Add party — centered modal */}
+      <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)} dismissable={!saving} centered>
         <Field label="Name" value={newName} onChangeText={setNewName} placeholder="e.g. Ramesh" />
         <Button title={saving ? 'Adding…' : 'Add party'} onPress={handleAddParty} loading={saving} />
       </ModalSheet>
 
-      {/* Advance */}
-      <ModalSheet visible={advanceOpen} title={direction === 'GIVEN' ? 'Advance given' : 'Advance taken'} onClose={() => setAdvanceOpen(false)} dismissable={!saving}>
+      {/* Advance — centered modal */}
+      <ModalSheet visible={advanceOpen} title={direction === 'GIVEN' ? 'Advance given' : 'Advance taken'} onClose={() => setAdvanceOpen(false)} dismissable={!saving} centered>
         <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
         <Button title={saving ? 'Saving…' : 'Save advance'} onPress={handleAdvance} loading={saving} />
       </ModalSheet>
 
-      {/* Payment */}
-      <ModalSheet visible={paymentOpen} title={paymentDirection === 'IN' ? 'Money in' : 'Money out'} onClose={() => setPaymentOpen(false)} dismissable={!saving}>
+      {/* Payment — centered modal */}
+      <ModalSheet visible={paymentOpen} title={paymentDirection === 'IN' ? 'Money in' : 'Money out'} onClose={() => setPaymentOpen(false)} dismissable={!saving} centered>
         <Field label="Amount" value={paymentAmount} onChangeText={setPaymentAmount} keyboardType="numeric" />
         <Button title={saving ? 'Recording…' : 'Record payment'} onPress={handlePayment} loading={saving} />
       </ModalSheet>
@@ -256,23 +260,31 @@ export function PartiesScreen() {
 
 const makeStyles = () =>
   StyleSheet.create({
-    partyRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
+    partyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingVertical: spacing.md,
+    },
     avatar: {
-      width: rs(36),
-      height: rs(36),
-      borderRadius: rs(18),
+      width: rs(42),
+      height: rs(42),
+      borderRadius: rs(21),
       backgroundColor: colors.mutedSoft,
       alignItems: 'center',
       justifyContent: 'center',
+      flexShrink: 0,
     },
     avatarText: {fontSize: typography.secondary, fontWeight: '700', color: colors.text},
     partyName: {fontSize: typography.body, fontWeight: '600', color: colors.text},
+    partyPhone: {fontSize: typography.caption, marginTop: rs(2)},
     partyBalance: {fontSize: typography.secondary, fontWeight: '600'},
-    expandedActions: {marginTop: spacing.md, paddingTop: spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, gap: spacing.sm},
+    expandedActions: {marginTop: spacing.lg, paddingTop: spacing.lg, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border, gap: spacing.md},
     actionRow: {flexDirection: 'row', gap: spacing.sm},
-    openLabel: {fontSize: typography.caption, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: rs(0.4), marginBottom: spacing.xs},
-    advanceRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: spacing.xs},
-    advanceAmount: {fontSize: typography.secondary, fontWeight: '600', color: colors.text},
+    openLabel: {fontSize: typography.caption, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: rs(0.4), marginBottom: spacing.sm},
+    advanceRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm, paddingVertical: spacing.sm},
+    advanceAmount: {fontSize: typography.body, fontWeight: '600', color: colors.text},
+    advanceDate: {fontSize: typography.caption, marginTop: rs(2)},
     ledgerTitle: {fontSize: typography.h3, fontWeight: '700', color: colors.text, marginBottom: spacing.sm},
     ledgerLine: {
       flexDirection: 'row',

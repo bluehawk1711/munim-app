@@ -39,7 +39,9 @@ export declare function buildProductLabel(product: {
 /** One physical label: 63.5 × 33.9 mm (3 × 8 grid = 24 per A4 sheet). */
 export declare const LABEL_WIDTH_MM = 63.5;
 export declare const LABEL_HEIGHT_MM = 33.9;
-/** Renders ONE label's inner markup (shared by the sheet + previews). */
+/** Renders ONE label's inner markup (shared by the sheet + previews).
+ * Side-by-side: LEFT = name + weight, RIGHT = barcode.
+ */
 export declare function renderLabelMarkup(label: ProductLabel): string;
 export type LabelSheetOptions = {
     /** Total physical labels (each copy = one label on the sheet). Default 1. */
