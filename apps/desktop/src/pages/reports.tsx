@@ -158,6 +158,7 @@ export function ReportsPage() {
       a.download = `${report.title.replace(/\s+/g, "-").toLowerCase()}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success("CSV exported", { description: report.title });
     } catch (err) {
       toast.error("CSV export failed", { description: err instanceof Error ? err.message : undefined });
     }

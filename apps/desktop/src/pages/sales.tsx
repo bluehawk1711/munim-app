@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Search, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2,
-  AlertTriangle, Loader2, CreditCard, Smartphone, Banknote, Clock,
+  AlertTriangle, Loader2, Clock, CheckCircle2,
   ArrowUpRight,
 } from "lucide-react";
 import { formatCurrency } from "@munim/core";
@@ -24,7 +24,6 @@ import {
 } from "@munim/ui";
 
 type RangeKey = "all" | "today" | "7d" | "30d" | "month" | "year";
-type PaymentMethod = "cash" | "upi" | "card" | "credit";
 
 function rangeToDates(range: RangeKey): { startDate?: string; endDate?: string } {
   if (range === "all") return {};
@@ -51,20 +50,13 @@ function rangeToDates(range: RangeKey): { startDate?: string; endDate?: string }
   }
 }
 
-const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
-  { key: "upi", label: "UPI", icon: Smartphone },
-  { key: "card", label: "Card", icon: CreditCard },
-  { key: "cash", label: "Cash", icon: Banknote },
-  { key: "credit", label: "Credit", icon: Clock },
-];
-
 export function SalesPage() {
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [price, setPrice] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [isPaid, setIsPaid] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // List filters
@@ -104,7 +96,6 @@ export function SalesPage() {
   const avgPerUnit = totalQty > 0 ? totalRevenue / totalQty : 0;
 
   const lineTotal = (Number(quantity) || 0) * (Number(price) || 0);
-  const gst = Math.round(lineTotal * 0.03 * 100) / 100;
 
   async function handleSell() {
     const qty = Number(quantity);
@@ -129,8 +120,8 @@ export function SalesPage() {
         sellingPrice: sellPrice || undefined,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
-        paid: paymentMethod !== "credit",
-        paymentMethod,
+        paid: isPaid,
+        paymentMethod: isPaid ? "cash" : "credit",
       });
       toast.success(`Sale done — ${invoice.invoiceNumber} (${money(invoice.total)})`);
       setQuantity("1");
@@ -359,29 +350,34 @@ export function SalesPage() {
               </div>
             </div>
 
-            {/* Payment Method */}
+            {/* Payment Received */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Payment Received (Marks Invoice PAID)</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {PAYMENT_METHODS.map((pm) => {
-                  const Icon = pm.icon;
-                  const active = paymentMethod === pm.key;
-                  return (
-                    <button
-                      key={pm.key}
-                      type="button"
-                      onClick={() => setPaymentMethod(pm.key)}
-                      className={`flex flex-col items-center gap-1 rounded-lg border p-2.5 text-xs transition-colors ${
-                        active
-                          ? "border-primary bg-primary/5 text-primary font-medium"
-                          : "text-muted-foreground hover:bg-muted/50"
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {pm.label}
-                    </button>
-                  );
-                })}
+              <Label className="text-xs">Payment Received?</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(true)}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border p-2.5 text-xs font-medium transition-colors ${
+                    isPaid
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "text-muted-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Yes — Paid
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(false)}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border p-2.5 text-xs font-medium transition-colors ${
+                    !isPaid
+                      ? "border-amber-500 bg-amber-500/5 text-amber-600 dark:text-amber-400"
+                      : "text-muted-foreground hover:bg-muted/50"
+                  }`}
+                >
+                  <Clock className="h-4 w-4" />
+                  No — Credit
+                </button>
               </div>
             </div>
 
@@ -391,14 +387,10 @@ export function SalesPage() {
                 <span className="text-muted-foreground">Line Amount</span>
                 <span className="tabular-nums">{money(lineTotal)}</span>
               </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">GST (3%)</span>
-                <span className="tabular-nums">{money(gst)}</span>
-              </div>
               <div className="border-t pt-1.5">
                 <div className="flex justify-between text-sm font-semibold">
-                  <span>Final Payable Amount</span>
-                  <span className="tabular-nums">{money(lineTotal + gst)}</span>
+                  <span>Total</span>
+                  <span className="tabular-nums">{money(lineTotal)}</span>
                 </div>
               </div>
             </div>

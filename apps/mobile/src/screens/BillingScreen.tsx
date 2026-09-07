@@ -48,11 +48,22 @@ import {StyleSheet as RNStyleSheet} from 'react-native';
 type LineState = {
   productId: string;
   productName: string;
+  sku: string;
+  color: string;
+  size: string;
   quantity: string;
   price: string;
 };
 
-const emptyLine = (): LineState => ({productId: '', productName: '', quantity: '1', price: '0'});
+const emptyLine = (): LineState => ({
+  productId: '',
+  productName: '',
+  sku: '',
+  color: '',
+  size: '',
+  quantity: '1',
+  price: '0',
+});
 
 const TYPE_LABELS: Record<string, string> = {
   CUSTOMER: 'Customer',
@@ -282,6 +293,49 @@ function LineItemsEditor({
   );
 }
 
+/** Live math strip: subtotal − discount + delivery = total (matches core's bill engine). */
+function TotalsBlock({
+  styles,
+  label,
+  subtotal,
+  discount,
+  delivery,
+  total,
+}: {
+  styles: ReturnType<typeof makeStyles>;
+  label: string;
+  subtotal: number;
+  discount: number;
+  delivery: number;
+  total: number;
+}) {
+  return (
+    <View>
+      <View style={styles.totalBreakdown}>
+        <View style={styles.totalRow}>
+          <Text style={styles.totalRowLabel}>Subtotal</Text>
+          <Text style={styles.totalRowValue}>{money(subtotal)}</Text>
+        </View>
+        {discount > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalRowLabel}>Discount</Text>
+            <Text style={styles.totalRowValue}>−{money(discount)}</Text>
+          </View>
+        ) : null}
+        {delivery > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalRowLabel}>Delivery</Text>
+            <Text style={styles.totalRowValue}>+{money(delivery)}</Text>
+          </View>
+        ) : null}
+      </View>
+      <Text style={styles.total}>
+        {label}: {money(total)}
+      </Text>
+    </View>
+  );
+}
+
 export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: settings} = useQueryState(useSettings());
@@ -351,6 +405,9 @@ export function BillingScreen() {
     updateLine(lineIndex, {
       productId,
       productName: product?.name ?? '',
+      sku: product?.sku ?? '',
+      color: product?.color ?? '',
+      size: product?.size ?? '',
       price: product ? String(product.sellingPrice) : '',
     });
   }
@@ -359,6 +416,9 @@ export function BillingScreen() {
     updateSecondLine(lineIndex, {
       productId,
       productName: product?.name ?? '',
+      sku: product?.sku ?? '',
+      color: product?.color ?? '',
+      size: product?.size ?? '',
       price: product ? String(product.sellingPrice) : '',
     });
   }
@@ -368,6 +428,9 @@ export function BillingScreen() {
       .map(l => ({
         productId: l.productId || undefined,
         productName: l.productName.trim(),
+        sku: l.sku.trim() || undefined,
+        color: l.color.trim() || undefined,
+        size: l.size.trim() || undefined,
         quantity: Number(l.quantity) || 0,
         price: Number(l.price) || 0,
       }))
@@ -429,11 +492,45 @@ export function BillingScreen() {
   async function handleCreate() {
     const items = collectItems(lines);
     if (items.length === 0) {
+      errorFeedback();
+      Alert.alert(
+        'Nothing to bill',
+        'Add at least one item — pick a product (its price fills in automatically) or type an item name with a quantity and price.',
+      );
       return;
     }
-    if (distinct && collectItems(secondLines).length === 0) {
+    const zeroPriceIdx = items.findIndex(it => !(it.price > 0));
+    if (zeroPriceIdx >= 0) {
+      errorFeedback();
+      Alert.alert(
+        'Price needed',
+        `Set a price above 0 for item ${zeroPriceIdx + 1} — picking a product auto-fills its selling price.`,
+      );
+      return;
+    }
+    if (total <= 0) {
+      errorFeedback();
+      Alert.alert(
+        'Total is zero',
+        'The bill total must be above 0 — check item prices, discount and delivery charge.',
+      );
+      return;
+    }
+    const secondItems = distinct ? collectItems(secondLines) : [];
+    if (distinct && secondItems.length === 0) {
       errorFeedback();
       Alert.alert('Second bill needed', 'Separate mode needs at least one item in Bill 2.');
+      return;
+    }
+    const secondZeroIdx = distinct ? secondItems.findIndex(it => !(it.price > 0)) : -1;
+    if (secondZeroIdx >= 0) {
+      errorFeedback();
+      Alert.alert('Bill 2 price needed', `Set a price above 0 for item ${secondZeroIdx + 1} in Bill 2.`);
+      return;
+    }
+    if (distinct && secondTotal <= 0) {
+      errorFeedback();
+      Alert.alert('Bill 2 total is zero', 'Bill 2 total must be above 0 — check its item prices, discount and delivery charge.');
       return;
     }
     setSaving(true);
@@ -716,7 +813,14 @@ export function BillingScreen() {
           <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="numeric" />
           <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="numeric" />
           <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
-          <Text style={styles.total}>Total: {money(total)}</Text>
+          <TotalsBlock
+            styles={styles}
+            label="Total"
+            subtotal={subtotal}
+            discount={Number(discount) || 0}
+            delivery={Number(delivery) || 0}
+            total={total}
+          />
           <Button title={saving ? 'Saving…' : 'Create invoice'} onPress={handleCreate} loading={saving} />
         </Card>
 
@@ -754,7 +858,14 @@ export function BillingScreen() {
             <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="numeric" />
             <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="numeric" />
             <Field label="Paid now" value={secondPaid} onChangeText={setSecondPaid} keyboardType="numeric" />
-            <Text style={styles.total}>Bill 2 total: {money(secondTotal)}</Text>
+            <TotalsBlock
+              styles={styles}
+              label="Bill 2 total"
+              subtotal={secondSubtotal}
+              discount={Number(secondDiscount) || 0}
+              delivery={Number(secondDelivery) || 0}
+              total={secondTotal}
+            />
           </Card>
         ) : null}
 
@@ -947,6 +1058,10 @@ const makeStyles = () =>
     },
     lineRow: {flexDirection: 'row'},
     total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
+    totalBreakdown: {marginTop: 4, marginBottom: 10, gap: 3},
+    totalRow: {flexDirection: 'row', justifyContent: 'space-between'},
+    totalRowLabel: {fontSize: 13, color: colors.muted},
+    totalRowValue: {fontSize: 13, color: colors.text, fontVariant: ['tabular-nums']},
     sectionTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
     secondBillHeader: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4},
     optLabel: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 6},

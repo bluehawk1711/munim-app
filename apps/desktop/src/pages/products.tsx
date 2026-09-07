@@ -489,6 +489,7 @@ export function ProductsPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    toast.success(`Exported ${rows.length} products to CSV`);
   }
 
   const labelSources = labelTargets.length > 0 ? labelTargets : labelTarget ? [labelTarget] : [];

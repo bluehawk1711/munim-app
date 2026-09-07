@@ -192,14 +192,33 @@ export function BillingView() {
     })
   }
 
+  /** Client-side mirror of the server guards: qty ≥ 1, price > 0, total > 0. */
+  function validateBill(name: string, its: LineItem[], tot: number): string | null {
+    if (!name.trim()) return "Customer name is required"
+    if (!its.length) return "Add at least one line item"
+    const badQty = its.findIndex((it) => !(it.quantity > 0))
+    if (badQty >= 0) return `Item ${badQty + 1} needs a quantity of at least 1`
+    const zeroPrice = its.findIndex((it) => !(it.price > 0))
+    if (zeroPrice >= 0)
+      return `Set a price above 0 for item ${zeroPrice + 1} — picking a product auto-fills its selling price`
+    if (!(tot > 0)) return "Bill total must be above 0 — check item prices, discount and delivery charge"
+    return null
+  }
+
   async function handleSaveAndPrint() {
-    if (!items.some((it) => it.productName.trim())) {
-      toast.error("Add at least one line item")
+    const bill1Items = items.filter((it) => it.productName.trim())
+    const bill2Items = secondItems.filter((it) => it.productName.trim())
+    const error = validateBill(customerName, bill1Items, total)
+    if (error) {
+      toast.error(error)
       return
     }
-    if (distinct && !secondItems.some((it) => it.productName.trim())) {
-      toast.error("Add at least one line item to the second bill")
-      return
+    if (distinct) {
+      const secondError = validateBill(secondCustomerName, bill2Items, secondTotal)
+      if (secondError) {
+        toast.error(`Bill 2: ${secondError}`)
+        return
+      }
     }
 
     const basePayload = {
@@ -366,14 +385,6 @@ export function BillingView() {
                   <Label className="text-xs">Date</Label>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Delivery charge (₹)</Label>
-                  <Input type="number" min={0} value={deliveryCharge || ""} onChange={(e) => setDeliveryCharge(Number(e.target.value))} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Discount (₹)</Label>
-                  <Input type="number" min={0} value={discount || ""} onChange={(e) => setDiscount(Number(e.target.value))} className="h-9" />
-                </div>
               </div>
             </div>
 
@@ -391,7 +402,20 @@ export function BillingView() {
       </Card>
 
       {/* Bill 1 line items */}
-      <BillItemsCard title={distinct ? "Bill 1" : undefined} items={items} setItems={setItems} products={products} />
+      <BillItemsCard
+        title={distinct ? "Bill 1" : undefined}
+        items={items}
+        setItems={setItems}
+        products={products}
+        charges={{
+          delivery: deliveryCharge,
+          discount,
+          subtotal,
+          total,
+          onDelivery: setDeliveryCharge,
+          onDiscount: setDiscount,
+        }}
+      />
 
       {/* Second bill — only when 2-in-1 "Separate" is selected */}
       {distinct && (
@@ -441,16 +465,8 @@ export function BillingView() {
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Details</p>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment</p>
                   <div className="space-y-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Delivery charge (₹)</Label>
-                      <Input type="number" min={0} value={secondDeliveryCharge || ""} onChange={(e) => setSecondDeliveryCharge(Number(e.target.value))} className="h-9" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Discount (₹)</Label>
-                      <Input type="number" min={0} value={secondDiscount || ""} onChange={(e) => setSecondDiscount(Number(e.target.value))} className="h-9" />
-                    </div>
                     <div className="space-y-1.5">
                       <Label className="text-xs">Amount paid now (₹)</Label>
                       <Input type="number" min={0} value={secondAmountPaid || ""} onChange={(e) => setSecondAmountPaid(Number(e.target.value))} className="h-9" />
@@ -478,7 +494,20 @@ export function BillingView() {
               </div>
             </CardContent>
           </Card>
-          <BillItemsCard title="Bill 2" items={secondItems} setItems={setSecondItems} products={products} />
+          <BillItemsCard
+            title="Bill 2"
+            items={secondItems}
+            setItems={setSecondItems}
+            products={products}
+            charges={{
+              delivery: secondDeliveryCharge,
+              discount: secondDiscount,
+              subtotal: secondSubtotal,
+              total: secondTotal,
+              onDelivery: setSecondDeliveryCharge,
+              onDiscount: setSecondDiscount,
+            }}
+          />
         </>
       )}
 
@@ -554,11 +583,21 @@ function BillItemsCard({
   items,
   setItems,
   products,
+  charges,
 }: {
   title?: string
   items: LineItem[]
   setItems: React.Dispatch<React.SetStateAction<LineItem[]>>
   products: PickableProduct[]
+  /** Delivery + discount inputs and live totals — rendered below the rows. */
+  charges?: {
+    delivery: number
+    discount: number
+    subtotal: number
+    total: number
+    onDelivery: (n: number) => void
+    onDiscount: (n: number) => void
+  }
 }) {
   function updateItem(index: number, patch: Partial<LineItem>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
@@ -671,6 +710,27 @@ function BillItemsCard({
             <Button variant="outline" size="sm" onClick={() => setItems((prev) => [...prev, emptyLine()])} className="gap-1.5">
               <Plus className="h-4 w-4" /> Add line item
             </Button>
+            {charges && (
+              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Delivery charge (₹)</Label>
+                  <Input type="number" min={0} value={charges.delivery || ""} onChange={(e) => charges!.onDelivery(Number(e.target.value))} className="h-9" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Discount (₹)</Label>
+                  <Input type="number" min={0} value={charges.discount || ""} onChange={(e) => charges!.onDiscount(Number(e.target.value))} className="h-9" />
+                </div>
+                <div className="bg-muted/40 min-w-48 rounded-lg border p-2.5 text-xs">
+                  <Row label="Subtotal" value={formatCurrency(charges.subtotal)} />
+                  {charges.delivery > 0 && <Row label="Delivery" value={`+${formatCurrency(charges.delivery)}`} />}
+                  {charges.discount > 0 && <Row label="Discount" value={`−${formatCurrency(charges.discount)}`} />}
+                  <div className="mt-1 flex items-center justify-between border-t pt-1">
+                    <span className="font-semibold">Total</span>
+                    <span className="text-sm font-bold tabular-nums">{formatCurrency(charges.total)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

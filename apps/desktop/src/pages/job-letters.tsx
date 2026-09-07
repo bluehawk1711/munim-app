@@ -111,6 +111,7 @@ export function JobLettersPage() {
     setExporting(true);
     try {
       await downloadJobLetterPdf(jobLetterFromStored(letter.data, letter, companyFromSettings(settings)));
+      toast.success("PDF downloaded", { description: letter.title });
     } catch (err) {
       toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
     } finally {

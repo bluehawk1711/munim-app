@@ -370,6 +370,7 @@ export function BillingPage() {
         secondBill: secondPreview ?? undefined,
         classicColor,
       });
+      toast.success("PDF downloaded");
     } catch (err) {
       toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -388,6 +389,7 @@ export function BillingPage() {
     setExporting(true);
     try {
       await downloadBillPdf(invoiceToBillDocument(inv, shopForInvoice, settings?.currency ?? "INR"));
+      toast.success("PDF downloaded", { description: inv.invoiceNumber });
     } catch (err) {
       toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -461,22 +463,16 @@ export function BillingPage() {
                     }}
                   />
 
-                  <BillFields
+                  <CustomerFields
                     name={customerName}
                     phone={customerPhone}
                     address={customerAddress}
-                    discount={discount}
-                    delivery={deliveryCharge}
-                    paid={amountPaid}
                     partyId={partyId}
                     parties={parties}
                     onName={setCustomerName}
                     onPhone={setCustomerPhone}
                     onAddress={setCustomerAddress}
                     onParty={setPartyId}
-                    onDiscount={setDiscount}
-                    onDelivery={setDeliveryCharge}
-                    onPaid={setAmountPaid}
                     idPrefix="b"
                   />
 
@@ -497,7 +493,7 @@ export function BillingPage() {
                 <CardHeader>
                   <CardTitle className="text-sm">Items</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                   <LineItemsEditor
                     lines={lines}
                     allProducts={allProducts}
@@ -505,6 +501,23 @@ export function BillingPage() {
                     remove={(i) => setLines((prev) => prev.filter((_, x) => x !== i))}
                     add={() => setLines((prev) => [...prev, emptyLine()])}
                     pick={(i, id) => pickProduct(i, id, "first")}
+                  />
+                  <SeparatorLine />
+                  <AdjustmentFields
+                    discount={discount}
+                    delivery={deliveryCharge}
+                    paid={amountPaid}
+                    onDiscount={setDiscount}
+                    onDelivery={setDeliveryCharge}
+                    onPaid={setAmountPaid}
+                    idPrefix="b"
+                  />
+                  <TotalsSummary
+                    subtotal={subtotal}
+                    discount={Number(discount) || 0}
+                    delivery={Number(deliveryCharge) || 0}
+                    total={total}
+                    paid={Number(amountPaid) || 0}
                   />
                 </CardContent>
               </Card>
@@ -517,22 +530,16 @@ export function BillingPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    <BillFields
+                    <CustomerFields
                       name={secondCustomerName}
                       phone={secondCustomerPhone}
                       address={secondCustomerAddress}
-                      discount={secondDiscount}
-                      delivery={secondDeliveryCharge}
-                      paid={secondAmountPaid}
                       partyId={secondPartyId}
                       parties={parties}
                       onName={setSecondCustomerName}
                       onPhone={setSecondCustomerPhone}
                       onAddress={setSecondCustomerAddress}
                       onParty={setSecondPartyId}
-                      onDiscount={setSecondDiscount}
-                      onDelivery={setSecondDeliveryCharge}
-                      onPaid={setSecondAmountPaid}
                       idPrefix="sb"
                     />
                     <LineItemsEditor
@@ -542,6 +549,23 @@ export function BillingPage() {
                       remove={(i) => setSecondLines((prev) => prev.filter((_, x) => x !== i))}
                       add={() => setSecondLines((prev) => [...prev, emptyLine()])}
                       pick={(i, id) => pickProduct(i, id, "second")}
+                    />
+                    <SeparatorLine />
+                    <AdjustmentFields
+                      discount={secondDiscount}
+                      delivery={secondDeliveryCharge}
+                      paid={secondAmountPaid}
+                      onDiscount={setSecondDiscount}
+                      onDelivery={setSecondDeliveryCharge}
+                      onPaid={setSecondAmountPaid}
+                      idPrefix="sb"
+                    />
+                    <TotalsSummary
+                      subtotal={secondSubtotal}
+                      discount={Number(secondDiscount) || 0}
+                      delivery={Number(secondDeliveryCharge) || 0}
+                      total={secondTotal}
+                      paid={Number(secondAmountPaid) || 0}
                     />
                   </CardContent>
                 </Card>

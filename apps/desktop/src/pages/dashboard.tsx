@@ -24,7 +24,7 @@ import { useDashboard, useInvoices, useProducts, useQueryState, useSettings } fr
 import { money, monthLabelToDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { navigate } from "@/lib/navigation";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@munim/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@munim/ui";
 import { AreaChart, Area } from "@/components/charts/area-chart";
 import { LineChart, Line } from "@/components/charts/line-chart";
 import RadarChart from "@/components/charts/radar-chart";
@@ -171,6 +171,7 @@ export function DashboardPage() {
     if (!shop) return;
     try {
       await downloadBillPdf(invoiceToBillDocument(inv, shop, settings?.currency ?? "INR"));
+      toast.success("PDF downloaded", { description: inv.invoiceNumber });
     } catch {
       /* surfaced by the Toaster in billPdf/generateBillPDF failures */
     }
