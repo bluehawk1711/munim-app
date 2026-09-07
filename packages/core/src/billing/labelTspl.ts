@@ -57,6 +57,8 @@ export type LabelPrintSettings = {
   barcodeX: number;
   /** Barcode Y position in dots. */
   barcodeY: number;
+  /** Include the product purity after its name. */
+  showPurity: boolean;
 };
 
 /** Default settings for the first print — easy to override in the dialog. */
@@ -71,6 +73,7 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   leftMarginMm: 3.5,
   barcodeX: 0,  // computed in buildLabelTspl2 if 0
   barcodeY: 0,  // computed in buildLabelTspl2 if 0
+  showPurity: false,
 };
 
 export type TsplLabelOptions = Partial<LabelSizeSettings> & {
@@ -98,6 +101,8 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   barcodeX?: number;
   /** Barcode Y position in dots (0 = computed). */
   barcodeY?: number;
+  /** Include the product purity after its name. */
+  showPurity?: boolean;
 };
 
 /** TSPL2 content is double-quoted — strip quotes/newlines so a value can't
@@ -159,10 +164,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const textAreaW = Math.round(printableW * 0.24);
 
   // Font sizes — 15mm tall = 120 dots at 203 DPI
-  const nameSize = toPt(Math.round(h * 0.40));
+  const maxNameSize = toPt(Math.round(h * 0.40));
+  const minNameSize = toPt(Math.round(h * 0.25));
   const weightSize = toPt(Math.round(h * 0.25));
-  const nameHeightDots = Math.round((nameSize * dpi) / 72);
-  const weightHeightDots = Math.round((weightSize * dpi) / 72);
 
   const barcodeHeight = 65;
   const defaultBarcodeX = leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
@@ -171,6 +175,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const barcodeY = (opts.barcodeY && opts.barcodeY > 0) ? opts.barcodeY : defaultBarcodeY;
   const nameY = opts.nameY ?? 80;
   const weightY = opts.weightY ?? 40;
+  // A period is valid TSPL text. Size names to fit before truncating, so
+  // values such as "92.5ring1" are not shortened to "92.5..".
+  const availableNameWidth = Math.max(1, barcodeX - leftMargin - gapBetween);
+  const nameCharWidthAtOnePoint = (dpi / 72) * 0.6;
 
   const lines: string[] = [
     `SIZE ${widthMm} mm,${heightMm} mm`,
@@ -181,9 +189,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   ];
 
   for (const label of labels) {
+    const nameWithPurity = [label.productName, opts.showPurity ? label.purity : null]
+      .filter((value): value is string => Boolean(value?.trim()))
+      .join(" ");
+    const fittingNameSize = Math.floor(
+      availableNameWidth / (Math.max(1, nameWithPurity.length) * nameCharWidthAtOnePoint),
+    );
+    const nameSize = Math.max(minNameSize, Math.min(maxNameSize, fittingNameSize));
     const name = truncateToWidth(
-      tsplText(label.productName),
-      Math.max(2, Math.floor(textAreaW / ((nameSize * dpi) / 72 * 0.6))),
+      tsplText(nameWithPurity),
+      Math.max(2, Math.floor(availableNameWidth / (minNameSize * nameCharWidthAtOnePoint))),
     );
     const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
 

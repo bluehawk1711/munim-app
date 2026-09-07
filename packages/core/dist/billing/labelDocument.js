@@ -8,6 +8,7 @@ export function buildProductLabel(product, shop) {
         sku: product.sku,
         barcode: product.barcode,
         weightMg: product.weight ?? null,
+        purity: product.purity ?? null,
         color: product.colorName ?? null,
         size: product.sizeName ?? null,
         category: product.categoryName ?? null,

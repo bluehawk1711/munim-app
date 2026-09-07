@@ -269,6 +269,21 @@ export function LabelPrintDialog({
                       </div>
                     </div>
 
+                    <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background/60 p-2.5 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={printSettings.showPurity}
+                        onChange={(e) => updateSetting("showPurity", e.target.checked)}
+                        className="mt-0.5 h-3.5 w-3.5 accent-primary"
+                      />
+                      <span>
+                        <span className="block font-medium">Print purity with product name</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Adds the purity after the name in the same TSPL text field.
+                        </span>
+                      </span>
+                    </label>
+
                     <div className="grid grid-cols-2 gap-3">
                       {/* Narrow */}
                       <div className="space-y-1">

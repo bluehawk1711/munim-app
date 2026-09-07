@@ -501,6 +501,7 @@ export function ProductsPage() {
         sku: p.sku,
         barcode: p.barcode,
         weight: p.weight,
+        purity: p.purity,
         sellingPrice: p.sellingPrice,
         colorName: p.color || null,
         sizeName: p.size || null,

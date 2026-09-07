@@ -376,11 +376,21 @@ async function run() {
     });
     await test("buildProductLabel", () => {
       const label = core.buildProductLabel(
-        { id: "p1", name: "Gold Bangle <Heavy>", sku: "PRD-ABC123", barcode: "5901234123457", weight: 24500, sellingPrice: 1200, colorName: "Gold", sizeName: "M", categoryName: "Jewellery" },
+        { id: "p1", name: "Gold Bangle <Heavy>", sku: "PRD-ABC123", barcode: "5901234123457", weight: 24500, purity: "916", sellingPrice: 1200, colorName: "Gold", sizeName: "M", categoryName: "Jewellery" },
         { name: "Munim Shop" },
       );
-      const ok = label.productName === "Gold Bangle <Heavy>" && label.weightMg === 24500 && label.shopName === "Munim Shop";
-      return ok ? "label built from product row" : "LABEL BUILD FAILED";
+      const ok = label.productName === "Gold Bangle <Heavy>" && label.weightMg === 24500 && label.purity === "916" && label.shopName === "Munim Shop";
+      return ok ? "label built from product row including purity" : "LABEL BUILD FAILED";
+    });
+    await test("buildLabelTspl2 purity and decimal names", () => {
+      const label = core.buildProductLabel(
+        { id: "p1", name: "92.5ring1", sku: "PRD-ABC123", barcode: "5901234123457", weight: 24500, purity: "925", sellingPrice: 1200 },
+        { name: "Munim Shop" },
+      );
+      const hidden = core.buildLabelTspl2([label], { widthMm: 101, heightMm: 15, showPurity: false });
+      const shown = core.buildLabelTspl2([label], { widthMm: 101, heightMm: 15, showPurity: true });
+      const ok = hidden.includes('"92.5ring1"') && !hidden.includes('"92.5ring1 925"') && shown.includes('"92.5ring1 925"');
+      return ok ? "purity toggle and decimal product name preserved" : "TSPL LABEL TEXT FAILED";
     });
     await test("renderLabelSheetHtml", () => {
       const label = core.buildProductLabel(

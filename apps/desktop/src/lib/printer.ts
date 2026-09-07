@@ -92,6 +92,7 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         leftMarginMm: typeof s.leftMarginMm === "number" && s.leftMarginMm >= 0 && s.leftMarginMm <= 10 ? s.leftMarginMm : 3.5,
         barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 0,
         barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 0,
+        showPurity: s.showPurity === true,
       };
     }
   } catch {
@@ -134,6 +135,7 @@ export async function printLabelsToThermal(
     leftMarginMm: ps.leftMarginMm,
     barcodeX: ps.barcodeX,
     barcodeY: ps.barcodeY,
+    showPurity: ps.showPurity,
   });
   const data = Array.from(new TextEncoder().encode(tspl));
   console.info("[Munim label print]", {

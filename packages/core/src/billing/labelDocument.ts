@@ -19,6 +19,8 @@ export type ProductLabel = {
   barcode: string | null;
   /** Weight in milligrams. */
   weightMg: number | null;
+  /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
+  purity: string | null;
   color: string | null;
   size: string | null;
   category: string | null;
@@ -38,6 +40,7 @@ export function buildProductLabel(
     sku: string;
     barcode: string | null;
     weight: number | null;
+    purity?: string | null;
     sellingPrice: number;
     colorName?: string | null;
     sizeName?: string | null;
@@ -51,6 +54,7 @@ export function buildProductLabel(
     sku: product.sku,
     barcode: product.barcode,
     weightMg: product.weight ?? null,
+    purity: product.purity ?? null,
     color: product.colorName ?? null,
     size: product.sizeName ?? null,
     category: product.categoryName ?? null,
