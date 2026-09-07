@@ -52,7 +52,7 @@ export function createAppStore(initialView = "dashboard") {
     productCategoryFilter: "all",
     productStatusFilter: "all",
     setActiveView: (view) => set({ activeView: view }),
-    setGlobalSearch: (value) => set({ globalSearch: value }),
+    setGlobalSearch: (value: string) => set({ globalSearch: value }),
     bumpSearch: () => set((s) => ({ searchNonce: s.searchNonce + 1 })),
     setSellDialogOpen: (open) => set({ sellDialogOpen: open }),
     setProductColorFilter: (value) => set({ productColorFilter: value }),

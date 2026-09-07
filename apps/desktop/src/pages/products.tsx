@@ -84,6 +84,7 @@ import {
   BarcodeLookupInput,
   BarcodeSvg,
   LabelPrintDialog,
+  LabelPrintSelectDialog,
   ProductDetailsDialog,
 } from "@munim/ui";
 
@@ -96,6 +97,7 @@ type FormState = {
   category: string;
   barcode: string;
   weight: string;
+  purity: string;
   imageUrl: string;
   stock: string;
   purchasePrice: string;
@@ -111,6 +113,7 @@ const EMPTY_FORM: FormState = {
   category: "",
   barcode: "",
   weight: "",
+  purity: "",
   imageUrl: "",
   stock: "0",
   purchasePrice: "0",
@@ -126,17 +129,12 @@ function stockVariant(p: ProductDto): "success" | "warning" | "destructive" | "s
 }
 
 /** Quick-filter category chips on the products page. */
-const QUICK_CATEGORIES = [
-  "Gold & Diamond Rings",
-  "Bangles & Kadas",
-  "Necklaces & Mangalsutras",
-  "Silver Articles",
-] as const;
-
 type FilterChip =
   | { kind: "all"; label: string; value: number }
-  | { kind: "category"; label: string; category: string; value: number }
-  | { kind: "low"; label: string; value: number };
+  | { kind: "instock"; label: string; value: number }
+  | { kind: "low"; label: string; value: number }
+  | { kind: "out"; label: string; value: number }
+  | { kind: "uncategorized"; label: string; value: number };
 
 /* ─── Page ─────────────────────────────────────────────────────── */
 
@@ -172,8 +170,10 @@ export function ProductsPage() {
   const [isAdjustingStock, setIsAdjustingStock] = useState(false);
 
   const [labelTarget, setLabelTarget] = useState<ProductDto | null>(null);
+  const [labelTargets, setLabelTargets] = useState<ProductDto[]>([]);
   const [labelOpen, setLabelOpen] = useState(false);
   const [labelCopies, setLabelCopies] = useState(1);
+  const [labelSelectOpen, setLabelSelectOpen] = useState(false);
   const [detailsProduct, setDetailsProduct] = useState<ProductDto | null>(null);
   const [backfilling, setBackfilling] = useState(false);
 
@@ -245,44 +245,32 @@ export function ProductsPage() {
   const velocityScore = totalCount > 0 ? Math.round((inCount / totalCount) * 100) : 0;
   const velocityLabel = velocityScore >= 90 ? "OPTIMAL" : velocityScore >= 70 ? "STEADY" : "SLOW";
 
-  const countsByCategory = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const c of categoryRows) {
-      map.set(c.category.toLowerCase(), c.skuCount);
-    }
-    const byName = new Map<string, number>();
-    for (const p of products) {
-      const cat = (p.category ?? "").trim();
-      if (!cat) continue;
-      byName.set(cat.toLowerCase(), (byName.get(cat.toLowerCase()) ?? 0) + 1);
-    }
-    return { byCatalog: map, byName };
-  }, [categoryRows, products]);
-
   const chips = useMemo<FilterChip[]>(() => {
-    const findCount = (label: string) => {
-      const lower = label.toLowerCase();
-      return countsByCategory.byCatalog.get(lower) ?? countsByCategory.byName.get(lower) ?? 0;
-    };
-    const catChips: FilterChip[] = QUICK_CATEGORIES.map((label) => ({
-      kind: "category",
-      label,
-      category: label,
-      value: findCount(label),
-    }));
+    const uncatCount = products.filter((p) => !p.category || !p.category.trim()).length;
     return [
       { kind: "all", label: "All SKUs", value: totalCount },
-      ...catChips,
-      { kind: "low", label: "Low / Depleted", value: lowCount + outCount },
+      { kind: "instock", label: "In Stock", value: inCount },
+      { kind: "low", label: "Low Stock", value: lowCount },
+      { kind: "out", label: "Out of Stock", value: outCount },
+      { kind: "uncategorized", label: "Uncategorized", value: uncatCount },
     ];
-  }, [countsByCategory, totalCount, lowCount, outCount]);
+  }, [totalCount, inCount, lowCount, outCount, products]);
 
   const visibleProducts = useMemo(() => {
     if (activeCategory.kind === "all") return products;
-    if (activeCategory.kind === "low") {
-      return products.filter((p) => p.stock <= p.lowStockThreshold);
+    if (activeCategory.kind === "instock") {
+      return products.filter((p) => p.stock > p.lowStockThreshold);
     }
-    return products.filter((p) => (p.category ?? "").toLowerCase() === activeCategory.category.toLowerCase());
+    if (activeCategory.kind === "low") {
+      return products.filter((p) => p.stock > 0 && p.stock <= p.lowStockThreshold);
+    }
+    if (activeCategory.kind === "out") {
+      return products.filter((p) => p.stock <= 0);
+    }
+    if (activeCategory.kind === "uncategorized") {
+      return products.filter((p) => !p.category || !p.category.trim());
+    }
+    return products;
   }, [products, activeCategory]);
 
   /* ── Donut + allocation chart data ───────────────────────────── */
@@ -325,6 +313,7 @@ export function ProductsPage() {
       category: p.category ?? "",
       barcode: p.barcode ?? "",
       weight: p.weight != null ? String(p.weight) : "",
+      purity: p.purity ?? "",
       imageUrl: p.imageUrl ?? "",
       stock: String(p.stock),
       purchasePrice: String(p.purchasePrice),
@@ -375,6 +364,7 @@ export function ProductsPage() {
         category: form.category.trim() || undefined,
         barcode: form.barcode.trim() || undefined,
         weight: form.weight.trim() ? Math.max(0, Number(form.weight) || 0) : undefined,
+        purity: form.purity.trim() || undefined,
         imageUrl: form.imageUrl.trim() || undefined,
         stock: Math.max(0, Number(form.stock) || 0),
         purchasePrice: Math.max(0, Number(form.purchasePrice) || 0),
@@ -408,8 +398,18 @@ export function ProductsPage() {
   }
 
   function openLabelDialog(p: ProductDto) {
+    setLabelTargets([]);
     setLabelTarget(p);
     setLabelCopies(1);
+    setLabelOpen(true);
+  }
+
+  function handleLabelSelect(selected: { id: string; name: string; sku: string; barcode?: string | null; sellingPrice?: number | null; weight?: number | null; color?: string | null; size?: string | null; category?: string | null }[]) {
+    const dtos = selected as ProductDto[];
+    setLabelTarget(null);
+    setLabelTargets(dtos);
+    setLabelCopies(1);
+    setLabelSelectOpen(false);
     setLabelOpen(true);
   }
 
@@ -491,24 +491,23 @@ export function ProductsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const labelLabels: ProductLabel[] = labelTarget
-    ? [
-        buildProductLabel(
-          {
-            id: labelTarget.id,
-            name: labelTarget.name,
-            sku: labelTarget.sku,
-            barcode: labelTarget.barcode,
-            weight: labelTarget.weight,
-            sellingPrice: labelTarget.sellingPrice,
-            colorName: labelTarget.color || null,
-            sizeName: labelTarget.size || null,
-            categoryName: labelTarget.category || null,
-          },
-          { name: "" },
-        ),
-      ]
-    : [];
+  const labelSources = labelTargets.length > 0 ? labelTargets : labelTarget ? [labelTarget] : [];
+  const labelLabels: ProductLabel[] = labelSources.map((p) =>
+    buildProductLabel(
+      {
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        barcode: p.barcode,
+        weight: p.weight,
+        sellingPrice: p.sellingPrice,
+        colorName: p.color || null,
+        sizeName: p.size || null,
+        categoryName: p.category || null,
+      },
+      { name: "" },
+    ),
+  );
 
   function handleLabelPrint(html: string) {
     setLabelOpen(false);
@@ -522,44 +521,6 @@ export function ProductsPage() {
       toast.success("Label PDF downloaded");
     } catch (err) {
       toast.error("PDF failed", { description: err instanceof Error ? err.message : undefined });
-    }
-  }
-
-  function handlePrintAllLabels() {
-    if (visibleProducts.length === 0) {
-      toast.info("No products in the current view to print");
-      return;
-    }
-    const labels: ProductLabel[] = visibleProducts.slice(0, 24).map((p) =>
-      buildProductLabel(
-        {
-          id: p.id,
-          name: p.name,
-          sku: p.sku,
-          barcode: p.barcode,
-          weight: p.weight,
-          sellingPrice: p.sellingPrice,
-          colorName: p.color || null,
-          sizeName: p.size || null,
-          categoryName: p.category || null,
-        },
-        { name: "" },
-      ),
-    );
-    const html = labels
-      .map(
-        (l) =>
-          `<div style="display:inline-block;border:1px dashed #999;padding:8px;margin:4px;font-family:sans-serif;font-size:10px;width:200px;">` +
-          `<div style="font-weight:bold">${l.productName}</div><div>SKU ${l.sku}</div>` +
-          `${l.barcode ? `<div style="font-family:monospace">${l.barcode}</div>` : ""}` +
-          `<div>${money(l.sellingPrice ?? 0)}</div></div>`,
-      )
-      .join("");
-    try {
-      printLabelHtml(`<!doctype html><html><body><div>${html}</div></body></html>`);
-      toast.success(`Sent ${labels.length} labels to printer`);
-    } catch (err) {
-      toast.error("Print failed", { description: err instanceof Error ? err.message : undefined });
     }
   }
 
@@ -609,38 +570,65 @@ export function ProductsPage() {
         }
       />
 
-      {/* Action bar (search + utility buttons). */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative w-full max-w-md">
+      {/* Search + filter card */}
+      <Card>
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full max-w-sm flex-1">
             <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
             <Input
               placeholder="Search by product name, SKU, 13-digit code…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="h-9 pl-9 text-sm"
             />
           </div>
-          <BarcodeLookupInput onLookup={handleBarcodeLookup} className="w-full sm:max-w-[240px]" />
-          {refetching ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {chips.map((chip) => {
+              const active = chip.kind === activeCategory.kind;
+              return (
+                <button
+                  key={chip.kind}
+                  type="button"
+                  onClick={() => setActiveCategory(chip)}
+                  className={
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors " +
+                    (active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground")
+                  }
+                >
+                  {chip.label}
+                  <span className={
+                    "rounded-full px-1.5 py-0.5 text-[10px] font-bold " +
+                    (active ? "bg-primary-foreground/20" : "bg-muted")
+                  }>
+                    {chip.value}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {missingBarcodes && (
-            <Button variant="outline" onClick={handleBackfill} disabled={backfilling} className="gap-1.5">
-              <Barcode className="h-4 w-4" /> {backfilling ? "Generating…" : "Generate barcodes"}
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => toast.info("Camera scan is available on mobile")} className="gap-1.5">
-            <Barcode className="h-4 w-4" /> Scan Barcode
+      </Card>
+
+      {/* Action buttons row */}
+      <div className="flex flex-wrap items-center gap-2">
+        {missingBarcodes && (
+          <Button variant="outline" size="sm" onClick={handleBackfill} disabled={backfilling} className="gap-1.5">
+            <Barcode className="h-3.5 w-3.5" /> {backfilling ? "Generating…" : "Generate barcodes"}
           </Button>
-          <Button variant="outline" onClick={handlePrintAllLabels} className="gap-1.5">
-            <Printer className="h-4 w-4" /> Print Labels
-          </Button>
-          <Button variant="outline" onClick={handleCsvExport} className="gap-1.5">
-            <FileDown className="h-4 w-4" /> Export CSV
-          </Button>
-          <Button onClick={openAdd} className="gap-1.5">
-            <Plus className="h-4 w-4" /> Add New Product
+        )}
+        <Button variant="outline" size="sm" onClick={() => setLabelSelectOpen(true)} className="gap-1.5">
+          <Printer className="h-3.5 w-3.5" /> Print Label
+        </Button>
+        <Button variant="outline" size="sm" onClick={handleCsvExport} className="gap-1.5">
+          <FileDown className="h-3.5 w-3.5" /> Export CSV
+        </Button>
+        <div className="ml-auto flex items-center gap-2">
+          <BarcodeLookupInput onLookup={handleBarcodeLookup} className="h-9 w-full sm:max-w-[200px]" />
+          {refetching ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : null}
+          <Button size="sm" onClick={openAdd} className="gap-1.5">
+            <Plus className="h-3.5 w-3.5" /> Add New Product
           </Button>
         </div>
       </div>
@@ -746,36 +734,6 @@ export function ProductsPage() {
         </Card>
       </div>
 
-      {/* Filter chip strip. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {chips.map((chip) => {
-          const active =
-            chip.kind === "all"
-              ? activeCategory.kind === "all"
-              : chip.kind === "low"
-                ? activeCategory.kind === "low"
-                : activeCategory.kind === "category" && activeCategory.category === chip.category;
-          return (
-            <button
-              key={`${chip.kind}-${chip.label}`}
-              type="button"
-              onClick={() => setActiveCategory(chip)}
-              className={
-                "rounded-full border px-3.5 py-1.5 text-xs font-semibold tabular-nums transition-colors " +
-                (active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground")
-              }
-            >
-              {chip.label}
-              <span className="ml-2 rounded-full bg-black/10 px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase dark:bg-white/15">
-                {chip.value}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
       {error ? (
         <Card className="flex items-center justify-between gap-3 p-6 text-sm text-destructive">
           <span>{error}</span>
@@ -822,8 +780,8 @@ export function ProductsPage() {
                     </TableCell>
                     <TableCell className="max-w-56">
                       <div className="truncate font-medium">{p.name}</div>
-                      {p.color ? (
-                        <div className="text-xs text-muted-foreground">{p.color} Diamond</div>
+                      {p.category ? (
+                        <div className="text-muted-foreground text-xs">{p.category}</div>
                       ) : null}
                     </TableCell>
                     <TableCell>
@@ -837,12 +795,12 @@ export function ProductsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      <div>Yellow Gold / Size {p.size || "—"}</div>
-                      <div>Net: {formatWeight(p.weight ?? 0)}</div>
+                      <div>{[p.color, p.size ? `Size ${p.size}` : null].filter(Boolean).join(" / ") || "—"}</div>
+                      {p.purity ? <div className="font-medium">Purity {p.purity}</div> : null}
                     </TableCell>
-                    <TableCell className="text-xs">
-                      <div>Gross: {formatWeight((p.weight ?? 0) + 500)}</div>
-                      <div className="text-muted-foreground">Net: {formatWeight(p.weight ?? 0)}</div>
+                    <TableCell className="text-muted-foreground text-xs">
+                      <div>{formatWeight(p.weight ?? 0)}</div>
+                      <div className="text-[11px]">per piece</div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={stockVariant(p)}>
@@ -963,6 +921,16 @@ export function ProductsPage() {
                 />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="p-purity">Purity</Label>
+                <Input
+                  id="p-purity"
+                  value={form.purity}
+                  onChange={(e) => setForm({ ...form, purity: e.target.value })}
+                  placeholder="e.g. 24K / 22K / 916 / 925"
+                  maxLength={20}
+                />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="p-stock">Stock</Label>
                 <Input
                   id="p-stock"
@@ -1039,6 +1007,7 @@ export function ProductsPage() {
                 size: detailsProduct.size,
                 category: detailsProduct.category,
                 weight: detailsProduct.weight,
+                purity: detailsProduct.purity,
                 imageUrl: detailsProduct.imageUrl,
                 stock: detailsProduct.stock,
                 lowStockThreshold: detailsProduct.lowStockThreshold,
@@ -1055,6 +1024,23 @@ export function ProductsPage() {
         formatDate={(d) =>
           new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
         }
+      />
+
+      <LabelPrintSelectDialog
+        open={labelSelectOpen}
+        onOpenChange={setLabelSelectOpen}
+        products={products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          sellingPrice: p.sellingPrice,
+          weight: p.weight,
+          color: p.color,
+          size: p.size,
+          category: p.category,
+        }))}
+        onSelect={handleLabelSelect}
       />
 
       <LabelPrintDialog

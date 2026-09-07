@@ -89,6 +89,11 @@ export interface ChartTooltipProps {
    * Default: `var(--chart-tooltip-background)`.
    */
   backgroundColor?: string;
+  /**
+   * Data field key to use for the tooltip title instead of formatting the date.
+   * When set, the title shows `point[titleKey]` directly.
+   */
+  titleKey?: string;
 }
 
 interface ChartTooltipInnerProps extends ChartTooltipProps {
@@ -120,6 +125,7 @@ const ChartTooltipInner = memo(function ChartTooltipInner({
   boxSpringConfig,
   panelStyle,
   backgroundColor,
+  titleKey,
 }: ChartTooltipInnerProps) {
   const {
     tooltipData,
@@ -248,9 +254,13 @@ const ChartTooltipInner = memo(function ChartTooltipInner({
     if (barXAccessor) {
       return barXAccessor(tooltipData.point);
     }
+    // When titleKey is set, use the data field directly (e.g., "label" for monthly charts)
+    if (titleKey) {
+      return String(tooltipData.point[titleKey] ?? "");
+    }
     // For line/area charts, use the date
     return weekdayDateFmt.format(xAccessor(tooltipData.point));
-  }, [tooltipData, barXAccessor, xAccessor]);
+  }, [tooltipData, barXAccessor, xAccessor, titleKey]);
 
   const tooltipContent = (
     <>

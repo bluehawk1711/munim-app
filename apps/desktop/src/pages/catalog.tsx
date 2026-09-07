@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Loader2, Search, Layers, X } from "lucide-react";
+import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Loader2, Search, Layers, X, Package, ImageIcon, Barcode, AlertTriangle, Tag } from "lucide-react";
 import {
   swatchColor,
   type CatalogItem,
@@ -199,8 +199,9 @@ export function CatalogPage() {
   const categoryItems = categories.data ?? [];
 
   // Cheap cached call — the pagination header carries the real product count.
-  const productsQ = useQueryState(useProducts({ pageSize: 1 }));
+  const productsQ = useQueryState(useProducts({ pageSize: 1000 }));
   const totalProducts = productsQ.data?.pagination.totalCount ?? 0;
+  const allProducts = productsQ.data?.products ?? [];
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -210,9 +211,17 @@ export function CatalogPage() {
   const [pieHovered, setPieHovered] = useState<number | null>(null);
 
   const totalVariants = colorItems.length + sizeItems.length + categoryItems.length;
-  const totalLinks = colorItems.reduce((a, c) => a + c.productCount, 0) + sizeItems.reduce((a, c) => a + c.productCount, 0) + categoryItems.reduce((a, c) => a + c.productCount, 0);
   const inUseCount = [...colorItems, ...sizeItems, ...categoryItems].filter((c) => c.productCount > 0).length;
   const unusedCount = totalVariants - inUseCount;
+
+  // Catalog health stats from actual product data
+  const catalogHealth = useMemo(() => {
+    const withImage = allProducts.filter((p) => p.imageUrl).length;
+    const withBarcode = allProducts.filter((p) => p.barcode).length;
+    const lowStock = allProducts.filter((p) => p.stock <= (p.lowStockThreshold ?? 0)).length;
+    const uncategorized = allProducts.filter((p) => !p.category).length;
+    return { withImage, withBarcode, lowStock, uncategorized };
+  }, [allProducts]);
 
   // Composition donut — products linked per category (deterministic swatch colors).
   const composition = useMemo(() => {
@@ -339,31 +348,49 @@ export function CatalogPage() {
         </CardContent>
       </Card>
 
-      {/* ── Consolidated masters summary + composition donut ───────── */}
+      {/* ── Catalog health summary + composition donut ───────── */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardContent className="p-4">
             <div className="flex items-center gap-2">
-              <Layers className="text-primary h-4 w-4" />
-              <h2 className="text-sm font-bold">Consolidated 3-Way Master Catalog Architecture</h2>
+              <Package className="text-primary h-4 w-4" />
+              <h2 className="text-sm font-bold">Catalog Health Overview</h2>
             </div>
             <p className="text-muted-foreground mt-1 text-xs">
-              Colors, sizes and categories live in one shared service — every product links to these masters, so a rename
-              here updates the label everywhere without touching the product rows.
+              Quick snapshot of product data quality — spot gaps in images, barcodes, stock levels, and category coverage.
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
-                { label: "Colors & Enamels", value: colorItems.length },
-                { label: "Sizes & Standards", value: sizeItems.length },
-                { label: "Categories & Metals", value: categoryItems.length },
-                { label: "Active Links", value: totalLinks },
-              ].map((s) => (
-                <div key={s.label} className="bg-muted/50 rounded-lg border p-2.5">
-                  <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">{s.label}</p>
-                  <p className="mt-0.5 text-lg font-bold tabular-nums">{s.value}</p>
-                </div>
-              ))}
+                { label: "Total Products", value: totalProducts, icon: Package, color: "text-primary bg-primary/10" },
+                { label: "With Images", value: catalogHealth.withImage, icon: ImageIcon, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" },
+                { label: "With Barcodes", value: catalogHealth.withBarcode, icon: Barcode, color: "text-blue-600 dark:text-blue-400 bg-blue-500/10" },
+                { label: "Low Stock", value: catalogHealth.lowStock, icon: AlertTriangle, color: catalogHealth.lowStock > 0 ? "text-amber-600 dark:text-amber-400 bg-amber-500/10" : "text-muted-foreground bg-muted/50" },
+              ].map((s) => {
+                const Icon = s.icon;
+                return (
+                  <div key={s.label} className="rounded-lg border p-2.5">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`flex h-5 w-5 items-center justify-center rounded ${s.color}`}>
+                        <Icon className="h-3 w-3" />
+                      </div>
+                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">{s.label}</p>
+                    </div>
+                    <p className="mt-1 text-lg font-bold tabular-nums">{s.value}</p>
+                  </div>
+                );
+              })}
             </div>
+            {catalogHealth.uncategorized > 0 && (
+              <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs">
+                <Tag className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                <span className="text-amber-700 dark:text-amber-300">
+                  {catalogHealth.uncategorized} product{catalogHealth.uncategorized !== 1 ? "s" : ""} without a category —{" "}
+                  <button type="button" onClick={() => setStatus("all")} className="underline underline-offset-2">
+                    assign them
+                  </button>
+                </span>
+              </div>
+            )}
           </CardContent>
         </Card>
 

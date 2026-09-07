@@ -35,6 +35,8 @@ export type ProductDetails = {
   category?: string | null;
   /** Weight in milligrams. */
   weight: number | null;
+  /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
+  purity?: string | null;
   imageUrl: string | null;
   stock: number;
   lowStockThreshold: number;
@@ -75,6 +77,7 @@ export function ProductDetailsDialog({
     { label: "Size", value: product.size || "—", icon: <Ruler className="h-3.5 w-3.5" /> },
     { label: "Category", value: product.category || "—", icon: <Boxes className="h-3.5 w-3.5" /> },
     { label: "Weight", value: formatWeight(product.weight), icon: <Weight className="h-3.5 w-3.5" /> },
+    { label: "Purity", value: product.purity || "—", icon: <Tag className="h-3.5 w-3.5" /> },
     { label: "Stock", value: `${product.stock} unit${product.stock !== 1 ? "s" : ""}`, icon: <Package className="h-3.5 w-3.5" /> },
     { label: "Buy price", value: formatCurrency(product.purchasePrice), icon: <IndianRupee className="h-3.5 w-3.5" /> },
     { label: "Selling price", value: formatCurrency(product.sellingPrice), icon: <IndianRupee className="h-3.5 w-3.5" /> },

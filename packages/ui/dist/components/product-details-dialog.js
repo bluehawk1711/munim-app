@@ -20,6 +20,7 @@ export function ProductDetailsDialog({ open, onOpenChange, product, formatCurren
         { label: "Size", value: product.size || "—", icon: _jsx(Ruler, { className: "h-3.5 w-3.5" }) },
         { label: "Category", value: product.category || "—", icon: _jsx(Boxes, { className: "h-3.5 w-3.5" }) },
         { label: "Weight", value: formatWeight(product.weight), icon: _jsx(Weight, { className: "h-3.5 w-3.5" }) },
+        { label: "Purity", value: product.purity || "—", icon: _jsx(Tag, { className: "h-3.5 w-3.5" }) },
         { label: "Stock", value: `${product.stock} unit${product.stock !== 1 ? "s" : ""}`, icon: _jsx(Package, { className: "h-3.5 w-3.5" }) },
         { label: "Buy price", value: formatCurrency(product.purchasePrice), icon: _jsx(IndianRupee, { className: "h-3.5 w-3.5" }) },
         { label: "Selling price", value: formatCurrency(product.sellingPrice), icon: _jsx(IndianRupee, { className: "h-3.5 w-3.5" }) },

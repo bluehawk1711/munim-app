@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, X, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2, AlertTriangle, Loader2 } from "lucide-react";
-import { formatDate, formatCurrency } from "@munim/core";
+import {
+  Search, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2,
+  AlertTriangle, Loader2, CreditCard, Smartphone, Banknote, Clock,
+  ArrowUpRight,
+} from "lucide-react";
+import { formatCurrency } from "@munim/core";
 import type { InvoiceDto } from "@munim/api-client";
 import {
   useProducts,
@@ -17,10 +21,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-  SummaryTile,
 } from "@munim/ui";
 
 type RangeKey = "all" | "today" | "7d" | "30d" | "month" | "year";
+type PaymentMethod = "cash" | "upi" | "card" | "credit";
 
 function rangeToDates(range: RangeKey): { startDate?: string; endDate?: string } {
   if (range === "all") return {};
@@ -47,7 +51,12 @@ function rangeToDates(range: RangeKey): { startDate?: string; endDate?: string }
   }
 }
 
-type InvoiceRow = InvoiceDto;
+const PAYMENT_METHODS: { key: PaymentMethod; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { key: "upi", label: "UPI", icon: Smartphone },
+  { key: "card", label: "Card", icon: CreditCard },
+  { key: "cash", label: "Cash", icon: Banknote },
+  { key: "credit", label: "Credit", icon: Clock },
+];
 
 export function SalesPage() {
   const [productId, setProductId] = useState("");
@@ -55,13 +64,13 @@ export function SalesPage() {
   const [price, setPrice] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [paid, setPaid] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [saving, setSaving] = useState(false);
 
-  // List filters (web parity)
+  // List filters
   const [search, setSearch] = useState("");
   const [range, setRange] = useState<RangeKey>("all");
-  const [undoTarget, setUndoTarget] = useState<InvoiceRow | null>(null);
+  const [undoTarget, setUndoTarget] = useState<InvoiceDto | null>(null);
   const [undoOpen, setUndoOpen] = useState(false);
   const [undoing, setUndoing] = useState(false);
 
@@ -90,8 +99,12 @@ export function SalesPage() {
 
   const sales = recent?.invoices ?? [];
   const totalRevenue = sales.reduce((s, x) => s + x.total, 0);
-  const totalQty = sales.reduce((s, x) => s + (x.items[0]?.quantity ?? 0), 0);
+  const totalQty = sales.reduce((s, x) => s + x.items.reduce((a, it) => a + it.quantity, 0), 0);
   const avgSale = sales.length > 0 ? totalRevenue / sales.length : 0;
+  const avgPerUnit = totalQty > 0 ? totalRevenue / totalQty : 0;
+
+  const lineTotal = (Number(quantity) || 0) * (Number(price) || 0);
+  const gst = Math.round(lineTotal * 0.03 * 100) / 100;
 
   async function handleSell() {
     const qty = Number(quantity);
@@ -116,8 +129,8 @@ export function SalesPage() {
         sellingPrice: sellPrice || undefined,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
-        paid,
-        paymentMethod: "cash",
+        paid: paymentMethod !== "credit",
+        paymentMethod,
       });
       toast.success(`Sale done — ${invoice.invoiceNumber} (${money(invoice.total)})`);
       setQuantity("1");
@@ -144,188 +157,388 @@ export function SalesPage() {
     }
   }
 
-  const hasFilters = !!search || range !== "all";
-
   return (
     <div className="space-y-4">
+      {/* ── Header ─────────────────────────────────────────────── */}
       <PageHeader
-        title="Sales"
+        title="Sales Counter & POS Terminal"
         badge="Counter"
-        subtitle="Quick counter sales and the running sales ledger — shared with web & mobile."
+        subtitle="Quick counter sales, last n items and returns — unified sales ledger with margin tracking."
       />
 
-      {/* Summary (web parity) */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryTile icon={Receipt} label="Total Sales" value={String(sales.length)} />
-        <SummaryTile icon={IndianRupee} label="Total Revenue" value={formatCurrency(totalRevenue)} accent="primary" />
-        <SummaryTile icon={ShoppingCart} label="Units Sold" value={String(totalQty)} />
-        <SummaryTile icon={TrendingUp} label="Avg. Sale Value" value={formatCurrency(avgSale)} />
+      {/* ── Stats tiles ────────────────────────────────────────── */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Receipt className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Total Sales</p>
+              <p className="text-lg font-semibold tabular-nums">{sales.length}</p>
+              <p className="text-[11px] text-muted-foreground">
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  <ArrowUpRight className="inline h-3 w-3" />
+                </span>
+                {" "}in current filter
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <IndianRupee className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Total Revenue</p>
+              <p className="text-lg font-semibold tabular-nums">{formatCurrency(totalRevenue)}</p>
+              <p className="text-[11px] text-muted-foreground">
+                Avg. {formatCurrency(avgSale)} / sale
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+              <ShoppingCart className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Units Sold</p>
+              <p className="text-lg font-semibold tabular-nums">{totalQty}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {sales.length > 0 ? `${(totalQty / sales.length).toFixed(1)} avg / txn` : "—"}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="flex items-center gap-3 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+              <TrendingUp className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Avg. Sale Value</p>
+              <p className="text-lg font-semibold tabular-nums">{formatCurrency(avgSale)}</p>
+              <p className="text-[11px] text-muted-foreground">
+                Weighted {formatCurrency(avgPerUnit)} / unit
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Toolbar (web parity) */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search invoice, product, SKU…"
-              className="h-9 pl-9"
-              aria-label="Search sales"
-            />
-          </div>
-          <Select value={range} onValueChange={(v) => setRange(v as RangeKey)}>
-            <SelectTrigger className="h-9 w-[160px]" aria-label="Filter by date range">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="7d">Last 7 days</SelectItem>
-              <SelectItem value="30d">Last 30 days</SelectItem>
-              <SelectItem value="month">This month</SelectItem>
-              <SelectItem value="year">This year</SelectItem>
-            </SelectContent>
-          </Select>
-          {refetching && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          )}
-          {hasFilters && (
-            <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setRange("all") }} className="h-9 gap-1">
-              <X className="h-3.5 w-3.5" /> Clear
-            </Button>
-          )}
-        </div>
-      </div>
-
+      {/* ── Main content: POS + History ────────────────────────── */}
       <div className="grid gap-5 xl:grid-cols-5">
+        {/* ── Left: Quick Sale Terminal ──────────────────────────── */}
         <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <ShoppingCart className="h-4 w-4" /> Quick Sale
-            </CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <ShoppingCart className="h-4 w-4" /> Quick Sale Terminal
+              </CardTitle>
+              <span className="text-muted-foreground text-[11px]">Point of sales</span>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Record a sale in seconds — search by name, SKU, or <kbd className="bg-muted rounded px-1 py-0.5 text-[10px] font-mono">Scan</kbd> a barcode.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Product search */}
             <div className="space-y-1.5">
-              <Label>Product</Label>
-              <Select value={productId || undefined} onValueChange={(v) => {
-                setProductId(v);
-                const p = allProducts?.find((x) => x.id === v);
-                if (p) setPrice(String(p.sellingPrice));
-              }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose a product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {allProducts?.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name} — {money(p.sellingPrice)} ({p.stock} left)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Select Product / Scan Barcode</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Select value={productId || undefined} onValueChange={(v) => {
+                  setProductId(v);
+                  const p = allProducts?.find((x) => x.id === v);
+                  if (p) setPrice(String(p.sellingPrice));
+                }}>
+                  <SelectTrigger className="h-10 pl-9 font-mono text-sm">
+                    <SelectValue placeholder="Search by name, SKU, or scan barcode…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allProducts?.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex flex-col">
+                          <span>{p.name}</span>
+                          <span className="text-muted-foreground text-xs">
+                            {p.sku} · {money(p.sellingPrice)} · {p.stock} in stock
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selected && (
+                <div className="flex items-center gap-3 rounded-lg border p-2.5">
+                  <div className="bg-muted flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-lg font-bold text-primary/60">
+                    {selected.name.charAt(0)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{selected.name}</p>
+                    <p className="text-muted-foreground text-xs">
+                      {selected.sku}
+                      {selected.category ? <>, {selected.category}</> : null}
+                      {selected.color ? <>, {selected.color}</> : null}
+                      {selected.size ? <> · {selected.size}</> : null}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Weight: {selected.weight != null ? `${(selected.weight / 1000).toFixed(2)} g` : "—"}
+                      {" · "}Stock: <span className={selected.stock <= (selected.lowStockThreshold ?? 0) ? "text-amber-600 font-medium" : ""}>{selected.stock} units</span>
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
+            {/* Quantity & Price */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="s-qty">Quantity</Label>
-                <Input id="s-qty" type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                <Label htmlFor="s-qty" className="text-xs">Quantity</Label>
+                <Input
+                  id="s-qty"
+                  type="number"
+                  min={1}
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  className="h-10 text-sm"
+                />
+                {selected && (
+                  <p className="text-muted-foreground text-[11px]">
+                    In stock: {selected.stock}
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="s-price">Selling price</Label>
-                <Input id="s-price" type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
+                <Label htmlFor="s-price" className="text-xs">Selling Price</Label>
+                <Input
+                  id="s-price"
+                  type="number"
+                  min={0}
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="h-10 text-sm"
+                />
+                {selected && Number(price) > 0 && selected.purchasePrice > 0 && (
+                  <p className="text-[11px]">
+                    <span className="text-muted-foreground">Margin: </span>
+                    <span className={Number(price) > selected.purchasePrice ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-red-600 dark:text-red-400"}>
+                      {money(Number(price) - selected.purchasePrice)}
+                    </span>
+                  </p>
+                )}
               </div>
             </div>
 
+            {/* Customer Khata Profile */}
             <div className="space-y-1.5">
-              <Label htmlFor="s-customer">Customer name</Label>
-              <Input id="s-customer" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="s-phone">Phone</Label>
-              <Input id="s-phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+              <Label className="text-xs">Customer Khata Profile</Label>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <Input
+                  placeholder="Customer name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  className="h-9 text-sm"
+                />
+                <Input
+                  placeholder="Customer phone"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="text-muted-foreground flex gap-4 text-[11px]">
+                <span>1 name added</span>
+                <span>Current balance: {money(0)}</span>
+              </div>
             </div>
 
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.target.checked)} className="h-4 w-4" />
-              Payment received (marks invoice PAID)
-            </label>
+            {/* Payment Method */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Payment Received (Marks Invoice PAID)</Label>
+              <div className="grid grid-cols-4 gap-2">
+                {PAYMENT_METHODS.map((pm) => {
+                  const Icon = pm.icon;
+                  const active = paymentMethod === pm.key;
+                  return (
+                    <button
+                      key={pm.key}
+                      type="button"
+                      onClick={() => setPaymentMethod(pm.key)}
+                      className={`flex flex-col items-center gap-1 rounded-lg border p-2.5 text-xs transition-colors ${
+                        active
+                          ? "border-primary bg-primary/5 text-primary font-medium"
+                          : "text-muted-foreground hover:bg-muted/50"
+                      }`}
+                    >
+                      <Icon className="h-4 w-4" />
+                      {pm.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            <Button className="w-full" onClick={handleSell} disabled={saving}>
-              {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Selling…</> : `Sell for ${money((Number(quantity) || 0) * (Number(price) || 0))}`}
+            {/* Amount summary */}
+            <div className="space-y-1.5 rounded-lg border bg-muted/30 p-3">
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">Line Amount</span>
+                <span className="tabular-nums">{money(lineTotal)}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">GST (3%)</span>
+                <span className="tabular-nums">{money(gst)}</span>
+              </div>
+              <div className="border-t pt-1.5">
+                <div className="flex justify-between text-sm font-semibold">
+                  <span>Final Payable Amount</span>
+                  <span className="tabular-nums">{money(lineTotal + gst)}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <Button
+              className="h-11 w-full text-sm font-semibold"
+              onClick={handleSell}
+              disabled={saving}
+            >
+              {saving ? (
+                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Processing…</>
+              ) : (
+                <>Complete Sale & Print Bill (Ctrl+Enter)</>
+              )}
             </Button>
           </CardContent>
         </Card>
 
+        {/* ── Right: Sales History ──────────────────────────────── */}
         <Card className="xl:col-span-3">
-          <CardHeader>
-            <CardTitle className="text-sm">Sales History</CardTitle>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm">Real-Time Sales History</CardTitle>
+              <span className="text-muted-foreground text-[11px]">Search and filter by date</span>
+            </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {/* Search + range tabs */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search invoice, product, SKU…"
+                  className="h-9 pl-9 text-sm"
+                  aria-label="Search sales"
+                />
+              </div>
+              <div className="flex gap-1">
+                {(["today", "month", "year", "all"] as const).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRange(r)}
+                    className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                      range === r
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {r === "all" ? "All" : r === "today" ? "Today" : r === "month" ? "This Month" : "This Year"}
+                  </button>
+                ))}
+                {refetching && <Loader2 className="ml-1 h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+              </div>
+            </div>
+
+            {/* Table */}
             {loadingRecent ? (
               <div className="space-y-2">
                 {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sales.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-muted-foreground text-center">No sales found</TableCell></TableRow>
-                  ) : (
-                    sales.map((inv) => {
-                      const item = inv.items[0];
-                      return (
-                        <TableRow key={inv.id}>
-                          <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span className="font-medium">{item?.productName ?? inv.customerName ?? "—"}</span>
-                              {item?.sku ? <span className="text-xs text-muted-foreground">{item.sku}</span> : null}
-                            </div>
-                          </TableCell>
-                          <TableCell>{formatDate(inv.date)}</TableCell>
-                          <TableCell className="text-right tabular-nums">×{item?.quantity ?? 0}</TableCell>
-                          <TableCell className="text-right font-medium tabular-nums">{money(inv.total)}</TableCell>
-                          <TableCell>
-                            <Badge variant={inv.status === "PAID" ? "success" : inv.status === "PARTIAL" ? "warning" : "secondary"}>
-                              {inv.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              title="Undo sale"
-                              onClick={() => { setUndoTarget(inv); setUndoOpen(true); }}
-                              className="text-amber-600 hover:text-amber-600 dark:text-amber-400"
-                            >
-                              <Undo2 className="h-4 w-4" />
-                            </Button>
+              <>
+                <div className="overflow-x-auto rounded-lg border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        <TableHead className="text-xs">Invoice #</TableHead>
+                        <TableHead className="text-xs">Customer</TableHead>
+                        <TableHead className="text-xs">Product</TableHead>
+                        <TableHead className="text-xs">Qty</TableHead>
+                        <TableHead className="text-xs text-right">Total</TableHead>
+                        <TableHead className="text-xs">Status</TableHead>
+                        <TableHead className="text-xs text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sales.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-muted-foreground py-8 text-center text-sm">
+                            No sales found.
                           </TableCell>
                         </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
+                      ) : (
+                        sales.map((inv) => {
+                          const item = inv.items[0];
+                          return (
+                            <TableRow key={inv.id} className="group">
+                              <TableCell className="font-mono text-xs font-medium">{inv.invoiceNumber}</TableCell>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-sm">{inv.customerName || "—"}</span>
+                                  {inv.customerPhone ? <span className="text-muted-foreground text-xs">{inv.customerPhone}</span> : null}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className="text-sm">{item?.productName ?? "—"}</span>
+                                  {item?.sku ? <span className="text-muted-foreground text-xs">{item.sku}</span> : null}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs tabular-nums">×{item?.quantity ?? 0}</TableCell>
+                              <TableCell className="text-right text-sm font-medium tabular-nums">{money(inv.total)}</TableCell>
+                              <TableCell>
+                                <Badge variant={inv.status === "PAID" ? "success" : inv.status === "PARTIAL" ? "warning" : "secondary"} className="text-[10px]">
+                                  {inv.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  title="Undo sale"
+                                  onClick={() => { setUndoTarget(inv); setUndoOpen(true); }}
+                                  className="opacity-0 group-hover:opacity-100 text-amber-600 hover:text-amber-600 dark:text-amber-400 transition-opacity"
+                                >
+                                  <Undo2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="text-muted-foreground flex items-center justify-between text-[11px]">
+                  <span>Showing 1-{sales.length} of {sales.length} transactions</span>
+                  <span>Session Start: {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })} · Today's total: {money(totalRevenue)}</span>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Undo dialog */}
+      {/* ── Undo dialog ────────────────────────────────────────── */}
       <Dialog open={undoOpen} onOpenChange={setUndoOpen}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader>

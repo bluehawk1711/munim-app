@@ -35,6 +35,7 @@ import {
 } from "./chart-context";
 import { isGradientDefComponent, isPatternDefComponent } from "./chart-defs";
 import { shortDateFmt } from "./chart-formatters";
+import { monthLabelToDate } from "@/lib/format";
 import {
   type ChartPhase,
   type ChartStatus,
@@ -227,7 +228,12 @@ const ChartCore = memo(function ChartCore({
       if (value instanceof Date) {
         return value;
       }
-      return new Date();
+      // Try parsing as a month label (e.g., "Apr 2026") — common in reports
+      const asDate = monthLabelToDate(String(value ?? ""));
+      if (Number.isFinite(asDate.getTime())) {
+        return asDate;
+      }
+      return new Date(0);
     },
     [xDataKey]
   );

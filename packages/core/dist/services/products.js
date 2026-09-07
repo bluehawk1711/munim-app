@@ -3,6 +3,93 @@ import * as schema from "../db/schema.js";
 import { generateSku } from "../utils/codes.js";
 import { generateEan13 } from "../utils/barcode.js";
 import { logActivity } from "./activity.js";
+/**
+ * Header aggregates for the products page — computed in a single round trip so
+ * the page renders instantly with the list. Mirrors `getDashboard` shape but
+ * scoped to the catalog (no invoices/sales).
+ */
+export async function getInventoryStats(db) {
+    // Single aggregate query — Postgres can fold all of these into one scan.
+    const rows = await db
+        .select({
+        totalSkus: sql `count(*)::int`,
+        totalUnits: sql `coalesce(sum(${schema.products.stock}), 0)::double precision`,
+        totalWeightMg: sql `coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
+        stockValuationPurchase: sql `coalesce(sum(${schema.products.stock} * ${schema.products.purchasePrice}), 0)::double precision`,
+        stockValuationSelling: sql `coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)::double precision`,
+        inStockCount: sql `count(*) filter (where ${schema.products.stock} > ${schema.products.lowStockThreshold})::int`,
+        lowStockCount: sql `count(*) filter (where ${schema.products.stock} > 0 and ${schema.products.stock} <= ${schema.products.lowStockThreshold})::int`,
+        outOfStockCount: sql `count(*) filter (where ${schema.products.stock} <= 0)::int`,
+        withBarcodeCount: sql `count(*) filter (where ${schema.products.barcode} is not null and length(${schema.products.barcode}) > 0)::int`,
+    })
+        .from(schema.products);
+    const row = rows[0];
+    return {
+        totalSkus: row?.totalSkus ?? 0,
+        totalUnits: row?.totalUnits ?? 0,
+        totalWeightMg: row?.totalWeightMg ?? 0,
+        stockValuationPurchase: row?.stockValuationPurchase ?? 0,
+        stockValuationSelling: row?.stockValuationSelling ?? 0,
+        inStockCount: row?.inStockCount ?? 0,
+        lowStockCount: row?.lowStockCount ?? 0,
+        outOfStockCount: row?.outOfStockCount ?? 0,
+        withBarcodeCount: row?.withBarcodeCount ?? 0,
+    };
+}
+/**
+ * Pie chart data for the products page — per-category inventory value.
+ * Drives the donut on the redesigned desktop inventory page. Categories with
+ * no products are omitted; the uncategorized bucket (no `categoryId`) is
+ * surfaced under "Uncategorized" so the pie always sums to 100% of value.
+ */
+export async function getCategoryBreakdown(db) {
+    const rows = await db
+        .select({
+        category: sql `coalesce(${schema.categories.name}, 'Uncategorized')`,
+        skuCount: sql `count(${schema.products.id})::int`,
+        units: sql `coalesce(sum(${schema.products.stock}), 0)::double precision`,
+        weightMg: sql `coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
+        value: sql `coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)::double precision`,
+    })
+        .from(schema.products)
+        .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+        .groupBy(schema.categories.name)
+        .orderBy(desc(sql `coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)`));
+    return rows.map((r, i) => ({
+        category: r.category ?? "Uncategorized",
+        skuCount: r.skuCount,
+        units: r.units,
+        weightMg: r.weightMg,
+        value: r.value,
+        color: categoryColor(r.category ?? "Uncategorized", i),
+    }));
+}
+/** Deterministic colour per category — keeps the donut slices stable across reloads. */
+function categoryColor(name, index) {
+    // Matches the Tailwind theme chart tokens the dashboard pie uses, plus a
+    // neutral fallback for the uncategorized bucket.
+    const palette = [
+        "var(--chart-1)",
+        "var(--chart-2)",
+        "var(--chart-3)",
+        "var(--chart-4)",
+        "var(--chart-5)",
+        "var(--chart-foreground-muted)",
+    ];
+    // Stable hash → palette index so the same category always gets the same hue.
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) {
+        hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    }
+    if (name === "Uncategorized") {
+        return palette[palette.length - 1];
+    }
+    const idx = hash % (palette.length - 1);
+    // Keep `index` in the signature (used by future debugging) without affecting
+    // the deterministic colour assignment.
+    void index;
+    return palette[idx] ?? palette[0];
+}
 /* ── Lookup resolvers (colors, sizes, categories) ─────────────── */
 export async function resolveColorId(db, name) {
     const trimmed = name.trim();
@@ -42,6 +129,7 @@ const PRODUCT_SELECT = {
     name: schema.products.name,
     barcode: schema.products.barcode,
     weight: schema.products.weight,
+    purity: schema.products.purity,
     imageUrl: schema.products.imageUrl,
     stock: schema.products.stock,
     purchasePrice: schema.products.purchasePrice,
@@ -173,6 +261,7 @@ export async function createProduct(db, input) {
         name: input.name.trim(),
         barcode,
         weight: typeof input.weight === "number" && Number.isFinite(input.weight) ? input.weight : null,
+        purity: input.purity?.trim() || null,
         imageUrl: input.imageUrl?.trim() || null,
         stock: input.stock ?? 0,
         purchasePrice: input.purchasePrice ?? 0,
@@ -222,6 +311,7 @@ export async function updateProduct(db, id, input) {
             : typeof input.weight === "number" && Number.isFinite(input.weight)
                 ? input.weight
                 : null,
+        purity: input.purity === undefined ? existing.purity : input.purity?.trim() || null,
         imageUrl: input.imageUrl?.trim() || null,
         stock: input.stock ?? existing.stock,
         purchasePrice: input.purchasePrice ?? existing.purchasePrice,

@@ -115,7 +115,8 @@ export function BarChart({
           spacing={barSpacing}
           initialSpacing={rs(2)}
           endSpacing={rs(2)}
-          barRadius={rs(4)}
+          barBorderRadius={rs(4)}
+          roundedTop
           isAnimated
           animationDuration={450}
           disableScroll
@@ -210,7 +211,7 @@ export function LineChart({
           formatYLabel={(label: string) => formatValue(Number(label))}
           pointerConfig={{
             pointer1Color: accent,
-            pointerLabelComponent: items => (
+            pointerLabelComponent: (items: Array<{value: number}>) => (
               <View style={styles.pointerLabel}>
                 <Text style={styles.pointerText}>
                   {formatValue(items[0]?.value ?? 0)}
@@ -257,15 +258,18 @@ export function DonutChart({
   const active = segments.filter((s) => s.value > 0);
   const total = active.reduce((sum, s) => sum + s.value, 0);
 
-  // Server colors are CSS vars RN can't render — always map by index.
+  // Server colors are CSS vars RN can't render — those fall back to the
+  // palette by index. Callers may pass real palette hexes for semantics.
+  const colorFor = (s: DonutSegment, i: number) =>
+    s.color && !s.color.startsWith('var(') ? s.color : paletteColors[i % paletteColors.length];
   const pieData = active.map((s, i) => ({
     value: s.value,
     name: s.name,
-    color: paletteColors[i % paletteColors.length],
+    color: colorFor(s, i),
   }));
   const legendRows = segments.map((s, i) => ({
     ...s,
-    color: paletteColors[i % paletteColors.length],
+    color: colorFor(s, i),
   }));
 
   const center = (

@@ -31,6 +31,14 @@ export interface MobileColors {
     dangerSoft: string;
     mutedSoft: string;
     inputPlaceholder: string;
+    /** Always-dark surface (camera overlays, image placeholders) + the light
+     *  content that sits on it — constant across modes by design. */
+    inverseSurface: string;
+    inverseOnSurface: string;
+    /** Modal/backdrop scrim — same value web uses (`bg-black/50`), both modes. */
+    overlay: string;
+    /** Skeleton shimmer sheen — a translucent white sweep, tuned per mode. */
+    shimmerSweep: string;
     /** Chart palette (tokens `chart1`–`chart5`) — for SVG charts on Home,
      *  Reports, etc. Mode-appropriate, so they stay legible in dark mode. */
     chart1: string;

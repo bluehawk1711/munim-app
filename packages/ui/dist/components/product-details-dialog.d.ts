@@ -19,6 +19,8 @@ export type ProductDetails = {
     category?: string | null;
     /** Weight in milligrams. */
     weight: number | null;
+    /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
+    purity?: string | null;
     imageUrl: string | null;
     stock: number;
     lowStockThreshold: number;

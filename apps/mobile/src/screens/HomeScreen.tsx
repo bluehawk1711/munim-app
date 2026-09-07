@@ -29,7 +29,7 @@ import {useDashboard, useProductByBarcode, useQueryState} from '@munim/query';
 import {money} from '../lib/format';
 import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 import {Badge, Card, Empty, ErrorBox, Loading, Screen} from '../components/ui';
-import {LineChart} from '../components/charts';
+import {LineChart, BarChart, DonutChart} from '../components/charts';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {QuickSaleSheet} from '../components/quick-sale-sheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
@@ -208,6 +208,31 @@ export function HomeScreen() {
               </Text>
             </View>
             <LineChart data={performance} />
+          </Card>
+
+          {/* Stock & sales pulse — live composition charts from the dashboard */}
+          <Text style={styles.section}>Stock & Sales Pulse</Text>
+          <Card style={styles.card} index={1}>
+            <Text style={styles.chartTitle}>STOCK DISTRIBUTION</Text>
+            <DonutChart
+              segments={(data.stockDistribution ?? []).map((s) => ({name: s.name, value: s.value, color: s.color}))}
+              centerSub="SKUs"
+              formatValue={(v) => String(Math.round(v))}
+              onSegmentPress={() => goTo('products')}
+            />
+          </Card>
+          <Card style={styles.card} index={2}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>UNITS SOLD</Text>
+              <Text style={styles.chartRange}>
+                {(data.soldPerMonth ?? []).reduce((a, b) => a + b.quantity, 0)} pcs / 6 mo
+              </Text>
+            </View>
+            <BarChart
+              data={(data.soldPerMonth ?? []).map((m) => ({label: m.month.slice(0, 3), value: m.quantity}))}
+              formatValue={(v) => String(Math.round(v))}
+              height={rs(140)}
+            />
           </Card>
 
           {/* Quick actions */}

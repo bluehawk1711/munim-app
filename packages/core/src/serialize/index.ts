@@ -42,6 +42,8 @@ export type ProductDto = {
   barcode: string | null;
   /** Weight in milligrams (mg). */
   weight: number | null;
+  /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
+  purity: string | null;
   imageUrl: string | null;
   stock: number;
   purchasePrice: number;
@@ -62,6 +64,7 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     category: p.categoryName ?? "",
     barcode: p.barcode,
     weight: p.weight,
+    purity: p.purity,
     imageUrl: p.imageUrl,
     stock: p.stock,
     purchasePrice: p.purchasePrice,

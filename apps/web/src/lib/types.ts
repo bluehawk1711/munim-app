@@ -13,6 +13,8 @@ export type Product = {
   barcode: string | null
   /** Weight in milligrams (mg). */
   weight: number | null
+  /** Metal purity, e.g. "22K" or "916". */
+  purity: string | null
   imageUrl: string | null
   stock: number
   purchasePrice: number

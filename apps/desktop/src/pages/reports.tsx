@@ -133,7 +133,7 @@ export function ReportsPage() {
 
   // Units sold per month (real soldPerMonth series from the dashboard).
   const unitsSeries = useMemo(
-    () => (dash?.soldPerMonth ?? []).map((m) => ({ name: m.month, quantity: m.quantity })),
+    () => (dash?.soldPerMonth ?? []).map((m) => ({ name: m.month, label: m.month.split(" ")[0] ?? m.month, quantity: m.quantity })),
     [dash],
   );
 
@@ -338,6 +338,7 @@ export function ReportsPage() {
                 />
                 <XAxis numTicks={6} />
                 <ChartTooltip
+                  titleKey="label"
                   rows={(p) => [{ label: String(p.label ?? "Revenue"), value: money(Number(p.revenue)), color: "var(--chart-1)" }]}
                 />
               </AreaChart>
@@ -408,7 +409,7 @@ export function ReportsPage() {
               {unitsSeries.length === 0 ? (
                 <p className="text-muted-foreground py-6 text-center text-sm">No sales yet.</p>
               ) : (
-                <BarChart data={unitsSeries} xDataKey="name" className="h-40" margin={{ top: 12, right: 8, bottom: 4, left: 4 }}>
+                <BarChart data={unitsSeries} xDataKey="label" className="h-40" margin={{ top: 12, right: 8, bottom: 4, left: 4 }}>
                   <Grid horizontal numTicksRows={3} />
                   <Bar dataKey="quantity" fill="var(--chart-2)" />
                   <BarXAxis />

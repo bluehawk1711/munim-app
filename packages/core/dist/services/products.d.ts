@@ -1,5 +1,53 @@
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
+export type InventoryStats = {
+    /** Distinct SKUs in the catalog. */
+    totalSkus: number;
+    /** Sum of `stock` across all products (units, not value). */
+    totalUnits: number;
+    /** Sum of `stock * weight` in milligrams — total physical material on hand. */
+    totalWeightMg: number;
+    /** Sum of `stock * purchase_price` — capital tied up in inventory. */
+    stockValuationPurchase: number;
+    /** Sum of `stock * selling_price` — retail value of current inventory. */
+    stockValuationSelling: number;
+    /** Distinct SKUs that are in stock (`stock > low_stock_threshold`). */
+    inStockCount: number;
+    /** Distinct SKUs at or below their threshold (still > 0). */
+    lowStockCount: number;
+    /** Distinct SKUs with `stock <= 0`. */
+    outOfStockCount: number;
+    /** Products with a non-empty barcode (for the "barcode coverage" tile). */
+    withBarcodeCount: number;
+};
+/** A single slice of the inventory pie — per category totals. */
+export type CategoryBreakdown = {
+    /** Category name (empty string → uncategorized). */
+    category: string;
+    /** Number of distinct SKUs in this category. */
+    skuCount: number;
+    /** Sum of `stock` in this category. */
+    units: number;
+    /** Sum of `stock * weight` in milligrams. */
+    weightMg: number;
+    /** Sum of `stock * selling_price` for this category. */
+    value: number;
+    /** Pie slice color (deterministic from the category name). */
+    color: string;
+};
+/**
+ * Header aggregates for the products page — computed in a single round trip so
+ * the page renders instantly with the list. Mirrors `getDashboard` shape but
+ * scoped to the catalog (no invoices/sales).
+ */
+export declare function getInventoryStats(db: DbClient): Promise<InventoryStats>;
+/**
+ * Pie chart data for the products page — per-category inventory value.
+ * Drives the donut on the redesigned desktop inventory page. Categories with
+ * no products are omitted; the uncategorized bucket (no `categoryId`) is
+ * surfaced under "Uncategorized" so the pie always sums to 100% of value.
+ */
+export declare function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakdown[]>;
 export declare function resolveColorId(db: DbClient, name: string): Promise<string>;
 export declare function resolveSizeId(db: DbClient, name: string): Promise<string>;
 export declare function resolveCategoryId(db: DbClient, name: string): Promise<string | null>;
@@ -27,6 +75,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         name: string;
         barcode: string | null;
         weight: number | null;
+        purity: string | null;
         imageUrl: string | null;
         stock: number;
         purchasePrice: number;
@@ -55,6 +104,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     name: string;
     barcode: string | null;
     weight: number | null;
+    purity: string | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -78,6 +128,9 @@ export type ProductInput = {
     barcode?: string;
     /** Weight in milligrams (mg). */
     weight?: number;
+    /** Metal purity stamp — e.g. "24K", "22K", "916", "925".
+     * `undefined` → keep existing (edit); `""` → clear; else set. */
+    purity?: string;
     imageUrl?: string;
     stock?: number;
     purchasePrice?: number;
@@ -99,6 +152,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     name: string;
     barcode: string | null;
     weight: number | null;
+    purity: string | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -120,6 +174,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     name: string;
     barcode: string | null;
     weight: number | null;
+    purity: string | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -148,6 +203,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     name: string;
     barcode: string | null;
     weight: number | null;
+    purity: string | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;
@@ -186,6 +242,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     name: string;
     barcode: string | null;
     weight: number | null;
+    purity: string | null;
     imageUrl: string | null;
     stock: number;
     purchasePrice: number;

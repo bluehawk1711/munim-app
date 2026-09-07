@@ -29,7 +29,7 @@ import {
   useQueryState,
 } from '@munim/query';
 import {money} from '../lib/format';
-import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
+import {rs, rw, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 import {
   Badge,
   Button,
@@ -43,6 +43,7 @@ import {
   colors,
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
+import {DonutChart} from '../components/charts';
 import {useTheme, useThemeStyles} from '../theme';
 import {useAppStore} from '../lib/store';
 import {useNavStore} from '../lib/nav-store';
@@ -244,6 +245,23 @@ export function SalesScreen() {
               <Text style={styles.tileSub}>Karigar / Vendor</Text>
             </Pressable>
           </View>
+
+          {/* Get vs Give composition — chart view of the ledger split */}
+          {(youllGet > 0 || youllGive > 0) ? (
+            <Card style={styles.donutCard}>
+              <DonutChart
+                segments={[
+                  {name: "You'll Get", value: youllGet, color: palette.danger},
+                  {name: "You'll Give", value: youllGive, color: palette.success},
+                ]}
+                centerValue={money(Math.abs(netOwed))}
+                centerSub="Net Owed"
+                size={rw(132)}
+                thickness={rs(16)}
+                onSegmentPress={(name) => setFilter(name === "You'll Get" ? 'get' : 'give')}
+              />
+            </Card>
+          ) : null}
 
           {/* Net owed strip */}
           <View style={[styles.netOwedStrip, {borderColor: palette.border}]}>
@@ -515,6 +533,11 @@ const makeStyles = (c: MobileColors) =>
       fontSize: typography.caption,
       color: c.muted,
       marginTop: rs(2),
+    },
+    /* Get vs Give donut card */
+    donutCard: {
+      marginHorizontal: CARD_MARGIN,
+      marginTop: rs(10),
     },
     /* Net owed strip */
     netOwedStrip: {

@@ -23,6 +23,7 @@ import {
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {rw, rh, rs, typography, spacing, radii, GRID_GAP, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
+import {DonutChart} from '../components/charts';
 import {
   Button,
   Card,
@@ -175,9 +176,22 @@ export function AdvancesScreen() {
           </View>
           <Card style={[styles.summaryCard, {marginHorizontal: CARD_MARGIN}]} index={2}>
             <Text style={styles.summaryLabel}>Net position</Text>
-            <Text style={[styles.summaryValue, {color: totalReceivable - totalPayable >= 0 ? colors.success : colors.danger}]}>
-              {money(totalReceivable - totalPayable)}
-            </Text>
+            {(totalReceivable > 0 || totalPayable > 0) ? (
+              <View style={{alignItems: 'center', marginTop: spacing.sm}}>
+                <DonutChart
+                  segments={[
+                    {name: 'You will receive', value: totalReceivable, color: colors.success},
+                    {name: 'You will pay', value: totalPayable, color: colors.danger},
+                  ]}
+                  centerValue={money(totalReceivable - totalPayable)}
+                  centerSub="Net"
+                  size={rw(120)}
+                  thickness={rs(15)}
+                />
+              </View>
+            ) : (
+              <Text style={[styles.summaryValue, {color: colors.success}]}>{money(0)}</Text>
+            )}
           </Card>
         </View>
 

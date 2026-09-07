@@ -44,7 +44,7 @@ export function AppShell({ current, title, children }: AppShellProps) {
                 {/* <ModeToggle /> */}
               </div>
             </header>
-            <main className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-12">{children}</main>
+            <main className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-20">{children}</main>
           </div>
         </div>
         </MotionConfig>

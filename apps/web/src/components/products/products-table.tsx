@@ -130,6 +130,16 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
         cell: ({ row }) => <span>{row.original.size}</span>,
       },
       {
+        accessorKey: "purity",
+        header: "Purity",
+        cell: ({ row }) =>
+          row.original.purity ? (
+            <span>{row.original.purity}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
+      {
         accessorKey: "stock",
         header: ({ column }) => (
           <button type="button" className="flex items-center gap-1 font-medium hover:text-foreground" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>

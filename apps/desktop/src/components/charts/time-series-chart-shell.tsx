@@ -259,7 +259,8 @@ const TimeSeriesChartCore = memo(function TimeSeriesChartCore({
   const xAccessor = useCallback(
     (d: Record<string, unknown>): Date => {
       const value = d[xDataKey];
-      return value instanceof Date ? value : new Date(value as string | number);
+      const date = value instanceof Date ? value : new Date(value as string | number);
+      return Number.isFinite(date.getTime()) ? date : new Date(0);
     },
     [xDataKey]
   );

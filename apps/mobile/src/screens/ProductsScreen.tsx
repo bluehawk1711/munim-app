@@ -105,7 +105,7 @@ type ProductRowProps = {
 const ProductRow = React.memo(function ProductRow({item, onPress, index}: ProductRowProps) {
   const styles = useThemeStyles(makeRowStyles);
 
-  const variantBits = [item.color, item.size !== 'Standard' ? item.size : null]
+  const variantBits = [item.color, item.size !== 'Standard' ? item.size : null, item.purity]
     .filter(Boolean)
     .join(' · ');
 
@@ -201,6 +201,7 @@ export function ProductsScreen() {
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
   const [weight, setWeight] = useState('');
+  const [purity, setPurity] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
   const [stock, setStock] = useState('0');
@@ -297,6 +298,7 @@ export function ProductsScreen() {
     setSize('');
     setCategory('');
     setWeight('');
+    setPurity('');
     setImageUrl('');
     setStock('0');
     setBuy('0');
@@ -316,6 +318,7 @@ export function ProductsScreen() {
     setSize(p.size);
     setCategory(p.category ?? '');
     setWeight(p.weight != null ? String(p.weight) : '');
+    setPurity(p.purity ?? '');
     setImageUrl(p.imageUrl ?? '');
     setStock(String(p.stock));
     setBuy(String(p.purchasePrice));
@@ -347,6 +350,7 @@ export function ProductsScreen() {
         size: size.trim() || 'Standard',
         category: category.trim() || undefined,
         weight: weight.trim() ? Math.max(0, Number(weight) || 0) : undefined,
+        purity: purity.trim() || undefined,
         imageUrl: imageUrl.trim() || undefined,
         stock: Math.max(0, Number(stock) || 0),
         purchasePrice: Math.max(0, Number(buy) || 0),
@@ -604,6 +608,7 @@ export function ProductsScreen() {
         <SelectField label="Size" value={size} placeholder="Select size" onPress={() => setSizePickerOpen(true)} />
         <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
         <Field label="Weight (mg)" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder="e.g. 24500" />
+        <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
         <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
         <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
         <Field label="Sell price" value={sell} onChangeText={setSell} keyboardType="numeric" />

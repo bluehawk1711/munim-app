@@ -147,6 +147,7 @@ export function DashboardPage() {
   const { data, error, loading, reload } = useQueryState(useDashboard());
   const { data: settings } = useQueryState(useSettings());
   const [trajMode, setTrajMode] = useState<"revenue" | "orders">("revenue");
+  const [radarHovered, setRadarHovered] = useState<number | null>(null);
 
   // Recent settlement invoices — paged straight from the shared list API.
   const [page, setPage] = useState(1);
@@ -235,7 +236,6 @@ export function DashboardPage() {
   }));
   const trajPeak = trajSeries.length > 0 ? trajSeries.reduce((best, cur) => (cur.revenue > best.revenue ? cur : best)) : null;
   const categoryTotal = data.salesByCategory.reduce((acc, c) => acc + c.value, 0);
-  const [radarHovered, setRadarHovered] = useState<number | null>(null);
   const radarMetrics = data.salesByCategory.map((c) => ({ key: c.name, label: c.name }));
   const radarData =
     data.salesByCategory.length > 0
@@ -345,6 +345,7 @@ export function DashboardPage() {
                   />
                   <XAxis numTicks={6} />
                   <ChartTooltip
+                    titleKey="label"
                     rows={(p) => [{ label: String(p.label ?? "Revenue"), value: money(Number(p.revenue)), color: "var(--chart-1)" }]}
                   />
                 </AreaChart>
@@ -354,6 +355,7 @@ export function DashboardPage() {
                   <Line dataKey="orders" stroke="var(--chart-2)" strokeWidth={2.5} showMarkers />
                   <XAxis numTicks={6} />
                   <ChartTooltip
+                    titleKey="label"
                     rows={(p) => [{ label: String(p.label ?? "Orders"), value: `${Number(p.orders)} pcs`, color: "var(--chart-2)" }]}
                   />
                 </LineChart>

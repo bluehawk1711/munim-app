@@ -32,6 +32,13 @@ export function mobileColorsFor(mode, themeName = "apple") {
         dangerSoft: softIsDark ? "#401418" : "#fee2e2",
         mutedSoft: t.border,
         inputPlaceholder: softIsDark ? "#6f6d68" : "#9aa1ac",
+        // Camera/scan surfaces stay black in both modes — content on them uses
+        // inverseOnSurface so it remains readable regardless of mode.
+        inverseSurface: "#000000",
+        inverseOnSurface: "#ffffff",
+        // Matches web's `bg-black/50` modal backdrop — works on light and dark.
+        overlay: "rgba(0, 0, 0, 0.5)",
+        shimmerSweep: softIsDark ? "rgba(255, 255, 255, 0.10)" : "rgba(255, 255, 255, 0.45)",
         chart1: t.chart1,
         chart2: t.chart2,
         chart3: t.chart3,

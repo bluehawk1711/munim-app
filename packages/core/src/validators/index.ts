@@ -15,6 +15,8 @@ export const productSchema = z.object({
   barcode: z.string().max(80).optional().or(z.literal("")),
   /** Weight in milligrams (mg). */
   weight: z.coerce.number().min(0, "Weight cannot be negative").optional(),
+  /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
+  purity: z.string().max(20).optional().or(z.literal("")),
   imageUrl: z.string().max(1000).optional().or(z.literal("")),
   stock: z.coerce.number().min(0, "Stock cannot be negative"),
   purchasePrice: z.coerce.number().min(0, "Purchase price cannot be negative"),

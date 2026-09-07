@@ -157,6 +157,12 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust}: Product
             <Text style={styles.detailValue}>{formatWeight(product.weight)}</Text>
           </View>
         ) : null}
+        {product.purity ? (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Purity</Text>
+            <Text style={styles.detailValue}>{product.purity}</Text>
+          </View>
+        ) : null}
         <View style={styles.detailRow}>
           <Text style={styles.detailLabel}>Stock</Text>
           <Text style={styles.detailValue}>

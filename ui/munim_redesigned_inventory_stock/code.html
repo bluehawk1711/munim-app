@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><title>Munim Merchant</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100%;margin:0;padding:0;background-color:#fcf9f6;}body{overscroll-behavior:none;font-family:'Plus Jakarta Sans',sans-serif;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{colors:{"surface-container-high":"#eae8e5","on-primary-fixed":"#3f0018","surface-container-low":"#f6f3f0","error-container":"#ffdad6","on-background":"#1c1c1a","outline-variant":"#ddbfc4","on-error-container":"#93000a","on-tertiary-fixed-variant":"#6e3900","primary":"#710030","primary-fixed":"#ffd9df","surface-container-lowest":"#ffffff","on-tertiary":"#ffffff","on-error":"#ffffff","surface-variant":"#e5e2df","on-tertiary-fixed":"#2f1500","secondary-container":"#fe779b","on-primary":"#ffffff","surface-tint":"#aa2e57","inverse-surface":"#31302f","on-tertiary-container":"#ffab64","on-surface":"#1c1c1a","on-secondary-fixed":"#3f0018","tertiary-fixed":"#ffdcc3","inverse-primary":"#ffb1c1","outline":"#8a7175","surface":"#fcf9f6","inverse-on-surface":"#f3f0ed","surface-container":"#f0edea","primary-container":"#931b46","on-primary-fixed-variant":"#8a1340","background":"#fcf9f6","surface-container-highest":"#e5e2df","secondary":"#a73357","secondary-fixed-dim":"#ffb1c1","on-surface-variant":"#574145","surface-bright":"#fcf9f6","error":"#ba1a1a","surface-dim":"#dcdad7","tertiary-container":"#773e00","secondary-fixed":"#ffd9df","on-secondary-fixed-variant":"#871940","on-secondary-container":"#740733","tertiary":"#562b00","primary-fixed-dim":"#ffb1c1","on-secondary":"#ffffff","tertiary-fixed-dim":"#ffb77d","on-primary-container":"#ffa5b9"},borderRadius:{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},spacing:{"screen-edge-padding":"1rem","touch-target-min":"2.75rem","card-internal-padding":"1rem","space-4xl":"2.5rem","space-2xl":"1.5rem","space-lg":"1rem","space-xl":"1.25rem","space-md":"0.75rem","space-3xl":"2rem","space-sm":"0.5rem","space-2xs":"0.125rem","space-xs":"0.25rem"},fontFamily:{"label-sm":["Plus Jakarta Sans"],"currency-sm":["Plus Jakarta Sans"],"headline-md":["Plus Jakarta Sans"],"label-md":["Plus Jakarta Sans"],"headline-lg":["Plus Jakarta Sans"],"headline-sm":["Plus Jakarta Sans"],"body-lg":["Plus Jakarta Sans"],"body-md":["Plus Jakarta Sans"],"currency-md":["Plus Jakarta Sans"],"label-lg":["Plus Jakarta Sans"],"currency-display":["Plus Jakarta Sans"],"body-sm":["Plus Jakarta Sans"]},fontSize:{"label-sm":["10px",{lineHeight:"14px",letterSpacing:"0.04em",fontWeight:"700"}],"currency-sm":["13px",{lineHeight:"16px",fontWeight:"600"}],"headline-md":["22px",{lineHeight:"28px",letterSpacing:"-0.015em",fontWeight:"700"}],"label-md":["12px",{lineHeight:"16px",letterSpacing:"0.02em",fontWeight:"600"}],"headline-lg":["30px",{lineHeight:"38px",letterSpacing:"-0.02em",fontWeight:"700"}],"headline-sm":["18px",{lineHeight:"24px",letterSpacing:"-0.01em",fontWeight:"600"}],"body-lg":["16px",{lineHeight:"24px",fontWeight:"400"}],"body-md":["14px",{lineHeight:"20px",fontWeight:"400"}],"currency-md":["16px",{lineHeight:"20px",letterSpacing:"-0.005em",fontWeight:"700"}],"label-lg":["14px",{lineHeight:"18px",fontWeight:"600"}],"currency-display":["24px",{lineHeight:"30px",letterSpacing:"-0.01em",fontWeight:"700"}],"body-sm":["12px",{lineHeight:"16px",fontWeight:"400"}]}}}};</script></head><body class="bg-surface text-on-surface flex flex-col min-h-screen antialiased selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(93,40,20,0.04)]"><div class="h-16 px-space-lg flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm min-w-0"><div class="flex flex-col min-w-0"><div class="flex items-center gap-space-xs"><span class="w-2 h-2 rounded-full bg-primary-container shrink-0"></span><span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant truncate">Shree Jewellers</span></div><h1 class="font-headline-sm text-headline-sm text-on-surface truncate">Stock</h1></div></div><div class="flex items-center gap-space-xs shrink-0"><button aria-label="Global Search" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">search</span></button><button aria-label="Notifications" class="w-11 h-11 rounded-full flex items-center justify-center text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 transition-colors" type="button"><span class="material-symbols-outlined text-[22px]">notifications</span></button><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center ml-space-2xs shadow-[0_2px_6px_-1px_rgba(93,40,20,0.15)]"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 px-space-screen-edge-padding bg-surface min-h-screen"><div class="flex flex-col w-full pb-20">
+<!-- Search and Barcode Trigger -->
+<section class="flex items-center gap-space-sm mb-space-md">
+<div class="flex-1 flex items-center bg-surface-container-low rounded-xl px-space-md py-space-xs shadow-sm">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px] mr-space-xs">search</span>
+<input class="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-outline focus:outline-none" id="stockSearchInput" placeholder="Search product name, SKU, barcode..." type="text"/>
+<button aria-label="Clear Search" class="hidden text-outline hover:text-on-surface" id="clearSearchBtn" type="button">
+<span class="material-symbols-outlined text-[18px]">close</span>
+</button>
+</div>
+<button aria-label="Scan Barcode" class="w-11 h-11 shrink-0 rounded-xl bg-primary-container text-on-primary flex items-center justify-center shadow-sm active:scale-95 transition-transform" onclick="triggerHapticScan()" type="button">
+<span class="material-symbols-outlined text-[22px]">barcode_scanner</span>
+</button>
+</section>
+<!-- Quick Filter Chips -->
+<section class="flex items-center gap-space-xs overflow-x-auto pb-space-xs mb-space-md no-scrollbar" role="tablist">
+<button aria-selected="true" class="filter-chip shrink-0 px-space-md py-1.5 rounded-full font-label-md text-label-md bg-primary text-on-primary shadow-sm transition-all flex items-center gap-1.5" onclick="filterItems('all', this)" role="tab">
+<span>All</span>
+<span class="px-1.5 py-0.2 rounded-full bg-white/20 font-label-sm text-label-sm">24</span>
+</button>
+<button aria-selected="false" class="filter-chip shrink-0 px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all flex items-center gap-1.5" onclick="filterItems('in-stock', this)" role="tab">
+<span>In Stock</span>
+<span class="px-1.5 py-0.2 rounded-full bg-surface-container-high font-label-sm text-label-sm text-on-surface">18</span>
+</button>
+<button aria-selected="false" class="filter-chip shrink-0 px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all flex items-center gap-1.5" onclick="filterItems('low-stock', this)" role="tab">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+<span>Low Stock</span>
+<span class="px-1.5 py-0.2 rounded-full bg-surface-container-high font-label-sm text-label-sm text-on-surface">4</span>
+</button>
+<button aria-selected="false" class="filter-chip shrink-0 px-space-md py-1.5 rounded-full font-label-md text-label-md bg-surface-container-lowest text-on-surface-variant shadow-sm hover:bg-surface-container transition-all flex items-center gap-1.5" onclick="filterItems('out-stock', this)" role="tab">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+<span>Out of Stock</span>
+<span class="px-1.5 py-0.2 rounded-full bg-surface-container-high font-label-sm text-label-sm text-on-surface">2</span>
+</button>
+</section>
+<!-- Inventory Listing Container -->
+<div class="flex flex-col gap-space-sm" id="inventoryList">
+<!-- Item 1: Solitaire Gold Ring -->
+<article class="product-card group relative bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all active:scale-[0.99] cursor-pointer" data-barcode="5213839443640" data-buy="75.00" data-category="in-stock" data-margin="25%" data-sell="100.00" data-sku="RNG-SLT-091" data-title="Solitaire Gold Ring" data-variant="Black · Size 32" data-weight="2.5 g" onclick="openProductSheet(this)">
+<div class="flex items-start gap-space-md">
+<div class="relative w-16 h-16 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="Macro luxury product photograph of a solitaire fine gold ring with radiant diamond setting, resting elegantly on cream linen cloth with soft warm amber backlight and crisp reflections." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAM4GKwIE6FjQ33z79p2SiXXIPpTzdWKxJToWERg-ynhQ6yxhcffKVaXRs7pzFMVNQ-W5kFX-EVHQG5U0Dfi09KlDk7AKXBNuuLGHGhfisMB_vU93bh3TedWKAUZ6c068N8HzK9T8NFXa1Bz4E9C80IubFMm0Jz2wpaQbGuTWau1K1Agz6W7-GH7PBFaukhLiwd4pgmnRxoFsYjXtqMVJGkcM1WLmN250XBXdYyiadsH1LKr0Av3NpOgQ"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Solitaire Gold Ring</h2>
+<div class="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-md bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">tune</span>
+<span>Black · Size 32 · 2.5 g</span>
+</div>
+</div>
+<button aria-label="Item Actions" class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container transition-colors shrink-0" onclick="event.stopPropagation(); openQuickMenu('Solitaire Gold Ring');" type="button">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between mt-3 pt-2">
+<div>
+<div class="flex items-baseline gap-1.5">
+<span class="font-currency-display text-currency-display text-primary-container">₹100.00</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Cost: ₹75.00</span>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-full bg-surface-container-high text-tertiary font-label-sm text-label-sm flex items-center gap-1 shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+              98 units
+            </span>
+</div>
+</div>
+</div>
+</article>
+<!-- Item 2: Filigree Gold Bangle -->
+<article class="product-card group relative bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all active:scale-[0.99] cursor-pointer" data-barcode="8901247009381" data-buy="15.00" data-category="low-stock" data-margin="25%" data-sell="20.00" data-sku="BNG-FLG-44" data-title="Filigree Gold Bangle" data-variant="Gold · Size M" data-weight="14.2 g" onclick="openProductSheet(this)">
+<div class="flex items-start gap-space-md">
+<div class="relative w-16 h-16 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="Intricately carved Indian filigree 22kt gold bridal bangle bracelet displayed on textured sandstone with warm ambient shadows, highlights catching handcrafted floral lattice details." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6XNnVCJIL38i6MA3ljkybAB3RcCtMlbfVTmv5FKPrTRQskxstGqKAs3lUI5Ux_IkBFvGkVCvRFlCI-feOJRlYsF03nqhfEv1VQxDfrwLsLiW_arOuZfNuQPC2nRvLCGpn2EINNZIDLQKH5jp41vQGwU1EltCW3eCDqRmRz9WiWsGq__ngltyzpxnBe0sh47mVFocyCVsbmG31UhwrgvEZXv9xZ7-7A1klh2ODEvushZM-L9SgVNJYgA"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Filigree Gold Bangle</h2>
+<div class="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-md bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">tune</span>
+<span>Gold · Size M · 14.2 g</span>
+</div>
+</div>
+<button aria-label="Item Actions" class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container transition-colors shrink-0" onclick="event.stopPropagation(); openQuickMenu('Filigree Gold Bangle');" type="button">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between mt-3 pt-2">
+<div>
+<div class="flex items-baseline gap-1.5">
+<span class="font-currency-display text-currency-display text-primary-container">₹20.00</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Cost: ₹15.00</span>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed-variant font-label-sm text-label-sm flex items-center gap-1 shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+              8 units (Low)
+            </span>
+</div>
+</div>
+</div>
+</article>
+<!-- Item 3: Amber Stone Bangle -->
+<article class="product-card group relative bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all active:scale-[0.99] cursor-pointer" data-barcode="9948210345129" data-buy="42.00" data-category="in-stock" data-margin="30%" data-sell="60.00" data-sku="BNG-AMB-88" data-title="Amber Stone Bangle" data-variant="Amber · Standard" data-weight="22.0 g" onclick="openProductSheet(this)">
+<div class="flex items-start gap-space-md">
+<div class="relative w-16 h-16 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover" data-alt="Artisanal gemstone studded Indian kada bangle embedded with translucent natural amber stones in polished antique brass mounting, studio lighting on silk ivory background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBbyo7WQRocsCTFyGtTwHPe_jflVGERTRpwDNxTad2F472i1i3tegfv25nAwl0SCzz2nFkIokazNBj6rsUhOHShVu_pJxBSwtwYAdEiatXYb9DdNEicAe4UVVtRQtB5R5-B-UiFtOjR11YRfwq__SEO3C1ESqrP0_j3fDZqmtYaUh_gXBZoot6oAw2DP_M-DVq31UCknYZ3HCHAKEuf_HSFtGxVpDPmz_I3RodYAxkR1japOQQDj4Y4uA"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Amber Stone Bangle</h2>
+<div class="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-md bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">tune</span>
+<span>Amber · Standard · 22.0 g</span>
+</div>
+</div>
+<button aria-label="Item Actions" class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container transition-colors shrink-0" onclick="event.stopPropagation(); openQuickMenu('Amber Stone Bangle');" type="button">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between mt-3 pt-2">
+<div>
+<div class="flex items-baseline gap-1.5">
+<span class="font-currency-display text-currency-display text-primary-container">₹60.00</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Cost: ₹42.00</span>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-full bg-surface-container-high text-tertiary font-label-sm text-label-sm flex items-center gap-1 shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-container"></span>
+              906 pcs
+            </span>
+</div>
+</div>
+</div>
+</article>
+<!-- Item 4: Royal Kundan Bangle -->
+<article class="product-card group relative bg-surface-container-lowest rounded-xl p-space-md shadow-sm transition-all active:scale-[0.99] cursor-pointer" data-barcode="4019283746152" data-buy="Consignment / Unset" data-category="out-stock" data-margin="N/A" data-sell="50.00" data-sku="KND-RNG-03" data-title="Royal Kundan Bangle" data-variant="Amber · Size 34" data-weight="18.5 g" onclick="openProductSheet(this)">
+<div class="flex items-start gap-space-md">
+<div class="relative w-16 h-16 rounded-lg overflow-hidden bg-surface-container shrink-0">
+<img class="w-full h-full object-cover grayscale opacity-75" data-alt="Traditional regal Kundan meenakari bangle jewelry with uncut glass gems and red enamel work on polished gold frame, artistic presentation on velvet cushion." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB-G1aZJksoruDjBMEd4q49sH1zqVlzqGlZTiwBul_xL_wKLbv-B_ROD0496hgBrGIGBpjSPUcgymK2iWHLmi5firFNhGGYUeh6LUT11RVU--tQE_zMdwnEAu8ocuBlllWNm6z2DLbSNr8Epgs6lQEgGDcMHV3aR4qrh_UuQc_gGBgbDMqwkdeyV8-9_W1aqWLNt8_gOL2cPe7ItxfiG36AIAB12UHYu_KcNsJslDqA4oXOzsniJShiig"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-space-xs">
+<div class="min-w-0">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Royal Kundan Bangle</h2>
+<div class="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-md bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[14px]">tune</span>
+<span>Amber · Size 34</span>
+</div>
+</div>
+<button aria-label="Item Actions" class="w-8 h-8 rounded-full flex items-center justify-center text-outline hover:text-on-surface hover:bg-surface-container transition-colors shrink-0" onclick="event.stopPropagation(); openQuickMenu('Royal Kundan Bangle');" type="button">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+<div class="flex items-end justify-between mt-3 pt-2">
+<div>
+<div class="flex items-baseline gap-1.5">
+<span class="font-currency-display text-currency-display text-primary-container">₹50.00</span>
+<span class="font-body-sm text-body-sm text-error">Out of stock</span>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-full bg-error-container text-on-error-container font-label-sm text-label-sm flex items-center gap-1 shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-error"></span>
+              0 units
+            </span>
+</div>
+</div>
+</div>
+</article>
+</div>
+<!-- Bottom Sheet / Product Inspection Drawer Modal -->
+<div class="fixed inset-0 bg-inverse-surface/40 backdrop-blur-sm z-50 transition-opacity duration-300 opacity-0 pointer-events-none flex items-end justify-center" id="productSheetBackdrop" onclick="closeProductSheet()">
+<div class="w-full max-w-lg bg-surface-container-lowest rounded-t-3xl p-space-xl shadow-xl transform translate-y-full transition-transform duration-300 ease-out" id="productSheetModal" onclick="event.stopPropagation()">
+<!-- Pull handle -->
+<div class="w-12 h-1.5 bg-surface-container-highest rounded-full mx-auto mb-space-lg"></div>
+<!-- Sheet Header -->
+<div class="flex items-start justify-between mb-space-md">
+<div>
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider font-bold" id="sheetSku">SKU</span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-0.5" id="sheetTitle">Product Details</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5" id="sheetVariant">Variant information</p>
+</div>
+<button class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors" onclick="closeProductSheet()" type="button">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<!-- Barcode Card -->
+<div class="bg-surface-container-low rounded-xl p-space-md flex items-center justify-between mb-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-10 h-10 rounded-lg bg-surface-container-lowest flex items-center justify-center text-primary-container shadow-sm">
+<span class="material-symbols-outlined text-[24px]">qr_code_2</span>
+</div>
+<div>
+<div class="font-label-sm text-label-sm text-on-surface-variant">BARCODE / EAN-13</div>
+<div class="font-currency-md text-currency-md text-on-surface tracking-wider font-mono" id="sheetBarcode">5213839443640</div>
+</div>
+</div>
+<button class="px-space-sm py-1 rounded-lg bg-surface-container-lowest text-on-surface-variant font-label-sm text-label-sm flex items-center gap-1 shadow-sm active:scale-95" id="copyBtn" onclick="copyBarcode()" type="button">
+<span class="material-symbols-outlined text-[16px]">content_copy</span>
+<span>Copy</span>
+</button>
+</div>
+<!-- Financial Breakdown Bento -->
+<div class="grid grid-cols-3 gap-space-xs mb-space-md">
+<div class="bg-surface-container-low p-space-sm rounded-xl">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Buy Price</span>
+<span class="font-headline-sm text-headline-sm text-on-surface mt-1 block" id="sheetBuyPrice">₹75.00</span>
+<span class="font-label-sm text-label-sm text-outline mt-0.5 block" id="sheetBuyNotice">Verified</span>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded-xl">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Sell Price</span>
+<span class="font-headline-sm text-headline-sm text-primary-container mt-1 block" id="sheetSellPrice">₹100.00</span>
+<span class="font-label-sm text-label-sm text-outline mt-0.5 block">Retail Tag</span>
+</div>
+<div class="bg-surface-container-low p-space-sm rounded-xl">
+<span class="font-label-sm text-label-sm text-on-surface-variant block">Margin</span>
+<span class="font-headline-sm text-headline-sm text-tertiary-container mt-1 block" id="sheetMargin">25%</span>
+<span class="font-label-sm text-label-sm text-outline mt-0.5 block">Estimated</span>
+</div>
+</div>
+<!-- Detail Row -->
+<div class="space-y-space-xs mb-space-xl">
+<div class="flex justify-between items-center py-1">
+<span class="font-body-md text-body-md text-on-surface-variant">Gross Weight</span>
+<span class="font-label-lg text-label-lg text-on-surface" id="sheetWeight">2.5 g</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="font-body-md text-body-md text-on-surface-variant">Tax Slab</span>
+<span class="font-label-lg text-label-lg text-on-surface">GST 3% (Jewellery)</span>
+</div>
+<div class="flex justify-between items-center py-1">
+<span class="font-body-md text-body-md text-on-surface-variant">Hallmark Registry</span>
+<span class="font-label-lg text-label-lg text-tertiary-container flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">verified</span> HUID Verified
+          </span>
+</div>
+</div>
+<!-- Quick Action Buttons -->
+<div class="grid grid-cols-2 gap-space-sm">
+<button class="h-12 rounded-xl bg-surface-container text-on-surface font-label-lg text-label-lg hover:bg-surface-container-high transition-colors" onclick="closeProductSheet()" type="button">
+          Edit Product
+        </button>
+<button class="h-12 rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg shadow-sm active:scale-95 transition-transform" onclick="triggerStockAdjustment()" type="button">
+          Adjust Stock
+        </button>
+</div>
+</div>
+</div>
+<!-- Grounded Sticky Bottom Action Bar with 24px clearance above bottom dock -->
+<div class="fixed bottom-20 left-0 right-0 z-40 px-space-screen-edge-padding pointer-events-none">
+<div class="max-w-md mx-auto w-full pointer-events-auto">
+<button class="w-full h-12 rounded-xl bg-primary-container text-on-primary font-label-lg text-label-lg flex items-center justify-center gap-space-xs shadow-lg active:scale-[0.98] transition-transform" onclick="triggerAddProductFlow()" type="button">
+<span class="material-symbols-outlined text-[20px]">add</span>
+<span>Add Product</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  // Filter Tabs logic
+  function filterItems(category, buttonElement) {
+    const buttons = document.querySelectorAll('.filter-chip');
+    buttons.forEach(btn => {
+      btn.classList.remove('bg-primary', 'text-on-primary');
+      btn.classList.add('bg-surface-container-lowest', 'text-on-surface-variant');
+      btn.setAttribute('aria-selected', 'false');
+    });
+
+    buttonElement.classList.remove('bg-surface-container-lowest', 'text-on-surface-variant');
+    buttonElement.classList.add('bg-primary', 'text-on-primary');
+    buttonElement.setAttribute('aria-selected', 'true');
+
+    const cards = document.querySelectorAll('.product-card');
+    cards.forEach(card => {
+      if (category === 'all' || card.getAttribute('data-category') === category) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  // Search filter
+  const searchInput = document.getElementById('stockSearchInput');
+  const clearBtn = document.getElementById('clearSearchBtn');
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    if (query.length > 0) {
+      clearBtn.classList.remove('hidden');
+    } else {
+      clearBtn.classList.add('hidden');
+    }
+
+    const cards = document.querySelectorAll('.product-card');
+    cards.forEach(card => {
+      const title = card.getAttribute('data-title').toLowerCase();
+      const sku = card.getAttribute('data-sku').toLowerCase();
+      const barcode = card.getAttribute('data-barcode').toLowerCase();
+      const variant = card.getAttribute('data-variant').toLowerCase();
+
+      if (title.includes(query) || sku.includes(query) || barcode.includes(query) || variant.includes(query)) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  });
+
+  clearBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    clearBtn.classList.add('hidden');
+    const cards = document.querySelectorAll('.product-card');
+    cards.forEach(card => card.style.display = 'block');
+  });
+
+  // Slide-up Bottom Sheet Detail Drawer
+  const sheetBackdrop = document.getElementById('productSheetBackdrop');
+  const sheetModal = document.getElementById('productSheetModal');
+
+  function openProductSheet(card) {
+    const title = card.getAttribute('data-title');
+    const sku = card.getAttribute('data-sku');
+    const barcode = card.getAttribute('data-barcode');
+    const buy = card.getAttribute('data-buy');
+    const sell = card.getAttribute('data-sell');
+    const margin = card.getAttribute('data-margin');
+    const weight = card.getAttribute('data-weight');
+    const variant = card.getAttribute('data-variant');
+
+    document.getElementById('sheetTitle').textContent = title;
+    document.getElementById('sheetSku').textContent = sku;
+    document.getElementById('sheetBarcode').textContent = barcode;
+    document.getElementById('sheetVariant').textContent = variant;
+    document.getElementById('sheetWeight').textContent = weight;
+    document.getElementById('sheetSellPrice').textContent = '₹' + sell;
+
+    if (buy.includes('Consignment') || buy.includes('Unset')) {
+      document.getElementById('sheetBuyPrice').textContent = 'Unset';
+      document.getElementById('sheetBuyNotice').textContent = 'Consignment Goods';
+      document.getElementById('sheetBuyNotice').classList.add('text-error');
+    } else {
+      document.getElementById('sheetBuyPrice').textContent = '₹' + buy;
+      document.getElementById('sheetBuyNotice').textContent = 'Direct Stock Purchase';
+      document.getElementById('sheetBuyNotice').classList.remove('text-error');
+    }
+
+    document.getElementById('sheetMargin').textContent = margin;
+
+    sheetBackdrop.classList.remove('pointer-events-none', 'opacity-0');
+    sheetBackdrop.classList.add('opacity-100');
+    sheetModal.classList.remove('translate-y-full');
+  }
+
+  function closeProductSheet() {
+    sheetBackdrop.classList.add('opacity-0', 'pointer-events-none');
+    sheetBackdrop.classList.remove('opacity-100');
+    sheetModal.classList.add('translate-y-full');
+  }
+
+  function copyBarcode() {
+    const barcodeText = document.getElementById('sheetBarcode').textContent;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(barcodeText);
+    }
+    const copyBtn = document.getElementById('copyBtn');
+    const originalText = copyBtn.innerHTML;
+    copyBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] text-tertiary">check</span><span class="text-tertiary">Copied</span>';
+    setTimeout(() => {
+      copyBtn.innerHTML = originalText;
+    }, 1400);
+  }
+
+  function triggerHapticScan() {
+    if (navigator.vibrate) navigator.vibrate(40);
+    alert("Camera Barcode Scanner activated. Align barcode within reticle.");
+  }
+
+  function openQuickMenu(name) {
+    if (navigator.vibrate) navigator.vibrate(20);
+    alert("Options for: " + name + "\\n- Print Price Tag\\n- Duplicate Item\\n- Archive Product");
+  }
+
+  function triggerAddProductFlow() {
+    if (navigator.vibrate) navigator.vibrate(30);
+    alert("Opening rapid New Jewelry Registration form.");
+  }
+
+  function triggerStockAdjustment() {
+    closeProductSheet();
+    setTimeout(() => {
+      alert("Opening Stock Count & Audit adjustment dialogue.");
+    }, 200);
+  }
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/90 backdrop-blur-xl shadow-[0_-2px_12px_rgba(93,40,20,0.05)]" data-active-classes="text-primary-container font-bold [&amp;&gt;span:first-child]:text-primary-container [&amp;&gt;div]:opacity-100"><div class="h-16 px-space-xs grid grid-cols-6 items-center justify-items-center"><a class="flex flex-col items-center justify-center min-w-[48px] h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="home" href="#"><span class="material-symbols-outlined text-[22px]">dashboard</span><span class="font-label-sm text-label-sm mt-0.5">Home</span><div class="w-4 h-0.5 rounded-full bg-primary-container mt-0.5 opacity-0 transition-opacity"></div></a><a aria-current="page" class="flex flex-col items-center justify-center min-w-[48px] h-14 transition-colors text-primary-container font-bold [&amp;&gt;span:first-child]:text-primary-container [&amp;&gt;div]:opacity-100" data-path="stock" href="#"><span class="material-symbols-outlined text-[22px]">inventory_2</span><span class="font-label-sm text-label-sm mt-0.5">Stock</span><div class="w-4 h-0.5 rounded-full bg-primary-container mt-0.5 opacity-0 transition-opacity"></div></a><a class="flex flex-col items-center justify-center min-w-[48px] h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="sales" href="#"><span class="material-symbols-outlined text-[22px]">point_of_sale</span><span class="font-label-sm text-label-sm mt-0.5">Sales</span><div class="w-4 h-0.5 rounded-full bg-primary-container mt-0.5 opacity-0 transition-opacity"></div></a><a class="flex flex-col items-center justify-center min-w-[48px] h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="bills" href="#"><span class="material-symbols-outlined text-[22px]">receipt_long</span><span class="font-label-sm text-label-sm mt-0.5">Bills</span><div class="w-4 h-0.5 rounded-full bg-primary-container mt-0.5 opacity-0 transition-opacity"></div></a><a class="flex flex-col items-center justify-center min-w-[48px] h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="khata" href="#"><span class="material-symbols-outlined text-[22px]">menu_book</span><span class="font-label-sm text-label-sm mt-0.5">Khata</span><div class="w-4 h-0.5 rounded-full bg-primary-container mt-0.5 opacity-0 transition-opacity"></div></a><a class="flex flex-col items-center justify-center min-w-[48px] h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="more" href="#"><span class="material-symbols-outlined text-[22px]">more_horiz</span><span class="font-label-sm text-label-sm mt-0.5">More</span><div class="w-4 h-0.5 rounded-full bg-primary-container mt-0.5 opacity-0 transition-opacity"></div></a></div></nav></body></html>

@@ -189,6 +189,7 @@ const PRODUCT_SELECT = {
   name: schema.products.name,
   barcode: schema.products.barcode,
   weight: schema.products.weight,
+  purity: schema.products.purity,
   imageUrl: schema.products.imageUrl,
   stock: schema.products.stock,
   purchasePrice: schema.products.purchasePrice,
@@ -308,6 +309,9 @@ export type ProductInput = {
   barcode?: string;
   /** Weight in milligrams (mg). */
   weight?: number;
+  /** Metal purity stamp — e.g. "24K", "22K", "916", "925".
+   * `undefined` → keep existing (edit); `""` → clear; else set. */
+  purity?: string;
   imageUrl?: string;
   stock?: number;
   purchasePrice?: number;
@@ -349,6 +353,7 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       name: input.name.trim(),
       barcode,
       weight: typeof input.weight === "number" && Number.isFinite(input.weight) ? input.weight : null,
+      purity: input.purity?.trim() || null,
       imageUrl: input.imageUrl?.trim() || null,
       stock: input.stock ?? 0,
       purchasePrice: input.purchasePrice ?? 0,
@@ -404,6 +409,7 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
           : typeof input.weight === "number" && Number.isFinite(input.weight)
             ? input.weight
             : null,
+      purity: input.purity === undefined ? existing.purity : input.purity?.trim() || null,
       imageUrl: input.imageUrl?.trim() || null,
       stock: input.stock ?? existing.stock,
       purchasePrice: input.purchasePrice ?? existing.purchasePrice,

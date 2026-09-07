@@ -254,6 +254,27 @@ export function BillingPage() {
       toast.error("Second bill customer name is required");
       return;
     }
+    const zeroPrice = items.findIndex((it) => !(it.price > 0));
+    if (zeroPrice >= 0) {
+      toast.error(`Set a price above 0 for item ${zeroPrice + 1} — picking a product auto-fills its selling price`);
+      return;
+    }
+    if (total <= 0) {
+      toast.error("Bill total must be above 0 — check item prices, discount and delivery charge");
+      return;
+    }
+    if (distinct) {
+      const secondItems = lineItems(secondLines);
+      const secondZero = secondItems.findIndex((it) => !(it.price > 0));
+      if (secondZero >= 0) {
+        toast.error(`Bill 2: set a price above 0 for item ${secondZero + 1}`);
+        return;
+      }
+      if (secondTotal <= 0) {
+        toast.error("Bill 2 total must be above 0");
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -699,39 +720,28 @@ export function BillingPage() {
 
 type PartyOption = { id: string; name: string; phone: string | null; address: string | null };
 
-function BillFields({
+/** Customer identity fields — always first in the flow. */
+function CustomerFields({
   name,
   phone,
   address,
-  discount,
-  delivery,
-  paid,
   partyId,
   parties,
   onName,
   onPhone,
   onAddress,
   onParty,
-  onDiscount,
-  onDelivery,
-  onPaid,
   idPrefix,
 }: {
   name: string;
   phone: string;
   address: string;
-  discount: string;
-  delivery: string;
-  paid: string;
   partyId: string;
   parties: PartyOption[] | null | undefined;
   onName: (v: string) => void;
   onPhone: (v: string) => void;
   onAddress: (v: string) => void;
   onParty: (v: string) => void;
-  onDiscount: (v: string) => void;
-  onDelivery: (v: string) => void;
-  onPaid: (v: string) => void;
   idPrefix: string;
 }) {
   function pickParty(id: string) {
@@ -757,18 +767,6 @@ function BillFields({
         <Label htmlFor={`${idPrefix}-addr`}>Address</Label>
         <Input id={`${idPrefix}-addr`} value={address} onChange={(e) => onAddress(e.target.value)} />
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-disc`}>Discount</Label>
-        <Input id={`${idPrefix}-disc`} type="number" min={0} value={discount} onChange={(e) => onDiscount(e.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-delivery`}>Delivery</Label>
-        <Input id={`${idPrefix}-delivery`} type="number" min={0} value={delivery} onChange={(e) => onDelivery(e.target.value)} />
-      </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-paid`}>Paid now</Label>
-        <Input id={`${idPrefix}-paid`} type="number" min={0} value={paid} onChange={(e) => onPaid(e.target.value)} />
-      </div>
       <div className="space-y-1.5 sm:col-span-3">
         <Label htmlFor={`${idPrefix}-party`}>Link to khata party</Label>
         <Select value={partyId} onValueChange={pickParty}>
@@ -785,6 +783,69 @@ function BillFields({
           </SelectContent>
         </Select>
       </div>
+    </div>
+  );
+}
+
+/** Charges & payment — sit BELOW the items they adjust. */
+function AdjustmentFields({
+  discount,
+  delivery,
+  paid,
+  onDiscount,
+  onDelivery,
+  onPaid,
+  idPrefix,
+}: {
+  discount: string;
+  delivery: string;
+  paid: string;
+  onDiscount: (v: string) => void;
+  onDelivery: (v: string) => void;
+  onPaid: (v: string) => void;
+  idPrefix: string;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-disc`}>Discount (₹)</Label>
+        <Input id={`${idPrefix}-disc`} type="number" min={0} value={discount} onChange={(e) => onDiscount(e.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-delivery`}>Delivery charge (₹)</Label>
+        <Input id={`${idPrefix}-delivery`} type="number" min={0} value={delivery} onChange={(e) => onDelivery(e.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-paid`}>Paid now (₹)</Label>
+        <Input id={`${idPrefix}-paid`} type="number" min={0} value={paid} onChange={(e) => onPaid(e.target.value)} />
+      </div>
+    </div>
+  );
+}
+
+/** Live math: subtotal − discount + delivery = total, so the auto-calc is visible. */
+function TotalsSummary({
+  subtotal,
+  discount,
+  delivery,
+  total,
+  paid,
+}: {
+  subtotal: number;
+  discount: number;
+  delivery: number;
+  total: number;
+  paid: number;
+}) {
+  const due = Math.max(0, total - paid);
+  return (
+    <div className="bg-muted/50 space-y-1.5 rounded-lg border p-3 text-sm">
+      <p className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums">{money(subtotal)}</span></p>
+      {discount > 0 && <p className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="tabular-nums">−{money(discount)}</span></p>}
+      {delivery > 0 && <p className="flex justify-between"><span className="text-muted-foreground">Delivery</span><span className="tabular-nums">+{money(delivery)}</span></p>}
+      <p className="flex justify-between border-t pt-1.5"><span className="font-semibold">Total</span><span className="font-bold tabular-nums">{money(total)}</span></p>
+      <p className="flex justify-between"><span className="text-muted-foreground">Paid now</span><span className="tabular-nums">{money(paid)}</span></p>
+      <p className="flex justify-between"><span className="text-muted-foreground">Balance due</span><span className="font-semibold tabular-nums">{money(due)}</span></p>
     </div>
   );
 }

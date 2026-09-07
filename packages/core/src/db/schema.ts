@@ -59,6 +59,9 @@ export const products = pgTable(
     barcode: text("barcode"),
     /** Weight in milligrams (mg) — the shop's unit for jewellery-grade precision. */
     weight: doublePrecision("weight"),
+    /** Metal purity stamp — e.g. "24K", "22K", "916", "925". Free text so
+     * shops can use whatever hallmark convention they follow. */
+    purity: text("purity"),
     imageUrl: text("image_url"),
     stock: doublePrecision("stock").notNull().default(0),
     purchasePrice: doublePrecision("purchase_price").notNull().default(0),

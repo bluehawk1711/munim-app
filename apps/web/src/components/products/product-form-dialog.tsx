@@ -58,6 +58,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       category: "",
       barcode: "",
       weight: undefined,
+      purity: "",
       imageUrl: "",
       stock: 0,
       purchasePrice: 0,
@@ -78,6 +79,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           category: product.category ?? "",
           barcode: product.barcode ?? "",
           weight: product.weight ?? undefined,
+          purity: product.purity ?? "",
           imageUrl: product.imageUrl ?? "",
           stock: product.stock,
           purchasePrice: product.purchasePrice,
@@ -92,6 +94,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           category: "",
           barcode: "",
           weight: undefined,
+          purity: "",
           imageUrl: "",
           stock: 0,
           purchasePrice: 0,
@@ -307,6 +310,14 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
             <Input id="weight" type="number" step="0.1" min={0} placeholder="e.g. 24500 (24.5 g)" {...form.register("weight")} />
             {form.formState.errors.weight && (
               <p className="text-xs text-destructive">{form.formState.errors.weight.message}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="purity">Purity</Label>
+            <Input id="purity" placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} {...form.register("purity")} />
+            {form.formState.errors.purity && (
+              <p className="text-xs text-destructive">{form.formState.errors.purity.message}</p>
             )}
           </div>
 

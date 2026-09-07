@@ -96,36 +96,38 @@ export function InvoicesPage() {
         subtitle="Every bill generated at the counter — payment status and PDFs, shared with web & mobile."
       />
 
-      {/* Toolbar */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="relative w-full sm:max-w-xs">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      {/* Search + filter card */}
+      <Card>
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full max-w-sm flex-1">
+            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search invoice #, customer…"
-              className="h-9 pl-9"
+              className="h-9 pl-9 text-sm"
               aria-label="Search invoices"
             />
           </div>
-          {refetching && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-          )}
-          <Select value={status} onValueChange={(v) => setStatus(v as InvoiceFilters["status"])}>
-            <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="PAID">Paid</SelectItem>
-              <SelectItem value="PARTIAL">Partially paid</SelectItem>
-              <SelectItem value="UNPAID">Unpaid</SelectItem>
-              <SelectItem value="DRAFT">Draft</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            {refetching && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+            <Select value={status} onValueChange={(v) => setStatus(v as InvoiceFilters["status"])}>
+              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="PAID">Paid</SelectItem>
+                <SelectItem value="PARTIAL">Partially paid</SelectItem>
+                <SelectItem value="UNPAID">Unpaid</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* Summary strip */}
       <div className="grid gap-3 sm:grid-cols-3">
