@@ -32,6 +32,14 @@ export interface MobileColors {
   dangerSoft: string;
   mutedSoft: string;
   inputPlaceholder: string;
+  /** Always-dark surface (camera overlays, image placeholders) + the light
+   *  content that sits on it — constant across modes by design. */
+  inverseSurface: string;
+  inverseOnSurface: string;
+  /** Modal/backdrop scrim — same value web uses (`bg-black/50`), both modes. */
+  overlay: string;
+  /** Skeleton shimmer sheen — a translucent white sweep, tuned per mode. */
+  shimmerSweep: string;
   /** Chart palette (tokens `chart1`–`chart5`) — for SVG charts on Home,
    *  Reports, etc. Mode-appropriate, so they stay legible in dark mode. */
   chart1: string;
@@ -65,6 +73,13 @@ export function mobileColorsFor(mode: ThemeMode, themeName: ThemeName = "apple")
     dangerSoft: softIsDark ? "#401418" : "#fee2e2",
     mutedSoft: t.border,
     inputPlaceholder: softIsDark ? "#6f6d68" : "#9aa1ac",
+    // Camera/scan surfaces stay black in both modes — content on them uses
+    // inverseOnSurface so it remains readable regardless of mode.
+    inverseSurface: "#000000",
+    inverseOnSurface: "#ffffff",
+    // Matches web's `bg-black/50` modal backdrop — works on light and dark.
+    overlay: "rgba(0, 0, 0, 0.5)",
+    shimmerSweep: softIsDark ? "rgba(255, 255, 255, 0.10)" : "rgba(255, 255, 255, 0.45)",
     chart1: t.chart1,
     chart2: t.chart2,
     chart3: t.chart3,

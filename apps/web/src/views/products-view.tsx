@@ -63,6 +63,14 @@ export function ProductsView() {
   const [page, setPage] = React.useState(1)
   const pageSize = 20
 
+  // Sync local filter state from the store when external views (e.g. Catalog)
+  // write a filter value and navigate here. Without this, a pre-existing
+  // ProductsView instance keeps its stale local state.
+  React.useEffect(() => { setColor(productColorFilter) }, [productColorFilter])
+  React.useEffect(() => { setSize(productSizeFilter) }, [productSizeFilter])
+  React.useEffect(() => { setCategory(productCategoryFilter) }, [productCategoryFilter])
+  React.useEffect(() => { setStatus(productStatusFilter as StockStatus | "all") }, [productStatusFilter])
+
   function setGlobalSearch(value: string) {
     setGlobalSearchStore(value)
     setPage(1)

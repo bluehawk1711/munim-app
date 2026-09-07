@@ -10,7 +10,8 @@ import {
   ScrollText,
   Settings as SettingsIcon,
 } from 'lucide-react-native';
-import {colors, Header, Screen} from '../components/ui';
+import {colors, Screen} from '../components/ui';
+import {HomeHeader} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {sectionPress} from '../lib/haptics';
 import {AdvancesScreen} from './AdvancesScreen';
@@ -103,7 +104,7 @@ export function MoreScreen() {
 
   return (
     <Screen>
-      <Header title="More" subtitle="Everything else — shared with web & desktop" />
+      <HomeHeader title="More" />
       <View style={styles.group}>
         {SECTIONS.map((item, index) => {
           const Icon = item.icon;

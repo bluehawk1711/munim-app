@@ -21,6 +21,7 @@ import type {
 } from "../db/schema.js";
 import type { DashboardStats, ReportRow, ReportType } from "../services/dashboard.js";
 import type { LedgerLine } from "../services/parties.js";
+import type { CategoryBreakdown, InventoryStats } from "../services/products.js";
 
 /* ── Products ─────────────────────────────────────────────────── */
 
@@ -71,6 +72,12 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     updatedAt: p.updatedAt.toISOString(),
   };
 }
+
+/** Wire shape of GET /api/products/stats — already Date-free in core. */
+export type InventoryStatsDto = InventoryStats;
+
+/** Wire shape of GET /api/products/by-category — donut data for the inventory page. */
+export type CategoryBreakdownDto = CategoryBreakdown;
 
 /* ── Invoices / bills ─────────────────────────────────────────── */
 

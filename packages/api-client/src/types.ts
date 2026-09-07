@@ -20,6 +20,8 @@ import type {
   DashboardDto,
   ReportDto,
   Pagination,
+  InventoryStatsDto,
+  CategoryBreakdownDto,
   ProductFilters,
   InvoiceFilters,
   CatalogKind,
@@ -58,6 +60,8 @@ export type {
   DashboardDto,
   ReportDto,
   Pagination,
+  InventoryStatsDto,
+  CategoryBreakdownDto,
   /* Query/filter types (services) */
   ProductFilters,
   InvoiceFilters,

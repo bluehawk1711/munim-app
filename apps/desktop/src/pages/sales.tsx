@@ -10,6 +10,7 @@ import {
   useQueryState,
 } from "@munim/query";
 import { money } from "@/lib/format";
+import { PageHeader } from "@/components/page-header";
 import { toast } from "@munim/ui";
 import {
   Button, Input, Label, Badge, Card, CardContent, CardHeader, CardTitle, Skeleton,
@@ -147,6 +148,12 @@ export function SalesPage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="Sales"
+        badge="Counter"
+        subtitle="Quick counter sales and the running sales ledger — shared with web & mobile."
+      />
+
       {/* Summary (web parity) */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryTile icon={Receipt} label="Total Sales" value={String(sales.length)} />

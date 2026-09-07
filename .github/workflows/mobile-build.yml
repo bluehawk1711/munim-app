@@ -10,11 +10,11 @@ on:
       variant:
         description: "APK variant"
         required: false
-        default: "debug"
+        default: "release"
         type: choice
         options:
-          - "debug"   # dev-client shell — loads JS from Metro (pnpm start)
-          - "release" # self-contained APK with bundled JS (debug-signed)
+          - "release" # self-contained APK with bundled JS + baked secrets (default — installable on any device, skips onboarding)
+          - "debug"   # dev-client shell — loads JS from Metro (pnpm start); only useful when paired with a running Metro server
 
 jobs:
   android-apk:

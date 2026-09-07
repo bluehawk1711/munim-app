@@ -10,6 +10,7 @@ import {
   useQueryState,
 } from "@munim/query";
 import { toast } from "@munim/ui";
+import { PageHeader } from "@/components/page-header";
 import {
   Card,
   CardContent,
@@ -100,6 +101,12 @@ export function AdvancesPage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="Advances"
+        badge="Cash Flow"
+        subtitle="Whom I gave money, whom I owe — advances and cash movement across the khata."
+      />
+
       {/* Summary */}
       <div className="grid gap-3 sm:grid-cols-3">
         <SummaryTile label="We are owed (udhaar)" value={formatCurrency(totalReceivable)} icon={TrendingUp} accent="emerald" />

@@ -33,6 +33,25 @@ export async function getSavedAppSetup(): Promise<AppSetupConfig | null> {
   return {apiUrl, apiKey: (await getSavedApiKey()) || buildKey()};
 }
 
+/**
+ * Adopt the build-time EXPO_PUBLIC_* values into AsyncStorage. Called on first
+ * launch of a release APK so the user sees the actual configured URL/key in
+ * Settings (and `clearAppSetup` truly returns them to onboarding). No-op when
+ * nothing is baked in or when the user has already saved overrides.
+ */
+export async function adoptBuildTimeConfig(): Promise<void> {
+  const url = buildUrl();
+  const key = buildKey();
+  if (!url && !key) return;
+  if (!url) return;
+  const savedUrl = await getSavedApiUrl();
+  if (!savedUrl) await saveApiUrl(url);
+  if (key) {
+    const savedKey = await getSavedApiKey();
+    if (!savedKey) await saveApiKey(key);
+  }
+}
+
 /** Persist the app setup (used by the onboarding screen). */
 export async function saveAppSetup(cfg: {
   apiUrl: string;

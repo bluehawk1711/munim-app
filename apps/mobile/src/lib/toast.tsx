@@ -13,7 +13,7 @@
 
 import React, {createContext, useContext, useState, useCallback, useEffect} from 'react';
 import {Animated, StyleSheet, Text, View} from 'react-native';
-import {colors} from '../theme';
+import {colors, useThemeStyles} from '../theme';
 import {rs, spacing} from '../lib/responsive';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -83,6 +83,7 @@ const ToastContainer = React.memo(function ToastContainer({
   toasts: Toast[];
   onRemove: (id: string) => void;
 }) {
+  const styles = useThemeStyles(makeToastStyles);
   return (
     <View style={styles.container}>
       {toasts.map(toast => (
@@ -99,8 +100,14 @@ const ToastItem = React.memo(function ToastItem({
   toast: Toast;
   onRemove: (id: string) => void;
 }) {
+  const styles = useThemeStyles(makeToastStyles);
   const animatedStyle = React.useRef(new Animated.Value(0)).current;
+  // onPrimary contrasts with every accent surface (primary/success/danger
+  // share the same foreground convention in the theme tokens), and follows
+  // the active mode — white on deep tones in light, dark on bright tones in
+  // dark mode.
   const bgColor = toast.type === 'success' ? colors.success : toast.type === 'error' ? colors.danger : colors.primary;
+  const fgColor = colors.onPrimary;
 
   useEffect(() => {
     Animated.timing(animatedStyle, {
@@ -122,39 +129,41 @@ const ToastItem = React.memo(function ToastItem({
         {backgroundColor: bgColor, opacity},
       ]}
       onTouchEnd={() => onRemove(toast.id)}>
-      <Text style={styles.message}>{toast.message}</Text>
+      <Text style={[styles.message, {color: fgColor}]}>{toast.message}</Text>
     </Animated.View>
   );
 });
 
-const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    bottom: rs(20),
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    pointerEvents: 'none',
-    zIndex: 1000,
-  },
-  toast: {
-    borderRadius: rs(8),
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    marginHorizontal: spacing.sm,
-    marginBottom: spacing.sm,
-    maxWidth: '90%',
-    alignItems: 'center',
-  },
-  message: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-});
+/** Layout-only styles (no colors — the tinted surface + onPrimary text are
+ *  computed at render so they follow the active theme/mode). */
+const makeToastStyles = () =>
+  StyleSheet.create({
+    container: {
+      position: 'absolute',
+      bottom: rs(20),
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      pointerEvents: 'none',
+      zIndex: 1000,
+    },
+    toast: {
+      borderRadius: rs(8),
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+      marginHorizontal: spacing.sm,
+      marginBottom: spacing.sm,
+      maxWidth: '90%',
+      alignItems: 'center',
+    },
+    message: {
+      fontSize: 14,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+  });
 
 // Hook for easy access in haptics functions
 let toastRef: ToastContextValue | null = null;

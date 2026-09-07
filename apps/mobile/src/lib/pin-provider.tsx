@@ -9,7 +9,7 @@ import React, {createContext, useContext, useEffect, useMemo, useState} from 're
 import {PinLockScreen} from '../screens/PinLockScreen';
 import {OnboardingScreen} from '../screens/OnboardingScreen';
 import {ResetConfigScreen} from '../screens/ResetConfigScreen';
-import {getSavedAppSetup} from './app-config';
+import {adoptBuildTimeConfig, getSavedAppSetup} from './app-config';
 import * as pin from './pin';
 
 export type PinContextValue = {
@@ -49,6 +49,9 @@ export function PinProvider({children}: {children: React.ReactNode}) {
   useEffect(() => {
     let active = true;
     void (async () => {
+      // Adopt build-time EXPO_PUBLIC_* values into storage so Settings shows
+      // the real config and `clearAppSetup` returns to onboarding correctly.
+      await adoptBuildTimeConfig();
       // Setup gate: first launch (no saved DB URL) → onboarding flow first.
       const setup = await getSavedAppSetup();
       if (!active) return;

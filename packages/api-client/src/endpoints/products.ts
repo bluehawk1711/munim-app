@@ -5,6 +5,8 @@ import type {
   StockAdjustmentValues,
   StockMovementDto,
   Pagination,
+  InventoryStatsDto,
+  CategoryBreakdownDto,
 } from "@munim/core";
 import type { HttpClient } from "../http.js";
 import type { ProductMeta } from "../types.js";
@@ -18,6 +20,14 @@ export function products(http: HttpClient) {
     /** GET /api/products/meta — colors/sizes/categories option lists. */
     meta(): Promise<ProductMeta> {
       return http.get("/api/products/meta");
+    },
+    /** GET /api/products/stats — header aggregates for the products page. */
+    stats(): Promise<InventoryStatsDto> {
+      return http.get("/api/products/stats");
+    },
+    /** GET /api/products/by-category — donut data for the products page. */
+    byCategory(): Promise<CategoryBreakdownDto[]> {
+      return http.get("/api/products/by-category");
     },
     /** GET /api/products/lookup?barcode=… — fast shop-counter lookup. */
     byBarcode(barcode: string): Promise<ProductDto> {

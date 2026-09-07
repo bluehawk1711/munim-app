@@ -11,7 +11,14 @@
  * render, so inline `colors.*` usages and `useThemeStyles()` both pick up the
  * new values automatically.
  */
-import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import {useColorScheme} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {mobileColorsFor, type MobileColors, type ThemeMode, type ThemeName} from '@munim/theme';
@@ -72,6 +79,11 @@ export function useTheme(): ThemeContextValue {
 /**
  * Builds a StyleSheet (or any style factory) for the active theme+mode.
  * Returns a stable object per palette, recomputed whenever either changes.
+ *
+ * NOTE for component authors: never build a StyleSheet from `colors.*` at
+ * module scope — that bakes in the default light palette permanently. Use
+ * `useThemeStyles(() => StyleSheet.create({...}))` inside the component, or
+ * make the component take the palette from `useTheme()` for inline styles.
  */
 export function useThemeStyles<T>(factory: (c: MobileColors) => T): T {
   const {colors: palette} = useTheme();

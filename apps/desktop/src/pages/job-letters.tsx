@@ -13,6 +13,7 @@ import {
   useQueryState,
 } from "@munim/query";
 import { money } from "@/lib/format";
+import { PageHeader } from "@/components/page-header";
 import { downloadJobLetterPdf } from "@/lib/jobLetterPdf";
 import { toast } from "@munim/ui";
 import { Button, Input, Label, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
@@ -129,12 +130,16 @@ export function JobLettersPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-muted-foreground text-sm">Job / offer letters for staff — saved to the shared database. Download the gold-bordered PDF from any letter.</p>
-        <Button onClick={() => setOpen(true)}>
-          <Plus className="h-4 w-4" /> New letter
-        </Button>
-      </div>
+      <PageHeader
+        title="Job Letters"
+        badge="HR Suite"
+        subtitle="Offer letters for staff — download the gold-bordered PDF from any letter."
+        actions={
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="h-4 w-4" /> New letter
+          </Button>
+        }
+      />
 
       <Card>
         <CardContent className="p-0">

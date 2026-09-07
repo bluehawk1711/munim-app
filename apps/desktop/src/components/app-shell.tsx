@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { AnimatePresence, MotionConfig } from "motion/react";
 import * as m from "motion/react-m";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AccentThemeProvider } from "@/components/theme-swatches";
 import { Sidebar } from "@/components/sidebar";
 import { Toaster } from "@munim/ui";
 
@@ -14,6 +15,9 @@ type AppShellProps = {
 export function AppShell({ current, title, children }: AppShellProps) {
   return (
     <ThemeProvider defaultTheme="system" storageKey="munim-desktop-theme">
+      {/* Accent theme (data-theme) + persisted mode — applied from app start,
+        not only when Settings is open. */}
+      <AccentThemeProvider>
       <MotionConfig reducedMotion="user">
         <div className="bg-background text-foreground flex h-screen w-screen overflow-hidden">
           <Sidebar current={current} />
@@ -43,7 +47,8 @@ export function AppShell({ current, title, children }: AppShellProps) {
             <main className="min-h-0 flex-1 overflow-y-auto px-5 pt-5 pb-12">{children}</main>
           </div>
         </div>
-      </MotionConfig>
+        </MotionConfig>
+      </AccentThemeProvider>
       <Toaster />
     </ThemeProvider>
   );

@@ -1,6 +1,11 @@
 import React, {useState} from 'react';
-import {Alert, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
-import Animated, {FadeInUp} from 'react-native-reanimated';
+import {Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
+import {
+  Ruler,
+  Search,
+  Tag as TagIcon,
+} from 'lucide-react-native';
 import {
   swatchColor,
   type CatalogItem,
@@ -18,16 +23,16 @@ import {
   Card,
   ErrorBox,
   Field,
-  Header,
   Loading,
   ModalSheet,
   Screen,
-  Section,
+  ThreeDotMenu,
   colors,
 } from '../components/ui';
+import {HomeHeader} from '../components/home-header';
 import {useThemeStyles} from '../theme';
-import {successFeedback, errorFeedback} from '../lib/haptics';
-import {rs, spacing} from '../lib/responsive';
+import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
+import {rs, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 
 type EditorState =
   | {kind: CatalogKind; mode: 'add'; item?: undefined}
@@ -36,10 +41,10 @@ type EditorState =
 
 type TabKey = 'colors' | 'sizes' | 'categories';
 
-const TABS: {key: TabKey; label: string; kind: CatalogKind}[] = [
-  {key: 'colors', label: 'Colors', kind: 'color'},
-  {key: 'sizes', label: 'Sizes', kind: 'size'},
-  {key: 'categories', label: 'Categories', kind: 'category'},
+const TABS: {key: TabKey; label: string; kind: CatalogKind; countLabel: string}[] = [
+  {key: 'colors', label: 'Colors', kind: 'color', countLabel: 'COLORS'},
+  {key: 'sizes', label: 'Sizes', kind: 'size', countLabel: 'SIZES'},
+  {key: 'categories', label: 'Categories', kind: 'category', countLabel: 'CATEGORIES'},
 ];
 
 export function CatalogScreen() {
@@ -77,6 +82,7 @@ export function CatalogScreen() {
   };
 
   const [activeTab, setActiveTab] = useState<TabKey>('colors');
+  const [search, setSearch] = useState('');
   const [editor, setEditor] = useState<EditorState>(null);
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -142,13 +148,17 @@ export function CatalogScreen() {
   }
 
   const kindLabel = editor?.kind ?? 'color';
-
-  const currentItems = data ? data[activeTab] : [];
-  const currentKind = TABS.find(t => t.key === activeTab)?.kind ?? 'color';
+  const activeMeta = TABS.find(t => t.key === activeTab) ?? TABS[0];
+  const currentKind = activeMeta?.kind ?? 'color';
+  const allItems = data ? data[activeTab] : [];
+  const q = search.trim().toLowerCase();
+  const currentItems = q
+    ? allItems.filter(i => i.name.toLowerCase().includes(q))
+    : allItems;
 
   return (
     <Screen>
-      <Header title="Catalog" subtitle="Colors, sizes & categories for products" />
+      <HomeHeader title="Catalog" />
 
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
@@ -156,55 +166,83 @@ export function CatalogScreen() {
         <Loading />
       ) : (
         <View style={{flex: 1}}>
-          {/* Tab bar */}
-          <View style={styles.tabBar}>
-            {TABS.map(tab => (
-              <Pressable
-                key={tab.key}
-                onPress={() => setActiveTab(tab.key)}
-                style={({pressed}) => [
-                  styles.tabItem,
-                  activeTab === tab.key && styles.tabItemActive,
-                  pressed && {opacity: 0.7},
-                ]}>
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    activeTab === tab.key && styles.tabLabelActive,
-                  ]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            ))}
+          {/* Search + swatch count row */}
+          <View style={styles.searchRow}>
+            <View style={styles.searchBox}>
+              <Search size={rs(15)} color={colors.muted} strokeWidth={2.2} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder={
+                  currentKind === 'color'
+                    ? 'Search colors by name or hex…'
+                    : `Search ${currentKind}s…`
+                }
+                placeholderTextColor={colors.inputPlaceholder}
+                style={styles.searchInput}
+                autoCapitalize="none"
+              />
+            </View>
+            <Text style={styles.countChip}>
+              {allItems.length} {activeMeta?.countLabel ?? 'ITEMS'}
+            </Text>
           </View>
 
-          {/* Tab content */}
+          {/* Segmented pill tab bar */}
+          <View style={styles.tabBar}>
+            {TABS.map(tab => {
+              const active = tab.key === activeTab;
+              return (
+                <Pressable
+                  key={tab.key}
+                  onPress={() => {
+                    selectionTick();
+                    setActiveTab(tab.key);
+                  }}
+                  style={({pressed}) => [
+                    styles.tabPill,
+                    active && styles.tabPillActive,
+                    pressed && {opacity: 0.8},
+                  ]}>
+                  <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <ScrollView
             style={styles.tabContent}
-            contentContainerStyle={{paddingBottom: 100}}
-            showsVerticalScrollIndicator={false}>
-            <Section title={TABS.find(t => t.key === activeTab)?.label ?? 'Items'} />
-            <Card>
-              {currentItems.length === 0 ? (
-                <Text style={styles.emptyRow}>No {currentKind} yet — add one below.</Text>
-              ) : (
-                (data?.[activeTab] ?? []).map(item => (
+            contentContainerStyle={{paddingBottom: 110}}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled">
+            {currentItems.length === 0 ? (
+              <Card>
+                <Text style={styles.emptyRow}>
+                  {q
+                    ? `No ${currentKind}s match "${search.trim()}".`
+                    : `No ${currentKind}s yet — add one below.`}
+                </Text>
+              </Card>
+            ) : (
+              currentItems.map((item, i) => (
+                <Card key={item.id} index={i} style={styles.rowCard}>
                   <CatalogRow
-                    key={item.id}
                     kind={currentKind}
                     item={item}
                     onRename={() => openRename(currentKind, item)}
                     onDelete={() => confirmDelete(currentKind, item)}
                   />
-                ))
-              )}
-            </Card>
+                </Card>
+              ))
+            )}
           </ScrollView>
 
-          {/* FAB — adds to the ACTIVE tab */}
+          {/* CTA — adds to the ACTIVE tab */}
           <Animated.View entering={FadeInUp.duration(320)} style={styles.fabRow}>
             <Button
-              title={`+ ${TABS.find(t => t.key === activeTab)?.label ?? 'Item'}`}
+              title={`+ Add New ${currentKind === 'color' ? 'Color' : currentKind === 'size' ? 'Size' : 'Category'}`}
               onPress={() => openAdd(currentKind)}
               style={styles.fabFull}
             />
@@ -248,41 +286,62 @@ function CatalogRow({
   onDelete: () => void;
 }) {
   const styles = useThemeStyles(makeStyles);
-  const swatch = kind === 'color';
+  const inUse = item.productCount > 0;
+
   return (
     <View style={styles.row}>
+      {/* Swatch / icon tile */}
+      {kind === 'color' ? (
+        <View
+          style={[styles.swatch, {backgroundColor: swatchColor(item.name)}]}
+        />
+      ) : (
+        <View style={styles.iconTile}>
+          {kind === 'size' ? (
+            <Ruler size={rs(16)} color={colors.primary} strokeWidth={2.2} />
+          ) : (
+            <TagIcon size={rs(16)} color={colors.primary} strokeWidth={2.2} />
+          )}
+        </View>
+      )}
+
+      {/* Name + hex chip + linked-count subtitle */}
       <View style={styles.rowMain}>
-        {swatch ? (
-          <View
-            style={[styles.swatch, {backgroundColor: swatchColor(item.name)}]}
-          />
-        ) : null}
-        <Text style={styles.rowName} numberOfLines={1}>
-          {item.name}
-        </Text>
-        <Text style={styles.count}>{item.productCount}</Text>
-      </View>
-      <View style={styles.rowActions}>
-        <Pressable onPress={onRename} hitSlop={8} style={styles.actionButton}>
-          <Text style={styles.actionText}>Rename</Text>
-        </Pressable>
-        <Pressable
-          onPress={item.productCount > 0 ? undefined : onDelete}
-          hitSlop={8}
-          style={({pressed}) => [
-            styles.actionButton,
-            pressed && {opacity: 0.6},
-          ]}
-          disabled={item.productCount > 0}>
-          <Text
-            style={[
-              styles.actionText,
-              styles.deleteText,
-              item.productCount > 0 && {opacity: 0.3},
-            ]}>
-            Delete
+        <View style={styles.nameRow}>
+          <Text style={styles.rowName} numberOfLines={1}>
+            {item.name}
           </Text>
-        </Pressable>
+          {kind === 'color' ? (
+            <Text style={styles.hexChip}>
+              {swatchColor(item.name).toUpperCase()}
+            </Text>
+          ) : null}
+        </View>
+        <Text style={styles.rowSubtitle} numberOfLines={1}>
+          {item.productCount === 0
+            ? 'No products linked'
+            : `${item.productCount} product${item.productCount === 1 ? '' : 's'} linked`}
+        </Text>
+      </View>
+
+      {/* In-use badge + 3-dot menu */}
+      <View style={styles.rowEnd}>
+        <View style={[styles.badge, inUse ? styles.badgeInUse : styles.badgeUnused]}>
+          {inUse ? <View style={styles.badgeDot} /> : null}
+          <Text style={[styles.badgeText, inUse && styles.badgeTextInUse]}>
+            {inUse ? `In Use (${item.productCount})` : 'Unused'}
+          </Text>
+        </View>
+        <ThreeDotMenu
+          actions={
+            inUse
+              ? [{label: 'Rename', onPress: onRename}]
+              : [
+                  {label: 'Rename', onPress: onRename},
+                  {label: 'Delete', onPress: onDelete, destructive: true},
+                ]
+          }
+        />
       </View>
     </View>
   );
@@ -290,69 +349,166 @@ function CatalogRow({
 
 const makeStyles = () =>
   StyleSheet.create({
+    searchRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(8),
+      marginTop: spacing.xs,
+      marginBottom: spacing.sm,
+      paddingHorizontal: CARD_MARGIN,
+    },
+    searchBox: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(7),
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.full,
+      paddingHorizontal: rs(13),
+      height: rs(38),
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: rs(13.5),
+      color: colors.text,
+      padding: 0,
+    },
+    countChip: {
+      fontSize: rs(10.5),
+      fontWeight: '800',
+      letterSpacing: 0.6,
+      color: colors.muted,
+    },
     tabBar: {
       flexDirection: 'row',
-      backgroundColor: colors.card,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-      paddingVertical: rs(6),
+      backgroundColor: colors.mutedSoft,
+      borderRadius: radii.full,
+      padding: rs(3),
+      marginBottom: spacing.md,
+      marginHorizontal: CARD_MARGIN,
     },
-    tabItem: {
+    tabPill: {
       flex: 1,
       alignItems: 'center',
-      paddingVertical: rs(6),
+      justifyContent: 'center',
+      paddingVertical: rs(8),
+      borderRadius: radii.full,
     },
-    tabItemActive: {
-      borderBottomWidth: 2,
-      borderBottomColor: colors.primary,
+    tabPillActive: {
+      backgroundColor: colors.primary,
     },
     tabLabel: {
-      fontSize: 13,
+      fontSize: rs(12.5),
       fontWeight: '600',
       color: colors.muted,
     },
     tabLabelActive: {
-      color: colors.primary,
+      color: colors.onPrimary,
       fontWeight: '700',
     },
     tabContent: {
       flex: 1,
     },
+    rowCard: {
+      paddingVertical: 0,
+      paddingHorizontal: 0,
+      marginBottom: spacing.sm,
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 10,
-      paddingHorizontal: 2,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
+      padding: rs(12),
+      gap: rs(10),
     },
-    rowMain: {flexDirection: 'row', alignItems: 'center', flex: 1},
     swatch: {
-      width: 14,
-      height: 14,
-      borderRadius: 7,
+      width: rs(30),
+      height: rs(30),
+      borderRadius: rs(9),
       borderWidth: 1,
       borderColor: colors.border,
-      marginRight: 8,
     },
-    rowName: {fontSize: 15, fontWeight: '500', color: colors.text, flexShrink: 1},
-    count: {
-      fontSize: 11,
+    iconTile: {
+      width: rs(30),
+      height: rs(30),
+      borderRadius: rs(9),
+      backgroundColor: colors.accent,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowMain: {
+      flex: 1,
+      minWidth: 0,
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(6),
+    },
+    rowName: {
+      fontSize: rs(14),
       fontWeight: '700',
+      color: colors.text,
+      flexShrink: 1,
+    },
+    hexChip: {
+      fontSize: rs(9.5),
+      fontWeight: '700',
+      letterSpacing: 0.4,
       color: colors.muted,
-      backgroundColor: colors.mutedBg,
-      borderRadius: 999,
-      paddingHorizontal: 8,
-      paddingVertical: 2,
-      marginLeft: 8,
+      backgroundColor: colors.mutedSoft,
+      borderRadius: radii.sm,
+      paddingHorizontal: rs(5),
+      paddingVertical: rs(1.5),
       overflow: 'hidden',
     },
-    rowActions: {flexDirection: 'row', gap: 14, marginLeft: 12},
-    actionButton: {paddingVertical: 4},
-    actionText: {fontSize: 13, fontWeight: '600', color: colors.primary},
-    deleteText: {color: colors.danger},
-    emptyRow: {fontSize: 13, color: colors.muted, paddingVertical: 6},
+    rowSubtitle: {
+      fontSize: rs(11.5),
+      color: colors.muted,
+      marginTop: rs(2),
+    },
+    rowEnd: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(2),
+    },
+    badge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(4),
+      borderRadius: radii.full,
+      paddingHorizontal: rs(8),
+      paddingVertical: rs(3.5),
+    },
+    badgeUnused: {
+      backgroundColor: colors.mutedSoft,
+    },
+    badgeInUse: {
+      backgroundColor: colors.warningSoft,
+    },
+    badgeDot: {
+      width: rs(5),
+      height: rs(5),
+      borderRadius: radii.full,
+      backgroundColor: colors.warning,
+    },
+    badgeText: {
+      fontSize: rs(10),
+      fontWeight: '700',
+      color: colors.muted,
+    },
+    badgeTextInUse: {
+      color: colors.warning,
+    },
+    emptyRow: {
+      fontSize: rs(13),
+      color: colors.muted,
+      paddingVertical: rs(8),
+      textAlign: 'center',
+    },
     fabRow: {position: 'absolute', bottom: 24, left: 16, right: 16},
     fabFull: {flex: 1},
   });

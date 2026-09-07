@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { themeNames, type ThemeName } from "@munim/theme";
 import { ThemeSelect, ThemeSwatches } from "@munim/ui";
 import { useTheme } from "@/components/theme-provider";
@@ -31,7 +31,7 @@ function getStoredMode(): ThemeMode | null {
  * (instant paint, per-device) — themes never sync through the shared database,
  * so each platform keeps its own look.
  */
-export function useAccentTheme() {
+export function useAccentThemeState() {
   const { setTheme: setNextTheme } = useTheme();
   const [themeName, setThemeNameState] = useState<ThemeName>(() => getStoredTheme());
   // null = follow the system preference (or nothing stored yet).
@@ -61,4 +61,26 @@ export function useAccentTheme() {
   }, []);
 
   return { themeName, setThemeName, mode, setMode };
+}
+
+type AccentThemeContextValue = ReturnType<typeof useAccentThemeState>;
+
+const AccentThemeContext = createContext<AccentThemeContextValue | null>(null);
+
+/**
+ * Owns the accent-theme + mode state for the WHOLE app. Mounted at the root
+ * (inside ThemeProvider) so `data-theme` is applied on first paint — not just
+ * when the Settings page happens to be open (that was the "always amber on
+ * startup" bug: nothing wrote `data-theme` until Settings mounted).
+ */
+export function AccentThemeProvider({ children }: { children: ReactNode }) {
+  const value = useAccentThemeState();
+  return <AccentThemeContext.Provider value={value}>{children}</AccentThemeContext.Provider>;
+}
+
+/** Consume the shared accent-theme state (Settings swatches, mode toggle). */
+export function useAccentThemeContext(): AccentThemeContextValue {
+  const ctx = useContext(AccentThemeContext);
+  if (!ctx) throw new Error("useAccentThemeContext must be used within AccentThemeProvider");
+  return ctx;
 }

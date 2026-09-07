@@ -1,10 +1,10 @@
 import { AnimatedThemeToggle, useForceThemeTransition } from "@munim/ui";
 import { useTheme } from "@/components/theme-provider";
-import { useAccentTheme } from "@/components/theme-swatches";
+import { useAccentThemeContext } from "@/components/theme-swatches";
 
 export function ModeToggle() {
   const { theme } = useTheme();
-  const { setMode } = useAccentTheme();
+  const { setMode } = useAccentThemeContext();
   const forceTransition = useForceThemeTransition();
 
   const isDark =

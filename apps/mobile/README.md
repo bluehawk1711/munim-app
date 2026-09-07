@@ -101,10 +101,23 @@ npx eas-cli build --platform android --profile release   # store AAB
 ```
 
 CI: `.github/workflows/mobile-build.yml` (manual) builds the APK directly
-with Gradle — no EAS required. Choose `debug` (dev-client shell, loads JS from
-Metro) or `release` (bundled JS, debug-signed) and grab the APK from the
-Actions artifact. Needs JDK 17 + Android SDK on the runner (both set up by the
-workflow).
+with Gradle — no EAS required. Choose `release` (default — self-contained APK,
+JS bundled + `EXPO_PUBLIC_API_URL` / `EXPO_PUBLIC_API_KEY` baked in so the
+onboarding screen is skipped) or `debug` (dev-client shell that loads JS from
+Metro — only useful when paired with a running Metro server). Grab the APK
+from the Actions artifact. Needs JDK 17 + Android SDK on the runner (both
+set up by the workflow).
+
+### Which APK to give testers
+
+- **Release APK** (GitHub Actions → "Run workflow" → variant = `release`,
+  the default) — installs straight onto any device and **skips onboarding**
+  because `EXPO_PUBLIC_API_URL` + `EXPO_PUBLIC_API_KEY` are read from the
+  "Production" environment secrets and inlined into the bundle by
+  `expo export:embed`.
+- **Debug APK** — dev-client shell that loads JS from your computer's Metro.
+  Will show the onboarding screen unless `EXPO_PUBLIC_*` are also set in the
+  Metro process env, since they aren't baked into the APK.
 
 ## Monorepo notes
 

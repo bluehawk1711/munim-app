@@ -20,6 +20,8 @@ export const qk = {
     list: (filters: ProductFilters) => ["products", "list", filters] as const,
     detail: (id: string) => ["products", "detail", id] as const,
     meta: ["products", "meta"] as const,
+    stats: ["products", "stats"] as const,
+    byCategory: ["products", "by-category"] as const,
     movements: (id: string) => ["products", "movements", id] as const,
   },
 

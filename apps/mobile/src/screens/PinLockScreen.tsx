@@ -69,6 +69,16 @@ const makeStyles = () =>
     messageError: {fontSize: 13, fontWeight: '600', color: colors.danger},
     messageHint: {fontSize: 12, color: colors.muted},
     pinInputArea: {alignItems: 'center', marginBottom: 8},
+    pinInputHidden: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      opacity: 0,
+      backgroundColor: 'transparent',
+      borderWidth: 0,
+    },
     pinFooter: {flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 22},
     recover: {fontSize: 12, fontWeight: '500', color: colors.muted},
     connSettings: {
@@ -270,16 +280,17 @@ export function PinLockScreen({
               {/* Real PIN input overlaid on the dots — no keypad buttons. */}
               <TextInput
                 ref={pinInputRef}
-                style={StyleSheet.absoluteFill}
+                style={styles.pinInputHidden}
                 value={entry}
                 onChangeText={handlePinChange}
                 keyboardType="number-pad"
                 secureTextEntry
                 autoFocus
                 maxLength={4}
-                textContentType="oneTimeCode"
+                autoComplete="off"
+                textContentType="none"
+                importantForAutofill="no"
                 accessibilityLabel="Enter your 4-digit PIN"
-                caretHidden
               />
             </Animated.View>
 

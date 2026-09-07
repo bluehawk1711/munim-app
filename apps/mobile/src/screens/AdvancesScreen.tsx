@@ -28,13 +28,13 @@ import {
   Card,
   Empty,
   Field,
-  Header,
   Loading,
   ModalSheet,
   Screen,
   ThreeDotMenu,
   colors,
 } from '../components/ui';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 
 type ActionKind = 'GIVEN' | 'TAKEN' | 'PAYMENT_IN' | 'PAYMENT_OUT';
@@ -149,11 +149,12 @@ export function AdvancesScreen() {
 
   return (
     <Screen>
-      <Header title="Advances" subtitle="Money overview" />
+      <HomeHeader title="Advances" />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{paddingBottom: spacing.xxxl}}>
+        contentContainerStyle={{paddingBottom: spacing.xxxl}}
+        {...headerScrollHandlers}>
         {/* Summary cards — 2-column */}
         <View style={styles.summaryGrid}>
           <View style={styles.summaryRow}>

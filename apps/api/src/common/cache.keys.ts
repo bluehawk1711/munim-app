@@ -30,6 +30,8 @@ export const cacheKeys = {
   productsList: (f: Record<string, unknown>) => `products:list:${hashFilters(f)}`,
   product: (id: string) => `products:get:${id}`,
   productsMeta: "products:meta",
+  productsStats: "products:stats",
+  productsByCategory: "products:by-category",
   productLookup: (barcode: string) => `products:lookup:${hashFilters({ barcode })}`,
   productMovements: (id: string) => `products:movements:${id}`,
   dashboard: "dashboard:get",

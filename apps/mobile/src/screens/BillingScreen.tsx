@@ -7,6 +7,7 @@ import {
   renderBillText,
   renderBillHtml,
   formatDate,
+  swatchColor,
   type BillDocument,
   type BillTemplate,
   type BillClassicColor,
@@ -32,13 +33,13 @@ import {
   Card,
   Empty,
   Field,
-  Header,
   Loading,
   ModalSheet,
   Screen,
   Section,
   colors,
 } from '../components/ui';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
 import {rw, rs, spacing, typography, radii} from '../lib/responsive';
@@ -501,6 +502,9 @@ export function BillingScreen() {
       }
       resetForm();
       successFeedback(`Bill ${invoice.invoiceNumber} created`);
+
+      // Auto-generate PDF like web does — save to device then share.
+      void generateAndSharePdf(doc, secondDoc);
     } catch {
       errorFeedback('Failed to create bill');
       // keep form for retry
@@ -531,7 +535,6 @@ export function BillingScreen() {
     try {
       let html = renderBillHtml(preview);
       if (twoInOne) {
-        // 2-in-1 sheet: Duplicate repeats bill 1, Separate stacks bill 2.
         const second = secondPreview ? renderBillHtml(secondPreview) : html;
         html = `${html}<div style="page-break-after: always"></div>${second}`;
       }
@@ -545,10 +548,39 @@ export function BillingScreen() {
     }
   }
 
+  /** Auto-generate PDF after invoice creation — same flow as web's handleSaveAndPrint. */
+  async function generateAndSharePdf(doc: BillDocument, secondDoc?: BillDocument | null) {
+    try {
+      let html = renderBillHtml(doc);
+      if (secondDoc) {
+        html = `${html}<div style="page-break-after: always"></div>${renderBillHtml(secondDoc)}`;
+      }
+      const {uri} = await Print.printToFileAsync({html, base64: false});
+      await Share.share({url: uri, message: `Bill ${doc.billNo} — ${doc.shop.name}`});
+    } catch {
+      // user cancelled — bill is already saved, no error needed
+    }
+  }
+
+  /** Re-generate PDF for an existing invoice from history and share it. */
+  async function shareInvoicePdf(inv: InvoiceDto) {
+    try {
+      const shop = settings
+        ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones, email: settings.shopEmail ?? ''}
+        : undefined;
+      const doc = toBillDocument(inv, shop);
+      const html = renderBillHtml(doc);
+      const {uri} = await Print.printToFileAsync({html, base64: false});
+      await Share.share({url: uri, message: `Bill ${inv.invoiceNumber} — ${doc.shop.name}`});
+    } catch {
+      // user cancelled
+    }
+  }
+
   return (
     <Screen>
-      <Header title="Billing" subtitle="Create an invoice — same shared bill as web & desktop" />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}}>
+      <HomeHeader title="Billing" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}} {...headerScrollHandlers}>
         {/* Template options — same model as web + desktop */}
         <Card index={0}>
           <Text style={styles.optLabel}>Bill template</Text>
@@ -592,7 +624,14 @@ export function BillingScreen() {
                       classicColor === c && styles.colorDotActive,
                       pressed && {opacity: 0.75},
                     ]}>
-                    <View style={[styles.colorDot, {backgroundColor: c === 'red' ? '#dc2626' : '#eab308'}]} />
+                    <View
+                      style={[
+                        styles.colorDot,
+                        // Semantic print colors — from the shared core map
+                        // (same source as web/desktop, not theme tokens).
+                        {backgroundColor: swatchColor(c)},
+                      ]}
+                    />
                   </Pressable>
                 ))}
                 <Text style={styles.colorHint}>
@@ -614,7 +653,7 @@ export function BillingScreen() {
                 setTwoInOne(value);
               }}
               trackColor={{true: colors.primary, false: colors.border}}
-              thumbColor="#ffffff"
+              thumbColor={colors.inverseOnSurface}
             />
           </View>
 
@@ -722,14 +761,87 @@ export function BillingScreen() {
         {preview ? (
           <Card index={3}>
             <Text style={styles.sectionTitle}>
-              Bill preview — {preview.billNo}
+              Bill — {preview.billNo}
               {twoInOne ? ' (2-in-1)' : ''}
             </Text>
-            <Text style={styles.previewText}>{renderBillText(preview)}</Text>
+            {/* Structured preview — matches desktop's sidebar card */}
+            <View style={styles.previewCard}>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Customer</Text>
+                <Text style={styles.previewValue}>{preview.customerName || 'Walk-in'}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Date</Text>
+                <Text style={styles.previewValue}>{formatDate(preview.date)}</Text>
+              </View>
+              {preview.customerPhone ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Phone</Text>
+                  <Text style={styles.previewValue}>{preview.customerPhone}</Text>
+                </View>
+              ) : null}
+              <View style={styles.previewDivider} />
+              {preview.lines.map((line, i) => (
+                <View key={i} style={styles.previewLineItem}>
+                  <Text style={styles.previewLineName} numberOfLines={1}>
+                    {line.productName}
+                    {line.sku ? ` (${line.sku})` : ''}
+                  </Text>
+                  <Text style={styles.previewLineQty}>×{line.quantity}</Text>
+                  <Text style={styles.previewLinePrice}>{money(line.price * line.quantity)}</Text>
+                </View>
+              ))}
+              <View style={styles.previewDivider} />
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Subtotal</Text>
+                <Text style={styles.previewValue}>{money(preview.subtotal)}</Text>
+              </View>
+              {preview.discount > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Discount</Text>
+                  <Text style={[styles.previewValue, {color: colors.danger}]}>-{money(preview.discount)}</Text>
+                </View>
+              ) : null}
+              {preview.deliveryCharge > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Delivery</Text>
+                  <Text style={styles.previewValue}>+{money(preview.deliveryCharge)}</Text>
+                </View>
+              ) : null}
+              <View style={[styles.previewRow, styles.previewTotalRow]}>
+                <Text style={styles.previewTotalLabel}>Total</Text>
+                <Text style={styles.previewTotalValue}>{money(preview.total)}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Paid</Text>
+                <Text style={[styles.previewValue, {color: colors.success}]}>{money(preview.amountPaid)}</Text>
+              </View>
+              {preview.dueAmount > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Due</Text>
+                  <Text style={[styles.previewValue, {color: colors.danger, fontWeight: '700'}]}>{money(preview.dueAmount)}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.previewAmountWords}>{preview.amountInWords}</Text>
+            </View>
             {secondPreview ? (
               <>
                 <Text style={styles.sectionTitle}>Bill 2 — {secondPreview.billNo}</Text>
-                <Text style={styles.previewText}>{renderBillText(secondPreview)}</Text>
+                <View style={styles.previewCard}>
+                  {secondPreview.lines.map((line, i) => (
+                    <View key={i} style={styles.previewLineItem}>
+                      <Text style={styles.previewLineName} numberOfLines={1}>
+                        {line.productName}
+                      </Text>
+                      <Text style={styles.previewLineQty}>×{line.quantity}</Text>
+                      <Text style={styles.previewLinePrice}>{money(line.price * line.quantity)}</Text>
+                    </View>
+                  ))}
+                  <View style={[styles.previewRow, styles.previewTotalRow]}>
+                    <Text style={styles.previewTotalLabel}>Total</Text>
+                    <Text style={styles.previewTotalValue}>{money(secondPreview.total)}</Text>
+                  </View>
+                </View>
               </>
             ) : null}
             <View style={{flexDirection: 'row', gap: 8}}>
@@ -766,6 +878,13 @@ export function BillingScreen() {
                   />
                 </View>
               </View>
+              <Button
+                title="Share PDF"
+                variant="outline"
+                size="small"
+                style={{marginTop: 8}}
+                onPress={() => void shareInvoicePdf(inv)}
+              />
             </Card>
           ))
         )}
@@ -863,6 +982,47 @@ const makeStyles = () =>
       fontFamily: 'monospace',
       marginBottom: 12,
       lineHeight: 18,
+    },
+    previewCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 12,
+      backgroundColor: colors.bg,
+    },
+    previewRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 4,
+    },
+    previewLabel: {fontSize: 12, color: colors.muted},
+    previewValue: {fontSize: 13, fontWeight: '600', color: colors.text},
+    previewDivider: {height: 1, backgroundColor: colors.border, marginVertical: 8},
+    previewLineItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 3,
+      gap: 8,
+    },
+    previewLineName: {flex: 1, fontSize: 13, color: colors.text},
+    previewLineQty: {fontSize: 12, color: colors.muted, width: 30, textAlign: 'right'},
+    previewLinePrice: {fontSize: 13, fontWeight: '600', color: colors.text, width: 80, textAlign: 'right'},
+    previewTotalRow: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+      marginTop: 4,
+    },
+    previewTotalLabel: {fontSize: 14, fontWeight: '700', color: colors.text},
+    previewTotalValue: {fontSize: 16, fontWeight: '700', color: colors.primary},
+    previewAmountWords: {
+      fontSize: 11,
+      color: colors.muted,
+      fontStyle: 'italic',
+      marginTop: 8,
+      textAlign: 'center',
     },
     row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
     name: {fontSize: 15, fontWeight: '600', color: colors.text},

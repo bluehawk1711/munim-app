@@ -38,6 +38,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {BottomSheetScrollView} from '@gorhom/bottom-sheet';
 import {spacing} from '../lib/responsive';
+import {colors, useThemeStyles} from '../theme';
 
 type KeyboardFormProps = {
   /** Form field children. */
@@ -63,6 +64,7 @@ export function KeyboardForm({
   keyboardOffset = 0,
 }: KeyboardFormProps) {
   const insets = useSafeAreaInsets();
+  const styles = useThemeStyles(makeStyles);
   const ScrollComponent = inSheet ? BottomSheetScrollView : ScrollView;
 
   return (
@@ -90,19 +92,22 @@ export function KeyboardForm({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  footer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(0,0,0,0.08)',
-  },
-});
+/** Theme-aware footer border — a hairline `border` token works on light AND
+ *  dark surfaces (the old rgba-black line vanished in dark mode). */
+const makeStyles = () =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.md,
+    },
+    footer: {
+      paddingHorizontal: spacing.lg,
+      paddingTop: spacing.sm,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+  });

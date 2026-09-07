@@ -6,7 +6,8 @@ import {useDeleteJobLetter, useJobLetters, useQueryState, useSaveJobLetter, useS
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
 import {rs, typography, spacing, CARD_MARGIN} from '../lib/responsive';
-import {Button, Card, Empty, ErrorBox, Field, Header, Loading, ModalSheet, Screen, colors} from '../components/ui';
+import {Button, Card, Empty, ErrorBox, Field, Loading, ModalSheet, Screen, colors} from '../components/ui';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -76,11 +77,12 @@ export function JobLettersScreen() {
 
   return (
     <Screen>
-      <Header title="Job Letters" subtitle="Staff offer letters" />
+      <HomeHeader title="Job Letters" />
       {error ? <ErrorBox message={error} onRetry={reload} /> : loading || !data ? <Loading /> : (
         <FlatList
           data={data}
           keyExtractor={item => item.id}
+          {...headerScrollHandlers}
           ListHeaderComponent={<Button title="+ New letter" onPress={() => { reset(); setOpen(true); }} style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}} />}
           ListEmptyComponent={<Empty text="No job letters yet" />}
           contentContainerStyle={{paddingBottom: spacing.xxxl}}

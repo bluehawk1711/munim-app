@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Package, Loader2 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Loader2, Search, Layers, X } from "lucide-react";
 import {
   swatchColor,
   type CatalogItem,
@@ -10,27 +10,30 @@ import {
   useCreateCatalogItem,
   useUpdateCatalogItem,
   useDeleteCatalogItem,
+  useProducts,
   useQueryState,
 } from "@munim/query";
 import { toast } from "@munim/ui";
-import { Button, Input, Label, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton } from "@munim/ui"
-;
-;
-;
-;
-;
-;
+import { PageHeader } from "@/components/page-header";
+import { Button, Input, Label, Badge, Card, CardContent, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Skeleton } from "@munim/ui";
+import PieChart from "@/components/charts/pie-chart";
+import { PieSlice } from "@/components/charts/pie-slice";
+import { PieCenter } from "@/components/charts/pie-center";
+import { Legend, LegendItem, LegendMarker, LegendLabel, LegendValue } from "@/components/charts/legend";
 
 type DialogState =
   | { kind: CatalogKind; mode: "add"; item?: undefined }
   | { kind: CatalogKind; mode: "rename"; item: CatalogItem }
   | null;
 
-function CatalogCard({
+type StatusFilter = "all" | "in_use" | "unused";
+
+/** One master column (Colors / Sizes / Categories) in the 3-way layout. */
+function MasterColumn({
   kind,
   icon: Icon,
   title,
-  description,
+  blurb,
   items,
   loading,
   error,
@@ -38,103 +41,140 @@ function CatalogCard({
   onAdd,
   onRename,
   onDelete,
+  search,
+  status,
 }: {
   kind: CatalogKind;
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  description: string;
-  items: CatalogItem[] | null;
+  blurb: string;
+  items: CatalogItem[];
   loading: boolean;
   error: string | null;
   onReload: () => void;
   onAdd: () => void;
   onRename: (item: CatalogItem) => void;
   onDelete: (item: CatalogItem) => void;
+  search: string;
+  status: StatusFilter;
 }) {
+  const q = search.trim().toLowerCase();
+  const filtered = items.filter((item) => {
+    if (q && !item.name.toLowerCase().includes(q)) return false;
+    if (status === "in_use" && item.productCount <= 0) return false;
+    if (status === "unused" && item.productCount > 0) return false;
+    return true;
+  });
+
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="bg-primary/10 text-primary flex h-9 w-9 items-center justify-center rounded-lg">
+    <Card className="flex flex-col">
+      <div className="flex items-start justify-between gap-2 p-4 pb-3">
+        <div className="flex items-start gap-2.5">
+          <div className="bg-primary/10 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-lg">
             <Icon className="h-5 w-5" />
           </div>
-          <div>
-            <CardTitle className="text-base">{title}</CardTitle>
-            <CardDescription className="text-xs">{description}</CardDescription>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h3 className="truncate text-sm font-bold">{title}</h3>
+              <span className="bg-muted rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums">{items.length}</span>
+            </div>
+            <p className="text-muted-foreground mt-0.5 text-[11px] leading-snug">{blurb}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="font-normal">
-            {items?.length ?? 0}
-          </Badge>
-          <Button size="sm" variant="outline" onClick={onAdd} className="h-8 gap-1.5">
-            <Plus className="h-3.5 w-3.5" /> Add
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
+      </div>
+      <div className="px-4 pb-3">
+        <Button size="sm" variant="outline" onClick={onAdd} className="h-8 w-full gap-1.5">
+          <Plus className="h-3.5 w-3.5" /> Add {kind === "color" ? "Color Swatch" : kind === "size" ? "Size Specification" : "Category Master"}
+        </Button>
+      </div>
+      <CardContent className="min-h-0 flex-1 p-0 pt-0">
         {error ? (
           <p className="px-4 py-6 text-center text-xs text-destructive">{error}</p>
         ) : loading ? (
-          <div className="space-y-2 p-4">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-9 w-full" />)}
+          <div className="space-y-2 p-4 pt-0">
+            {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
-        ) : items && items.length > 0 ? (
-          <ul className="divide-y">
-            {items.map((item) => (
-              <li key={item.id} className="group flex items-center justify-between gap-3 px-4 py-2.5">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  {kind === "color" && (
+        ) : filtered.length > 0 ? (
+          <ul className="max-h-[26rem] space-y-1.5 overflow-y-auto px-4 pb-3">
+            {filtered.map((item, i) => {
+              const inUse = item.productCount > 0;
+              return (
+                <li
+                  key={item.id}
+                  className="group flex items-center gap-3 rounded-xl border p-2.5 transition-colors hover:bg-muted/50"
+                >
+                  {kind === "color" ? (
                     <span
-                      className="h-4 w-4 shrink-0 rounded-full border border-border"
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-[9px] font-bold text-white/90 shadow-inner"
                       style={{ backgroundColor: swatchColor(item.name) }}
                       aria-hidden
-                    />
+                    >
+                      Aa
+                    </span>
+                  ) : kind === "size" ? (
+                    <span className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold tabular-nums" aria-hidden>
+                      {i + 1}
+                    </span>
+                  ) : (
+                    <span className="bg-primary/10 text-primary flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" aria-hidden>
+                      <FolderTree className="h-4 w-4" />
+                    </span>
                   )}
-                  <span className="truncate text-sm font-medium">{item.name}</span>
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
-                    <Package className="h-3 w-3" />
-                    {item.productCount}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    aria-label={`Rename ${item.name}`}
-                    onClick={() => onRename(item)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-destructive hover:text-destructive disabled:opacity-40"
-                    aria-label={`Delete ${item.name}`}
-                    title={item.productCount > 0 ? `In use by ${item.productCount} product(s)` : `Delete ${item.name}`}
-                    disabled={item.productCount > 0}
-                    onClick={() => onDelete(item)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </li>
-            ))}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-sm font-semibold">{item.name}</span>
+                      {kind === "color" ? (
+                        <span className="bg-muted text-muted-foreground shrink-0 rounded px-1 py-px font-mono text-[9px] uppercase">
+                          {swatchColor(item.name)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className="text-muted-foreground text-[11px]">
+                      {inUse ? `${item.productCount} product${item.productCount !== 1 ? "s" : ""} linked` : "No products linked"}
+                    </p>
+                  </div>
+                  <Badge variant={inUse ? "warning" : "secondary"} className="shrink-0 gap-1">
+                    {inUse ? "In Use" : "Unused"}
+                  </Badge>
+                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      aria-label={`Rename ${item.name}`}
+                      onClick={() => onRename(item)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7 text-destructive hover:text-destructive disabled:opacity-40"
+                      aria-label={`Delete ${item.name}`}
+                      title={inUse ? `In use by ${item.productCount} product(s)` : `Delete ${item.name}`}
+                      disabled={inUse}
+                      onClick={() => onDelete(item)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         ) : (
-          <p className="px-4 py-8 text-center text-xs text-muted-foreground">
-            No {title.toLowerCase()} yet. Click “Add” to create one.
+          <p className="px-4 pb-6 pt-2 text-center text-xs text-muted-foreground">
+            {items.length === 0 ? `No ${title.toLowerCase()} yet — add the first one.` : "Nothing matches the current search/filter."}
           </p>
         )}
-        {!error && !loading && (
-          <div className="border-t px-4 py-1.5">
-            <button type="button" onClick={onReload} className="text-xs text-muted-foreground transition-colors hover:text-foreground">
-              Refresh list
-            </button>
-          </div>
-        )}
       </CardContent>
+      {!error && !loading ? (
+        <div className="border-t px-4 py-1.5">
+          <button type="button" onClick={onReload} className="text-muted-foreground text-xs transition-colors hover:text-foreground">
+            Refresh list
+          </button>
+        </div>
+      ) : null}
     </Card>
   );
 }
@@ -154,9 +194,38 @@ export function CatalogPage() {
   const deleteSize = useDeleteCatalogItem("size");
   const deleteCategory = useDeleteCatalogItem("category");
 
+  const colorItems = colors.data ?? [];
+  const sizeItems = sizes.data ?? [];
+  const categoryItems = categories.data ?? [];
+
+  // Cheap cached call — the pagination header carries the real product count.
+  const productsQ = useQueryState(useProducts({ pageSize: 1 }));
+  const totalProducts = productsQ.data?.pagination.totalCount ?? 0;
+
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
   const [dialog, setDialog] = useState<DialogState>(null);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [pieHovered, setPieHovered] = useState<number | null>(null);
+
+  const totalVariants = colorItems.length + sizeItems.length + categoryItems.length;
+  const totalLinks = colorItems.reduce((a, c) => a + c.productCount, 0) + sizeItems.reduce((a, c) => a + c.productCount, 0) + categoryItems.reduce((a, c) => a + c.productCount, 0);
+  const inUseCount = [...colorItems, ...sizeItems, ...categoryItems].filter((c) => c.productCount > 0).length;
+  const unusedCount = totalVariants - inUseCount;
+
+  // Composition donut — products linked per category (deterministic swatch colors).
+  const composition = useMemo(() => {
+    const withProducts = categoryItems
+      .filter((c) => c.productCount > 0)
+      .sort((a, b) => b.productCount - a.productCount);
+    const total = withProducts.reduce((a, c) => a + c.productCount, 0);
+    return {
+      slices: withProducts.map((c) => ({ label: c.name, value: c.productCount, color: swatchColor(c.name) })),
+      legend: withProducts.map((c) => ({ label: c.name, value: c.productCount, color: swatchColor(c.name), maxValue: total })),
+      total,
+    };
+  }, [categoryItems]);
 
   function openAdd(kind: CatalogKind) {
     setName("");
@@ -208,49 +277,198 @@ export function CatalogPage() {
     }
   }
 
+  const statusChips: { key: StatusFilter; label: string; count: number }[] = [
+    { key: "all", label: "All Masters", count: totalVariants },
+    { key: "in_use", label: "In Use Only", count: inUseCount },
+    { key: "unused", label: "Unused / Idle", count: unusedCount },
+  ];
+
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="Product Catalog & Attribute Master"
+        badge="Catalog Master"
+        subtitle="Manage variant palettes, sizing standards, and inventory taxonomy — renames cascade across web, desktop and mobile through the shared catalog service."
+        actions={
+          <span className="text-muted-foreground rounded-full border bg-card px-3 py-1.5 text-xs font-semibold tabular-nums">
+            {totalVariants} variants total
+          </span>
+        }
+      />
+
+      {/* ── Toolbar: search + status chips ─────────────────────────── */}
+      <Card>
+        <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-center">
+          <div className="relative w-full max-w-sm">
+            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+            <Input
+              placeholder="Search masters, color, hex or size…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9 pr-8"
+            />
+            {search ? (
+              <button
+                type="button"
+                aria-label="Clear search"
+                onClick={() => setSearch("")}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2.5 -translate-y-1/2"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 lg:ml-auto">
+            {statusChips.map((chip) => {
+              const active = status === chip.key;
+              return (
+                <button
+                  key={chip.key}
+                  type="button"
+                  onClick={() => setStatus(chip.key)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    active ? "bg-primary text-primary-foreground border-primary" : "bg-card text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {chip.label}
+                  <span className={`rounded-full px-1.5 text-[10px] tabular-nums ${active ? "bg-primary-foreground/20" : "bg-muted"}`}>{chip.count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Consolidated masters summary + composition donut ───────── */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2">
+              <Layers className="text-primary h-4 w-4" />
+              <h2 className="text-sm font-bold">Consolidated 3-Way Master Catalog Architecture</h2>
+            </div>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Colors, sizes and categories live in one shared service — every product links to these masters, so a rename
+              here updates the label everywhere without touching the product rows.
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                { label: "Colors & Enamels", value: colorItems.length },
+                { label: "Sizes & Standards", value: sizeItems.length },
+                { label: "Categories & Metals", value: categoryItems.length },
+                { label: "Active Links", value: totalLinks },
+              ].map((s) => (
+                <div key={s.label} className="bg-muted/50 rounded-lg border p-2.5">
+                  <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">{s.label}</p>
+                  <p className="mt-0.5 text-lg font-bold tabular-nums">{s.value}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold">Linked Products by Category</h2>
+              <span className="text-muted-foreground text-xs tabular-nums">{composition.total} linked</span>
+            </div>
+            {composition.slices.length === 0 ? (
+              <p className="text-muted-foreground py-8 text-center text-xs">
+                Link products to categories to see the composition here.
+              </p>
+            ) : (
+              <div className="mt-2 flex flex-col items-center gap-3">
+                <PieChart data={composition.slices} innerRadius={52} size={170} hoverOffset={7} hoveredIndex={pieHovered} onHoverChange={setPieHovered}>
+                  {composition.slices.map((slice, i) => (
+                    <PieSlice key={slice.label} index={i} color={slice.color} />
+                  ))}
+                  <PieCenter>
+                    {({ value, label }) => (
+                      <div className="max-w-20 text-center">
+                        <p className="text-muted-foreground truncate text-[10px] font-semibold uppercase">{label}</p>
+                        <p className="text-sm font-bold tabular-nums">{value}</p>
+                      </div>
+                    )}
+                  </PieCenter>
+                </PieChart>
+                <Legend items={composition.legend} className="w-full">
+                  <LegendItem className="rounded-lg px-2 py-1 transition-colors hover:bg-muted/60">
+                    <LegendMarker />
+                    <LegendLabel className="min-w-0 flex-1 truncate text-xs" />
+                    <LegendValue className="text-xs" />
+                  </LegendItem>
+                </Legend>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── 3-way master columns ───────────────────────────────────── */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <CatalogCard
+        <MasterColumn
           kind="color"
           icon={Palette}
-          title="Colors"
-          description="Color variants available for products"
-          items={colors.data ?? null}
+          title="Colors & Enamels"
+          blurb="Deterministic swatch tokens — rename or extend without breaking product links."
+          items={colorItems}
           loading={colors.loading}
           error={colors.error}
           onReload={colors.reload}
           onAdd={() => openAdd("color")}
           onRename={(item) => openRename("color", item)}
           onDelete={(item) => handleDelete("color", item)}
+          search={search}
+          status={status}
         />
-        <CatalogCard
+        <MasterColumn
           kind="size"
           icon={Ruler}
-          title="Sizes"
-          description="Size variants available for products"
-          items={sizes.data ?? null}
+          title="Sizes & Standards"
+          blurb="Sizing standards for rings, bangles and apparel — linked to every variant."
+          items={sizeItems}
           loading={sizes.loading}
           error={sizes.error}
           onReload={sizes.reload}
           onAdd={() => openAdd("size")}
           onRename={(item) => openRename("size", item)}
           onDelete={(item) => handleDelete("size", item)}
+          search={search}
+          status={status}
         />
-        <CatalogCard
+        <MasterColumn
           kind="category"
           icon={FolderTree}
-          title="Categories"
-          description="Product categories — e.g. Jewellery, Apparel"
-          items={categories.data ?? null}
+          title="Categories & Metals"
+          blurb="Inventory taxonomy — powers reports, category splits and filters."
+          items={categoryItems}
           loading={categories.loading}
           error={categories.error}
           onReload={categories.reload}
           onAdd={() => openAdd("category")}
           onRename={(item) => openRename("category", item)}
           onDelete={(item) => handleDelete("category", item)}
+          search={search}
+          status={status}
         />
       </div>
+
+      {/* ── Footer strip ───────────────────────────────────────────── */}
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 p-3 text-xs">
+          <span className="flex items-center gap-1.5 font-semibold">
+            <Layers className="text-primary h-3.5 w-3.5" />
+            {totalProducts} products reference this catalog
+          </span>
+          <span className="text-muted-foreground">
+            Renames cascade to every linked product · deletes are blocked while a master is in use
+          </span>
+          <span className="text-muted-foreground ml-auto tabular-nums">
+            {totalVariants} masters · {inUseCount} in use · {unusedCount} idle
+          </span>
+        </CardContent>
+      </Card>
 
       <Dialog open={dialog !== null} onOpenChange={(open) => !open && setDialog(null)}>
         <DialogContent className="sm:max-w-[400px]">

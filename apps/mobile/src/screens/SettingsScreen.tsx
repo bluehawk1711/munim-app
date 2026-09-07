@@ -10,7 +10,8 @@ import {
   saveApiUrl,
 } from '../lib/api';
 import {useQueryState, useSettings, useUpdateSettings} from '@munim/query';
-import {Badge, Button, Card, Field, Header, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
+import {Badge, Button, Card, Field, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {ThemeToggleButton} from '../components/theme-toggle';
 import {
   successFeedback,
@@ -23,10 +24,11 @@ import {
   isForceTransitionEnabled,
   setForceTransitionEnabled,
 } from '../lib/force-transition';
-import {useTheme} from '../theme';
+import {useTheme, useThemeStyles} from '../theme';
 import {usePinLock} from '../lib/pin-provider';
 
 export function SettingsScreen() {
+  const styles = useThemeStyles(makeStyles);
   const {mode, toggle, themeName, setThemeName} = useTheme();
   const pin = usePinLock();
   const [pinCurrent, setPinCurrent] = useState('');
@@ -290,8 +292,8 @@ export function SettingsScreen() {
 
   return (
     <Screen>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}}>
-      <Header title="Settings" subtitle="Shop profile, appearance, security & connection" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}} {...headerScrollHandlers}>
+      <HomeHeader title="Settings" />
       {urlLoaded && !url.trim() ? (
         <Pressable
           onPress={() => scrollRef.current?.scrollTo({y: dbSectionY.current, animated: true})}
@@ -354,7 +356,7 @@ export function SettingsScreen() {
               void setForceTransitionEnabled(value);
             }}
             trackColor={{true: colors.primary, false: colors.border}}
-            thumbColor="#ffffff"
+            thumbColor={colors.inverseOnSurface}
           />
         </View>
       </Card>
@@ -421,7 +423,7 @@ export function SettingsScreen() {
               void setHapticsEnabled(value);
             }}
             trackColor={{true: colors.primary, false: colors.border}}
-            thumbColor="#ffffff"
+            thumbColor={colors.inverseOnSurface}
           />
         </View>
       </Card>
@@ -660,7 +662,9 @@ export function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+/** Theme-aware — rebuilt on palette change (banner + swatch labels). */
+const makeStyles = () =>
+  StyleSheet.create({
   dbBanner: {
     backgroundColor: colors.warningSoft,
     borderRadius: 12,

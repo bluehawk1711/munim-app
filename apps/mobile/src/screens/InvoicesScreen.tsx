@@ -33,13 +33,13 @@ import {
   Card,
   Empty,
   Field,
-  Header,
   Loading,
   ModalSheet,
   Screen,
   StatBox,
   colors,
 } from '../components/ui';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
 
@@ -190,12 +190,13 @@ export function InvoicesScreen() {
 
   return (
     <Screen>
-      <Header title="Invoices" subtitle="All bills & statuses — same as web & desktop" />
+      <HomeHeader title="Invoices" />
 
       <FlatList
         data={invoices}
         keyExtractor={item => item.id}
         keyboardShouldPersistTaps="handled"
+        {...headerScrollHandlers}
         // Dim the list while a filter/page change refetches, so the refresh
         // is visible even when rows are already populated.
         style={loading && invoices.length > 0 ? {opacity: 0.55} : null}

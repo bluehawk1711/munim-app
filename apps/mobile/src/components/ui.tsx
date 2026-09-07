@@ -138,7 +138,7 @@ const makeStyles = () =>
       alignItems: 'center' as const,
       paddingVertical: spacing.md,
     },
-    modalOverlay: {flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'flex-end' as const},
+    modalOverlay: {flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' as const},
     modalSheet: {
       backgroundColor: colors.card,
       borderTopLeftRadius: radii.xl,
@@ -517,7 +517,7 @@ function ShimmerBlock({
             top: 0,
             bottom: 0,
             width: '55%',
-            backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.45)',
+            backgroundColor: colors.shimmerSweep,
             transform: [{skewX: '-18deg'}],
           },
           sweep,
@@ -618,7 +618,7 @@ export function ModalSheet({
       <Pressable
         style={{
           flex: 1,
-          backgroundColor: 'rgba(15,23,42,0.45)',
+          backgroundColor: colors.overlay,
           justifyContent: centered ? 'center' : 'flex-end',
           alignItems: centered ? 'center' : 'stretch',
           padding: centered ? spacing.xxl : 0,
@@ -838,7 +838,7 @@ export function ConfirmDialog({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable
-        style={{flex: 1, backgroundColor: 'rgba(15,23,42,0.45)', justifyContent: 'center', alignItems: 'center', padding: spacing.xxl}}
+        style={{flex: 1, backgroundColor: colors.overlay, justifyContent: 'center', alignItems: 'center', padding: spacing.xxl}}
         onPress={onCancel}>
         <Pressable
           onPress={() => {}}

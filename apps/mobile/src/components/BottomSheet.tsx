@@ -41,7 +41,7 @@ import BottomSheet, {
   type BottomSheetHandleProps,
 } from '@gorhom/bottom-sheet';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
-import {colors} from '../theme';
+import {colors, useTheme, useThemeStyles} from '../theme';
 import {actionPress} from '../lib/haptics';
 import {rw, rh, rs, typography, spacing, radii, SCREEN} from '../lib/responsive';
 
@@ -49,6 +49,8 @@ import {rw, rh, rs, typography, spacing, radii, SCREEN} from '../lib/responsive'
 
 function createHandle(title?: string) {
   return function Handle(props: BottomSheetHandleProps) {
+    // Theme-aware: rebuilt whenever the palette changes (dark mode / accent).
+    const handleStyles = useThemeStyles(makeHandleStyles);
     return (
       <View style={handleStyles.container}>
         <View style={handleStyles.indicator} />
@@ -60,27 +62,28 @@ function createHandle(title?: string) {
   };
 }
 
-const handleStyles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingTop: rs(8),
-    paddingBottom: rs(4),
-  },
-  indicator: {
-    width: rw(36),
-    height: rs(4),
-    borderRadius: rs(2),
-    backgroundColor: colors.muted,
-    opacity: 0.4,
-  },
-  title: {
-    fontSize: typography.h2,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: rs(8),
-    marginBottom: rs(2),
-  },
-});
+const makeHandleStyles = () =>
+  StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      paddingTop: rs(8),
+      paddingBottom: rs(4),
+    },
+    indicator: {
+      width: rw(36),
+      height: rs(4),
+      borderRadius: rs(2),
+      backgroundColor: colors.muted,
+      opacity: 0.4,
+    },
+    title: {
+      fontSize: typography.h2,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: rs(8),
+      marginBottom: rs(2),
+    },
+  });
 
 /* ─── Backdrop ───────────────────────────────────────────────────────── */
 
@@ -155,6 +158,9 @@ export const MunimBottomSheet = forwardRef<BottomSheet, MunimBottomSheetProps>(
     const insets = useSafeAreaInsets();
     const sheetRef = useRef<BottomSheet>(null);
     const resolvedRef = (ref as React.RefObject<BottomSheet>) ?? sheetRef;
+    // Palette identity as memo dep — sheet surface + indicator follow the
+    // active theme/mode instead of freezing the first-render colors.
+    const {colors: palette} = useTheme();
 
     const snapPoints = useMemo(
       () => snapPointsProp ?? ['90%'],
@@ -182,18 +188,18 @@ export const MunimBottomSheet = forwardRef<BottomSheet, MunimBottomSheetProps>(
 
     const backgroundStyle = useMemo(
       () => ({
-        backgroundColor: colors.card,
+        backgroundColor: palette.card,
         borderRadius: radii.xl,
       }),
-      [],
+      [palette],
     );
 
     const handleIndicatorStyle = useMemo(
       () => ({
-        backgroundColor: colors.muted,
+        backgroundColor: palette.muted,
         opacity: 0.4,
       }),
-      [],
+      [palette],
     );
 
     return (

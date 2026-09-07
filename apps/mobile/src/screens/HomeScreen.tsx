@@ -1,29 +1,42 @@
 /**
- * HomeScreen — Munim mobile dashboard.
+ * HomeScreen — Munim mobile dashboard (counter-style home).
  *
- * Dynamic charts (react-native-svg) replace the old text-only stat grid:
- *   Revenue (6-mo bars) + KPI chips → deep-link to Stock / Invoices
- *   Ledger donut (receivables vs payables)      — real split from core
- *   Sales by category donut, Invoice status donut (tappable → filtered list)
- *   Stock distribution donut, Units sold bar chart
- *   Top products, recent invoices & advances
+ * Layout mirrors the reference design:
+ *   HomeHeader (custom) → status chips → TOTAL NET REVENUE hero card with
+ *   6-month performance line chart → quick actions (Record Sale / Add Stock
+ *   / New Khata / Reports) → Khata Net Position (you pay vs you receive) →
+ *   Recent Counter Activity → "Create New Bill / Order" CTA.
  *
- * Chart colors use semantic/theme tokens (chart1..chart5 + status colors) so
- * they follow the accent theme AND stay legible in dark mode. No hardcoded
- * grays or CSS-variable strings (those can't render on React Native).
+ * All colors are theme tokens; charts reuse the shared SVG kit (LineChart).
+ * Deep-links preserved: status chips / activity rows / CTA jump to the right
+ * tab (optionally with an invoice status filter via nav-store).
  */
 
-import React from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {formatDate} from '@munim/core';
-import {useDashboard, useQueryState} from '@munim/query';
+import {
+  ShoppingCart,
+  PackagePlus,
+  Users,
+  BarChart3,
+  Plus,
+  Wallet,
+  ChevronRight,
+} from 'lucide-react-native';
+import {formatDate, type ProductDto} from '@munim/core';
+import {ApiClientError} from '@munim/api-client';
+import {useDashboard, useProductByBarcode, useQueryState} from '@munim/query';
 import {money} from '../lib/format';
 import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
-import {Badge, Card, ErrorBox, Header, Loading, Screen} from '../components/ui';
-import {BarChart, DonutChart, chartColors, type DonutSegment} from '../components/charts';
+import {Badge, Card, Empty, ErrorBox, Loading, Screen} from '../components/ui';
+import {LineChart} from '../components/charts';
+import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
+import {QuickSaleSheet} from '../components/quick-sale-sheet';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useTheme, useThemeStyles} from '../theme';
 import {useAppStore} from '../lib/store';
 import {useNavStore, type InvoiceStatusFilter} from '../lib/nav-store';
+import {selectionTick, actionPress, errorFeedback} from '../lib/haptics';
 import type {MobileColors} from '@munim/theme';
 
 /** Server status label → invoice status filter (for deep-linking). */
@@ -34,74 +47,59 @@ const STATUS_TO_FILTER: Record<string, InvoiceStatusFilter> = {
   Draft: 'DRAFT',
 };
 
+/** +x.x% growth of this month's revenue over the previous month. */
+function revenueDelta(monthlySales: {month: string; revenue: number; orders: number}[]): number | null {
+  if (monthlySales.length < 2) return null;
+  const cur = monthlySales[monthlySales.length - 1]?.revenue ?? 0;
+  const prev = monthlySales[monthlySales.length - 2]?.revenue ?? 0;
+  if (prev <= 0) return cur > 0 ? 100 : null;
+  return ((cur - prev) / prev) * 100;
+}
+
 export function HomeScreen() {
   const styles = useThemeStyles(makeStyles);
   const {colors: palette} = useTheme();
   const {data, error, loading, reload} = useQueryState(useDashboard());
 
-  const chartPalette = chartColors(palette);
+  // ── Scan-to-sell (header scan button) ───────────────────────────────────
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanCode, setScanCode] = useState<string | null>(null);
+  const [saleProduct, setSaleProduct] = useState<ProductDto | null>(null);
+  const scanningRef = useRef(false);
+  const scanQ = useProductByBarcode(scanCode);
 
-  const barData = (data?.monthlySales ?? []).map((m) => ({
+  // Scan result → open the instant-sale dialog with the found product.
+  useEffect(() => {
+    if (!scanCode) return;
+    if (scanQ.data) {
+      scanningRef.current = false;
+      setScanOpen(false);
+      setSaleProduct(scanQ.data);
+      setScanCode(null);
+    } else if (scanQ.isError) {
+      scanningRef.current = false;
+      const notFound = scanQ.error instanceof ApiClientError && scanQ.error.status === 404;
+      errorFeedback(notFound ? `No product with barcode ${scanCode}` : 'Barcode lookup failed');
+      setScanCode(null);
+    }
+  }, [scanCode, scanQ.data, scanQ.isError, scanQ.error]);
+
+  /** Camera frame → remember the code; lookup resolves in the effect. */
+  function handleScanDetected(code: string) {
+    if (scanningRef.current) return;
+    scanningRef.current = true;
+    setScanCode(code);
+  }
+
+  const performance = (data?.monthlySales ?? []).map((m) => ({
     label: m.month.slice(0, 3),
     value: m.revenue,
   }));
 
-  const soldPerMonth = (data?.soldPerMonth ?? []).map((m) => ({
-    label: m.month.slice(0, 3),
-    value: m.quantity,
-  }));
-
-  const categorySegments: DonutSegment[] = (data?.salesByCategory ?? []).map((s, i) => ({
-    name: s.name,
-    value: s.value,
-    color: chartPalette[i % chartPalette.length]!,
-  }));
-
-  // Distinct semantic colors per invoice status (Paid/Partial/Unpaid/Draft).
-  const statusSegments: DonutSegment[] = (data?.invoiceStatus ?? [])
-    .map((s) => ({
-      name: s.name,
-      value: s.value,
-      color:
-        s.name === 'Paid'
-          ? palette.success
-          : s.name === 'Partial'
-            ? palette.warning
-            : s.name === 'Unpaid'
-              ? palette.danger
-              : palette.muted,
-    }))
-    .filter((s, i, arr) => arr.findIndex(x => x.name === s.name) === i);
-
-  // Stock distribution (counts) — In Stock / Low / Out.
-  const stockSegments: DonutSegment[] = (data?.stockDistribution ?? [])
-    .map(s => ({
-      name: s.name,
-      value: s.value,
-      color:
-        s.name === 'In Stock'
-          ? palette.success
-          : s.name === 'Low Stock'
-            ? palette.warning
-            : s.name === 'Out of Stock'
-              ? palette.danger
-              : palette.muted,
-    }))
-    .filter(s => s.value > 0);
-
-  // Real ledger split: receivables (customers owe us + advances given) vs
-  // payables (advances we took) — computed in core's getDashboard.
-  const ledgerSegments: DonutSegment[] = [
-    ...(data && data.receivables > 0
-      ? [{name: 'Receivables', value: data.receivables, color: palette.success}]
-      : []),
-    ...(data && data.payables > 0
-      ? [{name: 'Payables', value: data.payables, color: palette.danger}]
-      : []),
-  ];
+  const delta = data ? revenueDelta(data.monthlySales) : null;
 
   /** Deep-link: switch to the given tab (from Home). */
-  function goTo(tab: 'products' | 'more') {
+  function goTo(tab: 'products' | 'more' | 'sales' | 'billing' | 'parties') {
     useAppStore.getState().setActiveView(tab);
   }
 
@@ -116,209 +114,263 @@ export function HomeScreen() {
     if (filter) openInvoices(filter);
   }
 
+  const lowCount = (data?.lowStockCount ?? 0) + (data?.outOfStockCount ?? 0);
+  const saleCount = data?.invoicesCount ?? 0;
+  const netOwed = data?.unpaidAmount ?? 0;
+  // Khata split mirrors web's ledger model: what we must PAY (advances taken
+  // + vendor-side dues) vs what we will RECEIVE (advances given + receivable
+  // invoices). The dashboard exposes the real split via receivables/payables.
+  const youPay = data?.payables ?? 0;
+  const youReceive = data?.receivables ?? 0;
+  const payPct = youPay + youReceive > 0 ? (youPay / (youPay + youReceive)) * 100 : 50;
+
   return (
     <Screen>
-      <Header title="Munim" subtitle="Dashboard" size="large" />
+      <HomeHeader onScanPress={() => {
+        scanningRef.current = false;
+        setScanOpen(true);
+      }} />
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
       ) : loading || !data ? (
         <Loading />
       ) : (
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-          {/* Revenue + 6-month bar chart */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+          {...headerScrollHandlers}>
+          {/* Status chips row */}
+          <View style={styles.chipRow}>
+            <Pressable
+              onPress={() => {
+                selectionTick();
+                goTo('sales');
+              }}
+              style={({pressed}) => [styles.chip, styles.chipInfo, pressed && styles.pressed]}>
+              <View style={[styles.chipDot, {backgroundColor: palette.primary}]} />
+              <Text style={styles.chipText} numberOfLines={1}>
+                Store Counter Active
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                selectionTick();
+                goTo('products');
+              }}
+              style={({pressed}) => [styles.chip, styles.chipInfo, pressed && styles.pressed]}>
+              <Text style={styles.chipText} numberOfLines={1}>
+                Cash in Drawer · Bank UPI
+              </Text>
+            </Pressable>
+          </View>
+          <View style={styles.chipRow}>
+            <Pressable
+              onPress={() => openInvoices('all')}
+              style={({pressed}) => [styles.chip, styles.chipWarning, pressed && styles.pressed]}>
+              <Text style={styles.chipText} numberOfLines={1}>
+                Unpaid net revenue · {saleCount} bills
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => goTo('products')}
+              style={({pressed}) => [styles.chip, styles.chipDanger, pressed && styles.pressed]}>
+              <Text style={styles.chipText} numberOfLines={1}>
+                Low stock: {lowCount} items
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Total net revenue hero */}
           <Card style={styles.card} index={0}>
             <View style={styles.revenueHeader}>
-              <View>
-                <Text style={styles.statLabel}>Total revenue</Text>
-                <Text style={styles.revenueValue} numberOfLines={1} adjustsFontSizeToFit>
-                  {money(data.totalRevenue)}
-                </Text>
-              </View>
-              <View style={styles.monthBox}>
-                <Text style={styles.monthBoxLabel}>This month</Text>
-                <Text style={styles.monthBoxValue} numberOfLines={1} adjustsFontSizeToFit>
-                  {money(data.monthlyRevenue)}
-                </Text>
-              </View>
-            </View>
-
-            <Text style={styles.chartTitle}>Revenue · last 6 months</Text>
-            <BarChart data={barData} />
-
-            {/* Tappable KPI chips */}
-            <View style={styles.chipRow}>
-              <Pressable
-                onPress={() => openInvoices('UNPAID')}
-                style={({pressed}) => [styles.chip, {borderColor: palette.warning}, pressed && styles.chipPressed]}>
-                <View style={[styles.chipDot, {backgroundColor: palette.warning}]} />
-                <Text style={styles.chipLabel} numberOfLines={1}>Unpaid</Text>
-                <Text style={[styles.chipValue, {color: palette.warning}]} numberOfLines={1}>
-                  {money(data.unpaidAmount)}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => goTo('products')}
-                style={({pressed}) => [styles.chip, {borderColor: palette.danger}, pressed && styles.chipPressed]}>
-                <View style={[styles.chipDot, {backgroundColor: palette.danger}]} />
-                <Text style={styles.chipLabel} numberOfLines={1}>Low / out</Text>
-                <Text style={[styles.chipValue, {color: palette.danger}]} numberOfLines={1}>
-                  {data.lowStockCount} / {data.outOfStockCount}
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => openInvoices('all')}
-                style={({pressed}) => [styles.chip, {borderColor: palette.primary}, pressed && styles.chipPressed]}>
-                <View style={[styles.chipDot, {backgroundColor: palette.primary}]} />
-                <Text style={styles.chipLabel} numberOfLines={1}>Sales</Text>
-                <Text style={[styles.chipValue, {color: palette.primary}]} numberOfLines={1}>
-                  {data.invoicesCount}
-                </Text>
-              </Pressable>
-            </View>
-          </Card>
-
-          {/* Ledger — receivables vs payables */}
-          <Text style={styles.section}>Ledger</Text>
-          <Card style={styles.card} index={1}>
-            {ledgerSegments.length === 0 ? (
-              <Text style={styles.emptyText}>No open receivables or payables</Text>
-            ) : (
-              <DonutChart segments={ledgerSegments} centerSub="net position" />
-            )}
-          </Card>
-
-          {/* Sales by category */}
-          <Text style={styles.section}>Sales by category</Text>
-          <Card style={styles.card} index={2}>
-            {categorySegments.length === 0 ? (
-              <Text style={styles.emptyText}>No sales yet</Text>
-            ) : (
-              <DonutChart segments={categorySegments} centerSub="by category" />
-            )}
-          </Card>
-
-          {/* Invoice status — tappable legend → filtered invoice list */}
-          <Text style={styles.section}>Invoice status</Text>
-          <Card style={styles.card} index={3}>
-            {statusSegments.length === 0 ? (
-              <Text style={styles.emptyText}>No invoices yet</Text>
-            ) : (
-              <DonutChart
-                segments={statusSegments}
-                centerSub="invoices · tap to open"
-                formatValue={(v) => String(v)}
-                onSegmentPress={onStatusPress}
-              />
-            )}
-          </Card>
-
-          {/* Stock distribution */}
-          <Text style={styles.section}>Stock distribution</Text>
-          <Card style={styles.card} index={4}>
-            {stockSegments.length === 0 ? (
-              <Text style={styles.emptyText}>No products yet</Text>
-            ) : (
-              <DonutChart
-                segments={stockSegments}
-                centerSub="products"
-                formatValue={(v) => String(v)}
-              />
-            )}
-          </Card>
-
-          {/* Units sold per month */}
-          <Text style={styles.section}>Units sold · last 6 months</Text>
-          <Card style={styles.card} index={5}>
-            <BarChart data={soldPerMonth} formatValue={(v) => String(v)} />
-          </Card>
-
-          {/* Top products */}
-          <Text style={styles.section}>Top products</Text>
-          {data.topProducts.length === 0 ? (
-            <Card style={styles.card} index={0}>
-              <Text style={styles.emptyText}>No sales yet</Text>
-            </Card>
-          ) : (
-            <Card style={styles.card} index={6}>
-              {data.topProducts.slice(0, 4).map((p, i) => {
-                const max = Math.max(...data.topProducts.map((t) => t.revenue), 1);
-                const pct = Math.max(4, Math.min(100, (p.revenue / max) * 100));
-                return (
-                  <View key={p.productName + (p.sku ?? '')} style={[styles.barRow, i > 0 && styles.barRowBorder]}>
-                    <View style={styles.barHeader}>
-                      <Text style={styles.barName} numberOfLines={1}>
-                        {p.productName}
-                      </Text>
-                      <Text style={styles.barMeta}>
-                        {p.quantitySold} sold · {money(p.revenue)}
-                      </Text>
-                    </View>
-                    <View style={styles.barTrack}>
-                      <View style={[styles.barFill, {width: `${pct}%`}]} />
-                    </View>
-                  </View>
-                );
-              })}
-            </Card>
-          )}
-
-          {/* Recent invoices */}
-          <Text style={styles.section}>Recent invoices</Text>
-          {data.recentInvoices.length === 0 ? (
-            <Card style={styles.card}>
-              <Text style={styles.emptyText}>No invoices yet</Text>
-            </Card>
-          ) : (
-            data.recentInvoices.map((inv, i) => (
-              <Card key={inv.id} style={styles.card} index={i}>
-                <View style={styles.invRow}>
-                  <View style={{flex: 1}}>
-                    <Text style={styles.invNumber}>{inv.invoiceNumber}</Text>
-                    <Text style={styles.invMeta}>
-                      {inv.customerName ?? 'Walk-in'} · {formatDate(inv.date)}
-                    </Text>
-                  </View>
-                  <View style={{alignItems: 'flex-end', gap: rs(4)}}>
-                    <Text style={styles.invTotal}>{money(inv.total)}</Text>
-                    <Badge
-                      text={inv.status}
-                      tone={inv.status === 'PAID' ? 'success' : inv.status === 'PARTIAL' ? 'warning' : 'muted'}
-                    />
-                  </View>
-                </View>
-              </Card>
-            ))
-          )}
-
-          {/* Recent advances */}
-          <Text style={styles.section}>Recent advances</Text>
-          {data.recentAdvances.length === 0 ? (
-            <Card style={styles.card}>
-              <Text style={styles.emptyText}>No open advances</Text>
-            </Card>
-          ) : (
-            data.recentAdvances.map((adv, i) => (
-              <Card key={adv.id} style={styles.card} index={i}>
-                <View style={styles.invRow}>
-                  <View style={{flex: 1}}>
-                    <Text style={styles.invNumber}>{adv.partyName ?? 'Party'}</Text>
-                    <Text style={styles.invMeta}>{formatDate(adv.date)}</Text>
-                  </View>
-                  <Text
-                    style={{
-                      fontWeight: '700',
-                      fontSize: typography.body,
-                      color: adv.direction === 'GIVEN' ? palette.danger : palette.success,
-                    }}>
-                    {adv.direction === 'GIVEN' ? 'Given ' : 'Taken '}
-                    {money(adv.amount)}
+              <Text style={styles.revenueLabel}>TOTAL NET REVENUE</Text>
+              {delta !== null ? (
+                <View style={[styles.deltaBox, {backgroundColor: delta >= 0 ? palette.successSoft : palette.dangerSoft}]}>
+                  <Text style={[styles.deltaText, {color: delta >= 0 ? palette.success : palette.danger}]}>
+                    ↑ {Math.abs(delta).toFixed(1)}%
                   </Text>
                 </View>
-              </Card>
-            ))
+              ) : null}
+            </View>
+            <Text style={styles.revenueValue} numberOfLines={1} adjustsFontSizeToFit>
+              {money(data.totalRevenue)}
+            </Text>
+            <Text style={styles.revenueSub}>
+              This mo: <Text style={styles.revenueSubValue}>{money(data.monthlyRevenue)}</Text>
+            </Text>
+
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>6-MONTH PERFORMANCE</Text>
+              <Text style={styles.chartRange}>
+                {performance.length > 0
+                  ? `${performance[0]!.label} - ${performance[performance.length - 1]!.label} ${new Date().getFullYear()}`
+                  : ''}
+              </Text>
+            </View>
+            <LineChart data={performance} />
+          </Card>
+
+          {/* Quick actions */}
+          <View style={styles.quickRow}>
+            {(
+              [
+                {label: 'Record Sale', icon: ShoppingCart, go: () => goTo('sales')},
+                {label: 'Add Stock', icon: PackagePlus, go: () => goTo('products')},
+                {label: 'New Khata', icon: Users, go: () => goTo('parties')},
+                {label: 'Reports', icon: BarChart3, go: () => {
+                  useNavStore.getState().openMore('reports');
+                  goTo('more');
+                }},
+              ] as const
+            ).map((action, i) => (
+              <Pressable
+                key={action.label}
+                accessibilityRole="button"
+                accessibilityLabel={action.label}
+                onPress={() => {
+                  selectionTick();
+                  action.go();
+                }}
+                style={({pressed}) => [styles.quickBtn, pressed && styles.pressed]}>
+                <View style={[styles.quickIcon, i === 0 && {backgroundColor: palette.primary}]}>
+                  <action.icon
+                    size={rs(18)}
+                    color={i === 0 ? palette.onPrimary : palette.primary}
+                    strokeWidth={2.2}
+                  />
+                </View>
+                <Text style={styles.quickLabel} numberOfLines={1}>
+                  {action.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {/* Khata net position */}
+          <Text style={styles.section}>Khata Net Position</Text>
+          <Card style={styles.card} index={1}>
+            <View style={styles.khataHeader}>
+              <View style={{flex: 1}}>
+                <Text style={styles.khataTitle}>Merchant Ledger Balance</Text>
+              </View>
+              <Pressable
+                onPress={() => {
+                  selectionTick();
+                  goTo('parties');
+                }}
+                style={({pressed}) => [styles.netPill, pressed && styles.pressed]}>
+                <Text style={styles.netPillText}>Net Payable</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.khataOwedLabel}>Current Net Owed:</Text>
+            <Text style={styles.khataOwedValue} numberOfLines={1} adjustsFontSizeToFit>
+              {money(netOwed)}
+            </Text>
+
+            {/* Split bar — you pay vs you receive */}
+            <View style={styles.splitBar}>
+              <View style={[styles.splitPay, {flex: Math.max(0.001, payPct), backgroundColor: palette.danger}]} />
+              <View style={[styles.splitReceive, {flex: Math.max(0.001, 100 - payPct), backgroundColor: palette.success}]} />
+            </View>
+            <View style={styles.splitLegend}>
+              <View style={styles.splitLegendItem}>
+                <View style={[styles.legendDot, {backgroundColor: palette.danger}]} />
+                <Text style={styles.splitLegendText} numberOfLines={1}>You Pay (Karigar/Wholesale)</Text>
+              </View>
+              <View style={styles.splitLegendItem}>
+                <View style={[styles.legendDot, {backgroundColor: palette.success}]} />
+                <Text style={styles.splitLegendText} numberOfLines={1}>You Receive (Customer)</Text>
+              </View>
+            </View>
+
+            <View style={[styles.khataRow, styles.khataRowBorder]}>
+              <View style={styles.khataCell}>
+                <Text style={styles.khataCellLabel}>You Pay</Text>
+                <Text style={[styles.khataCellValue, {color: palette.danger}]}>{money(youPay)}</Text>
+                <Text style={styles.khataCellSub}>Vendors & Karigars</Text>
+              </View>
+              <View style={styles.khataDivider} />
+              <View style={styles.khataCell}>
+                <Text style={styles.khataCellLabel}>You Receive</Text>
+                <Text style={[styles.khataCellValue, {color: palette.success}]}>{money(youReceive)}</Text>
+                <Text style={styles.khataCellSub}>Customers & Advances</Text>
+              </View>
+            </View>
+          </Card>
+
+          {/* Recent counter activity */}
+          <View style={styles.activityHeader}>
+            <Text style={styles.section}>Recent Counter Activity</Text>
+            <Pressable
+              onPress={() => openInvoices('all')}
+              style={({pressed}) => [styles.viewAll, pressed && styles.pressed]}>
+              <Text style={styles.viewAllText}>View all</Text>
+              <ChevronRight size={rs(14)} color={palette.muted} />
+            </Pressable>
+          </View>
+          {data.recentInvoices.length === 0 ? (
+            <Card style={styles.card}>
+              <Empty text="No activity yet — record your first sale" />
+            </Card>
+          ) : (
+            data.recentInvoices.slice(0, 4).map((inv, i) => {
+              const outstanding = Math.max(0, inv.total - inv.amountPaid);
+              const paidFull = outstanding <= 0;
+              return (
+                <Pressable
+                  key={inv.id}
+                  onPress={() => {
+                    selectionTick();
+                    onStatusPress(
+                      inv.status === 'PAID' ? 'Paid' : inv.status === 'PARTIAL' ? 'Partial' : 'Unpaid',
+                    );
+                  }}>
+                  <Card style={styles.card} index={i}>
+                    <View style={styles.activityRow}>
+                      <View style={[styles.activityIcon, {backgroundColor: palette.mutedBg}]}>
+                        <Wallet size={rs(16)} color={palette.primary} />
+                      </View>
+                      <View style={{flex: 1, minWidth: 0}}>
+                        <Text style={styles.activityTitle} numberOfLines={1}>
+                          {inv.customerName ?? 'Walk-in Customer'}
+                        </Text>
+                        <Text style={styles.activityMeta} numberOfLines={1}>
+                          Invoice {inv.invoiceNumber} · {formatDate(inv.date)}
+                        </Text>
+                      </View>
+                      <View style={{alignItems: 'flex-end', gap: rs(3)}}>
+                        <Text style={styles.activityAmount}>+{money(inv.total)}</Text>
+                        <Badge
+                          text={paidFull ? 'Paid' : inv.status === 'PARTIAL' ? 'Partial' : 'Due'}
+                          tone={paidFull ? 'success' : inv.status === 'PARTIAL' ? 'warning' : 'muted'}
+                        />
+                      </View>
+                    </View>
+                  </Card>
+                </Pressable>
+              );
+            })
           )}
+
+          {/* Create new bill CTA */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Create new bill or order"
+            onPress={() => {
+              actionPress();
+              goTo('billing');
+            }}
+            style={({pressed}) => [styles.cta, pressed && styles.ctaPressed]}>
+            <Plus size={rs(20)} color={palette.onPrimary} strokeWidth={2.6} />
+            <Text style={styles.ctaText}>Create New Bill / Order</Text>
+          </Pressable>
         </ScrollView>
       )}
+
+      {/* Scan-to-sell: camera scanner + instant sale dialog */}
+      <BarcodeScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onDetected={handleScanDetected} />
+      <QuickSaleSheet product={saleProduct} onClose={() => setSaleProduct(null)} />
     </Screen>
   );
 }
@@ -328,80 +380,135 @@ const makeStyles = (c: MobileColors) =>
     scrollContent: {
       paddingBottom: spacing.xxxl,
     },
+    pressed: {opacity: 0.65},
     card: {
       marginHorizontal: CARD_MARGIN,
     },
-    revenueHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-end',
-      justifyContent: 'space-between',
-      marginBottom: spacing.md,
-    },
-    statLabel: {
-      fontSize: typography.label,
-      color: c.muted,
-      fontWeight: '600',
-    },
-    revenueValue: {
-      fontSize: typography.valueLarge,
-      fontWeight: '700',
-      color: c.text,
-      marginTop: rs(2),
-    },
-    monthBox: {
-      alignItems: 'flex-end',
-    },
-    monthBoxLabel: {
-      fontSize: typography.caption,
-      color: c.muted,
-      fontWeight: '600',
-    },
-    monthBoxValue: {
-      fontSize: typography.h3,
-      fontWeight: '700',
-      color: c.primary,
-      marginTop: rs(2),
-    },
-    chartTitle: {
-      fontSize: typography.secondary,
-      fontWeight: '600',
-      color: c.text,
-      marginBottom: rs(10),
-    },
+    /* Status chips */
     chipRow: {
       flexDirection: 'row',
       gap: rs(8),
-      marginTop: spacing.md,
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: rs(8),
     },
     chip: {
+      flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      gap: rs(5),
-      borderWidth: 1,
+      gap: rs(6),
       borderRadius: radii.full,
-      paddingHorizontal: rs(9),
-      paddingVertical: rs(5),
-      flex: 1,
-      flexWrap: 'nowrap',
+      borderWidth: 1,
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(7),
     },
-    chipPressed: {opacity: 0.6},
+    chipInfo: {
+      backgroundColor: c.mutedBg,
+      borderColor: c.border,
+    },
+    chipWarning: {
+      backgroundColor: c.warningSoft,
+      borderColor: c.warning,
+    },
+    chipDanger: {
+      backgroundColor: c.dangerSoft,
+      borderColor: c.danger,
+    },
     chipDot: {
       width: rs(6),
       height: rs(6),
       borderRadius: radii.full,
       flexShrink: 0,
     },
-    chipLabel: {
+    chipText: {
       fontSize: typography.caption,
-      color: c.muted,
       fontWeight: '600',
-      flexShrink: 0,
-    },
-    chipValue: {
-      fontSize: typography.caption,
-      fontWeight: '700',
+      color: c.text,
       flexShrink: 1,
     },
+    /* Revenue hero */
+    revenueHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    revenueLabel: {
+      fontSize: typography.label,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.muted,
+    },
+    deltaBox: {
+      borderRadius: radii.full,
+      paddingHorizontal: rs(8),
+      paddingVertical: rs(3),
+    },
+    deltaText: {
+      fontSize: typography.caption,
+      fontWeight: '800',
+    },
+    revenueValue: {
+      fontSize: rs(30),
+      fontWeight: '800',
+      color: c.text,
+      marginTop: rs(6),
+    },
+    revenueSub: {
+      fontSize: typography.secondary,
+      color: c.muted,
+      marginTop: rs(2),
+    },
+    revenueSubValue: {
+      fontWeight: '700',
+      color: c.text,
+    },
+    chartHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: spacing.md,
+      marginBottom: rs(8),
+    },
+    chartTitle: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: c.muted,
+    },
+    chartRange: {
+      fontSize: typography.caption,
+      color: c.muted,
+    },
+    /* Quick actions */
+    quickRow: {
+      flexDirection: 'row',
+      gap: rs(8),
+      marginHorizontal: CARD_MARGIN,
+      marginTop: spacing.md,
+    },
+    quickBtn: {
+      flex: 1,
+      alignItems: 'center',
+      gap: rs(6),
+      backgroundColor: c.card,
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: radii.md,
+      paddingVertical: rs(12),
+    },
+    quickIcon: {
+      width: rs(38),
+      height: rs(38),
+      borderRadius: radii.full,
+      backgroundColor: c.mutedBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    quickLabel: {
+      fontSize: typography.caption,
+      fontWeight: '600',
+      color: c.text,
+    },
+    /* Sections */
     section: {
       fontSize: typography.h3,
       fontWeight: '700',
@@ -410,62 +517,165 @@ const makeStyles = (c: MobileColors) =>
       marginTop: spacing.xl,
       marginBottom: spacing.sm,
     },
-    invRow: {
+    /* Khata net position */
+    khataHeader: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      marginBottom: spacing.md,
     },
-    invNumber: {
+    khataTitle: {
+      fontSize: typography.secondary,
       fontWeight: '600',
-      color: c.text,
-      fontSize: typography.body,
-    },
-    invMeta: {
       color: c.muted,
+    },
+    netPill: {
+      borderRadius: radii.full,
+      backgroundColor: c.warningSoft,
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(4),
+    },
+    netPillText: {
       fontSize: typography.caption,
-      marginTop: rs(2),
-    },
-    invTotal: {
       fontWeight: '700',
-      color: c.text,
-      fontSize: typography.body,
+      color: c.warning,
     },
-    barRow: {
-      paddingVertical: spacing.sm,
-      gap: rs(6),
+    khataOwedLabel: {
+      fontSize: typography.secondary,
+      color: c.muted,
     },
-    barRowBorder: {
+    khataOwedValue: {
+      fontSize: rs(28),
+      fontWeight: '800',
+      color: c.danger,
+      marginTop: rs(2),
+      marginBottom: spacing.md,
+    },
+    splitBar: {
+      flexDirection: 'row',
+      height: rs(10),
+      borderRadius: radii.full,
+      overflow: 'hidden',
+      gap: rs(2),
+    },
+    splitPay: {
+      borderRadius: radii.full,
+    },
+    splitReceive: {
+      borderRadius: radii.full,
+    },
+    splitLegend: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: rs(12),
+      marginTop: rs(8),
+    },
+    splitLegendItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(5),
+    },
+    legendDot: {
+      width: rs(7),
+      height: rs(7),
+      borderRadius: radii.full,
+    },
+    splitLegendText: {
+      fontSize: typography.caption,
+      color: c.muted,
+      fontWeight: '600',
+    },
+    khataRow: {
+      flexDirection: 'row',
+      marginTop: spacing.md,
+    },
+    khataRowBorder: {
       borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.border,
+      paddingTop: spacing.md,
     },
-    barHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    barName: {
-      fontSize: typography.secondary,
-      fontWeight: '600',
-      color: c.text,
+    khataCell: {
       flex: 1,
+      gap: rs(2),
     },
-    barMeta: {
+    khataCellLabel: {
+      fontSize: typography.caption,
+      color: c.muted,
+      fontWeight: '600',
+    },
+    khataCellValue: {
+      fontSize: typography.h2,
+      fontWeight: '800',
+      color: c.text,
+    },
+    khataCellSub: {
       fontSize: typography.caption,
       color: c.muted,
     },
-    barTrack: {
-      height: rs(5),
-      borderRadius: rs(3),
+    khataDivider: {
+      width: StyleSheet.hairlineWidth,
       backgroundColor: c.border,
-      overflow: 'hidden',
+      marginHorizontal: spacing.md,
     },
-    barFill: {
-      height: '100%',
-      borderRadius: rs(3),
-      backgroundColor: c.primary,
+    /* Activity */
+    activityHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingRight: CARD_MARGIN,
     },
-    emptyText: {
-      color: c.muted,
+    viewAll: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    viewAllText: {
       fontSize: typography.secondary,
+      fontWeight: '600',
+      color: c.muted,
+    },
+    activityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(10),
+    },
+    activityIcon: {
+      width: rs(34),
+      height: rs(34),
+      borderRadius: radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    activityTitle: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: c.text,
+    },
+    activityMeta: {
+      fontSize: typography.caption,
+      color: c.muted,
+      marginTop: rs(1),
+    },
+    activityAmount: {
+      fontSize: typography.body,
+      fontWeight: '800',
+      color: c.text,
+    },
+    /* CTA */
+    cta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: rs(8),
+      backgroundColor: c.primary,
+      borderRadius: radii.lg,
+      minHeight: 52,
+      marginHorizontal: CARD_MARGIN,
+      marginTop: spacing.xl,
+    },
+    ctaPressed: {opacity: 0.85},
+    ctaText: {
+      fontSize: typography.body,
+      fontWeight: '700',
+      color: c.onPrimary,
     },
   });

@@ -21,6 +21,8 @@ export {
   useDeleteProduct,
   useAdjustStock,
   useBackfillBarcodes,
+  useInventoryStats,
+  useCategoryBreakdown,
 } from "./use-products.js";
 export {
   useInvoices,

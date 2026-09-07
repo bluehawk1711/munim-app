@@ -17,6 +17,8 @@ import {
   createProduct,
   deleteProduct,
   findProductByBarcode,
+  getCategoryBreakdown,
+  getInventoryStats,
   getProduct,
   listMeta,
   listProducts,
@@ -73,6 +75,18 @@ export class ProductsController {
   @Get("meta")
   async meta() {
     return this.cache.cacheAside(cacheKeys.productsMeta, CACHE_TTL.static, () => listMeta(this.db));
+  }
+
+  /** Aggregate header stats for the products page (valuation, weight, health…). */
+  @Get("stats")
+  async stats() {
+    return this.cache.cacheAside(cacheKeys.productsStats, CACHE_TTL.dashboard, () => getInventoryStats(this.db));
+  }
+
+  /** Per-category inventory breakdown — drives the donut chart on the products page. */
+  @Get("by-category")
+  async byCategory() {
+    return this.cache.cacheAside(cacheKeys.productsByCategory, CACHE_TTL.dashboard, () => getCategoryBreakdown(this.db));
   }
 
   @Get("lookup")

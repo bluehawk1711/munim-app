@@ -17,7 +17,7 @@ import { buildProductLabel, type LabelPrinterInfo } from "@munim/core";
 import { toast } from "@munim/ui";
 import {
   ThemeSelect,
-  useAccentTheme,
+  useAccentThemeContext,
   type ThemeMode,
 } from "@/components/theme-swatches";
 import {
@@ -63,7 +63,7 @@ function maskApiHost(url: string | undefined): string | null {
 export function SettingsPage() {
   const { data: settings } = useQueryState(useSettings());
   const updateSettings = useUpdateSettings();
-  const { themeName, setThemeName, mode, setMode } = useAccentTheme();
+  const { themeName, setThemeName, mode, setMode } = useAccentThemeContext();
   const pin = usePinLockContext();
   const forceTransition = useForceThemeTransition();
 

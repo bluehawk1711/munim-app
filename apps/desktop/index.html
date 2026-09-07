@@ -9,6 +9,25 @@
 
   <body>
     <div id="root"></div>
+    <script>
+      // Apply the persisted accent theme + light/dark mode BEFORE first paint
+      // (React re-applies the same values on mount). Without this the app
+      // flashes the default amber theme on startup until Settings mounts.
+      (function () {
+        try {
+          var t = localStorage.getItem("munim-desktop-accent-theme");
+          if (t && ["apple", "ocean", "forest", "rose", "midnight"].indexOf(t) > -1) {
+            document.documentElement.setAttribute("data-theme", t);
+          }
+          var m = localStorage.getItem("munim-desktop-theme-mode");
+          var dark =
+            m === "dark" ||
+            ((m === null || m === "system") &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.add(dark ? "dark" : "light");
+        } catch (e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

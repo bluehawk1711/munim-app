@@ -11,8 +11,9 @@
  * - Circle surface = `colors.card` + `colors.border` — the exact token pair
  *   that produces the web/desktop white-in-light / zinc-in-dark look, and it
  *   adapts to the active accent theme automatically.
- * - Sun is amber-500 (#f59e0b, same as the web icon); Moon is `colors.text`
- *   so it flips with the mode like the web/desktop icons do.
+ * - Sun uses the theme `warning` token (amber family, same as the web icon's
+ *   `text-amber-500`) and Moon is `colors.text`, so both flip with the active
+ *   palette like the web/desktop icons do.
  * - Press pop + selection haptic (respects the Settings haptics toggle);
  *   reduced-motion users get an instant flip, no spin — unless "Force
  *   animation play" is enabled in Settings, which plays the spin anyway.
@@ -69,6 +70,9 @@ export function ThemeToggleButton({
   // Read at render time (outside the worklets) so reanimated captures the
   // plain string; flips with the mode like the web/desktop Moon icons.
   const moonColor = colors.text;
+  // Amber sun — the theme `warning` token is the same hue family as the
+  // web/desktop `text-amber-500` icon but follows the active palette.
+  const sunColor = colors.warning;
 
   useEffect(() => {
     if (reduceMotion) {
@@ -122,7 +126,7 @@ export function ThemeToggleButton({
           {alignItems: 'center', justifyContent: 'center'},
           sunStyle,
         ]}>
-        <Sun size={icon} color="#f59e0b" />
+        <Sun size={icon} color={sunColor} />
       </Animated.View>
       <Animated.View
         style={[

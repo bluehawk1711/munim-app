@@ -9,6 +9,7 @@ import {
   useQueryState,
 } from "@munim/query";
 import { toast } from "@munim/ui";
+import { PageHeader } from "@/components/page-header";
 import {
   Button,
   Input,
@@ -89,6 +90,12 @@ export function InvoicesPage() {
 
   return (
     <div className="space-y-4">
+      <PageHeader
+        title="Invoices"
+        badge="Ledger"
+        subtitle="Every bill generated at the counter — payment status and PDFs, shared with web & mobile."
+      />
+
       {/* Toolbar */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-center">

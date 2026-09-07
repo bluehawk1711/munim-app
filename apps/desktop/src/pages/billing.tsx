@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Trash2, Download, Wallet, Loader2 } from "lucide-react";
+import { Plus, Trash2, Download, Wallet, Loader2, FileDown, CheckCircle2 } from "lucide-react";
 import {
   buildBillDocument,
   type BillDocument,
@@ -18,6 +18,7 @@ import {
 import { money, formatDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { toast } from "@munim/ui";
+import { PageHeader } from "@/components/page-header";
 import {
   Button,
   Input,
@@ -42,6 +43,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Checkbox,
   Table,
   TableBody,
   TableCell,
@@ -148,6 +150,13 @@ export function BillingPage() {
   const [exporting, setExporting] = useState(false);
   const [preview, setPreview] = useState<BillDocument | null>(null);
   const [secondPreview, setSecondPreview] = useState<BillDocument | null>(null);
+
+  // ── Creation options (user-selectable per bill run) ────────────────────
+  // Auto-download the PDF right after saving; mark the invoice(s) fully paid
+  // on creation (amountPaid = total → status PAID) instead of the Paid-now
+  // field. Defaults: auto-save ON (the common case), mark-paid OFF.
+  const [autoSavePdf, setAutoSavePdf] = useState(true);
+  const [markPaid, setMarkPaid] = useState(false);
 
   const [payingInvoice, setPayingInvoice] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -263,7 +272,9 @@ export function BillingPage() {
         items,
         discount: Number(discount) || 0,
         deliveryCharge: Number(deliveryCharge) || 0,
-        amountPaid: Number(amountPaid) || 0,
+        // "Mark as paid" wins over the Paid-now field — the invoice is saved
+        // with its full total as paid, so it lands as PAID (not UNPAID).
+        amountPaid: markPaid ? total : Number(amountPaid) || 0,
       });
 
       const shopForPreview: BillShopDetails = invoice.shopDetails
@@ -284,7 +295,7 @@ export function BillingPage() {
             items: lineItems(secondLines),
             discount: Number(secondDiscount) || 0,
             deliveryCharge: Number(secondDeliveryCharge) || 0,
-            amountPaid: Number(secondAmountPaid) || 0,
+            amountPaid: markPaid ? secondTotal : Number(secondAmountPaid) || 0,
           });
           if (secondInvoice) {
             setSecondPreview(invoiceToBillDocument(secondInvoice, shopForPreview, settings?.currency ?? "INR"));
@@ -303,6 +314,24 @@ export function BillingPage() {
           ? `2 bills saved — ${invoice.invoiceNumber} + ${secondInvoice.invoiceNumber}`
           : `Invoice ${invoice.invoiceNumber} created`,
       );
+
+      // Auto-save the PDF right after the invoice lands (same shared
+      // renderer as the preview's Download button).
+      if (autoSavePdf) {
+        try {
+          await downloadBillPdf(doc, {
+            twoInOne,
+            mode,
+            secondBill: distinct ? secondPreview ?? undefined : undefined,
+            classicColor,
+          });
+        } catch (err) {
+          toast.error("Bill saved, but the PDF could not be generated", {
+            description: err instanceof Error ? err.message : undefined,
+          });
+        }
+      }
+
       resetForm();
     } catch (err) {
       toast.error("Failed to create invoice", { description: err instanceof Error ? err.message : undefined });
@@ -367,6 +396,11 @@ export function BillingPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader
+        title="New Bill"
+        badge="Billing"
+        subtitle="Create invoices with the same shared bill engine as web & mobile — jewellery or e-commerce templates, 2-in-1 supported."
+      />
       <Tabs defaultValue="create">
         <TabsList>
           <TabsTrigger value="create">Create Bill</TabsTrigger>
@@ -491,6 +525,38 @@ export function BillingPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Creation options — auto-save the PDF and/or mark fully paid */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">On save</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <label className="flex items-center gap-2.5 text-sm">
+                    <Checkbox
+                      checked={autoSavePdf}
+                      onCheckedChange={setAutoSavePdf}
+                      aria-label="Auto-save the bill PDF after creating the invoice"
+                    />
+                    <FileDown className="text-muted-foreground h-4 w-4" />
+                    <span>Auto-save the PDF after creating</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 text-sm">
+                    <Checkbox
+                      checked={markPaid}
+                      onCheckedChange={setMarkPaid}
+                      aria-label="Mark the invoice as fully paid on creation"
+                    />
+                    <CheckCircle2 className="text-muted-foreground h-4 w-4" />
+                    <span>
+                      Mark as paid{' '}
+                      <span className="text-muted-foreground">
+                        (total {money(total)} received now{distinct ? ` · bill 2 ${money(secondTotal)}` : ""})
+                      </span>
+                    </span>
+                  </label>
+                </CardContent>
+              </Card>
 
               <Button className="w-full" onClick={handleCreate} disabled={saving}>
                 {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : `Create invoice — ${money(total)}${distinct ? ` + ${money(secondTotal)}` : ""}`}

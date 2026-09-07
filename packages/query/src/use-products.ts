@@ -4,6 +4,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type {
+  CategoryBreakdownDto,
+  InventoryStatsDto,
   ProductDto,
   ProductFilters,
   ProductFormValues,
@@ -11,6 +13,34 @@ import type {
 } from "@munim/core";
 import { useApiClient } from "./provider.js";
 import { qk } from "./keys.js";
+
+/** GET /api/products/stats — header aggregates for the products page. */
+export function useInventoryStats(options?: { enabled?: boolean }) {
+  const getClient = useApiClient();
+  return useQuery({
+    queryKey: qk.products.stats,
+    queryFn: async () => {
+      const api = await getClient();
+      return api.products.stats();
+    },
+    enabled: options?.enabled,
+    staleTime: 30 * 1000,
+  });
+}
+
+/** GET /api/products/by-category — donut data for the products page. */
+export function useCategoryBreakdown(options?: { enabled?: boolean }) {
+  const getClient = useApiClient();
+  return useQuery({
+    queryKey: qk.products.byCategory,
+    queryFn: async () => {
+      const api = await getClient();
+      return api.products.byCategory();
+    },
+    enabled: options?.enabled,
+    staleTime: 30 * 1000,
+  });
+}
 
 /** GET /api/products — paginated list, cached per filter set. */
 export function useProducts(

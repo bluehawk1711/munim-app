@@ -5,6 +5,136 @@ import { generateSku } from "../utils/codes.js";
 import { generateEan13 } from "../utils/barcode.js";
 import { logActivity } from "./activity.js";
 
+/* ── Inventory aggregates (products page header) ──────────────── */
+
+export type InventoryStats = {
+  /** Distinct SKUs in the catalog. */
+  totalSkus: number;
+  /** Sum of `stock` across all products (units, not value). */
+  totalUnits: number;
+  /** Sum of `stock * weight` in milligrams — total physical material on hand. */
+  totalWeightMg: number;
+  /** Sum of `stock * purchase_price` — capital tied up in inventory. */
+  stockValuationPurchase: number;
+  /** Sum of `stock * selling_price` — retail value of current inventory. */
+  stockValuationSelling: number;
+  /** Distinct SKUs that are in stock (`stock > low_stock_threshold`). */
+  inStockCount: number;
+  /** Distinct SKUs at or below their threshold (still > 0). */
+  lowStockCount: number;
+  /** Distinct SKUs with `stock <= 0`. */
+  outOfStockCount: number;
+  /** Products with a non-empty barcode (for the "barcode coverage" tile). */
+  withBarcodeCount: number;
+};
+
+/** A single slice of the inventory pie — per category totals. */
+export type CategoryBreakdown = {
+  /** Category name (empty string → uncategorized). */
+  category: string;
+  /** Number of distinct SKUs in this category. */
+  skuCount: number;
+  /** Sum of `stock` in this category. */
+  units: number;
+  /** Sum of `stock * weight` in milligrams. */
+  weightMg: number;
+  /** Sum of `stock * selling_price` for this category. */
+  value: number;
+  /** Pie slice color (deterministic from the category name). */
+  color: string;
+};
+
+/**
+ * Header aggregates for the products page — computed in a single round trip so
+ * the page renders instantly with the list. Mirrors `getDashboard` shape but
+ * scoped to the catalog (no invoices/sales).
+ */
+export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
+  // Single aggregate query — Postgres can fold all of these into one scan.
+  const rows = await db
+    .select({
+      totalSkus: sql<number>`count(*)::int`,
+      totalUnits: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`,
+      totalWeightMg: sql<number>`coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
+      stockValuationPurchase: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.purchasePrice}), 0)::double precision`,
+      stockValuationSelling: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)::double precision`,
+      inStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > ${schema.products.lowStockThreshold})::int`,
+      lowStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > 0 and ${schema.products.stock} <= ${schema.products.lowStockThreshold})::int`,
+      outOfStockCount: sql<number>`count(*) filter (where ${schema.products.stock} <= 0)::int`,
+      withBarcodeCount: sql<number>`count(*) filter (where ${schema.products.barcode} is not null and length(${schema.products.barcode}) > 0)::int`,
+    })
+    .from(schema.products);
+  const row = rows[0];
+  return {
+    totalSkus: row?.totalSkus ?? 0,
+    totalUnits: row?.totalUnits ?? 0,
+    totalWeightMg: row?.totalWeightMg ?? 0,
+    stockValuationPurchase: row?.stockValuationPurchase ?? 0,
+    stockValuationSelling: row?.stockValuationSelling ?? 0,
+    inStockCount: row?.inStockCount ?? 0,
+    lowStockCount: row?.lowStockCount ?? 0,
+    outOfStockCount: row?.outOfStockCount ?? 0,
+    withBarcodeCount: row?.withBarcodeCount ?? 0,
+  };
+}
+
+/**
+ * Pie chart data for the products page — per-category inventory value.
+ * Drives the donut on the redesigned desktop inventory page. Categories with
+ * no products are omitted; the uncategorized bucket (no `categoryId`) is
+ * surfaced under "Uncategorized" so the pie always sums to 100% of value.
+ */
+export async function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakdown[]> {
+  const rows = await db
+    .select({
+      category: sql<string>`coalesce(${schema.categories.name}, 'Uncategorized')`,
+      skuCount: sql<number>`count(${schema.products.id})::int`,
+      units: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`,
+      weightMg: sql<number>`coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
+      value: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)::double precision`,
+    })
+    .from(schema.products)
+    .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+    .groupBy(schema.categories.name)
+    .orderBy(desc(sql`coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)`));
+
+  return rows.map((r, i) => ({
+    category: r.category ?? "Uncategorized",
+    skuCount: r.skuCount,
+    units: r.units,
+    weightMg: r.weightMg,
+    value: r.value,
+    color: categoryColor(r.category ?? "Uncategorized", i),
+  }));
+}
+
+/** Deterministic colour per category — keeps the donut slices stable across reloads. */
+function categoryColor(name: string, index: number): string {
+  // Matches the Tailwind theme chart tokens the dashboard pie uses, plus a
+  // neutral fallback for the uncategorized bucket.
+  const palette = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+    "var(--chart-5)",
+    "var(--chart-foreground-muted)",
+  ] as const;
+  // Stable hash → palette index so the same category always gets the same hue.
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+  }
+  if (name === "Uncategorized") {
+    return palette[palette.length - 1]!;
+  }
+  const idx = hash % (palette.length - 1);
+  // Keep `index` in the signature (used by future debugging) without affecting
+  // the deterministic colour assignment.
+  void index;
+  return palette[idx] ?? palette[0]!;
+}
+
 /* ── Lookup resolvers (colors, sizes, categories) ─────────────── */
 
 export async function resolveColorId(db: DbClient, name: string): Promise<string> {

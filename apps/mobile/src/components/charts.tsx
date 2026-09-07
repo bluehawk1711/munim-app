@@ -1,11 +1,12 @@
 /**
- * Munim mobile SVG charts — built on `react-native-svg` (already a
- * project dependency, used by the barcode renderer).
+ * Munim mobile charts — built on `react-native-gifted-charts`.
  *
- * Components:
- *   - `BarChart`   — vertical bars with compact value labels (monthly revenue).
- *   - `DonutChart` — segmented donut with center total + legend (sales by
- *                    category, invoice status, stock distribution, …).
+ * Components (exports are stable — screens don't change when the engine does):
+ *   - `BarChart`   — vertical bars with value labels (monthly revenue, units).
+ *   - `LineChart`  — curved area line with a tappable crosshair pointer
+ *                    (6-month performance, report trajectory).
+ *   - `DonutChart` — segmented donut with center total + tappable legend
+ *                    (sales by category, invoice status, stock distribution…).
  *
  * Color discipline: chart colors come from the ACTIVE theme's `chart1..chart5`
  * tokens (mode-appropriate, so they stay legible in dark mode). The dashboard
@@ -16,7 +17,11 @@
 
 import React, {useState} from 'react';
 import {LayoutChangeEvent, Pressable, StyleSheet, Text, View} from 'react-native';
-import Svg, {Circle, G, Line, Rect, Text as SvgText} from 'react-native-svg';
+import {
+  BarChart as GiftedBarChart,
+  LineChart as GiftedLineChart,
+  PieChart as GiftedPieChart,
+} from 'react-native-gifted-charts';
 import type {MobileColors} from '@munim/theme';
 import {useTheme, useThemeStyles} from '../theme';
 import {rs, rw, typography, spacing, radii} from '../lib/responsive';
@@ -43,7 +48,7 @@ type BarChartProps = {
   data: BarDatum[];
   /** Bar fill for all but the highlighted bar. */
   color?: string;
-  /** Bar fill for the highlighted bar (defaults to `color`). */
+  /** Bar fill for the highlighted bar (defaults to primary). */
   highlightColor?: string;
   /** Index treated as "current" (last bar by default). */
   highlightIndex?: number;
@@ -58,12 +63,12 @@ export function BarChart({
   highlightColor,
   highlightIndex,
   formatValue = compactMoney,
-  height = rs(130),
+  height = rs(160),
 }: BarChartProps) {
   const {colors: palette} = useTheme();
   const styles = useThemeStyles(makeStyles);
   const base = color ?? palette.chart1;
-  const highlight = highlightColor ?? palette.primary;
+  const accent = highlightColor ?? palette.primary;
   const hi = highlightIndex ?? Math.max(0, data.length - 1);
   const [width, setWidth] = useState(0);
 
@@ -80,69 +85,141 @@ export function BarChart({
     );
   }
 
-  const max = Math.max(...data.map((d) => d.value), 1);
+  // Fit the bars to the card: computed from the measured width so 6-month
+  // series never scroll and 30-day series stay legible.
   const n = data.length;
-  const slot = width / n;
-  const barW = Math.min(slot * 0.55, rs(26));
-  const labelH = rs(16);
-  const plotH = height - labelH;
-  const baseline = plotH;
+  const usable = Math.max(0, width - rs(12));
+  const slot = usable / n;
+  const barW = Math.max(rs(10), Math.min(rs(30), slot * 0.55));
+  const barSpacing = Math.max(rs(3), slot - barW);
+
+  const barData = data.map((d, i) => ({
+    value: d.value,
+    label: d.label,
+    frontColor: i === hi ? accent : base,
+    topLabelComponent: d.value > 0 ? () => (
+      <Text style={[styles.valueLabel, i === hi && styles.valueLabelAccent]}>
+        {formatValue(d.value)}
+      </Text>
+    ) : undefined,
+  }));
 
   return (
     <View onLayout={onLayout}>
       {width > 0 ? (
-        <Svg width={width} height={height}>
-          {data.map((d, i) => {
-            const h = d.value > 0 ? Math.max((d.value / max) * (plotH - rs(8)), rs(3)) : 0;
-            const x = i * slot + (slot - barW) / 2;
-            const y = baseline - h;
-            const fill = i === hi ? highlight : base;
-            return (
-              <G key={`${d.label}-${i}`}>
-                {h > 0 ? (
-                  <Rect
-                    x={x}
-                    y={y}
-                    width={barW}
-                    height={h}
-                    rx={Math.min(barW / 2, rs(5))}
-                    fill={fill}
-                  />
-                ) : null}
-                {h > rs(12) ? (
-                  <SvgText
-                    x={x + barW / 2}
-                    y={y - rs(4)}
-                    fontSize={rs(9.5)}
-                    fill={palette.muted}
-                    textAnchor="middle">
-                    {formatValue(d.value)}
-                  </SvgText>
-                ) : null}
-              </G>
-            );
-          })}
-          <Line
-            x1={0}
-            y1={baseline + 0.5}
-            x2={width}
-            y2={baseline + 0.5}
-            stroke={palette.border}
-            strokeWidth={1}
-          />
-        </Svg>
+        <GiftedBarChart
+          data={barData}
+          width={width}
+          height={height}
+          barWidth={barW}
+          spacing={barSpacing}
+          initialSpacing={rs(2)}
+          endSpacing={rs(2)}
+          barRadius={rs(4)}
+          isAnimated
+          animationDuration={450}
+          disableScroll
+          noOfSections={3}
+          rulesColor={palette.border}
+          yAxisColor={palette.border}
+          xAxisColor={palette.border}
+          yAxisLabelWidth={rs(34)}
+          yAxisTextStyle={styles.axisText}
+          xAxisLabelTextStyle={styles.axisText}
+          formatYLabel={(label: string) => formatValue(Number(label))}
+        />
       ) : null}
-      {/* Month labels — RN Text below the SVG for crisp rendering */}
-      <View style={styles.barLabels}>
-        {data.map((d, i) => (
-          <Text
-            key={`${d.label}-${i}`}
-            style={[styles.barLabel, i === hi ? styles.barLabelActive : null]}
-            numberOfLines={1}>
-            {d.label}
-          </Text>
-        ))}
+    </View>
+  );
+}
+
+/* ─── LineChart ────────────────────────────────────────────────────── */
+
+/** Curved area line with gridlines, y-axis money labels and a tappable
+ *  crosshair — used by Home's "6-month performance" card and the reports
+ *  trajectory. Same token discipline as BarChart. */
+export function LineChart({
+  data,
+  color,
+  highlightColor,
+  formatValue = compactMoney,
+  height = rs(170),
+}: {
+  data: BarDatum[];
+  color?: string;
+  highlightColor?: string;
+  formatValue?: (v: number) => string;
+  height?: number;
+}) {
+  const {colors: palette} = useTheme();
+  const styles = useThemeStyles(makeStyles);
+  const stroke = color ?? palette.chart1;
+  const accent = highlightColor ?? palette.primary;
+  const [width, setWidth] = useState(0);
+
+  const onLayout = (e: LayoutChangeEvent) => {
+    const w = e.nativeEvent.layout.width;
+    if (w > 0 && w !== width) setWidth(w);
+  };
+
+  if (data.length === 0) {
+    return (
+      <View style={styles.emptyWrap} onLayout={onLayout}>
+        <Text style={styles.emptyText}>No data yet</Text>
       </View>
+    );
+  }
+
+  const last = data.length - 1;
+  const lineData = data.map((d, i) => ({
+    value: d.value,
+    label: d.label,
+    dataPointColor: i === last ? accent : stroke,
+    dataPointRadius: i === last ? rs(4) : rs(2.5),
+    // Static callout on the highlighted (last) point only.
+    dataPointText: i === last ? formatValue(d.value) : '',
+    textShiftX: rs(-4),
+    textShiftY: rs(-6),
+  }));
+
+  return (
+    <View onLayout={onLayout}>
+      {width > 0 ? (
+        <GiftedLineChart
+          data={lineData}
+          width={width}
+          height={height}
+          curved
+          areaChart
+          color={stroke}
+          thickness={rs(2.2)}
+          startFillColor={stroke}
+          startOpacity={0.18}
+          endFillColor={stroke}
+          endOpacity={0.01}
+          isAnimated
+          animationDuration={500}
+          disableScroll
+          noOfSections={3}
+          rulesColor={palette.border}
+          yAxisColor={palette.border}
+          xAxisColor={palette.border}
+          yAxisLabelWidth={rs(38)}
+          yAxisTextStyle={styles.axisText}
+          xAxisLabelTextStyle={styles.axisText}
+          formatYLabel={(label: string) => formatValue(Number(label))}
+          pointerConfig={{
+            pointer1Color: accent,
+            pointerLabelComponent: items => (
+              <View style={styles.pointerLabel}>
+                <Text style={styles.pointerText}>
+                  {formatValue(items[0]?.value ?? 0)}
+                </Text>
+              </View>
+            ),
+          }}
+        />
+      ) : null}
     </View>
   );
 }
@@ -176,76 +253,66 @@ export function DonutChart({
 }: DonutChartProps) {
   const {colors: palette} = useTheme();
   const styles = useThemeStyles(makeStyles);
+  const paletteColors = chartColors(palette);
   const active = segments.filter((s) => s.value > 0);
   const total = active.reduce((sum, s) => sum + s.value, 0);
-  const r = (size - thickness) / 2;
-  const c = 2 * Math.PI * r;
-  const cx = size / 2;
-  const cy = size / 2;
 
-  let offset = 0;
-  const arcs = active.map((s) => {
-    const len = (s.value / total) * c;
-    const arc = {color: s.color, len, offset};
-    offset += len;
-    return arc;
-  });
+  // Server colors are CSS vars RN can't render — always map by index.
+  const pieData = active.map((s, i) => ({
+    value: s.value,
+    name: s.name,
+    color: paletteColors[i % paletteColors.length],
+  }));
+  const legendRows = segments.map((s, i) => ({
+    ...s,
+    color: paletteColors[i % paletteColors.length],
+  }));
+
+  const center = (
+    <View style={{alignItems: 'center'}}>
+      <Text style={styles.donutCenterValue}>
+        {total > 0 ? (centerValue ?? formatValue(total)) : '0'}
+      </Text>
+      <Text style={styles.donutCenterSub}>
+        {total > 0 ? (centerSub ?? '') : 'No data'}
+      </Text>
+    </View>
+  );
 
   return (
     <View style={styles.donutWrap}>
-      <Svg width={size} height={size}>
-        {/* Track */}
-        <Circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          stroke={palette.mutedBg}
-          strokeWidth={thickness}
-          fill="none"
+      {active.length > 0 ? (
+        <GiftedPieChart
+          data={pieData}
+          radius={size / 2}
+          innerRadius={size / 2 - thickness}
+          donut
+          focusOnPress={!!onSegmentPress}
+          showText={false}
+          centerLabelComponent={() => center}
         />
-        {/* Segments */}
-        {total > 0
-          ? arcs.map((arc, i) => (
-              <Circle
-                key={`${i}`}
-                cx={cx}
-                cy={cy}
-                r={r}
-                stroke={arc.color}
-                strokeWidth={thickness}
-                fill="none"
-                strokeDasharray={`${arc.len} ${c - arc.len}`}
-                strokeDashoffset={-arc.offset}
-                rotation={-90}
-                origin={`${cx}, ${cy}`}
-              />
-            ))
-          : null}
-        <SvgText
-          x={cx}
-          y={cy - rs(2)}
-          fontSize={rs(19)}
-          fontWeight="700"
-          fill={palette.text}
-          textAnchor="middle">
-          {total > 0 ? (centerValue ?? formatValue(total)) : '0'}
-        </SvgText>
-        <SvgText
-          x={cx}
-          y={cy + rs(15)}
-          fontSize={rs(10)}
-          fill={palette.muted}
-          textAnchor="middle">
-          {total > 0 ? (centerSub ?? '') : 'No data'}
-        </SvgText>
-      </Svg>
+      ) : (
+        <View style={{width: size, height: size, alignItems: 'center', justifyContent: 'center'}}>
+          <View
+            style={{
+              position: 'absolute',
+              width: size,
+              height: size,
+              borderRadius: radii.full,
+              borderWidth: thickness,
+              borderColor: palette.mutedBg,
+            }}
+          />
+          {center}
+        </View>
+      )}
 
       {/* Legend — rows are tappable when `onSegmentPress` is provided */}
       <View style={styles.legend}>
         {segments.length === 0 ? (
           <Text style={styles.emptyText}>Nothing to show yet</Text>
         ) : (
-          segments.map((s) => {
+          legendRows.map((s) => {
             const row = (
               <View style={styles.legendRow}>
                 <View style={[styles.legendDot, {backgroundColor: s.color}]} />
@@ -291,22 +358,42 @@ const makeStyles = (c: MobileColors) =>
       fontSize: typography.secondary,
       color: c.muted,
     },
-    barLabels: {
-      flexDirection: 'row',
-      marginTop: rs(4),
-    },
-    barLabel: {
-      flex: 1,
-      textAlign: 'center',
-      fontSize: typography.caption,
+    axisText: {
+      fontSize: rs(8.5),
       color: c.muted,
     },
-    barLabelActive: {
+    valueLabel: {
+      fontSize: rs(9),
       fontWeight: '700',
-      color: c.text,
+      color: c.muted,
+      marginBottom: rs(2),
+    },
+    valueLabelAccent: {
+      color: c.primary,
+    },
+    pointerLabel: {
+      backgroundColor: c.inverseSurface,
+      borderRadius: radii.sm,
+      paddingHorizontal: rs(8),
+      paddingVertical: rs(4),
+      alignSelf: 'flex-start',
+    },
+    pointerText: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+      color: c.inverseOnSurface,
     },
     donutWrap: {
       alignItems: 'center',
+    },
+    donutCenterValue: {
+      fontSize: rs(19),
+      fontWeight: '700',
+      color: c.text,
+    },
+    donutCenterSub: {
+      fontSize: rs(10),
+      color: c.muted,
     },
     legend: {
       alignSelf: 'stretch',

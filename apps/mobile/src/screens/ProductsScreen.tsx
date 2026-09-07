@@ -1,18 +1,20 @@
 /**
- * ProductsScreen — product CRUD, stock adjustment, barcode scanning, labels.
+ * ProductsScreen — Inventory, redesigned to the swatch-row reference layout.
  *
- * Redesigned with:
- * - FlashList for performance with large product lists
- * - AccordionCard with 3-dot menu for each product
- * - BottomSheet-based pickers for Color, Size, Category (from catalog)
- * - Responsive layout using ../lib/responsive
- * - Proper keyboard-aware form in bottom sheet
+ * - Custom HomeHeader ("Stock")
+ * - Search + scan in one row; filter chips (All / In Stock / Low / Out) with
+ *   live counts
+ * - FlashList of image-forward product rows: thumbnail, name, variant chip
+ *   (Color · Size · weight), price + "Out of stock"/"Cost" line, and a stock
+ *   pill on the right ("98 units" / "8 units (Low)" / "0 units")
+ * - Tapping a row opens ProductDetailSheet (@gorhom/bottom-sheet): SKU,
+ *   barcode copy card, buy/sell/margin tiles, detail rows, Edit/Adjust CTA
+ * - Full CRUD + stock adjustment + labels + barcode scanning preserved
  */
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Image,
-  Modal,
   Pressable,
   Share,
   StyleSheet,
@@ -22,10 +24,9 @@ import {
 } from 'react-native';
 import Animated, {FadeInUp} from 'react-native-reanimated';
 import {FlashList} from '@shopify/flash-list';
-import {Search, X, ScanLine, Barcode, Package} from 'lucide-react-native';
+import {Search, ScanLine, Package, X} from 'lucide-react-native';
 import {SvgXml} from 'react-native-svg';
 import * as ImagePicker from 'expo-image-picker';
-import {CameraView, useCameraPermissions} from 'expo-camera';
 import * as Print from 'expo-print';
 import {
   barcodeSvg,
@@ -49,34 +50,43 @@ import {
   useUploadImage,
 } from '@munim/query';
 import {money} from '../lib/format';
-import {successFeedback, errorFeedback} from '../lib/haptics';
+import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {uploadImageDirect} from '../lib/cloudinary';
 import {rw, rh, rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
 import {
-  AccordionCard,
-  Badge,
   Button,
   Empty,
   ErrorBox,
   Field,
-  Header,
   Loading,
   ModalSheet,
   Screen,
   SelectField,
-  ThreeDotMenu,
   ConfirmDialog,
   colors,
 } from '../components/ui';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
+import {ProductDetailSheet} from '../components/ProductDetailSheet';
+import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
+import {QuickSaleSheet} from '../components/quick-sale-sheet';
 import {useThemeStyles} from '../theme';
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
-function toneFor(p: ProductDto): 'success' | 'warning' | 'danger' | 'muted' {
-  if (p.stock <= 0) return 'danger';
-  if (p.stock <= p.lowStockThreshold) return 'warning';
-  return 'success';
+type StockFilter = 'all' | 'in' | 'low' | 'out';
+
+function inStock(p: ProductDto): boolean {
+  return p.stock > p.lowStockThreshold;
 }
+function isLow(p: ProductDto): boolean {
+  return p.stock > 0 && p.stock <= p.lowStockThreshold;
+}
+function isOut(p: ProductDto): boolean {
+  return p.stock <= 0;
+}
+
+/** Large in-row price, e.g. "₹100.00" (reference style, not "INR x"). */
+const price = (v: number) => `₹${v.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
 
 function BarcodeChip({value}: {value: string}) {
   const xml = React.useMemo(() => barcodeSvg(value, {showText: true, height: 40}), [value]);
@@ -88,114 +98,71 @@ function BarcodeChip({value}: {value: string}) {
 
 type ProductRowProps = {
   item: ProductDto;
-  expanded: boolean;
-  onToggle: () => void;
-  onEdit: (p: ProductDto) => void;
-  onAdjust: (p: ProductDto) => void;
-  onDelete: (p: ProductDto) => void;
-  onLabel: (p: ProductDto) => void;
+  onPress: (p: ProductDto) => void;
+  index: number;
 };
 
-const ProductRow = React.memo(function ProductRow({
-  item,
-  expanded,
-  onToggle,
-  onEdit,
-  onAdjust,
-  onDelete,
-  onLabel,
-}: ProductRowProps) {
-  const menuActions = useMemo(
-    () => [
-      {label: 'Edit', onPress: () => onEdit(item)},
-      {label: 'Adjust stock', onPress: () => onAdjust(item)},
-      {label: 'Print label', onPress: () => onLabel(item)},
-      {label: 'Delete', onPress: () => onDelete(item), destructive: true},
-    ],
-    [item, onEdit, onAdjust, onLabel, onDelete],
-  );
+const ProductRow = React.memo(function ProductRow({item, onPress, index}: ProductRowProps) {
+  const styles = useThemeStyles(makeRowStyles);
+
+  const variantBits = [item.color, item.size !== 'Standard' ? item.size : null]
+    .filter(Boolean)
+    .join(' · ');
+
+  const stockPillStyle =
+    item.stock <= 0 ? styles.pillOut : isLow(item) ? styles.pillLow : styles.pillOk;
 
   return (
-    <AccordionCard
-      expanded={expanded}
-      onToggle={onToggle}
-      trailing={<ThreeDotMenu actions={menuActions} />}
-      header={
-        <View style={productStyles.header}>
-          {/* Product thumbnail — always visible; icon placeholder when no photo */}
-          <View style={productStyles.thumb}>
-            {item.imageUrl ? (
-              <Image source={{uri: item.imageUrl}} style={productStyles.thumbImg} />
-            ) : (
-              <Package size={rs(20)} color={colors.muted} />
-            )}
-          </View>
-          <View style={{flex: 1, minWidth: 0}}>
-            <Text style={productStyles.name} numberOfLines={1}>
-              {item.name}
+    <Pressable
+      onPress={() => onPress(item)}
+      style={({pressed}) => [styles.row, pressed && styles.rowPressed]}>
+      {/* Thumbnail */}
+      <View style={styles.thumb}>
+        {item.imageUrl ? (
+          <Image source={{uri: item.imageUrl}} style={styles.thumbImg} />
+        ) : (
+          <Package size={rs(20)} color={colors.muted} />
+        )}
+      </View>
+
+      {/* Name / variant chip / price + cost line */}
+      <View style={styles.main}>
+        <Text style={styles.name} numberOfLines={1}>
+          {item.name}
+        </Text>
+        {variantBits || item.weight != null ? (
+          <View style={styles.variantChip}>
+            <Text style={styles.variantText} numberOfLines={1}>
+              {[
+                variantBits || null,
+                item.weight != null ? `${formatWeight(item.weight)}` : null,
+              ]
+                .filter(Boolean)
+                .join('  ·  ')}
             </Text>
-            <Text style={productStyles.meta} numberOfLines={1}>
-              {item.sku}
-              {item.color || item.size || item.category
-                ? ` · ${[item.color, item.size, item.category].filter(Boolean).join(' / ')}`
-                : ''}
-            </Text>
-            <View style={productStyles.priceRow}>
-              <Text style={productStyles.price}>{money(item.sellingPrice)}</Text>
-              <Badge
-                text={item.stock <= 0 ? 'Out' : `${item.stock} in stock`}
-                tone={toneFor(item)}
-              />
-            </View>
           </View>
+        ) : null}
+        <View style={styles.priceRow}>
+          <Text style={styles.price}>{price(item.sellingPrice)}</Text>
+          {item.stock <= 0 ? (
+            <Text style={styles.outText}>Out of stock</Text>
+          ) : (
+            <Text style={styles.costText}>Cost: {price(item.purchasePrice)}</Text>
+          )}
         </View>
-      }>
-      {/* Expanded details */}
-      <View style={productStyles.detailRow}>
-        <Text style={productStyles.detailLabel}>Buy price</Text>
-        <Text style={productStyles.detailValue}>{money(item.purchasePrice)}</Text>
       </View>
-      <View style={productStyles.detailRow}>
-        <Text style={productStyles.detailLabel}>Sell price</Text>
-        <Text style={productStyles.detailValue}>{money(item.sellingPrice)}</Text>
+
+      {/* Right stock pill */}
+      <View style={[styles.pill, stockPillStyle]}>
+        <Text style={styles.pillText} numberOfLines={1}>
+          {item.stock <= 0
+            ? '0 units'
+            : isLow(item)
+              ? `${item.stock} units (Low)`
+              : `${item.stock} units`}
+        </Text>
       </View>
-      <View style={productStyles.detailRow}>
-        <Text style={productStyles.detailLabel}>Stock</Text>
-        <Text style={productStyles.detailValue}>{item.stock} units</Text>
-      </View>
-      {item.color ? (
-        <View style={productStyles.detailRow}>
-          <Text style={productStyles.detailLabel}>Color</Text>
-          <Text style={productStyles.detailValue}>{item.color}</Text>
-        </View>
-      ) : null}
-      {item.size ? (
-        <View style={productStyles.detailRow}>
-          <Text style={productStyles.detailLabel}>Size</Text>
-          <Text style={productStyles.detailValue}>{item.size}</Text>
-        </View>
-      ) : null}
-      {item.category ? (
-        <View style={productStyles.detailRow}>
-          <Text style={productStyles.detailLabel}>Category</Text>
-          <Text style={productStyles.detailValue}>{item.category}</Text>
-        </View>
-      ) : null}
-      {item.weight != null ? (
-        <View style={productStyles.detailRow}>
-          <Text style={productStyles.detailLabel}>Weight</Text>
-          <Text style={productStyles.detailValue}>{formatWeight(item.weight)}</Text>
-        </View>
-      ) : null}
-      {item.barcode ? (
-        <View style={{marginTop: spacing.sm}}>
-          <BarcodeChip value={item.barcode} />
-        </View>
-      ) : null}
-      {item.imageUrl ? (
-        <Image source={{uri: item.imageUrl}} style={productStyles.detailImage} />
-      ) : null}
-    </AccordionCard>
+    </Pressable>
   );
 });
 
@@ -222,7 +189,8 @@ export function ProductsScreen() {
 
   // UI state
   const [search, setSearch] = useState('');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
+  const [detailTarget, setDetailTarget] = useState<ProductDto | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductDto | null>(null);
   const [saving, setSaving] = useState(false);
@@ -262,30 +230,29 @@ export function ProductsScreen() {
   // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<ProductDto | null>(null);
 
-  // Barcode scanner
+  // Barcode scanner (scan → instant sale dialog)
   const [scanOpen, setScanOpen] = useState(false);
   const scanningRef = useRef(false);
   const [scanMsg, setScanMsg] = useState('');
   const [scanCode, setScanCode] = useState<string | null>(null);
   const scanQ = useProductByBarcode(scanCode);
-  const [permission, requestPermission] = useCameraPermissions();
+  const [saleProduct, setSaleProduct] = useState<ProductDto | null>(null);
 
   // Backfill
   const [backfilling, setBackfilling] = useState(false);
 
-  // Barcode scan result handler
+  // Barcode scan result handler — a found product opens the QuickSaleSheet
+  // (instant counter sale) instead of the edit form.
   useEffect(() => {
     if (!scanCode) return;
     if (scanQ.data) {
       scanningRef.current = false;
       setScanOpen(false);
-      successFeedback();
-      openEdit(scanQ.data);
+      setSaleProduct(scanQ.data);
       setScanCode(null);
     } else if (scanQ.isError) {
       scanningRef.current = false;
       const notFound = scanQ.error instanceof ApiClientError && scanQ.error.status === 404;
-      errorFeedback();
       setScanMsg(notFound ? `No product with barcode ${scanCode}` : 'Lookup failed');
       setScanCode(null);
     }
@@ -293,19 +260,32 @@ export function ProductsScreen() {
 
   // Filtered list
   const query = search.trim().toLowerCase();
-  const filtered = useMemo(
-    () =>
-      query
-        ? (data ?? []).filter(
-            p =>
-              p.name.toLowerCase().includes(query) ||
-              p.sku.toLowerCase().includes(query) ||
-              (p.barcode ?? '').toLowerCase().includes(query) ||
-              (p.color ?? '').toLowerCase().includes(query) ||
-              (p.size ?? '').toLowerCase().includes(query),
-          )
-        : data ?? [],
-    [data, query],
+  const filtered = useMemo(() => {
+    let list = data ?? [];
+    if (query) {
+      list = list.filter(
+        p =>
+          p.name.toLowerCase().includes(query) ||
+          p.sku.toLowerCase().includes(query) ||
+          (p.barcode ?? '').toLowerCase().includes(query) ||
+          (p.color ?? '').toLowerCase().includes(query) ||
+          (p.size ?? '').toLowerCase().includes(query),
+      );
+    }
+    if (stockFilter === 'in') list = list.filter(inStock);
+    else if (stockFilter === 'low') list = list.filter(isLow);
+    else if (stockFilter === 'out') list = list.filter(isOut);
+    return list;
+  }, [data, query, stockFilter]);
+
+  const counts = useMemo(
+    () => ({
+      all: (data ?? []).length,
+      in: (data ?? []).filter(inStock).length,
+      low: (data ?? []).filter(isLow).length,
+      out: (data ?? []).filter(isOut).length,
+    }),
+    [data],
   );
 
   const missingBarcodes = useMemo(() => (data ?? []).some(p => !p.barcode), [data]);
@@ -342,6 +322,20 @@ export function ProductsScreen() {
     setSell(String(p.sellingPrice));
     setFormOpen(true);
   }
+
+  /** Detail sheet → Edit Product */
+  const handleDetailEdit = useCallback((p: ProductDto) => {
+    setDetailTarget(null);
+    openEdit(p);
+  }, []);
+
+  /** Detail sheet → Adjust Stock */
+  const handleDetailAdjust = useCallback((p: ProductDto) => {
+    setDetailTarget(null);
+    setAdjusting(p);
+    setAdjustQty('');
+    setAdjustReason('');
+  }, []);
 
   async function handleSave() {
     if (!name.trim()) return;
@@ -481,39 +475,39 @@ export function ProductsScreen() {
     setScanCode(code);
   }
 
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedId(prev => (prev === id ? null : id));
+  const onPressRow = useCallback((p: ProductDto) => {
+    selectionTick();
+    setDetailTarget(p);
   }, []);
 
   const renderItem = useCallback(
     ({item, index}: {item: ProductDto; index: number}) => (
-      <ProductRow
-        item={item}
-        expanded={expandedId === item.id}
-        onToggle={() => toggleExpand(item.id)}
-        onEdit={openEdit}
-        onAdjust={setAdjusting}
-        onDelete={setDeleteTarget}
-        onLabel={p => { setLabelTarget(p); setLabelCopies(1); setLabelOpen(true); }}
-      />
+      <ProductRow item={item} onPress={onPressRow} index={index} />
     ),
-    [expandedId, toggleExpand],
+    [onPressRow],
   );
 
   const keyExtractor = useCallback((item: ProductDto) => item.id, []);
 
+  const FILTERS: {key: StockFilter; label: string; count: number}[] = [
+    {key: 'all', label: 'All', count: counts.all},
+    {key: 'in', label: 'In Stock', count: counts.in},
+    {key: 'low', label: 'Low Stock', count: counts.low},
+    {key: 'out', label: 'Out of Stock', count: counts.out},
+  ];
+
   return (
     <Screen>
-      <Header title="Inventory" subtitle={`${filtered.length} products`} />
+      <HomeHeader title="Stock" />
 
-      {/* Search bar */}
+      {/* Search + scan row */}
       <View style={styles.searchWrap}>
         <Search size={rs(16)} color={colors.muted} style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}
           value={search}
           onChangeText={setSearch}
-          placeholder="Search name, SKU, barcode…"
+          placeholder="Search product name, SKU, barcode…"
           placeholderTextColor={colors.inputPlaceholder}
           autoCapitalize="none"
           autoCorrect={false}
@@ -524,9 +518,35 @@ export function ProductsScreen() {
             <X size={rs(16)} color={colors.muted} />
           </Pressable>
         ) : null}
-        <Pressable onPress={() => { setScanMsg(''); if (!permission?.granted) void requestPermission(); setScanOpen(true); }} style={styles.scanButton} accessibilityLabel="Scan barcode">
-          <ScanLine size={rs(18)} color={colors.primary} />
+        <Pressable
+          onPress={() => { setScanMsg(''); setScanOpen(true); }}
+          style={({pressed}) => [styles.scanButton, pressed && {opacity: 0.7}]}
+          accessibilityLabel="Scan barcode">
+          <ScanLine size={rs(18)} color={colors.onPrimary} />
         </Pressable>
+      </View>
+
+      {/* Filter chips */}
+      <View style={styles.chipRow}>
+        {FILTERS.map(f => {
+          const active = stockFilter === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              onPress={() => {
+                selectionTick();
+                setStockFilter(f.key);
+              }}
+              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+              {f.key === 'low' && f.count > 0 ? <View style={styles.dotWarning} /> : null}
+              {f.key === 'out' && f.count > 0 ? <View style={styles.dotDanger} /> : null}
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {f.label}
+              </Text>
+              {f.count > 0 ? <Text style={[styles.chipCount, active && styles.chipTextActive]}>{f.count}</Text> : null}
+            </Pressable>
+          );
+        })}
       </View>
 
       {missingBarcodes ? (
@@ -544,18 +564,31 @@ export function ProductsScreen() {
           data={filtered}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          contentContainerStyle={{padding: spacing.sm, paddingBottom: spacing.xxxl}}
+          contentContainerStyle={{paddingHorizontal: CARD_MARGIN, paddingBottom: 110, gap: spacing.sm}}
           keyboardShouldPersistTaps="handled"
+          {...headerScrollHandlers}
           ListEmptyComponent={
-            query ? <Empty text="No products match your search" /> : <Empty text="No products yet" />
+            query || stockFilter !== 'all' ? (
+              <Empty text="No products match the current filters" />
+            ) : (
+              <Empty text="No products yet" />
+            )
           }
         />
       )}
 
-      {/* FAB */}
+      {/* CTA — Add Product */}
       <Animated.View entering={FadeInUp.duration(320)} style={styles.fab}>
-        <Button title="+ Add product" onPress={openAdd} />
+        <Button title="+ Add Product" onPress={openAdd} />
       </Animated.View>
+
+      {/* Product detail bottom sheet (@gorhom) */}
+      <ProductDetailSheet
+        product={detailTarget}
+        onClose={() => setDetailTarget(null)}
+        onEdit={handleDetailEdit}
+        onAdjust={handleDetailAdjust}
+      />
 
       {/* Product form sheet — centered modal */}
       <ModalSheet visible={formOpen} title={editing ? `Edit — ${editing.name}` : 'Add product'} onClose={() => setFormOpen(false)} dismissable={!saving && !uploading} centered scrollable>
@@ -643,62 +676,81 @@ export function ProductsScreen() {
         </Pressable>
       </ModalSheet>
 
-      {/* Camera scanner */}
-      <Modal visible={scanOpen} animationType="slide" onRequestClose={() => setScanOpen(false)}>
-        <View style={styles.scanRoot}>
-          {permission?.granted ? (
-            <CameraView
-              style={StyleSheet.absoluteFill}
-              facing="back"
-              barcodeScannerSettings={{barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39', 'qr']}}
-              onBarcodeScanned={({data: barcodeData}) => void handleScanDetected(barcodeData)}>
-              <View style={styles.scanOverlay}>
-                <View style={styles.scanFrame} />
-                <Text style={styles.scanTitle}>Point at a product barcode</Text>
-                {scanMsg ? <Text style={styles.scanMsg}>{scanMsg}</Text> : null}
-                <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: spacing.lg, width: '100%'}} />
-              </View>
-            </CameraView>
-          ) : (
-            <View style={styles.scanPerm}>
-              <Barcode size={rs(40)} color={colors.muted} />
-              <Text style={styles.scanTitle}>Camera permission needed</Text>
-              <Button title="Allow camera" onPress={() => void requestPermission()} style={{marginTop: spacing.md, width: '100%'}} />
-              <Button title="Cancel" variant="outline" onPress={() => setScanOpen(false)} style={{marginTop: spacing.sm, width: '100%'}} />
-            </View>
-          )}
-        </View>
-      </Modal>
+      {/* Camera scanner (shared) — found products open the QuickSaleSheet */}
+      <BarcodeScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onDetected={handleScanDetected} message={scanMsg} />
+      <QuickSaleSheet product={saleProduct} onClose={() => setSaleProduct(null)} />
     </Screen>
   );
 }
 
-/* ─── Styles ─────────────────────────────────────────────────────────── */
+/* ─── Row styles ─────────────────────────────────────────────────────── */
 
-const productStyles = StyleSheet.create({
-  header: {flexDirection: 'row', alignItems: 'center', gap: spacing.md},
-  thumb: {
-    width: rs(48),
-    height: rs(48),
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.mutedSoft,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const,
-    overflow: 'hidden' as const,
-    flexShrink: 0,
-  },
-  thumbImg: {width: '100%', height: '100%'},
-  name: {fontSize: typography.body, fontWeight: '600', color: colors.text},
-  meta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
-  priceRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: rs(4)},
-  price: {fontSize: typography.body, fontWeight: '700', color: colors.text},
-  detailRow: {flexDirection: 'row', justifyContent: 'space-between', paddingVertical: rs(4)},
-  detailLabel: {fontSize: typography.secondary, color: colors.muted},
-  detailValue: {fontSize: typography.secondary, fontWeight: '600', color: colors.text},
-  detailImage: {width: '100%', height: rs(120), borderRadius: radii.md, marginTop: spacing.sm, resizeMode: 'cover'},
-});
+const makeRowStyles = () =>
+  StyleSheet.create({
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.lg,
+      padding: rs(12),
+      gap: rs(10),
+    },
+    rowPressed: {
+      backgroundColor: colors.mutedSoft,
+    },
+    thumb: {
+      width: rs(64),
+      height: rs(64),
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.mutedSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+      flexShrink: 0,
+    },
+    thumbImg: {width: '100%', height: '100%'},
+    main: {flex: 1, minWidth: 0},
+    name: {fontSize: rs(15), fontWeight: '700', color: colors.text},
+    variantChip: {
+      alignSelf: 'flex-start',
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.mutedSoft,
+      borderRadius: radii.sm,
+      paddingHorizontal: rs(7),
+      paddingVertical: rs(2.5),
+      marginTop: rs(4),
+      maxWidth: '100%',
+    },
+    variantText: {fontSize: rs(10.5), fontWeight: '600', color: colors.muted},
+    priceRow: {flexDirection: 'row', alignItems: 'baseline', gap: rs(8), marginTop: rs(5)},
+    price: {fontSize: rs(17), fontWeight: '800', color: colors.primary},
+    costText: {fontSize: rs(11.5), color: colors.muted},
+    outText: {fontSize: rs(11.5), fontWeight: '600', color: colors.danger},
+    pill: {
+      borderRadius: radii.full,
+      paddingHorizontal: rs(9),
+      paddingVertical: rs(4),
+      alignSelf: 'center',
+      flexShrink: 0,
+      maxWidth: rs(120),
+    },
+    pillOk: {backgroundColor: colors.mutedSoft},
+    pillLow: {backgroundColor: colors.warningSoft},
+    pillOut: {backgroundColor: colors.dangerSoft},
+    pillText: {
+      fontSize: rs(10),
+      fontWeight: '700',
+      color: colors.text,
+      textAlign: 'right',
+    },
+  });
+
+/* ─── Screen styles ──────────────────────────────────────────────────── */
 
 const makeStyles = () =>
   StyleSheet.create({
@@ -709,15 +761,65 @@ const makeStyles = () =>
       marginBottom: spacing.sm,
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: radii.md,
+      borderRadius: radii.full,
       backgroundColor: colors.card,
-      paddingHorizontal: spacing.md,
+      paddingLeft: spacing.md,
+      paddingRight: rs(4),
       height: TOUCH_TARGET,
     },
     searchIcon: {marginRight: spacing.sm},
     searchInput: {flex: 1, fontSize: typography.secondary, color: colors.text, paddingVertical: 0},
     searchClear: {padding: rs(4)},
-    scanButton: {padding: rs(4), marginLeft: spacing.sm},
+    scanButton: {
+      width: rh(38),
+      height: rh(38),
+      borderRadius: radii.full,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: spacing.sm,
+    },
+    chipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: rs(6),
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: spacing.sm,
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(5),
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      paddingHorizontal: rs(11),
+      paddingVertical: rs(6),
+    },
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipText: {fontSize: rs(11.5), fontWeight: '600', color: colors.muted},
+    chipTextActive: {color: colors.onPrimary},
+    chipCount: {
+      fontSize: rs(10.5),
+      fontWeight: '800',
+      color: colors.muted,
+    },
+    dotWarning: {
+      width: rs(6),
+      height: rs(6),
+      borderRadius: radii.full,
+      backgroundColor: colors.warning,
+    },
+    dotDanger: {
+      width: rs(6),
+      height: rs(6),
+      borderRadius: radii.full,
+      backgroundColor: colors.danger,
+    },
     fab: {position: 'absolute', bottom: rs(32), left: CARD_MARGIN, right: CARD_MARGIN, elevation: 4},
     imagePicker: {
       height: rs(120),
@@ -732,10 +834,4 @@ const makeStyles = () =>
     },
     imagePickerThumb: {width: '100%', height: '100%'},
     imagePickerText: {fontSize: typography.secondary, color: colors.muted, fontWeight: '600'},
-    scanRoot: {flex: 1, backgroundColor: '#000'},
-    scanOverlay: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl},
-    scanFrame: {width: rw(260), height: rs(160), borderWidth: 3, borderColor: colors.primary, borderRadius: radii.xl, marginBottom: spacing.xl},
-    scanTitle: {fontSize: typography.body, fontWeight: '600', color: '#fff', textAlign: 'center'},
-    scanMsg: {fontSize: typography.secondary, color: '#fca5a5', marginTop: spacing.md, textAlign: 'center'},
-    scanPerm: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxxl},
   });

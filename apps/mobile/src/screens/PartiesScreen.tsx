@@ -12,6 +12,7 @@ import React, {useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {FlashList} from '@shopify/flash-list';
 import {formatDate} from '@munim/core';
+import {X} from 'lucide-react-native';
 import {
   useAdvances,
   useCreateAdvance,
@@ -31,12 +32,12 @@ import {
   Card,
   Empty,
   Field,
-  Header,
   Loading,
   ModalSheet,
   Screen,
   colors,
 } from '../components/ui';
+import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 
 export function PartiesScreen() {
@@ -145,7 +146,7 @@ export function PartiesScreen() {
                 {item.phone}
               </Text>
             ) : null}
-            <View style={{flexDirection: 'row', gap: spacing.xs, marginTop: rs(4)}}>
+            <View style={{flexDirection: 'row', gap: spacing.xs, marginTop: rs(10)}}>
               <Badge text={`Given ${money(item.given)}`} tone="danger" />
               <Badge text={`Taken ${money(item.taken)}`} tone="success" />
             </View>
@@ -160,6 +161,12 @@ export function PartiesScreen() {
       {/* Expanded actions */}
       {item.id === selectedId ? (
         <View style={styles.expandedActions}>
+          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm}}>
+            <Text style={[styles.openLabel, {marginBottom: 0}]}>Actions</Text>
+            <Pressable onPress={() => setSelectedId(null)} hitSlop={8} style={{padding: rs(4)}}>
+              <X size={rs(18)} color={colors.muted} />
+            </Pressable>
+          </View>
           <View style={styles.actionRow}>
             <Button title="Advance given" variant="outline" size="small" style={{flex: 1}} onPress={() => { setDirection('GIVEN'); setAmount(''); setAdvanceOpen(true); }} />
             <Button title="Advance taken" variant="outline" size="small" style={{flex: 1}} onPress={() => { setDirection('TAKEN'); setAmount(''); setAdvanceOpen(true); }} />
@@ -194,7 +201,7 @@ export function PartiesScreen() {
 
   return (
     <Screen>
-      <Header title="Parties & Khata" subtitle="Advances given & taken" />
+      <HomeHeader title="Khata" />
 
       {loading || !parties ? (
         <Loading />
@@ -203,6 +210,7 @@ export function PartiesScreen() {
           data={parties}
           renderItem={renderParty}
           keyExtractor={item => item.id}
+          {...headerScrollHandlers}
           ListHeaderComponent={
             <View style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}}>
               <Button title="+ Add party" onPress={() => setAddOpen(true)} />
@@ -216,7 +224,13 @@ export function PartiesScreen() {
       {/* Ledger display below list when a party is selected */}
       {ledger && selected ? (
         <Card style={{marginHorizontal: CARD_MARGIN, marginTop: spacing.sm}}>
-          <Text style={styles.ledgerTitle}>Ledger — {selected.name}</Text>
+          <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'}}>
+            <Text style={[styles.ledgerTitle, {marginBottom: 0}]}>Ledger — {selected.name}</Text>
+            <Pressable onPress={() => setSelectedId(null)} hitSlop={8} style={{padding: rs(4)}}>
+              <X size={rs(18)} color={colors.muted} />
+            </Pressable>
+          </View>
+          <View style={{height: spacing.sm}} />
           {ledgerLoading ? (
             <Loading rows={3} />
           ) : ledger.lines.length === 0 ? (
