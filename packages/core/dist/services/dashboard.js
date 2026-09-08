@@ -266,6 +266,7 @@ export async function getReport(db, type, startDate, endDate) {
         name: schema.products.name,
         stock: schema.products.stock,
         weight: schema.products.weight,
+        weightUnit: schema.products.weightUnit,
         purchasePrice: schema.products.purchasePrice,
         lowStockThreshold: schema.products.lowStockThreshold,
         colorName: sql `${schema.colors.name}`.as("color_name"),
@@ -294,6 +295,7 @@ export async function getReport(db, type, startDate, endDate) {
                 size: p.sizeName,
                 stock: p.stock,
                 weight: p.weight,
+                weightUnit: p.weightUnit ?? "gm",
                 soldWeight: p.weight != null ? soldQuantity * p.weight : 0,
                 soldQuantity,
                 revenue: sold?.revenue ?? 0,
@@ -329,6 +331,7 @@ export async function getReport(db, type, startDate, endDate) {
                 size: p?.sizeName ?? null,
                 stock: p?.stock ?? 0,
                 weight: p?.weight ?? null,
+                weightUnit: p?.weightUnit ?? "gm",
                 soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
                 soldQuantity,
                 revenue,
@@ -341,7 +344,8 @@ export async function getReport(db, type, startDate, endDate) {
     const totals = reportRows.reduce((acc, r) => {
         acc.stock += r.stock;
         acc.soldQuantity += r.soldQuantity;
-        acc.soldWeight += r.soldWeight;
+        // Normalize to grams so mixed-unit totals are meaningful.
+        acc.soldWeight += r.weightUnit === "mg" ? r.soldWeight / 1000 : r.soldWeight;
         acc.revenue += r.revenue;
         acc.profit += r.profit;
         return acc;
@@ -360,11 +364,10 @@ export async function getReport(db, type, startDate, endDate) {
  * Shared by web, desktop AND mobile so every platform exports the same file.
  */
 export function reportToCsv(report) {
-    const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (g)", "Revenue", "Profit"];
-    const g = (mg) => Math.round((mg / 1000) * 1000) / 1000;
+    const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit"];
     const lines = [
         header.join(","),
-        ...report.rows.map((r) => [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, g(r.soldWeight), r.revenue, r.profit]
+        ...report.rows.map((r) => [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, Math.round(r.soldWeight * 1000) / 1000, r.revenue, r.profit]
             .map((v) => {
             const s = String(v);
             return `"${s.replace(/"/g, '""')}"`;

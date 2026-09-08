@@ -8,6 +8,7 @@ export function buildProductLabel(product, shop) {
         sku: product.sku,
         barcode: product.barcode,
         weightMg: product.weight ?? null,
+        weightUnit: product.weightUnit ?? "gm",
         purity: product.purity ?? null,
         color: product.colorName ?? null,
         size: product.sizeName ?? null,
@@ -29,7 +30,9 @@ export const LABEL_HEIGHT_MM = 33.9;
  */
 export function renderLabelMarkup(label) {
     const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 50, scale: 2, fontSize: 8 }) : "";
-    const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
+    const weight = label.weightMg != null && label.weightMg > 0
+        ? `${label.weightMg} ${label.weightUnit}`
+        : "";
     return `<div class="label">
     <div class="l-left">
       <div class="l-name">${esc(label.productName)}</div>
@@ -101,7 +104,7 @@ export function renderLabelText(label) {
     const lines = [
         label.productName,
         label.barcode ? `Barcode: ${label.barcode}` : "",
-        label.weightMg != null ? `Weight: ${formatWeight(label.weightMg)}` : "",
+        label.weightMg != null ? `Weight: ${formatWeight(label.weightMg, label.weightUnit)}` : "",
     ].filter(Boolean);
     return lines.join("\n");
 }

@@ -35,21 +35,16 @@ export function monthLabel(date) {
     return date.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 }
 /**
- * Formats a weight stored in milligrams for display: mg → g → kg.
- * e.g. 24500 → "24.5 g", 1500000 → "1.5 kg", 350 → "350 mg".
+ * Format a weight value with its display unit.
+ * e.g. (24.5, "gm") → "24.5 gm", (24500, "mg") → "24500 mg".
  * Shared by all three apps so labels and reports read identically.
  */
-export function formatWeight(milligrams) {
-    const safe = Number.isFinite(milligrams) ? (milligrams ?? 0) : 0;
+export function formatWeight(weight, unit) {
+    const safe = Number.isFinite(weight) ? (weight ?? 0) : 0;
     if (safe === 0)
         return "—";
-    /** Strips trailing zeros: 24.50 → 24.5, 24.00 → 24. */
-    const trim = (n) => String(Math.round(n * 100) / 100);
-    if (safe >= 1_000_000)
-        return `${trim(safe / 1_000_000)} kg`;
-    if (safe >= 1000)
-        return `${trim(safe / 1000)} g`;
-    return `${safe} mg`;
+    const u = unit === "mg" ? "mg" : "gm";
+    return `${safe} ${u}`;
 }
 export function todayISO() {
     return new Date().toISOString();

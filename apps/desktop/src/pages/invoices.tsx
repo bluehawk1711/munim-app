@@ -6,20 +6,24 @@ import {
   IndianRupee,
   CheckCircle2,
   FileText,
+  FileDown,
   Loader2,
   Plus,
   AlertTriangle,
   TrendingUp,
+  Eye,
 } from "lucide-react";
-import { formatDate, formatCurrency } from "@munim/core";
-import type { InvoiceDto, InvoiceFilters } from "@munim/api-client";
+import { buildBillDocument, formatDate, formatCurrency, type BillShopDetails } from "@munim/core";
+import type { InvoiceDto, InvoiceFilters, SettingsDto } from "@munim/api-client";
 import {
   useInvoices,
   useDeleteInvoice,
   useRecordInvoicePayment,
+  useSettings,
   useQueryState,
 } from "@munim/query";
 import { toast } from "@munim/ui";
+import { downloadBillPdf } from "@/lib/billPdf";
 import { PageHeader } from "@/components/page-header";
 import { navigate } from "@/lib/navigation";
 import {
@@ -33,6 +37,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   InvoiceStatusBadge,
   RecordPaymentDialog,
   ConfirmDialog,
@@ -71,9 +81,12 @@ export function InvoicesPage() {
 
   const [paying, setPaying] = useState<InvoiceRow | null>(null);
   const [deleting, setDeleting] = useState<InvoiceRow | null>(null);
+  const [detailTarget, setDetailTarget] = useState<InvoiceRow | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const deleteInvoice = useDeleteInvoice();
   const recordPayment = useRecordInvoicePayment(paying?.id ?? "");
+  const { data: settings } = useQueryState(useSettings());
 
   function openPayment(inv: InvoiceRow) {
     setPaying(inv);
@@ -104,6 +117,51 @@ export function InvoicesPage() {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : undefined });
     } finally {
       setSaving(false);
+    }
+  }
+
+  function settingsToShop(s: SettingsDto): BillShopDetails {
+    return { name: s.shopName, address: s.shopAddress, phones: s.shopPhones, email: s.shopEmail };
+  }
+
+  async function handleDownload(inv: InvoiceRow) {
+    const shop = inv.shopDetails
+      ? { name: inv.shopDetails.name, address: inv.shopDetails.address ?? "", phones: inv.shopDetails.phones, email: inv.shopDetails.email ?? "" }
+      : settings ? settingsToShop(settings) : null;
+    if (!shop) {
+      toast.error("Shop settings not loaded — open Settings first");
+      return;
+    }
+    setExporting(true);
+    try {
+      const bill = buildBillDocument({
+        billNo: inv.invoiceNumber,
+        date: inv.date,
+        customerName: inv.customerName,
+        customerPhone: inv.customerPhone,
+        customerAddress: inv.customerAddress,
+        shop,
+        lines: inv.items.map((it) => ({
+          productName: it.productName,
+          description: it.description,
+          sku: it.sku,
+          color: it.color,
+          size: it.size,
+          quantity: it.quantity,
+          price: it.price,
+        })),
+        discount: inv.discount,
+        deliveryCharge: inv.deliveryCharge,
+        amountPaid: inv.amountPaid,
+        status: inv.status,
+        currency: settings?.currency ?? "INR",
+      });
+      await downloadBillPdf(bill);
+      toast.success("PDF downloaded", { description: inv.invoiceNumber });
+    } catch (err) {
+      toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -274,7 +332,7 @@ export function InvoicesPage() {
           <CardContent className="p-0">
             {/* Table header */}
             <div className="border-b px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <div className="grid grid-cols-[140px_1fr_1fr_100px_90px_80px] gap-3">
+              <div className="grid grid-cols-[140px_1fr_1fr_100px_90px_140px] gap-3">
                 <span>Invoice #</span>
                 <span>Customer / Party</span>
                 <span>Items &amp; Notes</span>
@@ -289,7 +347,7 @@ export function InvoicesPage() {
                 const outstanding = inv.total - inv.amountPaid;
                 const firstItem = inv.items[0];
                 return (
-                  <div key={inv.id} className="grid grid-cols-[140px_1fr_1fr_100px_90px_80px] items-center gap-3 px-4 py-3 hover:bg-muted/30">
+                  <div key={inv.id} className="grid grid-cols-[140px_1fr_1fr_100px_90px_140px] items-center gap-3 px-4 py-3 hover:bg-muted/30">
                     {/* Invoice # */}
                     <div>
                       <span className="font-mono text-xs font-medium">{inv.invoiceNumber}</span>
@@ -328,6 +386,25 @@ export function InvoicesPage() {
 
                     {/* Actions */}
                     <div className="flex items-center justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="View details"
+                        onClick={() => setDetailTarget(inv)}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Download PDF"
+                        onClick={() => handleDownload(inv)}
+                        disabled={exporting}
+                      >
+                        <FileDown className="h-3.5 w-3.5" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -392,6 +469,108 @@ export function InvoicesPage() {
         busy={saving}
         onConfirm={() => void confirmDelete()}
       />
+
+      {/* Invoice detail dialog */}
+      <Dialog open={!!detailTarget} onOpenChange={(open) => !open && setDetailTarget(null)}>
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+          {detailTarget && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4" /> {detailTarget.invoiceNumber}
+                </DialogTitle>
+                <DialogDescription>
+                  {formatDate(detailTarget.date)} · <InvoiceStatusBadge status={detailTarget.status} />
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 text-sm">
+                {/* Customer */}
+                <div className="rounded-lg border p-3 space-y-1">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer</p>
+                  <p className="font-medium">{detailTarget.customerName || "Walk-in customer"}</p>
+                  {detailTarget.customerPhone && <p className="text-muted-foreground text-xs">{detailTarget.customerPhone}</p>}
+                  {detailTarget.customerAddress && <p className="text-muted-foreground text-xs">{detailTarget.customerAddress}</p>}
+                </div>
+
+                {/* Line items */}
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="bg-muted/50 grid grid-cols-[1fr_60px_80px_90px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                    <span>Item</span>
+                    <span className="text-right">Qty</span>
+                    <span className="text-right">Price</span>
+                    <span className="text-right">Total</span>
+                  </div>
+                  <div className="divide-y">
+                    {detailTarget.items.map((item) => (
+                      <div key={item.id} className="grid grid-cols-[1fr_60px_80px_90px] gap-2 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{item.productName}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">
+                            {item.sku}{item.color ? ` · ${item.color}` : ""}{item.size ? ` · ${item.size}` : ""}
+                          </p>
+                        </div>
+                        <span className="text-right tabular-nums">{item.quantity}</span>
+                        <span className="text-right tabular-nums">{formatCurrency(item.price)}</span>
+                        <span className="text-right font-medium tabular-nums">{formatCurrency(item.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Totals */}
+                <div className="rounded-lg border p-3 space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="tabular-nums">{formatCurrency(detailTarget.subtotal)}</span>
+                  </div>
+                  {detailTarget.discount > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Discount</span>
+                      <span className="text-red-600 dark:text-red-400 tabular-nums">-{formatCurrency(detailTarget.discount)}</span>
+                    </div>
+                  )}
+                  {detailTarget.deliveryCharge > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Delivery</span>
+                      <span className="tabular-nums">+{formatCurrency(detailTarget.deliveryCharge)}</span>
+                    </div>
+                  )}
+                  <div className="border-t pt-1.5 flex justify-between text-sm font-bold">
+                    <span>Total</span>
+                    <span className="tabular-nums">{formatCurrency(detailTarget.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Paid</span>
+                    <span className="tabular-nums">{formatCurrency(detailTarget.amountPaid)}</span>
+                  </div>
+                  {detailTarget.total - detailTarget.amountPaid > 0 && (
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-amber-600 dark:text-amber-400">Outstanding</span>
+                      <span className="text-amber-600 dark:text-amber-400 tabular-nums">{formatCurrency(detailTarget.total - detailTarget.amountPaid)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {detailTarget.notes && (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Notes</p>
+                    <p className="text-xs">{detailTarget.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDetailTarget(null)}>Close</Button>
+                <Button variant="outline" onClick={() => handleDownload(detailTarget)} disabled={exporting} className="gap-1.5">
+                  {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                  Download PDF
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -11,8 +11,10 @@ export type Product = {
   size: string
   category?: string
   barcode: string | null
-  /** Weight in milligrams (mg). */
+  /** Weight value — unit determined by `weightUnit`. */
   weight: number | null
+  /** Display & calculation unit: "mg" or "gm". */
+  weightUnit: string
   /** Metal purity, e.g. "22K" or "916". */
   purity: string | null
   imageUrl: string | null
@@ -244,9 +246,11 @@ export type ReportRow = {
   size: string | null
   stock: number
   soldQuantity: number
-  /** Unit weight in mg. */
+  /** Unit weight. */
   weight: number | null
-  /** Total weight sold in mg. */
+  /** Display unit: "mg" or "gm". */
+  weightUnit: string
+  /** Total weight sold (quantity × unit weight). */
   soldWeight: number
   revenue: number
   profit: number

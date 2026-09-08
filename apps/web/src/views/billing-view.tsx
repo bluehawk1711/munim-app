@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, ProductSearchSelect, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
 import { useCreateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
@@ -638,16 +638,14 @@ function BillItemsCard({
       <Card>
         <CardContent className="p-4">
           <Label className="text-xs">Add from stock (auto-fills price & details)</Label>
-          <Select value="" onValueChange={(v) => v && pickProduct(v)}>
-            <SelectTrigger className="mt-1.5 h-9"><SelectValue placeholder="Search product…" /></SelectTrigger>
-            <SelectContent>
-              {products.map((p) => (
-                <SelectItem key={p.id} value={p.id} disabled={p.stock <= 0}>
-                  {p.name} · {p.sku} · {p.color}/{p.size} — {formatCurrency(p.sellingPrice)} ({p.stock} in stock)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="mt-1.5">
+            <ProductSearchSelect
+              products={products}
+              disableOutOfStock
+              placeholder="Search product…"
+              onSelect={(p) => pickProduct(p.id)}
+            />
+          </div>
         </CardContent>
       </Card>
 

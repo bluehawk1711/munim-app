@@ -189,6 +189,7 @@ const PRODUCT_SELECT = {
   name: schema.products.name,
   barcode: schema.products.barcode,
   weight: schema.products.weight,
+  weightUnit: schema.products.weightUnit,
   purity: schema.products.purity,
   imageUrl: schema.products.imageUrl,
   stock: schema.products.stock,
@@ -307,8 +308,10 @@ export type ProductInput = {
   category?: string;
   /** Barcode value. `undefined` → keep existing (edit); `""` → clear; else set. */
   barcode?: string;
-  /** Weight in milligrams (mg). */
+  /** Weight value — unit determined by `weightUnit` (mg or gm). */
   weight?: number;
+  /** Display & calculation unit: "mg" or "gm". */
+  weightUnit?: string;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925".
    * `undefined` → keep existing (edit); `""` → clear; else set. */
   purity?: string;
@@ -353,6 +356,7 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       name: input.name.trim(),
       barcode,
       weight: typeof input.weight === "number" && Number.isFinite(input.weight) ? input.weight : null,
+      weightUnit: input.weightUnit === "mg" || input.weightUnit === "gm" ? input.weightUnit : "gm",
       purity: input.purity?.trim() || null,
       imageUrl: input.imageUrl?.trim() || null,
       stock: input.stock ?? 0,
@@ -409,6 +413,9 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
           : typeof input.weight === "number" && Number.isFinite(input.weight)
             ? input.weight
             : null,
+      weightUnit: input.weightUnit === "mg" || input.weightUnit === "gm"
+        ? input.weightUnit
+        : existing.weightUnit ?? "gm",
       purity: input.purity === undefined ? existing.purity : input.purity?.trim() || null,
       imageUrl: input.imageUrl?.trim() || null,
       stock: input.stock ?? existing.stock,

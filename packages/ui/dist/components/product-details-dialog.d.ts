@@ -17,8 +17,10 @@ export type ProductDetails = {
     color?: string | null;
     size?: string | null;
     category?: string | null;
-    /** Weight in milligrams. */
+    /** Weight value — unit determined by `weightUnit`. */
     weight: number | null;
+    /** Display & calculation unit: "mg" or "gm". */
+    weightUnit: string;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
     purity?: string | null;
     imageUrl: string | null;
@@ -35,7 +37,7 @@ export declare function ProductDetailsDialog({ open, onOpenChange, product, form
     onOpenChange: (open: boolean) => void;
     product: ProductDetails | null;
     formatCurrency: (n: number) => string;
-    formatWeight: (mg: number | null | undefined) => string;
+    formatWeight: (weight: number | null | undefined, unit?: string | null) => string;
     formatDate: (date: string | Date) => string;
 }): React.JSX.Element | null;
 //# sourceMappingURL=product-details-dialog.d.ts.map

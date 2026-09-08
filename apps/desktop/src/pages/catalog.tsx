@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Loader2, Search, Layers, X, Package, ImageIcon, Barcode, AlertTriangle, Tag } from "lucide-react";
+import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Loader2, Search, Layers, X, Package, ImageIcon, Barcode, AlertTriangle, Tag, Eye, EyeOff } from "lucide-react";
 import {
   swatchColor,
   type CatalogItem,
@@ -205,6 +205,9 @@ export function CatalogPage() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [showAnalytics, setShowAnalytics] = useState(() => {
+    try { return localStorage.getItem("munim-catalog-analytics") !== "hidden"; } catch { return true; }
+  });
   const [dialog, setDialog] = useState<DialogState>(null);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -328,6 +331,19 @@ export function CatalogPage() {
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-1.5 lg:ml-auto">
+            <Button
+              variant={showAnalytics ? "default" : "outline"}
+              size="sm"
+              onClick={() => {
+                const next = !showAnalytics;
+                setShowAnalytics(next);
+                try { localStorage.setItem("munim-catalog-analytics", next ? "visible" : "hidden"); } catch { /* noop */ }
+              }}
+              className="gap-1.5"
+            >
+              {showAnalytics ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              {showAnalytics ? "Hide" : "Show"} Analytics
+            </Button>
             {statusChips.map((chip) => {
               const active = status === chip.key;
               return (
@@ -348,89 +364,93 @@ export function CatalogPage() {
         </CardContent>
       </Card>
 
-      {/* ── Catalog health summary + composition donut ───────── */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Package className="text-primary h-4 w-4" />
-              <h2 className="text-sm font-bold">Catalog Health Overview</h2>
-            </div>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Quick snapshot of product data quality — spot gaps in images, barcodes, stock levels, and category coverage.
-            </p>
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                { label: "Total Products", value: totalProducts, icon: Package, color: "text-primary bg-primary/10" },
-                { label: "With Images", value: catalogHealth.withImage, icon: ImageIcon, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" },
-                { label: "With Barcodes", value: catalogHealth.withBarcode, icon: Barcode, color: "text-blue-600 dark:text-blue-400 bg-blue-500/10" },
-                { label: "Low Stock", value: catalogHealth.lowStock, icon: AlertTriangle, color: catalogHealth.lowStock > 0 ? "text-amber-600 dark:text-amber-400 bg-amber-500/10" : "text-muted-foreground bg-muted/50" },
-              ].map((s) => {
-                const Icon = s.icon;
-                return (
-                  <div key={s.label} className="rounded-lg border p-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <div className={`flex h-5 w-5 items-center justify-center rounded ${s.color}`}>
-                        <Icon className="h-3 w-3" />
+      {showAnalytics && (
+        <>
+          {/* ── Catalog health summary + composition donut ───────── */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                  <Package className="text-primary h-4 w-4" />
+                  <h2 className="text-sm font-bold">Catalog Health Overview</h2>
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  Quick snapshot of product data quality — spot gaps in images, barcodes, stock levels, and category coverage.
+                </p>
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    { label: "Total Products", value: totalProducts, icon: Package, color: "text-primary bg-primary/10" },
+                    { label: "With Images", value: catalogHealth.withImage, icon: ImageIcon, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" },
+                    { label: "With Barcodes", value: catalogHealth.withBarcode, icon: Barcode, color: "text-blue-600 dark:text-blue-400 bg-blue-500/10" },
+                    { label: "Low Stock", value: catalogHealth.lowStock, icon: AlertTriangle, color: catalogHealth.lowStock > 0 ? "text-amber-600 dark:text-amber-400 bg-amber-500/10" : "text-muted-foreground bg-muted/50" },
+                  ].map((s) => {
+                    const Icon = s.icon;
+                    return (
+                      <div key={s.label} className="rounded-lg border p-2.5">
+                        <div className="flex items-center gap-1.5">
+                          <div className={`flex h-5 w-5 items-center justify-center rounded ${s.color}`}>
+                            <Icon className="h-3 w-3" />
+                          </div>
+                          <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">{s.label}</p>
+                        </div>
+                        <p className="mt-1 text-lg font-bold tabular-nums">{s.value}</p>
                       </div>
-                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">{s.label}</p>
-                    </div>
-                    <p className="mt-1 text-lg font-bold tabular-nums">{s.value}</p>
+                    );
+                  })}
+                </div>
+                {catalogHealth.uncategorized > 0 && (
+                  <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs">
+                    <Tag className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+                    <span className="text-amber-700 dark:text-amber-300">
+                      {catalogHealth.uncategorized} product{catalogHealth.uncategorized !== 1 ? "s" : ""} without a category —{" "}
+                      <button type="button" onClick={() => setStatus("all")} className="underline underline-offset-2">
+                        assign them
+                      </button>
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-            {catalogHealth.uncategorized > 0 && (
-              <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs">
-                <Tag className="h-3 w-3 text-amber-600 dark:text-amber-400" />
-                <span className="text-amber-700 dark:text-amber-300">
-                  {catalogHealth.uncategorized} product{catalogHealth.uncategorized !== 1 ? "s" : ""} without a category —{" "}
-                  <button type="button" onClick={() => setStatus("all")} className="underline underline-offset-2">
-                    assign them
-                  </button>
-                </span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                )}
+              </CardContent>
+            </Card>
 
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold">Linked Products by Category</h2>
-              <span className="text-muted-foreground text-xs tabular-nums">{composition.total} linked</span>
-            </div>
-            {composition.slices.length === 0 ? (
-              <p className="text-muted-foreground py-8 text-center text-xs">
-                Link products to categories to see the composition here.
-              </p>
-            ) : (
-              <div className="mt-2 flex flex-col items-center gap-3">
-                <PieChart data={composition.slices} innerRadius={52} size={170} hoverOffset={7} hoveredIndex={pieHovered} onHoverChange={setPieHovered}>
-                  {composition.slices.map((slice, i) => (
-                    <PieSlice key={slice.label} index={i} color={slice.color} />
-                  ))}
-                  <PieCenter>
-                    {({ value, label }) => (
-                      <div className="max-w-20 text-center">
-                        <p className="text-muted-foreground truncate text-[10px] font-semibold uppercase">{label}</p>
-                        <p className="text-sm font-bold tabular-nums">{value}</p>
-                      </div>
-                    )}
-                  </PieCenter>
-                </PieChart>
-                <Legend items={composition.legend} className="w-full">
-                  <LegendItem className="rounded-lg px-2 py-1 transition-colors hover:bg-muted/60">
-                    <LegendMarker />
-                    <LegendLabel className="min-w-0 flex-1 truncate text-xs" />
-                    <LegendValue className="text-xs" />
-                  </LegendItem>
-                </Legend>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold">Linked Products by Category</h2>
+                  <span className="text-muted-foreground text-xs tabular-nums">{composition.total} linked</span>
+                </div>
+                {composition.slices.length === 0 ? (
+                  <p className="text-muted-foreground py-8 text-center text-xs">
+                    Link products to categories to see the composition here.
+                  </p>
+                ) : (
+                  <div className="mt-2 flex flex-col items-center gap-3">
+                    <PieChart data={composition.slices} innerRadius={52} size={170} hoverOffset={7} hoveredIndex={pieHovered} onHoverChange={setPieHovered}>
+                      {composition.slices.map((slice, i) => (
+                        <PieSlice key={slice.label} index={i} color={slice.color} />
+                      ))}
+                      <PieCenter>
+                        {({ value, label }) => (
+                          <div className="max-w-20 text-center">
+                            <p className="text-muted-foreground truncate text-[10px] font-semibold uppercase">{label}</p>
+                            <p className="text-sm font-bold tabular-nums">{value}</p>
+                          </div>
+                        )}
+                      </PieCenter>
+                    </PieChart>
+                    <Legend items={composition.legend} className="w-full">
+                      <LegendItem className="rounded-lg px-2 py-1 transition-colors hover:bg-muted/60">
+                        <LegendMarker />
+                        <LegendLabel className="min-w-0 flex-1 truncate text-xs" />
+                        <LegendValue className="text-xs" />
+                      </LegendItem>
+                    </Legend>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
 
       {/* ── 3-way master columns ───────────────────────────────────── */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

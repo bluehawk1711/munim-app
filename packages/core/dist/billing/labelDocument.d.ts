@@ -13,8 +13,10 @@ export type ProductLabel = {
     productName: string;
     sku: string;
     barcode: string | null;
-    /** Weight in milligrams. */
+    /** Weight value. */
     weightMg: number | null;
+    /** Display unit: "mg" or "gm". */
+    weightUnit: string;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
     purity: string | null;
     color: string | null;
@@ -33,6 +35,7 @@ export declare function buildProductLabel(product: {
     sku: string;
     barcode: string | null;
     weight: number | null;
+    weightUnit?: string;
     purity?: string | null;
     sellingPrice: number;
     colorName?: string | null;

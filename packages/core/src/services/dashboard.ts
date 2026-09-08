@@ -287,9 +287,11 @@ export type ReportRow = {
   size: string | null;
   stock: number;
   soldQuantity: number;
-  /** Unit weight in mg (null when the product has no weight set). */
+  /** Unit weight (null when the product has no weight set). */
   weight: number | null;
-  /** Total weight sold in mg (quantity × unit weight). */
+  /** Display unit: "mg" or "gm". */
+  weightUnit: string;
+  /** Total weight sold (quantity × unit weight). */
   soldWeight: number;
   revenue: number;
   profit: number;
@@ -361,6 +363,7 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
       name: schema.products.name,
       stock: schema.products.stock,
       weight: schema.products.weight,
+      weightUnit: schema.products.weightUnit,
       purchasePrice: schema.products.purchasePrice,
       lowStockThreshold: schema.products.lowStockThreshold,
       colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
@@ -390,6 +393,7 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
           size: p.sizeName,
           stock: p.stock,
           weight: p.weight,
+          weightUnit: p.weightUnit ?? "gm",
           soldWeight: p.weight != null ? soldQuantity * p.weight : 0,
           soldQuantity,
           revenue: sold?.revenue ?? 0,
@@ -423,6 +427,7 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
         size: p?.sizeName ?? null,
         stock: p?.stock ?? 0,
         weight: p?.weight ?? null,
+        weightUnit: p?.weightUnit ?? "gm",
         soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
         soldQuantity,
         revenue,
@@ -438,7 +443,8 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
     (acc, r) => {
       acc.stock += r.stock;
       acc.soldQuantity += r.soldQuantity;
-      acc.soldWeight += r.soldWeight;
+      // Normalize to grams so mixed-unit totals are meaningful.
+      acc.soldWeight += r.weightUnit === "mg" ? r.soldWeight / 1000 : r.soldWeight;
       acc.revenue += r.revenue;
       acc.profit += r.profit;
       return acc;
@@ -465,12 +471,11 @@ export function reportToCsv(report: {
   rows: ReportRow[];
   totals: { stock: number; soldQuantity: number; soldWeight: number; revenue: number; profit: number };
 }): string {
-  const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (g)", "Revenue", "Profit"];
-  const g = (mg: number) => Math.round((mg / 1000) * 1000) / 1000;
+  const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit"];
   const lines = [
     header.join(","),
     ...report.rows.map((r) =>
-      [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, g(r.soldWeight), r.revenue, r.profit]
+      [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, Math.round(r.soldWeight * 1000) / 1000, r.revenue, r.profit]
         .map((v) => {
           const s = String(v);
           return `"${s.replace(/"/g, '""')}"`;

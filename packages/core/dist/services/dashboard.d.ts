@@ -71,9 +71,11 @@ export type ReportRow = {
     size: string | null;
     stock: number;
     soldQuantity: number;
-    /** Unit weight in mg (null when the product has no weight set). */
+    /** Unit weight (null when the product has no weight set). */
     weight: number | null;
-    /** Total weight sold in mg (quantity × unit weight). */
+    /** Display unit: "mg" or "gm". */
+    weightUnit: string;
+    /** Total weight sold (quantity × unit weight). */
     soldWeight: number;
     revenue: number;
     profit: number;

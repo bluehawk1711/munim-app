@@ -262,6 +262,23 @@ export declare const products: import("drizzle-orm/pg-core").PgTableWithColumns<
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        weightUnit: import("drizzle-orm/pg-core").PgColumn<{
+            name: "weight_unit";
+            tableName: "products";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         purity: import("drizzle-orm/pg-core").PgColumn<{
             name: "purity";
             tableName: "products";

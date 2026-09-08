@@ -3,16 +3,21 @@ import type { ElementType } from "react";
 import {
   ArrowUpRight,
   Barcode,
+  CheckCircle2,
   Eye,
+  EyeOff,
   FileDown,
   Image as ImageIcon,
+  IndianRupee,
   Loader2,
+  MoreVertical,
   PackagePlus,
   Pencil,
   Plus,
   Printer,
   Scale,
   Search,
+  ShoppingCart,
   Tag,
   Trash2,
   UploadCloud,
@@ -34,6 +39,7 @@ import {
   useBackfillBarcodes,
   useCategoryBreakdown,
   useCreateProduct,
+  useCreateSale,
   useDeleteProduct,
   useInventoryStats,
   useProducts,
@@ -72,8 +78,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Skeleton,
   Table,
   TableBody,
@@ -97,6 +112,7 @@ type FormState = {
   category: string;
   barcode: string;
   weight: string;
+  weightUnit: "mg" | "gm";
   purity: string;
   imageUrl: string;
   stock: string;
@@ -113,6 +129,7 @@ const EMPTY_FORM: FormState = {
   category: "",
   barcode: "",
   weight: "",
+  weightUnit: "gm",
   purity: "",
   imageUrl: "",
   stock: "0",
@@ -174,7 +191,21 @@ export function ProductsPage() {
   const [labelOpen, setLabelOpen] = useState(false);
   const [labelCopies, setLabelCopies] = useState(1);
   const [labelSelectOpen, setLabelSelectOpen] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(() => {
+    try { return localStorage.getItem("munim-products-analytics") !== "hidden"; } catch { return true; }
+  });
   const [detailsProduct, setDetailsProduct] = useState<ProductDto | null>(null);
+
+  // Quick-sale dialog state
+  const [saleTarget, setSaleTarget] = useState<ProductDto | null>(null);
+  const [saleOpen, setSaleOpen] = useState(false);
+  const [saleQty, setSaleQty] = useState("1");
+  const [salePrice, setSalePrice] = useState("");
+  const [saleCustomerName, setSaleCustomerName] = useState("");
+  const [saleCustomerPhone, setSaleCustomerPhone] = useState("");
+  const [saleIsPaid, setSaleIsPaid] = useState(true);
+  const [saleSaving, setSaleSaving] = useState(false);
+  const createSale = useCreateSale();
   const [backfilling, setBackfilling] = useState(false);
 
   const [activeCategory, setActiveCategory] = useState<FilterChip>({ kind: "all", label: "All SKUs", value: 0 });
@@ -313,6 +344,7 @@ export function ProductsPage() {
       category: p.category ?? "",
       barcode: p.barcode ?? "",
       weight: p.weight != null ? String(p.weight) : "",
+      weightUnit: (p.weightUnit === "mg" || p.weightUnit === "gm") ? p.weightUnit : "gm",
       purity: p.purity ?? "",
       imageUrl: p.imageUrl ?? "",
       stock: String(p.stock),
@@ -322,6 +354,48 @@ export function ProductsPage() {
       notes: p.notes ?? "",
     });
     setFormOpen(true);
+  }
+
+  function toggleAnalytics() {
+    const next = !showAnalytics;
+    setShowAnalytics(next);
+    try { localStorage.setItem("munim-products-analytics", next ? "visible" : "hidden"); } catch { /* noop */ }
+  }
+
+  function openQuickSale(p: ProductDto) {
+    setSaleTarget(p);
+    setSaleQty("1");
+    setSalePrice(String(p.sellingPrice));
+    setSaleCustomerName("");
+    setSaleCustomerPhone("");
+    setSaleIsPaid(true);
+    setSaleOpen(true);
+  }
+
+  async function handleQuickSale() {
+    if (!saleTarget) return;
+    const qty = Number(saleQty);
+    const price = Number(salePrice);
+    if (!qty || qty <= 0) { toast.error("Quantity must be positive"); return; }
+    if (price < 0 || Number.isNaN(price)) { toast.error("Enter a valid price"); return; }
+    setSaleSaving(true);
+    try {
+      const invoice = await createSale.mutateAsync({
+        productId: saleTarget.id,
+        quantity: qty,
+        sellingPrice: price || undefined,
+        customerName: saleCustomerName.trim() || undefined,
+        customerPhone: saleCustomerPhone.trim() || undefined,
+        paid: saleIsPaid,
+        paymentMethod: saleIsPaid ? "cash" : "credit",
+      });
+      toast.success(`Sale done — ${invoice.invoiceNumber} (${money(invoice.total)})`);
+      setSaleOpen(false);
+    } catch (err) {
+      toast.error("Sale failed", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setSaleSaving(false);
+    }
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -364,6 +438,7 @@ export function ProductsPage() {
         category: form.category.trim() || undefined,
         barcode: form.barcode.trim() || undefined,
         weight: form.weight.trim() ? Math.max(0, Number(form.weight) || 0) : undefined,
+        weightUnit: form.weightUnit,
         purity: form.purity.trim() || undefined,
         imageUrl: form.imageUrl.trim() || undefined,
         stock: Math.max(0, Number(form.stock) || 0),
@@ -501,6 +576,7 @@ export function ProductsPage() {
         sku: p.sku,
         barcode: p.barcode,
         weight: p.weight,
+        weightUnit: p.weightUnit ?? "gm",
         purity: p.purity,
         sellingPrice: p.sellingPrice,
         colorName: p.color || null,
@@ -615,6 +691,10 @@ export function ProductsPage() {
 
       {/* Action buttons row */}
       <div className="flex flex-wrap items-center gap-2">
+        <Button variant={showAnalytics ? "default" : "outline"} size="sm" onClick={toggleAnalytics} className="gap-1.5">
+          {showAnalytics ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {showAnalytics ? "Hide" : "Show"} Analytics
+        </Button>
         {missingBarcodes && (
           <Button variant="outline" size="sm" onClick={handleBackfill} disabled={backfilling} className="gap-1.5">
             <Barcode className="h-3.5 w-3.5" /> {backfilling ? "Generating…" : "Generate barcodes"}
@@ -635,8 +715,10 @@ export function ProductsPage() {
         </div>
       </div>
 
-      {/* Stat tile strip. */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {showAnalytics && (
+        <>
+          {/* Stat tile strip. */}
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Total Stock Valuation"
           value={money(stats?.stockValuationSelling ?? 0)}
@@ -735,6 +817,8 @@ export function ProductsPage() {
           </CardContent>
         </Card>
       </div>
+      </>
+      )}
 
       {error ? (
         <Card className="flex items-center justify-between gap-3 p-6 text-sm text-destructive">
@@ -801,7 +885,7 @@ export function ProductsPage() {
                       {p.purity ? <div className="font-medium">Purity {p.purity}</div> : null}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      <div>{formatWeight(p.weight ?? 0)}</div>
+                      <div>{formatWeight(p.weight ?? 0, p.weightUnit)}</div>
                       <div className="text-[11px]">per piece</div>
                     </TableCell>
                     <TableCell>
@@ -811,21 +895,33 @@ export function ProductsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon-sm" title="View details" onClick={() => setDetailsProduct(p)}>
-                          <Eye className="h-4 w-4" />
+                        <Button variant="ghost" size="icon-sm" title="Sell" onClick={() => openQuickSale(p)}>
+                          <ShoppingCart className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon-sm" title="Print label" onClick={() => openLabelDialog(p)}>
                           <Tag className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon-sm" title="Adjust stock" onClick={() => setAdjusting(p)}>
-                          <PackagePlus className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => openEdit(p)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" title="Delete" onClick={() => handleDelete(p)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon-sm" title="More actions">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => setDetailsProduct(p)}>
+                              <Eye className="mr-2 h-4 w-4" /> View details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setAdjusting(p)}>
+                              <PackagePlus className="mr-2 h-4 w-4" /> Adjust stock
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openEdit(p)}>
+                              <Pencil className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(p)}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -911,16 +1007,29 @@ export function ProductsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="p-weight">Weight (mg)</Label>
-                <Input
-                  id="p-weight"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  value={form.weight}
-                  onChange={(e) => setForm({ ...form, weight: e.target.value })}
-                  placeholder="e.g. 24500 (24.5 g)"
-                />
+                <Label htmlFor="p-weight">Weight</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="p-weight"
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={form.weight}
+                    onChange={(e) => setForm({ ...form, weight: e.target.value })}
+                    placeholder="e.g. 24.5"
+                    className="flex-1"
+                  />
+                  <Select value={form.weightUnit} onValueChange={(v) => setForm({ ...form, weightUnit: v as "mg" | "gm" })}>
+                    <SelectTrigger className="w-[80px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gm">gm</SelectItem>
+                      <SelectItem value="mg">mg</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Used for stock weight calculations &amp; label printing</p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-purity">Purity</Label>
@@ -1009,6 +1118,7 @@ export function ProductsPage() {
                 size: detailsProduct.size,
                 category: detailsProduct.category,
                 weight: detailsProduct.weight,
+                weightUnit: detailsProduct.weightUnit ?? "gm",
                 purity: detailsProduct.purity,
                 imageUrl: detailsProduct.imageUrl,
                 stock: detailsProduct.stock,
@@ -1110,6 +1220,127 @@ export function ProductsPage() {
               ) : (
                 "Adjust"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick Sale Dialog */}
+      <Dialog open={saleOpen} onOpenChange={setSaleOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4" /> Quick Sale
+            </DialogTitle>
+            <DialogDescription>
+              {saleTarget ? (
+                <>Selling <strong>{saleTarget.name}</strong> {saleTarget.sku ? `(${saleTarget.sku})` : ""}</>
+              ) : (
+                "Record a quick sale"
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {saleTarget && (
+              <div className="flex items-center gap-3 rounded-lg border p-2.5">
+                <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-bold text-primary/60">
+                  {saleTarget.name.charAt(0)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{saleTarget.name}</p>
+                  <p className="text-muted-foreground text-xs">
+                    {saleTarget.sku}
+                    {saleTarget.color ? <>, {saleTarget.color}</> : null}
+                    {saleTarget.size ? <> · {saleTarget.size}</> : null}
+                  </p>
+                  <p className="text-muted-foreground text-xs">
+                    Stock: <span className={saleTarget.stock <= (saleTarget.lowStockThreshold ?? 0) ? "text-amber-600 font-medium" : ""}>{saleTarget.stock} units</span>
+                  </p>
+                </div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="sale-qty" className="text-xs">Quantity</Label>
+                <Input
+                  id="sale-qty"
+                  type="number"
+                  min={1}
+                  value={saleQty}
+                  onChange={(e) => setSaleQty(e.target.value)}
+                  className="h-10 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="sale-price" className="text-xs">Selling Price</Label>
+                <Input
+                  id="sale-price"
+                  type="number"
+                  min={0}
+                  value={salePrice}
+                  onChange={(e) => setSalePrice(e.target.value)}
+                  className="h-10 text-sm"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Customer Name</Label>
+                <Input
+                  placeholder="Optional"
+                  value={saleCustomerName}
+                  onChange={(e) => setSaleCustomerName(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Customer Phone</Label>
+                <Input
+                  placeholder="Optional"
+                  value={saleCustomerPhone}
+                  onChange={(e) => setSaleCustomerPhone(e.target.value)}
+                  className="h-9 text-sm"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Label className="text-xs">Payment</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={saleIsPaid ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSaleIsPaid(true)}
+                  className="gap-1.5"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Paid
+                </Button>
+                <Button
+                  type="button"
+                  variant={!saleIsPaid ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSaleIsPaid(false)}
+                  className="gap-1.5"
+                >
+                  Credit
+                </Button>
+              </div>
+            </div>
+            {saleTarget && Number(salePrice) > 0 && saleTarget.purchasePrice > 0 && (
+              <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">Margin: </span>
+                <span className={Number(salePrice) > saleTarget.purchasePrice ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-red-600 dark:text-red-400"}>
+                  {money(Number(salePrice) - saleTarget.purchasePrice)}
+                </span>
+                <span className="text-muted-foreground"> per unit</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaleOpen(false)}>Cancel</Button>
+            <Button onClick={handleQuickSale} disabled={saleSaving} className="gap-1.5">
+              {saleSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <IndianRupee className="h-4 w-4" />}
+              {saleSaving ? "Processing…" : "Complete Sale"}
             </Button>
           </DialogFooter>
         </DialogContent>

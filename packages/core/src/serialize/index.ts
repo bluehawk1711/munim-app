@@ -40,8 +40,10 @@ export type ProductDto = {
   size: string;
   category?: string;
   barcode: string | null;
-  /** Weight in milligrams (mg). */
+  /** Weight value — unit determined by `weightUnit`. */
   weight: number | null;
+  /** Display & calculation unit: "mg" or "gm". */
+  weightUnit: string;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
   purity: string | null;
   imageUrl: string | null;
@@ -64,6 +66,7 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     category: p.categoryName ?? "",
     barcode: p.barcode,
     weight: p.weight,
+    weightUnit: p.weightUnit ?? "gm",
     purity: p.purity,
     imageUrl: p.imageUrl,
     stock: p.stock,

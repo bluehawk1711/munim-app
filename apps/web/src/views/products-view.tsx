@@ -205,6 +205,7 @@ export function ProductsView() {
                 sku: labelTarget.sku,
                 barcode: labelTarget.barcode,
                 weight: labelTarget.weight,
+                weightUnit: labelTarget.weightUnit,
                 purity: labelTarget.purity,
                 sellingPrice: labelTarget.sellingPrice,
                 colorName: labelTarget.color || null,

@@ -17,8 +17,10 @@ export type ProductLabel = {
   productName: string;
   sku: string;
   barcode: string | null;
-  /** Weight in milligrams. */
+  /** Weight value. */
   weightMg: number | null;
+  /** Display unit: "mg" or "gm". */
+  weightUnit: string;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
   purity: string | null;
   color: string | null;
@@ -40,6 +42,7 @@ export function buildProductLabel(
     sku: string;
     barcode: string | null;
     weight: number | null;
+    weightUnit?: string;
     purity?: string | null;
     sellingPrice: number;
     colorName?: string | null;
@@ -54,6 +57,7 @@ export function buildProductLabel(
     sku: product.sku,
     barcode: product.barcode,
     weightMg: product.weight ?? null,
+    weightUnit: product.weightUnit ?? "gm",
     purity: product.purity ?? null,
     color: product.colorName ?? null,
     size: product.sizeName ?? null,
@@ -79,7 +83,9 @@ export const LABEL_HEIGHT_MM = 33.9;
  */
 export function renderLabelMarkup(label: ProductLabel): string {
   const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 50, scale: 2, fontSize: 8 }) : "";
-  const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
+  const weight = label.weightMg != null && label.weightMg > 0
+    ? `${label.weightMg} ${label.weightUnit}`
+    : "";
 
   return `<div class="label">
     <div class="l-left">
@@ -171,7 +177,7 @@ export function renderLabelText(label: ProductLabel): string {
   const lines = [
     label.productName,
     label.barcode ? `Barcode: ${label.barcode}` : "",
-    label.weightMg != null ? `Weight: ${formatWeight(label.weightMg)}` : "",
+    label.weightMg != null ? `Weight: ${formatWeight(label.weightMg, label.weightUnit)}` : "",
   ].filter(Boolean);
   return lines.join("\n");
 }

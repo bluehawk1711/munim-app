@@ -18,7 +18,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
  */
 import * as React from "react";
 import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
-import { renderLabelSheetHtml, DEFAULT_LABEL_PRINT_SETTINGS, } from "@munim/core";
+import { renderLabelSheetHtml, formatWeight, DEFAULT_LABEL_PRINT_SETTINGS, } from "@munim/core";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, } from "./dialog";
@@ -62,7 +62,7 @@ export function LabelPrintDialog({ open, onOpenChange, labels, copies, onCopiesC
 function renderLabelMarkupHTML(label) {
     // Inline preview matching the thermal label layout:
     // LEFT: name (top) + weight (bottom), RIGHT: barcode
-    const weight = label.weightMg != null ? formatWeightLocal(label.weightMg) : "";
+    const weight = label.weightMg != null ? formatWeight(label.weightMg, label.weightUnit) : "";
     const barcodeDigits = label.barcode?.replace(/\D/g, "") ?? "";
     let barcodeBars = "";
     if (barcodeDigits.length >= 12) {
@@ -82,17 +82,6 @@ function renderLabelMarkupHTML(label) {
 }
 function escHTML(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-function formatWeightLocal(mg) {
-    const safe = Number.isFinite(mg) ? mg : 0;
-    if (safe === 0)
-        return "—";
-    const trim = (n) => String(Math.round(n * 100) / 100);
-    if (safe >= 1_000_000)
-        return `${trim(safe / 1_000_000)} kg`;
-    if (safe >= 1000)
-        return `${trim(safe / 1000)} g`;
-    return `${safe} mg`;
 }
 function renderLabelSheetHtmlFor(labels, copies) {
     return renderLabelSheetHtml(labels, { copies });

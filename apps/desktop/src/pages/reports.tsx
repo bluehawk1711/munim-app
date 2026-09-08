@@ -478,7 +478,7 @@ export function ReportsPage() {
                           <TableCell>
                             <p className="font-medium">{r.productName}</p>
                             <p className="text-muted-foreground text-xs">
-                              {[r.sku, r.color, r.size, r.weight != null ? formatWeight(r.weight) : null].filter(Boolean).join(" · ")}
+                              {[r.sku, r.color, r.size, r.weight != null ? formatWeight(r.weight, r.weightUnit) : null].filter(Boolean).join(" · ")}
                             </p>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{r.soldQuantity}</TableCell>

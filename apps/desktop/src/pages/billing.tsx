@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Trash2, Download, Wallet, Loader2, FileDown, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2 } from "lucide-react";
 import {
   buildBillDocument,
   type BillDocument,
@@ -10,12 +10,11 @@ import {
   useSettings,
   useProducts,
   useParties,
-  useInvoices,
   useCreateInvoice,
   useRecordInvoicePayment,
   useQueryState,
 } from "@munim/query";
-import { money, formatDate } from "@/lib/format";
+import { money } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { toast } from "@munim/ui";
 import { PageHeader } from "@/components/page-header";
@@ -28,10 +27,6 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -44,13 +39,8 @@ import {
   SelectTrigger,
   SelectValue,
   Checkbox,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Skeleton,
+  ProductSearchSelect,
+  type ProductOption,
   BillTemplateOptions,
   type BillTemplate,
   type BillClassicColor,
@@ -115,7 +105,7 @@ export function BillingPage() {
   const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
   const allProducts = allProductsData?.products;
   const { data: parties } = useQueryState(useParties());
-  const { data: list, loading: loadingList } = useQueryState(useInvoices({ pageSize: 100 }));
+  // const { data: list, loading: loadingList } = useQueryState(useInvoices({ pageSize: 100 }));
   const createInvoice = useCreateInvoice();
 
   // ── Bill 1 ──────────────────────────────────────────────────────────────
@@ -185,13 +175,11 @@ export function BillingPage() {
     setSecondLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
   }
 
-  function pickProduct(index: number, productId: string, target: "first" | "second" = "first") {
-    const p = allProducts?.find((x) => x.id === productId);
-    if (!p) return;
+  function pickProduct(index: number, p: ProductOption, target: "first" | "second" = "first") {
     const patch = {
       productId: p.id,
       productName: p.name,
-      sku: p.sku,
+      sku: p.sku ?? "",
       color: p.color ?? "",
       size: p.size ?? "",
       price: String(p.sellingPrice),
@@ -378,25 +366,6 @@ export function BillingPage() {
     }
   }
 
-  async function handleDownload(inv: InvoiceDto) {
-    const shopForInvoice: BillShopDetails | null = inv.shopDetails
-      ? { name: inv.shopDetails.name, address: inv.shopDetails.address, phones: inv.shopDetails.phones, email: inv.shopDetails.email }
-      : shop;
-    if (!shopForInvoice) {
-      toast.error("Shop settings not loaded — open Settings first");
-      return;
-    }
-    setExporting(true);
-    try {
-      await downloadBillPdf(invoiceToBillDocument(inv, shopForInvoice, settings?.currency ?? "INR"));
-      toast.success("PDF downloaded", { description: inv.invoiceNumber });
-    } catch (err) {
-      toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });
-    } finally {
-      setExporting(false);
-    }
-  }
-
   async function handleRecordPayment() {
     if (!payingInvoice) return;
     const amount = Number(payAmount);
@@ -424,15 +393,8 @@ export function BillingPage() {
         badge="Billing"
         subtitle="Create invoices with the same shared bill engine as web & mobile — jewellery or e-commerce templates, 2-in-1 supported."
       />
-      <Tabs defaultValue="create">
-        <TabsList>
-          <TabsTrigger value="create">Create Bill</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices ({list?.invoices.length ?? 0})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="create" className="mt-3">
-          <div className="grid gap-5 xl:grid-cols-3">
-            <div className="space-y-5 xl:col-span-2">
+      <div className="grid gap-5 xl:grid-cols-3">
+        <div className="space-y-5 xl:col-span-2">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">Bill details</CardTitle>
@@ -500,7 +462,7 @@ export function BillingPage() {
                     update={updateLine}
                     remove={(i) => setLines((prev) => prev.filter((_, x) => x !== i))}
                     add={() => setLines((prev) => [...prev, emptyLine()])}
-                    pick={(i, id) => pickProduct(i, id, "first")}
+                    pick={(i, p) => pickProduct(i, p, "first")}
                   />
                   <SeparatorLine />
                   <AdjustmentFields
@@ -548,7 +510,7 @@ export function BillingPage() {
                       update={updateSecondLine}
                       remove={(i) => setSecondLines((prev) => prev.filter((_, x) => x !== i))}
                       add={() => setSecondLines((prev) => [...prev, emptyLine()])}
-                      pick={(i, id) => pickProduct(i, id, "second")}
+                      pick={(i, p) => pickProduct(i, p, "second")}
                     />
                     <SeparatorLine />
                     <AdjustmentFields
@@ -654,69 +616,7 @@ export function BillingPage() {
                 )}
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="invoices" className="mt-3">
-          <Card>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Invoice</TableHead>
-                    <TableHead>Customer</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-right">Paid</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {loadingList ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="p-4">
-                        <div className="space-y-2">
-                          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : !list || list.invoices.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-muted-foreground text-center">No invoices yet</TableCell></TableRow>
-                  ) : (
-                    list.invoices.map((inv) => (
-                      <TableRow key={inv.id}>
-                        <TableCell className="font-medium">{inv.invoiceNumber}</TableCell>
-                        <TableCell>{inv.customerName ?? "—"}</TableCell>
-                        <TableCell>{formatDate(inv.date)}</TableCell>
-                        <TableCell className="text-right font-medium">{money(inv.total)}</TableCell>
-                        <TableCell className="text-right">{money(inv.amountPaid)}</TableCell>
-                        <TableCell>
-                          <Badge variant={inv.status === "PAID" ? "success" : inv.status === "PARTIAL" ? "warning" : "secondary"}>
-                            {inv.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            {inv.status !== "PAID" && (
-                              <Button variant="ghost" size="icon-sm" title="Record payment" onClick={() => { setPayingInvoice(inv); setPayAmount(String(inv.total - inv.amountPaid)); }}>
-                                <Wallet className="h-4 w-4" />
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="icon-sm" title="Download PDF" onClick={() => handleDownload(inv)} disabled={exporting}>
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
 
       <Dialog open={payingInvoice !== null} onOpenChange={(open) => !open && setPayingInvoice(null)}>
         <DialogContent className="sm:max-w-sm">
@@ -886,27 +786,20 @@ function LineItemsEditor({
   update: (i: number, patch: Partial<LineState>) => void;
   remove: (i: number) => void;
   add: () => void;
-  pick: (i: number, id: string) => void;
-  allProducts: { id: string; name: string; stock: number }[] | null | undefined;
+  pick: (i: number, p: ProductOption) => void;
+  allProducts: ProductOption[] | null | undefined;
 }) {
   return (
     <div className="space-y-2">
       {lines.map((line, index) => (
         <div key={index} className="bg-muted/50 flex flex-wrap items-end gap-2 rounded-lg border p-3">
-          <div className="min-w-44 flex-1 space-y-1.5">
+          <div className="min-w-56 flex-1 space-y-1.5">
             <Label>Item {index + 1}</Label>
-            <Select value={line.productId || undefined} onValueChange={(v) => pick(index, v)}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choose from stock…" />
-              </SelectTrigger>
-              <SelectContent>
-                {allProducts?.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name} — {p.stock} in stock
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <ProductSearchSelect
+              products={allProducts}
+              onSelect={(p) => pick(index, p)}
+              placeholder={line.productId ? "Swap product…" : "Search from stock…"}
+            />
           </div>
           <div className="min-w-40 flex-1 space-y-1.5">
             <Label>Or type item name</Label>

@@ -58,6 +58,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       category: "",
       barcode: "",
       weight: undefined,
+      weightUnit: "gm",
       purity: "",
       imageUrl: "",
       stock: 0,
@@ -79,6 +80,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           category: product.category ?? "",
           barcode: product.barcode ?? "",
           weight: product.weight ?? undefined,
+          weightUnit: product.weightUnit === "mg" || product.weightUnit === "gm" ? product.weightUnit : "gm",
           purity: product.purity ?? "",
           imageUrl: product.imageUrl ?? "",
           stock: product.stock,
@@ -306,8 +308,20 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="weight">Weight (mg)</Label>
-            <Input id="weight" type="number" step="0.1" min={0} placeholder="e.g. 24500 (24.5 g)" {...form.register("weight")} />
+            <Label htmlFor="weight">Weight</Label>
+            <div className="flex gap-2">
+              <Input id="weight" type="number" step="0.1" min={0} placeholder="e.g. 24.5" {...form.register("weight")} className="flex-1" />
+              <Select value={form.watch("weightUnit") ?? "gm"} onValueChange={(v) => form.setValue("weightUnit", v as "mg" | "gm")}>
+                <SelectTrigger className="w-[80px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gm">gm</SelectItem>
+                  <SelectItem value="mg">mg</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Used for stock weight calculations &amp; label printing</p>
             {form.formState.errors.weight && (
               <p className="text-xs text-destructive">{form.formState.errors.weight.message}</p>
             )}

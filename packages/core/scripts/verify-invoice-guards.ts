@@ -14,15 +14,9 @@ async function expectError(name: string, run: () => Promise<unknown>, code: stri
     console.log(`${name}: FAILED — no error thrown`);
     process.exitCode = 1;
   } catch (e) {
-    // Match on the typed `code` field rather than instanceof — tsx can
-    // double-instantiate the module under mixed static/dynamic imports,
-    // which breaks class identity for the same logical class.
-    if (e instanceof InvoiceError || (e instanceof Error && "code" in e)) {
-      const errCode = (e as InvoiceError).code;
-      if (errCode === code) {
-        console.log(`${name}: OK (${errCode} — ${e.message})`);
-        return;
-      }
+    if (e instanceof InvoiceError && e.code === code) {
+      console.log(`${name}: OK (${e.code} — ${e.message})`);
+      return;
     }
     console.log(`${name}: FAILED — wrong error`, e);
     process.exitCode = 1;
@@ -32,26 +26,35 @@ async function expectError(name: string, run: () => Promise<unknown>, code: stri
 async function main() {
   const db = getDb();
 
-  await expectError("zero-price item", () =>
-    createInvoice(db, {
-      customerName: "ZZZ-Guard-Verify",
-      items: [{ productName: "Test", quantity: 1, price: 0 }],
-    }),
+  await expectError(
+    "zero-price item",
+    () =>
+      createInvoice(db, {
+        customerName: "ZZZ-Guard-Verify",
+        items: [{ productName: "Test", quantity: 1, price: 0 }],
+      }),
+    "ZERO_PRICE_ITEM",
   );
 
-  await expectError("zero-qty item", () =>
-    createInvoice(db, {
-      customerName: "ZZZ-Guard-Verify",
-      items: [{ productName: "Test", quantity: 0, price: 100 }],
-    }),
+  await expectError(
+    "zero-qty item",
+    () =>
+      createInvoice(db, {
+        customerName: "ZZZ-Guard-Verify",
+        items: [{ productName: "Test", quantity: 0, price: 100 }],
+      }),
+    "BAD_QUANTITY",
   );
 
-  await expectError("zero total (discount exceeds subtotal)", () =>
-    createInvoice(db, {
-      customerName: "ZZZ-Guard-Verify",
-      items: [{ productName: "Test", quantity: 1, price: 100 }],
-      discount: 100,
-    }),
+  await expectError(
+    "zero total (discount exceeds subtotal)",
+    () =>
+      createInvoice(db, {
+        customerName: "ZZZ-Guard-Verify",
+        items: [{ productName: "Test", quantity: 1, price: 100 }],
+        discount: 100,
+      }),
+    "ZERO_TOTAL",
   );
 
   // Delivery charge IS correctly added to the total.

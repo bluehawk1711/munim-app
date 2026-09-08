@@ -314,7 +314,7 @@ export function ReportsScreen() {
                           {[
                             r.color || null,
                             r.size || null,
-                            r.weight != null ? formatWeight(r.weight) : null,
+                            r.weight != null ? formatWeight(r.weight, r.weightUnit) : null,
                           ]
                             .filter(Boolean)
                             .join(' · ')}

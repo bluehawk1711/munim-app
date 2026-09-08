@@ -135,7 +135,7 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
             <Text style={styles.variantText} numberOfLines={1}>
               {[
                 variantBits || null,
-                item.weight != null ? `${formatWeight(item.weight)}` : null,
+                item.weight != null ? `${formatWeight(item.weight, item.weightUnit)}` : null,
               ]
                 .filter(Boolean)
                 .join('  ·  ')}
@@ -201,6 +201,7 @@ export function ProductsScreen() {
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
   const [weight, setWeight] = useState('');
+  const [weightUnit, setWeightUnit] = useState<'mg' | 'gm'>('gm');
   const [purity, setPurity] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -298,6 +299,7 @@ export function ProductsScreen() {
     setSize('');
     setCategory('');
     setWeight('');
+    setWeightUnit('gm');
     setPurity('');
     setImageUrl('');
     setStock('0');
@@ -318,6 +320,7 @@ export function ProductsScreen() {
     setSize(p.size);
     setCategory(p.category ?? '');
     setWeight(p.weight != null ? String(p.weight) : '');
+    setWeightUnit(p.weightUnit === 'mg' ? 'mg' : 'gm');
     setPurity(p.purity ?? '');
     setImageUrl(p.imageUrl ?? '');
     setStock(String(p.stock));
@@ -350,6 +353,7 @@ export function ProductsScreen() {
         size: size.trim() || 'Standard',
         category: category.trim() || undefined,
         weight: weight.trim() ? Math.max(0, Number(weight) || 0) : undefined,
+        weightUnit,
         purity: purity.trim() || undefined,
         imageUrl: imageUrl.trim() || undefined,
         stock: Math.max(0, Number(stock) || 0),
@@ -446,7 +450,7 @@ export function ProductsScreen() {
     setLabelBusy(true);
     try {
       const label = buildProductLabel(
-        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, sellingPrice: labelTarget.sellingPrice, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
+        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, sellingPrice: labelTarget.sellingPrice, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
         {name: settings?.shopName ?? ''},
       );
       const html = renderLabelSheetHtml([label], {copies: labelCopies});
@@ -607,7 +611,19 @@ export function ProductsScreen() {
         <SelectField label="Color" value={color} placeholder="Select color (optional)" onPress={() => setColorPickerOpen(true)} />
         <SelectField label="Size" value={size} placeholder="Select size" onPress={() => setSizePickerOpen(true)} />
         <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
-        <Field label="Weight (mg)" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder="e.g. 24500" />
+        <View style={{flexDirection: 'row', gap: spacing.sm}}>
+          <View style={{flex: 1}}>
+            <Field label="Weight" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder={weightUnit === 'gm' ? 'e.g. 24.5' : 'e.g. 24500'} />
+          </View>
+          <View style={{width: 70}}>
+            <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Unit</Text>
+            <Pressable
+              onPress={() => setWeightUnit(u => u === 'gm' ? 'mg' : 'gm')}
+              style={{height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center'}}>
+              <Text style={{fontSize: 14, fontWeight: '700', color: colors.primary}}>{weightUnit}</Text>
+            </Pressable>
+          </View>
+        </View>
         <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
         <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
         <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
@@ -630,7 +646,7 @@ export function ProductsScreen() {
           {[labelTarget?.color, labelTarget?.size, labelTarget?.category].filter(Boolean).length
             ? ` · ${[labelTarget?.color, labelTarget?.size, labelTarget?.category].filter(Boolean).join(' / ')}`
             : ''}
-          {labelTarget?.weight != null ? ` · ${formatWeight(labelTarget.weight)}` : ''}
+          {labelTarget?.weight != null ? ` · ${formatWeight(labelTarget.weight, labelTarget.weightUnit)}` : ''}
         </Text>
         <Field label="Copies" value={String(labelCopies)} onChangeText={t => setLabelCopies(Math.max(1, Math.min(100, Number(t) || 1)))} keyboardType="numeric" />
         <Button title={labelBusy ? 'Preparing…' : 'Share label PDF'} onPress={handleLabelShare} loading={labelBusy} disabled={!labelTarget} />

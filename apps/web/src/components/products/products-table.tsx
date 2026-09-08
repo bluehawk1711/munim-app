@@ -120,7 +120,7 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
         header: "Weight",
         cell: ({ row }) => (
           <span className="text-xs text-muted-foreground tabular-nums">
-            {formatWeight(row.original.weight)}
+            {formatWeight(row.original.weight, row.original.weightUnit)}
           </span>
         ),
       },

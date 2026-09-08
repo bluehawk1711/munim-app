@@ -154,7 +154,7 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust}: Product
         {product.weight != null ? (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Gross Weight</Text>
-            <Text style={styles.detailValue}>{formatWeight(product.weight)}</Text>
+            <Text style={styles.detailValue}>{formatWeight(product.weight, product.weightUnit)}</Text>
           </View>
         ) : null}
         {product.purity ? (

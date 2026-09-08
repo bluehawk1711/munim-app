@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   Search, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2,
-  AlertTriangle, Loader2, Clock, CheckCircle2,
+  Loader2, Clock, CheckCircle2,
   ArrowUpRight,
 } from "lucide-react";
 import { formatCurrency } from "@munim/core";
@@ -13,12 +13,12 @@ import {
   useUndoSale,
   useQueryState,
 } from "@munim/query";
-import { money } from "@/lib/format";
+import { money, formatWeight } from "@/lib/format";
 import { PageHeader } from "@/components/page-header";
 import { toast } from "@munim/ui";
 import {
   Button, Input, Label, Badge, Card, CardContent, CardHeader, CardTitle, Skeleton,
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  ProductSearchSelect,
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@munim/ui";
@@ -242,30 +242,16 @@ export function SalesPage() {
             {/* Product search */}
             <div className="space-y-1.5">
               <Label className="text-xs">Select Product / Scan Barcode</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Select value={productId || undefined} onValueChange={(v) => {
-                  setProductId(v);
-                  const p = allProducts?.find((x) => x.id === v);
-                  if (p) setPrice(String(p.sellingPrice));
-                }}>
-                  <SelectTrigger className="h-10 pl-9 font-mono text-sm">
-                    <SelectValue placeholder="Search by name, SKU, or scan barcode…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {allProducts?.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <div className="flex flex-col">
-                          <span>{p.name}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {p.sku} · {money(p.sellingPrice)} · {p.stock} in stock
-                          </span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <ProductSearchSelect
+                products={allProducts}
+                disableOutOfStock
+                className="h-10 font-mono text-sm [&_input]:h-10 [&_input]:font-mono [&_input]:text-sm"
+                placeholder="Search by name, SKU, or scan barcode…"
+                onSelect={(p) => {
+                  setProductId(p.id);
+                  setPrice(String(p.sellingPrice));
+                }}
+              />
               {selected && (
                 <div className="flex items-center gap-3 rounded-lg border p-2.5">
                   <div className="bg-muted flex h-12 w-12 shrink-0 items-center justify-center rounded-md text-lg font-bold text-primary/60">
@@ -280,7 +266,7 @@ export function SalesPage() {
                       {selected.size ? <> · {selected.size}</> : null}
                     </p>
                     <p className="text-muted-foreground text-xs">
-                      Weight: {selected.weight != null ? `${(selected.weight / 1000).toFixed(2)} g` : "—"}
+                      Weight: {selected.weight != null ? formatWeight(selected.weight, selected.weightUnit) : "—"}
                       {" · "}Stock: <span className={selected.stock <= (selected.lowStockThreshold ?? 0) ? "text-amber-600 font-medium" : ""}>{selected.stock} units</span>
                     </p>
                   </div>
@@ -532,11 +518,11 @@ export function SalesPage() {
 
       {/* ── Undo dialog ────────────────────────────────────────── */}
       <Dialog open={undoOpen} onOpenChange={setUndoOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="w-[calc(100%-2rem)] max-w-[400px]">
           <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                <AlertTriangle className="h-5 w-5" />
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Undo2 className="h-5 w-5" />
               </div>
               <div>
                 <DialogTitle>Undo this sale?</DialogTitle>

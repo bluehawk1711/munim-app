@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "weight_unit" text DEFAULT 'gm' NOT NULL;

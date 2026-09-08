@@ -200,7 +200,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       tsplText(nameWithPurity),
       Math.max(2, Math.floor(availableNameWidth / (minNameSize * nameCharWidthAtOnePoint))),
     );
-    const weight = label.weightMg != null ? formatWeight(label.weightMg) : "";
+    const weight = label.weightMg != null && label.weightMg > 0
+      ? `${label.weightMg} ${label.weightUnit}`
+      : "";
 
     lines.push("CLS");
     // LEFT: product name (top) + weight (bottom)

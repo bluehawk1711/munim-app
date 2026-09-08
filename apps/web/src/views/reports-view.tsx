@@ -240,7 +240,7 @@ export function ReportsView() {
                             <TableCell>{r.size}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(r.stock)}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(r.soldQuantity)}</TableCell>
-                            <TableCell className="text-right tabular-nums">{r.soldWeight > 0 ? formatWeight(r.soldWeight) : "—"}</TableCell>
+                            <TableCell className="text-right tabular-nums">{r.soldWeight > 0 ? formatWeight(r.soldWeight, r.weightUnit) : "—"}</TableCell>
                             <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(r.revenue)}</TableCell>
                           </TableRow>
                         ))

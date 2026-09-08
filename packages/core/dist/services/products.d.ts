@@ -75,6 +75,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         name: string;
         barcode: string | null;
         weight: number | null;
+        weightUnit: string;
         purity: string | null;
         imageUrl: string | null;
         stock: number;
@@ -104,6 +105,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     name: string;
     barcode: string | null;
     weight: number | null;
+    weightUnit: string;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -126,8 +128,10 @@ export type ProductInput = {
     category?: string;
     /** Barcode value. `undefined` → keep existing (edit); `""` → clear; else set. */
     barcode?: string;
-    /** Weight in milligrams (mg). */
+    /** Weight value — unit determined by `weightUnit` (mg or gm). */
     weight?: number;
+    /** Display & calculation unit: "mg" or "gm". */
+    weightUnit?: string;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925".
      * `undefined` → keep existing (edit); `""` → clear; else set. */
     purity?: string;
@@ -152,6 +156,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     name: string;
     barcode: string | null;
     weight: number | null;
+    weightUnit: string;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -174,6 +179,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     name: string;
     barcode: string | null;
     weight: number | null;
+    weightUnit: string;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -203,6 +209,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     name: string;
     barcode: string | null;
     weight: number | null;
+    weightUnit: string;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -242,6 +249,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     name: string;
     barcode: string | null;
     weight: number | null;
+    weightUnit: string;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
