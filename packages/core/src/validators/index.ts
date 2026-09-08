@@ -9,6 +9,7 @@ import { z } from "zod";
 
 export const productSchema = z.object({
   name: z.string().min(1, "Product name is required").max(120),
+  type: z.enum(["Gold", "Silver", "Diamond", "Platinum", "Other"]).default("Gold"),
   color: z.string().max(40).optional().or(z.literal("")),
   size: z.string().min(1, "Size is required").max(40),
   category: z.string().max(40).optional().or(z.literal("")),
@@ -16,12 +17,17 @@ export const productSchema = z.object({
   /** Weight in milligrams (mg). */
   weight: z.coerce.number().min(0, "Weight cannot be negative").optional(),
   weightUnit: z.enum(["mg", "gm"]).default("gm"),
+  /** Jewelry-specific weight fields (free text for formulas). */
+  grossWeight: z.string().max(40).optional().or(z.literal("")),
+  nagLessWeight: z.string().max(40).optional().or(z.literal("")),
+  chejatWeight: z.string().max(40).optional().or(z.literal("")),
+  netWeight: z.string().max(40).optional().or(z.literal("")),
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
   purity: z.string().max(20).optional().or(z.literal("")),
   imageUrl: z.string().max(1000).optional().or(z.literal("")),
   stock: z.coerce.number().min(0, "Stock cannot be negative"),
-  purchasePrice: z.coerce.number().min(0, "Purchase price cannot be negative"),
-  sellingPrice: z.coerce.number().min(0, "Selling price cannot be negative"),
+  purchasePrice: z.coerce.number().min(0.01, "Buy price must be greater than 0"),
+  sellingPrice: z.coerce.number().min(0.01, "Sell price must be greater than 0"),
   lowStockThreshold: z.coerce.number().min(0).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),
 });

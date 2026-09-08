@@ -9,6 +9,7 @@
     "dev:web": "turbo run dev --filter=@munim/web",
     "dev:desktop": "turbo run dev --filter=@munim/desktop",
     "dev:mobile": "turbo run dev --filter=@munim/mobile",
+    "tauri:dev": "pnpm --filter @munim/desktop tauri dev",
     "build": "turbo run build",
     "build:core": "turbo run build --filter=@munim/core",
     "build:mobile:android": "pnpm --filter @munim/mobile build:android",
@@ -19,6 +20,7 @@
     "db:migrate": "pnpm --filter @munim/core db:migrate",
     "db:push": "pnpm --filter @munim/core db:push",
     "db:smoke": "pnpm --filter @munim/core smoke",
+    "db:backup": "bash scripts/db-backup.sh",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
   },
   "devDependencies": {

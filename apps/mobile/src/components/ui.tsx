@@ -598,6 +598,7 @@ export function ModalSheet({
   dismissable = true,
   centered = false,
   scrollable = false,
+  size = 'normal',
 }: {
   visible: boolean;
   title: string;
@@ -606,6 +607,7 @@ export function ModalSheet({
   dismissable?: boolean;
   centered?: boolean;
   scrollable?: boolean;
+  size?: 'normal' | 'large';
 }) {
   return (
     <Modal
@@ -633,9 +635,9 @@ export function ModalSheet({
               ? {
                   borderRadius: radii.lg,
                   width: '100%',
-                  maxWidth: rs(360),
+                  maxWidth: size === 'large' ? rs(420) : rs(360),
                   padding: spacing.lg,
-                  maxHeight: '80%',
+                  maxHeight: size === 'large' ? '90%' : '80%',
                 }
               : {
                   borderTopLeftRadius: radii.xl,
@@ -649,7 +651,7 @@ export function ModalSheet({
             {title}
           </Text>
           {scrollable ? (
-            <ScrollView style={{maxHeight: centered ? 400 : 500}}>
+            <ScrollView style={{maxHeight: centered ? (size === 'large' ? 550 : 400) : 500}}>
               {children}
             </ScrollView>
           ) : (

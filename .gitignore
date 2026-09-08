@@ -48,6 +48,9 @@ yarn-error.log*
 # drizzle
 packages/core/drizzle/meta/_journal.json.bak
 
+# db backups
+packages/core/backups/
+
 # editor
 .vscode/
 .idea/

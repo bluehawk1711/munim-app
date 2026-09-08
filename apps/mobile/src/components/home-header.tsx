@@ -33,14 +33,20 @@ import {selectionTick} from '../lib/haptics';
  * threshold. Offset resets on mount so switching screens starts expanded.
  */
 const COMPACT_THRESHOLD = 24;
+const EXPAND_THRESHOLD = 18; // Hysteresis: expand at a lower threshold to prevent jitter
 
 let headerOffset = 0;
+let isCompact = false;
 const listeners = new Set<() => void>();
 
 function setHeaderOffset(y: number) {
   const next = Math.max(0, y);
-  if (Math.abs(next - headerOffset) < 1) return;
+  // Dead-zone: skip if <2px change to reduce jitter during slow scrolls.
+  if (Math.abs(next - headerOffset) < 2) return;
   headerOffset = next;
+  // Hysteresis: compact at COMPACT_THRESHOLD, expand at EXPAND_THRESHOLD
+  if (isCompact && next < EXPAND_THRESHOLD) isCompact = false;
+  else if (!isCompact && next > COMPACT_THRESHOLD) isCompact = true;
   listeners.forEach(l => l());
 }
 
@@ -79,12 +85,11 @@ export function HomeHeader({
   const shopName = (settings?.shopName ?? 'Munim').toUpperCase();
 
   // Scroll state from the external store (re-renders only on real changes).
-  const offset = React.useSyncExternalStore(
+  const compact = React.useSyncExternalStore(
     subscribe,
-    () => headerOffset,
-    () => 0,
+    () => isCompact,
+    () => false,
   );
-  const compact = offset > COMPACT_THRESHOLD;
 
   // Fresh screen → start expanded (previous screen's scroll shouldn't leak).
   useEffect(() => {

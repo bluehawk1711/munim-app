@@ -43,6 +43,13 @@
       "when": 1788790102543,
       "tag": "0005_add_weight_unit",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788867256463,
+      "tag": "0006_daffy_dagger",
+      "breakpoints": true
     }
   ]
 }

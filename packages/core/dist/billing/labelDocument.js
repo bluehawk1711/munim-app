@@ -1,5 +1,4 @@
 import { barcodeSvg } from "../utils/barcode.js";
-import { formatWeight } from "../utils/format.js";
 /** Builds a label from a product row (+ optional shop header). Pure + shared. */
 export function buildProductLabel(product, shop) {
     return {
@@ -7,8 +6,13 @@ export function buildProductLabel(product, shop) {
         productName: product.name,
         sku: product.sku,
         barcode: product.barcode,
+        productType: product.type ?? "Gold",
         weightMg: product.weight ?? null,
         weightUnit: product.weightUnit ?? "gm",
+        grossWeight: product.grossWeight ?? null,
+        nagLessWeight: product.nagLessWeight ?? null,
+        chejatWeight: product.chejatWeight ?? null,
+        netWeight: product.netWeight ?? null,
         purity: product.purity ?? null,
         color: product.colorName ?? null,
         size: product.sizeName ?? null,
@@ -26,17 +30,44 @@ const esc = (s) => (s ?? "")
 export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
 /** Renders ONE label's inner markup (shared by the sheet + previews).
- * Side-by-side: LEFT = name + weight, RIGHT = barcode.
+ * Silver: LEFT = name + " - sil" + purity + weight, RIGHT = barcode
+ * Gold:   LEFT = name + weight + 4 weight fields, RIGHT = barcode
  */
 export function renderLabelMarkup(label) {
     const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 50, scale: 2, fontSize: 8 }) : "";
     const weight = label.weightMg != null && label.weightMg > 0
         ? `${label.weightMg} ${label.weightUnit}`
         : "";
+    const isGold = label.productType === "Gold";
+    // Build display name
+    let displayName = label.productName;
+    if (!isGold) {
+        displayName = `${displayName} - sil`;
+    }
+    const nameWithPurity = [displayName, label.purity?.trim() || null]
+        .filter((v) => Boolean(v))
+        .join(" ");
+    // Auto-scale font size based on name length
+    const nameLen = nameWithPurity.length;
+    const nameFontSize = nameLen <= 10 ? 11 : nameLen <= 14 ? 10 : nameLen <= 18 ? 9 : 8;
+    // Build weight details for Gold
+    const weightFields = [];
+    if (weight)
+        weightFields.push(weight);
+    if (label.grossWeight?.trim())
+        weightFields.push(`G: ${label.grossWeight.trim()}`);
+    if (label.nagLessWeight?.trim())
+        weightFields.push(`N: ${label.nagLessWeight.trim()}`);
+    if (label.chejatWeight?.trim())
+        weightFields.push(`C: ${label.chejatWeight.trim()}`);
+    if (label.netWeight?.trim())
+        weightFields.push(`Net: ${label.netWeight.trim()}`);
     return `<div class="label">
     <div class="l-left">
-      <div class="l-name">${esc(label.productName)}</div>
-      <div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>
+      <div class="l-name" style="font-size:${nameFontSize}px">${esc(nameWithPurity)}</div>
+      ${isGold
+        ? `<div class="l-weight">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
+        : `<div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>`}
     </div>
     <div class="l-right">${barcode || `<span class="l-nocode">NO BARCODE</span>`}</div>
   </div>`;
@@ -101,11 +132,36 @@ export function renderLabelSheetHtml(labels, opts = {}) {
 }
 /** Plain-text version of a single label (copy/share fallback). */
 export function renderLabelText(label) {
-    const lines = [
-        label.productName,
-        label.barcode ? `Barcode: ${label.barcode}` : "",
-        label.weightMg != null ? `Weight: ${formatWeight(label.weightMg, label.weightUnit)}` : "",
-    ].filter(Boolean);
+    const isGold = label.productType === "Gold";
+    let displayName = label.productName;
+    if (!isGold) {
+        displayName = `${displayName} - sil`;
+    }
+    const nameWithPurity = [displayName, label.purity?.trim() || null]
+        .filter((v) => Boolean(v))
+        .join(" ");
+    const weight = label.weightMg != null && label.weightMg > 0
+        ? `${label.weightMg} ${label.weightUnit}`
+        : "";
+    const lines = [nameWithPurity];
+    if (isGold) {
+        if (weight)
+            lines.push(weight);
+        if (label.grossWeight?.trim())
+            lines.push(`G: ${label.grossWeight.trim()}`);
+        if (label.nagLessWeight?.trim())
+            lines.push(`N: ${label.nagLessWeight.trim()}`);
+        if (label.chejatWeight?.trim())
+            lines.push(`C: ${label.chejatWeight.trim()}`);
+        if (label.netWeight?.trim())
+            lines.push(`Net: ${label.netWeight.trim()}`);
+    }
+    else {
+        if (weight)
+            lines.push(weight);
+    }
+    if (label.barcode)
+        lines.push(`Barcode: ${label.barcode}`);
     return lines.join("\n");
 }
 //# sourceMappingURL=labelDocument.js.map

@@ -107,12 +107,17 @@ import {
 
 type FormState = {
   name: string;
+  type: string;
   color: string;
   size: string;
   category: string;
   barcode: string;
   weight: string;
   weightUnit: "mg" | "gm";
+  grossWeight: string;
+  nagLessWeight: string;
+  chejatWeight: string;
+  netWeight: string;
   purity: string;
   imageUrl: string;
   stock: string;
@@ -124,12 +129,17 @@ type FormState = {
 
 const EMPTY_FORM: FormState = {
   name: "",
+  type: "Gold",
   color: "",
   size: "",
   category: "",
   barcode: "",
   weight: "",
   weightUnit: "gm",
+  grossWeight: "",
+  nagLessWeight: "",
+  chejatWeight: "",
+  netWeight: "",
   purity: "",
   imageUrl: "",
   stock: "0",
@@ -339,12 +349,17 @@ export function ProductsPage() {
     setEditing(p);
     setForm({
       name: p.name,
+      type: p.type ?? "Gold",
       color: p.color ?? "",
       size: p.size ?? "",
       category: p.category ?? "",
       barcode: p.barcode ?? "",
       weight: p.weight != null ? String(p.weight) : "",
       weightUnit: (p.weightUnit === "mg" || p.weightUnit === "gm") ? p.weightUnit : "gm",
+      grossWeight: p.grossWeight ?? "",
+      nagLessWeight: p.nagLessWeight ?? "",
+      chejatWeight: p.chejatWeight ?? "",
+      netWeight: p.netWeight ?? "",
       purity: p.purity ?? "",
       imageUrl: p.imageUrl ?? "",
       stock: String(p.stock),
@@ -429,16 +444,25 @@ export function ProductsPage() {
       toast.error("Product name is required");
       return;
     }
+    const buyVal = Number(form.purchasePrice) || 0;
+    const sellVal = Number(form.sellingPrice) || 0;
+    if (buyVal <= 0) { toast.error("Buy price must be greater than 0"); return; }
+    if (sellVal <= 0) { toast.error("Sell price must be greater than 0"); return; }
     setSaving(true);
     try {
       const input = {
         name: form.name.trim(),
+        type: form.type as "Gold" | "Silver" | "Diamond" | "Platinum" | "Other",
         color: form.color.trim() || undefined,
         size: form.size.trim() || "Standard",
         category: form.category.trim() || undefined,
         barcode: form.barcode.trim() || undefined,
         weight: form.weight.trim() ? Math.max(0, Number(form.weight) || 0) : undefined,
         weightUnit: form.weightUnit,
+        grossWeight: form.grossWeight.trim() || undefined,
+        nagLessWeight: form.nagLessWeight.trim() || undefined,
+        chejatWeight: form.chejatWeight.trim() || undefined,
+        netWeight: form.netWeight.trim() || undefined,
         purity: form.purity.trim() || undefined,
         imageUrl: form.imageUrl.trim() || undefined,
         stock: Math.max(0, Number(form.stock) || 0),
@@ -944,6 +968,19 @@ export function ProductsPage() {
                 <Label htmlFor="p-name">Name *</Label>
                 <Input id="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
               </div>
+              <div className="space-y-1.5">
+                <Label>Type</Label>
+                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Gold">Gold</SelectItem>
+                    <SelectItem value="Silver">Silver</SelectItem>
+                    <SelectItem value="Diamond">Diamond</SelectItem>
+                    <SelectItem value="Platinum">Platinum</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label>Product Image</Label>
                 <div className="flex items-center gap-3">
@@ -1031,6 +1068,46 @@ export function ProductsPage() {
                 </div>
                 <p className="text-[11px] text-muted-foreground">Used for stock weight calculations &amp; label printing</p>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-gross-weight">Gross weight</Label>
+                  <Input
+                    id="p-gross-weight"
+                    value={form.grossWeight}
+                    onChange={(e) => setForm({ ...form, grossWeight: e.target.value })}
+                    placeholder="e.g. 10+5 or 24.5"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
+                  <Input
+                    id="p-nag-less-weight"
+                    value={form.nagLessWeight}
+                    onChange={(e) => setForm({ ...form, nagLessWeight: e.target.value })}
+                    placeholder="e.g. 2.5"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-chejat-weight">Chejat weight</Label>
+                  <Input
+                    id="p-chejat-weight"
+                    value={form.chejatWeight}
+                    onChange={(e) => setForm({ ...form, chejatWeight: e.target.value })}
+                    placeholder="e.g. 3"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-net-weight">Net weight</Label>
+                  <Input
+                    id="p-net-weight"
+                    value={form.netWeight}
+                    onChange={(e) => setForm({ ...form, netWeight: e.target.value })}
+                    placeholder="e.g. 19"
+                  />
+                </div>
+              </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-purity">Purity</Label>
                 <Input
@@ -1113,6 +1190,7 @@ export function ProductsPage() {
                 id: detailsProduct.id,
                 name: detailsProduct.name,
                 sku: detailsProduct.sku,
+                type: detailsProduct.type ?? "Gold",
                 barcode: detailsProduct.barcode,
                 color: detailsProduct.color,
                 size: detailsProduct.size,

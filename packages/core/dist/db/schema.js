@@ -26,11 +26,18 @@ export const products = pgTable("products", {
     id: id(),
     sku: text("sku").notNull().unique(),
     name: text("name").notNull(),
+    /** Product type: Gold, Silver, Diamond, Platinum, Other. */
+    type: text("type").notNull().default("Gold"),
     barcode: text("barcode"),
     /** Weight value — unit determined by `weightUnit` (mg or gm). */
     weight: doublePrecision("weight"),
     /** Display & calculation unit: "mg" or "gm". Default "gm". */
     weightUnit: text("weight_unit").notNull().default("gm"),
+    /** Jewelry-specific weight fields (free text for formulas like "10+5"). */
+    grossWeight: text("gross_weight"),
+    nagLessWeight: text("nag_less_weight"),
+    chejatWeight: text("chejat_weight"),
+    netWeight: text("net_weight"),
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". Free text so
      * shops can use whatever hallmark convention they follow. */
     purity: text("purity"),

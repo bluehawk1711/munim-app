@@ -29,6 +29,8 @@ export type ProductDetails = {
   id: string;
   name: string;
   sku: string;
+  /** Product type: Gold, Silver, Diamond, Platinum, Other. */
+  type: string;
   barcode: string | null;
   color?: string | null;
   size?: string | null;

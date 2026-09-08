@@ -490,8 +490,32 @@ export function LabelPrintDialog({
 
 function renderLabelMarkupHTML(label: ProductLabel): string {
   // Inline preview matching the thermal label layout:
-  // LEFT: name (top) + weight (bottom), RIGHT: barcode
+  // Silver: LEFT = name + " - sil" + purity (top) + weight (bottom), RIGHT = barcode
+  // Gold:   LEFT = name (top) + weight + 4 weight fields (bottom), RIGHT = barcode
+  const isGold = label.productType === "Gold";
   const weight = label.weightMg != null ? formatWeight(label.weightMg, label.weightUnit) : "";
+
+  // Build display name
+  let displayName = label.productName;
+  if (!isGold) {
+    displayName = `${displayName} - sil`;
+  }
+  const nameWithPurity = [displayName, label.purity?.trim() || null]
+    .filter((v): v is string => Boolean(v))
+    .join(" ");
+
+  // Auto-scale font size based on name length (matches TSPL logic)
+  const nameLen = nameWithPurity.length;
+  const nameFontSize = nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6;
+
+  // Build weight details for Gold
+  const weightFields: string[] = [];
+  if (weight) weightFields.push(weight);
+  if (label.grossWeight?.trim()) weightFields.push(`G: ${label.grossWeight.trim()}`);
+  if (label.nagLessWeight?.trim()) weightFields.push(`N: ${label.nagLessWeight.trim()}`);
+  if (label.chejatWeight?.trim()) weightFields.push(`C: ${label.chejatWeight.trim()}`);
+  if (label.netWeight?.trim()) weightFields.push(`Net: ${label.netWeight.trim()}`);
+
   const barcodeDigits = label.barcode?.replace(/\D/g, "") ?? "";
   let barcodeBars = "";
   if (barcodeDigits.length >= 12) {
@@ -502,8 +526,11 @@ function renderLabelMarkupHTML(label: ProductLabel): string {
   }
   return `<div style="display:flex;align-items:stretch;height:100%;padding:4px 6px;font-family:system-ui,sans-serif;font-weight:600;line-height:1.2">
     <div style="flex:0 0 22%;display:flex;flex-direction:column;justify-content:space-between">
-      <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px">${escHTML(label.productName)}</div>
-      <div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>
+      <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:${nameFontSize}px">${escHTML(nameWithPurity)}</div>
+      ${isGold
+        ? `<div style="font-size:7px;color:#555;line-height:1.3">${weightFields.map(wf => `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
+        : `<div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>`
+      }
     </div>
     <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">${barcodeBars}</div>
   </div>`;

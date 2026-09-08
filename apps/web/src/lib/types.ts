@@ -7,6 +7,8 @@ export type Product = {
   id: string
   sku: string
   name: string
+  /** Product type: Gold, Silver, Diamond, Platinum, Other. */
+  type: string
   color: string
   size: string
   category?: string

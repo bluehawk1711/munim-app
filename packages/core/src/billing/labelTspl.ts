@@ -67,12 +67,12 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   hri: 0,
   copies: 1,
   narrow: 2,
-  wide: 4,
-  nameY: 20,
-  weightY: 72,
+  wide: 3,
+  nameY: 25,
+  weightY: 80,
   leftMarginMm: 3.5,
-  barcodeX: 0,  // computed in buildLabelTspl2 if 0
-  barcodeY: 0,  // computed in buildLabelTspl2 if 0
+  barcodeX: 305,
+  barcodeY: 30,
   showPurity: false,
 };
 
@@ -130,8 +130,14 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string,
 /**
  * Builds the full TSPL2 command stream for a batch of labels.
  *
- * Layout (101 × 15 mm — wide strip):
- *   LEFT:  product name (top) + weight (bottom), stacked
+ * Two label designs based on product type:
+ *
+ * Silver / other:
+ *   LEFT:  product name + " - sil" (top) + weight (bottom), stacked
+ *   RIGHT: barcode (takes remaining width, vertically centered)
+ *
+ * Gold:
+ *   LEFT:  product name (top) + weight + 4 weight fields + purity (bottom)
  *   RIGHT: barcode (takes remaining width, vertically centered)
  *
  * Direction 0: Y from top (downward). Direction 1: Y from bottom (upward).
@@ -146,7 +152,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const codepage = opts.codepage ?? "UTF-8";
   const hri = opts.hri ?? 0;
   const narrow = opts.narrow ?? 2;
-  const wide = opts.wide ?? 4;
+  const wide = opts.wide ?? 3;
 
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
@@ -159,7 +165,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // Font "0" — x/y params are POINTS (1 pt = 1/72").
   const toPt = (dots: number): number => Math.max(2, Math.round((dots * 72) / dpi));
 
-  // Layout: LEFT = name+weight stacked (~24%), RIGHT = barcode (~76%)
+  // Layout: LEFT = text area, RIGHT = barcode (~76%)
   const gapBetween = mmToDots(2, dpi);
   const textAreaW = Math.round(printableW * 0.24);
 
@@ -167,14 +173,13 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const maxNameSize = toPt(Math.round(h * 0.40));
   const minNameSize = toPt(Math.round(h * 0.25));
   const weightSize = toPt(Math.round(h * 0.25));
+  const smallSize = toPt(Math.round(h * 0.18));
 
   const barcodeHeight = 65;
-  const defaultBarcodeX = leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
-  const defaultBarcodeY = Math.round((h - barcodeHeight) / 2) - 8;
-  const barcodeX = (opts.barcodeX && opts.barcodeX > 0) ? opts.barcodeX : defaultBarcodeX;
-  const barcodeY = (opts.barcodeY && opts.barcodeY > 0) ? opts.barcodeY : defaultBarcodeY;
-  const nameY = opts.nameY ?? 80;
-  const weightY = opts.weightY ?? 40;
+  const barcodeX = (opts.barcodeX && opts.barcodeX > 0) ? opts.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
+  const barcodeY = (opts.barcodeY && opts.barcodeY > 0) ? opts.barcodeY : Math.round((h - barcodeHeight) / 2) - 8;
+  const nameY = opts.nameY ?? 25;
+  const weightY = opts.weightY ?? 80;
   // A period is valid TSPL text. Size names to fit before truncating, so
   // values such as "92.5ring1" are not shortened to "92.5..".
   const availableNameWidth = Math.max(1, barcodeX - leftMargin - gapBetween);
@@ -189,7 +194,14 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   ];
 
   for (const label of labels) {
-    const nameWithPurity = [label.productName, opts.showPurity ? label.purity : null]
+    const isGold = label.productType === "Gold";
+
+    // Build display name
+    let displayName = label.productName;
+    if (!isGold) {
+      displayName = `${displayName} - sil`;
+    }
+    const nameWithPurity = [displayName, opts.showPurity ? label.purity : null]
       .filter((value): value is string => Boolean(value?.trim()))
       .join(" ");
     const fittingNameSize = Math.floor(
@@ -200,18 +212,41 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       tsplText(nameWithPurity),
       Math.max(2, Math.floor(availableNameWidth / (minNameSize * nameCharWidthAtOnePoint))),
     );
+
+    // Build weight line
     const weight = label.weightMg != null && label.weightMg > 0
       ? `${label.weightMg} ${label.weightUnit}`
       : "";
 
     lines.push("CLS");
-    // LEFT: product name (top) + weight (bottom)
+
+    // LEFT: product name (top)
     if (name) {
       lines.push(`TEXT ${leftMargin},${nameY},"0",0,${nameSize},${nameSize},"${name}"`);
     }
-    if (weight) {
-      lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+
+    if (isGold) {
+      // Gold label: weight + 4 weight fields + purity stacked below name
+      const weightFields: string[] = [];
+      if (weight) weightFields.push(weight);
+      if (label.grossWeight?.trim()) weightFields.push(`G:${label.grossWeight.trim()}`);
+      if (label.nagLessWeight?.trim()) weightFields.push(`N:${label.nagLessWeight.trim()}`);
+      if (label.chejatWeight?.trim()) weightFields.push(`C:${label.chejatWeight.trim()}`);
+      if (label.netWeight?.trim()) weightFields.push(`Net:${label.netWeight.trim()}`);
+
+      // Print weight fields on separate lines below name
+      let yOff = weightY;
+      for (const wf of weightFields) {
+        lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(wf)}"`);
+        yOff += Math.round(smallSize * 1.3);
+      }
+    } else {
+      // Silver / other: weight below name (same as before)
+      if (weight) {
+        lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+      }
     }
+
     // RIGHT: barcode
     if (label.barcode) {
       lines.push(barcodeCommand(barcodeX, barcodeY, barcodeHeight, label.barcode, hri, narrow, wide));

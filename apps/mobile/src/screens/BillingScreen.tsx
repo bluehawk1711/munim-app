@@ -1,5 +1,5 @@
 import React, {useMemo, useState} from 'react';
-import {Alert, FlatList, ListRenderItemInfo, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
+import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
 import * as Print from 'expo-print';
 import {ChevronDown, Search} from 'lucide-react-native';
 import {
@@ -19,7 +19,6 @@ import {
 } from '@munim/core';
 import {
   useCreateInvoice,
-  useInvoices,
   useParties,
   useProducts,
   useQueryState,
@@ -342,7 +341,6 @@ export function BillingScreen() {
   const {data: parties} = useQueryState(useParties());
   const {data: productsData, loading: productsLoading} = useQueryState(useProducts({pageSize: 500}));
   const products = productsData?.products;
-  const {data: list, loading} = useQueryState(useInvoices({pageSize: 50}));
   const createInvoice = useCreateInvoice();
 
   // ── Bill 1 ──────────────────────────────────────────────────────────────
@@ -659,24 +657,10 @@ export function BillingScreen() {
     }
   }
 
-  /** Re-generate PDF for an existing invoice from history and share it. */
-  async function shareInvoicePdf(inv: InvoiceDto) {
-    try {
-      const shop = settings
-        ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones, email: settings.shopEmail ?? ''}
-        : undefined;
-      const doc = toBillDocument(inv, shop);
-      const html = renderBillHtml(doc);
-      const {uri} = await Print.printToFileAsync({html, base64: false});
-      await Share.share({url: uri, message: `Bill ${inv.invoiceNumber} — ${doc.shop.name}`});
-    } catch {
-      // user cancelled
-    }
-  }
-
   return (
     <Screen>
       <HomeHeader title="Billing" />
+      <KeyboardAvoidingView style={{flex: 1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}} {...headerScrollHandlers}>
         {/* Template options — same model as web + desktop */}
         <Card index={0}>
@@ -965,41 +949,8 @@ export function BillingScreen() {
             </View>
           </Card>
         ) : null}
-
-        <Section title="Invoices" index={preview ? 2 : 1} />
-        {loading || !list ? (
-          <Loading />
-        ) : list.invoices.length === 0 ? (
-          <Empty text="No invoices yet" />
-        ) : (
-          list.invoices.map((inv, i) => (
-            <Card key={inv.id} index={3 + i}>
-              <View style={styles.row}>
-                <View style={{flex: 1}}>
-                  <Text style={styles.name}>{inv.invoiceNumber}</Text>
-                  <Text style={styles.meta}>
-                    {inv.customerName ?? 'Walk-in'} · {formatDate(inv.date)}
-                  </Text>
-                </View>
-                <View style={{alignItems: 'flex-end', gap: 4}}>
-                  <Text style={styles.name}>{money(inv.total)}</Text>
-                  <Badge
-                    text={inv.status}
-                    tone={inv.status === 'PAID' ? 'success' : inv.status === 'PARTIAL' ? 'warning' : 'muted'}
-                  />
-                </View>
-              </View>
-              <Button
-                title="Share PDF"
-                variant="outline"
-                size="small"
-                style={{marginTop: 8}}
-                onPress={() => void shareInvoicePdf(inv)}
-              />
-            </Card>
-          ))
-        )}
       </ScrollView>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }

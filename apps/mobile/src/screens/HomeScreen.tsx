@@ -99,7 +99,7 @@ export function HomeScreen() {
   const delta = data ? revenueDelta(data.monthlySales) : null;
 
   /** Deep-link: switch to the given tab (from Home). */
-  function goTo(tab: 'products' | 'more' | 'sales' | 'billing' | 'parties') {
+  function goTo(tab: 'products' | 'more' | 'sales' | 'advances') {
     useAppStore.getState().setActiveView(tab);
   }
 
@@ -241,7 +241,7 @@ export function HomeScreen() {
               [
                 {label: 'Record Sale', icon: ShoppingCart, go: () => goTo('sales')},
                 {label: 'Add Stock', icon: PackagePlus, go: () => goTo('products')},
-                {label: 'New Khata', icon: Users, go: () => goTo('parties')},
+                {label: 'New Khata', icon: Users, go: () => goTo('advances')},
                 {label: 'Reports', icon: BarChart3, go: () => {
                   useNavStore.getState().openMore('reports');
                   goTo('more');
@@ -281,7 +281,7 @@ export function HomeScreen() {
               <Pressable
                 onPress={() => {
                   selectionTick();
-                  goTo('parties');
+                  goTo('advances');
                 }}
                 style={({pressed}) => [styles.netPill, pressed && styles.pressed]}>
                 <Text style={styles.netPillText}>Net Payable</Text>
@@ -384,7 +384,8 @@ export function HomeScreen() {
             accessibilityLabel="Create new bill or order"
             onPress={() => {
               actionPress();
-              goTo('billing');
+              useNavStore.getState().openMore('billing');
+              goTo('more');
             }}
             style={({pressed}) => [styles.cta, pressed && styles.ctaPressed]}>
             <Plus size={rs(20)} color={palette.onPrimary} strokeWidth={2.6} />

@@ -197,11 +197,16 @@ export function ProductsScreen() {
 
   // Form fields
   const [name, setName] = useState('');
+  const [type, setType] = useState('Gold');
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
   const [weight, setWeight] = useState('');
   const [weightUnit, setWeightUnit] = useState<'mg' | 'gm'>('gm');
+  const [grossWeight, setGrossWeight] = useState('');
+  const [nagLessWeight, setNagLessWeight] = useState('');
+  const [chejatWeight, setChejatWeight] = useState('');
+  const [netWeight, setNetWeight] = useState('');
   const [purity, setPurity] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -210,6 +215,7 @@ export function ProductsScreen() {
   const [sell, setSell] = useState('0');
 
   // Catalog pickers
+  const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [sizePickerOpen, setSizePickerOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
@@ -295,11 +301,16 @@ export function ProductsScreen() {
   // Form handlers
   function resetForm() {
     setName('');
+    setType('Gold');
     setColor('');
     setSize('');
     setCategory('');
     setWeight('');
     setWeightUnit('gm');
+    setGrossWeight('');
+    setNagLessWeight('');
+    setChejatWeight('');
+    setNetWeight('');
     setPurity('');
     setImageUrl('');
     setStock('0');
@@ -316,11 +327,16 @@ export function ProductsScreen() {
   function openEdit(p: ProductDto) {
     setEditing(p);
     setName(p.name);
+    setType(p.type ?? 'Gold');
     setColor(p.color);
     setSize(p.size);
     setCategory(p.category ?? '');
     setWeight(p.weight != null ? String(p.weight) : '');
     setWeightUnit(p.weightUnit === 'mg' ? 'mg' : 'gm');
+    setGrossWeight(p.grossWeight ?? '');
+    setNagLessWeight(p.nagLessWeight ?? '');
+    setChejatWeight(p.chejatWeight ?? '');
+    setNetWeight(p.netWeight ?? '');
     setPurity(p.purity ?? '');
     setImageUrl(p.imageUrl ?? '');
     setStock(String(p.stock));
@@ -345,20 +361,29 @@ export function ProductsScreen() {
 
   async function handleSave() {
     if (!name.trim()) return;
+    const buyVal = Number(buy) || 0;
+    const sellVal = Number(sell) || 0;
+    if (buyVal <= 0) { errorFeedback('Buy price must be greater than 0'); return; }
+    if (sellVal <= 0) { errorFeedback('Sell price must be greater than 0'); return; }
     setSaving(true);
     try {
       const input = {
         name: name.trim(),
+        type: type as "Gold" | "Silver" | "Diamond" | "Platinum" | "Other",
         color: color.trim() || undefined,
         size: size.trim() || 'Standard',
         category: category.trim() || undefined,
         weight: weight.trim() ? Math.max(0, Number(weight) || 0) : undefined,
         weightUnit,
+        grossWeight: grossWeight.trim() || undefined,
+        nagLessWeight: nagLessWeight.trim() || undefined,
+        chejatWeight: chejatWeight.trim() || undefined,
+        netWeight: netWeight.trim() || undefined,
         purity: purity.trim() || undefined,
         imageUrl: imageUrl.trim() || undefined,
         stock: Math.max(0, Number(stock) || 0),
-        purchasePrice: Math.max(0, Number(buy) || 0),
-        sellingPrice: Math.max(0, Number(sell) || 0),
+        purchasePrice: buyVal,
+        sellingPrice: sellVal,
       };
       if (editing) {
         await updateProduct.mutateAsync({id: editing.id, values: input});
@@ -596,11 +621,13 @@ export function ProductsScreen() {
         onClose={() => setDetailTarget(null)}
         onEdit={handleDetailEdit}
         onAdjust={handleDetailAdjust}
+        onSell={p => { setDetailTarget(null); setSaleProduct(p); }}
       />
 
       {/* Product form sheet — centered modal */}
       <ModalSheet visible={formOpen} title={editing ? `Edit — ${editing.name}` : 'Add product'} onClose={() => setFormOpen(false)} dismissable={!saving && !uploading} centered scrollable>
         <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
+        <SelectField label="Type" value={type} placeholder="Select type" onPress={() => setTypePickerOpen(true)} />
         <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
           {imageUrl ? (
             <Image source={{uri: imageUrl}} style={styles.imagePickerThumb} />
@@ -624,6 +651,10 @@ export function ProductsScreen() {
             </Pressable>
           </View>
         </View>
+        <Field label="Gross weight" value={grossWeight} onChangeText={setGrossWeight} placeholder="e.g. 10+5 or 24.5" />
+        <Field label="Nag less weight" value={nagLessWeight} onChangeText={setNagLessWeight} placeholder="e.g. 2.5" />
+        <Field label="Chejat weight" value={chejatWeight} onChangeText={setChejatWeight} placeholder="e.g. 3" />
+        <Field label="Net weight" value={netWeight} onChangeText={setNetWeight} placeholder="e.g. 19" />
         <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
         <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
         <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
@@ -662,6 +693,15 @@ export function ProductsScreen() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Type picker */}
+      <ModalSheet visible={typePickerOpen} title="Select type" onClose={() => setTypePickerOpen(false)} centered scrollable>
+        {['Gold', 'Silver', 'Diamond', 'Platinum', 'Other'].map(t => (
+          <Pressable key={t} onPress={() => { setType(t); setTypePickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
+            <Text style={{fontSize: typography.body, color: t === type ? colors.primary : colors.text, fontWeight: t === type ? '700' : '400'}}>{t}</Text>
+          </Pressable>
+        ))}
+      </ModalSheet>
 
       {/* Catalog pickers — centered modals with scroll */}
       <ModalSheet visible={colorPickerOpen} title="Select color" onClose={() => setColorPickerOpen(false)} centered scrollable>
@@ -841,7 +881,7 @@ const makeStyles = () =>
       borderRadius: radii.full,
       backgroundColor: colors.danger,
     },
-    fab: {position: 'absolute', bottom: rs(32), left: CARD_MARGIN, right: CARD_MARGIN, elevation: 4},
+    fab: {position: 'absolute', bottom: rs(32), left: CARD_MARGIN, right: CARD_MARGIN, elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: {width: 0, height: 4}},
     imagePicker: {
       height: rs(120),
       borderRadius: radii.lg,

@@ -3,14 +3,13 @@ import {
   FlatList,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
 import * as Print from 'expo-print';
-import {Search, Trash2, Download, Share2} from 'lucide-react-native';
+import {Search, Trash2, Share2} from 'lucide-react-native';
 import {
   buildBillDocument,
   formatDate,
@@ -42,6 +41,7 @@ import {
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
+import {savePdf} from '../lib/save-pdf';
 
 type StatusFilter = 'all' | 'PAID' | 'PARTIAL' | 'UNPAID' | 'DRAFT';
 
@@ -91,7 +91,6 @@ export function InvoicesScreen() {
   const [deleting, setDeleting] = useState<InvoiceDto | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [exporting, setExporting] = useState<InvoiceDto | null>(null);
-  const [exportBusy, setExportBusy] = useState(false);
   const recordPayment = useRecordInvoicePayment(paying?.id ?? '');
   const deleteInvoice = useDeleteInvoice();
   const {data: settings} = useQueryState(useSettings());
@@ -149,7 +148,6 @@ export function InvoicesScreen() {
   async function handleExportInvoice(inv: InvoiceDto) {
     if (!settings) return;
     setExporting(inv);
-    setExportBusy(true);
     try {
       const shop = {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones, email: settings.shopEmail ?? ''};
       const doc = buildBillDocument({
@@ -158,7 +156,7 @@ export function InvoicesScreen() {
         customerName: inv.customerName ?? '',
         customerPhone: inv.customerPhone ?? '',
         customerAddress: inv.customerAddress ?? '',
-        shop: shop ?? {name: settings.shopName, address: '', phones: [], email: ''},
+        shop,
         lines: inv.items.map(it => ({
           productName: it.productName,
           sku: it.sku ?? '',
@@ -175,13 +173,13 @@ export function InvoicesScreen() {
       });
       const html = renderBillHtml(doc);
       const {uri} = await Print.printToFileAsync({html, base64: false});
-      await Share.share({url: uri, message: `Invoice ${inv.invoiceNumber} — ${settings.shopName}`});
-      successFeedback(`Invoice ${inv.invoiceNumber} exported`);
+
+      // Save to Downloads (Android) or share (iOS)
+      await savePdf(uri, inv.invoiceNumber);
     } catch {
       // user cancelled or print failed
     } finally {
       setExporting(null);
-      setExportBusy(false);
     }
   }
 
@@ -287,14 +285,14 @@ export function InvoicesScreen() {
                     <Text style={{fontSize: 11, color: colors.success, fontWeight: '600'}}>Paid ✓</Text>
                   )}
                   <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                    <Button
-                      title={exportingThis ? 'Preparing…' : 'Export'}
-                      variant="outline"
+                    <Pressable
                       onPress={() => handleExportInvoice(item)}
-                      loading={exportingThis}
-                      icon={<Download size={14} />}
-                      style={{paddingVertical: 6, paddingHorizontal: 12}}
-                    />
+                      hitSlop={8}
+                      disabled={exportingThis}
+                      style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}, exportingThis && {opacity: 0.4}]}
+                      accessibilityLabel={`Share ${item.invoiceNumber}`}>
+                      <Share2 size={16} color={colors.primary} />
+                    </Pressable>
                     <Button
                       title="Pay"
                       variant="outline"
@@ -429,6 +427,14 @@ const makeStyles = () =>
     name: {fontSize: 15, fontWeight: '600', color: colors.text, marginTop: 3},
     meta: {fontSize: 11, color: colors.muted, marginTop: 2},
     total: {fontSize: 15, fontWeight: '700', color: colors.text},
+    exportBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.mutedSoft,
+    },
     deleteBtn: {
       width: 32,
       height: 32,

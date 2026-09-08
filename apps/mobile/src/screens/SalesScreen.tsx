@@ -1,41 +1,41 @@
 /**
- * SalesScreen — khata-style party balances ("who owes whom").
+ * SalesScreen — scan-to-bill: barcode scanner → add products → complete sale.
  *
- * Mirrors the reference design, using REAL data from the shared core:
- *   Header (custom) → KHATA NET STATUS (You'll Get / You'll Give tiles,
- *   ₹317,738 net-owed strip) → filter chips (All / You'll Get / You'll Give /
- *   Settled) → party cards (avatar, name + type, phone, balance + status
- *   badge) → per-party advance / invoice / payment summaries →
- *   "Download Khata Statement (CSV)" (real feature — shared reportToCsv is
- *   invoice-based, so this shares the party list instead) →
- *   "+ Add New Party / Advance" CTA.
- *
- * Only EXISTING features get buttons: record payment (pay/invoice modal),
- * advance record (from the advances model), add party, CSV/share.
- * All colors are theme tokens — no hardcoded hex anywhere.
+ * Flow:
+ *   1. Tap "Scan barcode" → camera opens
+ *   2. Barcode detected → product lookup → added to bill items
+ *   3. Repeat for multiple products
+ *   4. Enter customer name (optional)
+ *   5. Tap "Complete sale" → invoice created → PDF generated → share/save
  */
 
-import React, {useMemo, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, Share, Text, View} from 'react-native';
+import React, {useRef, useState} from 'react';
+import {Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, KeyboardAvoidingView} from 'react-native';
+import * as Print from 'expo-print';
+import {Camera, Minus, Plus, ShoppingCart, Trash2, X} from 'lucide-react-native';
 import {
-  FileDown,
-  Phone,
-  UserPlus,
-} from 'lucide-react-native';
-import {formatDate, type InvoiceDto, type PartyBalanceDto} from '@munim/core';
+  buildBillDocument,
+  renderBillHtml,
+  swatchColor,
+  type BillTemplate,
+  type BillClassicColor,
+  type BillMode,
+  type BillTemplateSettings,
+  type ProductDto,
+  type InvoiceDto,
+} from '@munim/core';
 import {
-  useInvoices,
-  usePartyBalances,
-  useQueryState,
+  useCreateInvoice,
+  useProductByBarcode,
+  useSettings,
 } from '@munim/query';
 import {money} from '../lib/format';
-import {rs, rw, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
+import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
+import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 import {
-  Badge,
   Button,
   Card,
   Empty,
-  ErrorBox,
   Field,
   Loading,
   ModalSheet,
@@ -43,651 +43,519 @@ import {
   colors,
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
-import {DonutChart} from '../components/charts';
-import {useTheme, useThemeStyles} from '../theme';
-import {useAppStore} from '../lib/store';
-import {useNavStore} from '../lib/nav-store';
-import {selectionTick, actionPress, successFeedback, errorFeedback} from '../lib/haptics';
-import {useCreateParty} from '@munim/query';
-import type {MobileColors} from '@munim/theme';
+import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
+import {useThemeStyles} from '../theme';
+import {savePdf} from '../lib/save-pdf';
 
-type BalanceFilter = 'all' | 'get' | 'give' | 'settled';
-
-/** Initial letter avatar — tinted circle with the party's first letter. */
-function Avatar({name, tint}: {name: string; tint: string}) {
-  const letter = (name.trim()[0] ?? '?').toUpperCase();
-  return (
-    <View style={[avatarStyles.wrap, {backgroundColor: tint}]}>
-      <Text style={avatarStyles.letter}>{letter}</Text>
-    </View>
-  );
-}
-
-const avatarStyles = StyleSheet.create({
-  wrap: {
-    width: rs(38),
-    height: rs(38),
-    borderRadius: radii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  letter: {
-    fontSize: typography.body,
-    fontWeight: '800',
-    color: colors.onPrimary,
-  },
-});
+type BillItem = {
+  product: ProductDto;
+  quantity: number;
+  price: number;
+};
 
 export function SalesScreen() {
   const styles = useThemeStyles(makeStyles);
-  const {colors: palette} = useTheme();
-  const {data, error, loading, reload} = useQueryState(usePartyBalances());
+  const {data: settings} = useSettings();
+  const createInvoice = useCreateInvoice();
 
-  // Recent invoices power the per-party "last invoice" line and the
-  // record-payment shortcut (same modal as before — a real feature).
-  const {data: recent} = useQueryState(useInvoices({pageSize: 50}));
+  // Bill state
+  const [items, setItems] = useState<BillItem[]>([]);
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [includeDelivery, setIncludeDelivery] = useState(true);
+  const [deliveryCharge, setDeliveryCharge] = useState('');
+  const [busy, setBusy] = useState(false);
 
-  const [filter, setFilter] = useState<BalanceFilter>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Template settings (same model as web + desktop)
+  const [template, setTemplate] = useState<BillTemplate>('jewellery');
+  const [classicColor, setClassicColor] = useState<BillClassicColor>('red');
+  const [twoInOne, setTwoInOne] = useState(false);
+  const [mode, setMode] = useState<BillMode>('duplicate');
 
-  // Payment modal (real feature: useRecordInvoicePayment flow lives in the
-  // Invoices screen; here we deep-link instead of duplicating it).
-  // Add-party modal (real feature: useCreateParty).
-  const [addOpen, setAddOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [type, setType] = useState<'CUSTOMER' | 'SUPPLIER' | 'WORKER' | 'OTHER'>('CUSTOMER');
-  const [saving, setSaving] = useState(false);
-  const createParty = useCreateParty();
+  // Barcode scanner
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanCode, setScanCode] = useState<string | null>(null);
+  const [scanMsg, setScanMsg] = useState('');
+  const scanningRef = useRef(false);
 
-  const balances = data?.balances ?? [];
+  // Duplicate product warning
+  const [dupProduct, setDupProduct] = useState<ProductDto | null>(null);
+  const [dupQty, setDupQty] = useState(1);
 
-  const filtered = useMemo(() => {
-    switch (filter) {
-      case 'get':
-        return balances.filter((p) => p.balance > 0.001);
-      case 'give':
-        return balances.filter((p) => p.balance < -0.001);
-      case 'settled':
-        return balances.filter((p) => Math.abs(p.balance) <= 0.001);
-      default:
-        return balances;
-    }
-  }, [balances, filter]);
+  const scanQ = useProductByBarcode(scanCode);
 
-  const youllGet = data?.receivables.reduce((s, p) => s + p.balance, 0) ?? 0;
-  const youllGive = Math.abs(data?.payables.reduce((s, p) => s + p.balance, 0) ?? 0);
-  const netOwed = youllGet - youllGive;
-  const activeParties = balances.filter((p) => Math.abs(p.balance) > 0.001).length;
-
-  /** Latest invoice per party (by date) for the card footer line. */
-  const lastInvoiceByParty = useMemo(() => {
-    const map = new Map<string, InvoiceDto>();
-    for (const inv of recent?.invoices ?? []) {
-      if (!inv.partyId) continue;
-      const existing = map.get(inv.partyId);
-      if (!existing || existing.date < inv.date) map.set(inv.partyId, inv);
-    }
-    return map;
-  }, [recent]);
-
-  function goToParties() {
-    useAppStore.getState().setActiveView('parties');
+  // Handle barcode detected
+  function handleScanDetected(code: string) {
+    if (scanningRef.current) return;
+    scanningRef.current = true;
+    setScanMsg('');
+    setScanCode(code);
   }
 
-  function openReports() {
-    useNavStore.getState().openMore('reports');
-    useAppStore.getState().setActiveView('more');
+  // Handle scan result
+  React.useEffect(() => {
+    if (!scanCode) return;
+    if (scanQ.data) {
+      scanningRef.current = false;
+      setScanOpen(false);
+      const product = scanQ.data;
+      // Check if already in bill
+      const existing = items.find(i => i.product.id === product.id);
+      if (existing) {
+        setDupProduct(product);
+        setDupQty(existing.quantity + 1);
+      } else {
+        setItems(prev => [...prev, {product, quantity: 1, price: product.sellingPrice}]);
+        successFeedback(`${product.name} added`);
+      }
+      setScanCode(null);
+    } else if (scanQ.isError) {
+      scanningRef.current = false;
+      const msg = scanQ.error?.message?.includes('404')
+        ? `No product with barcode ${scanCode}`
+        : 'Barcode lookup failed';
+      errorFeedback(msg);
+      setScanCode(null);
+    }
+  }, [scanCode, scanQ.data, scanQ.isError, scanQ.error]);
+
+  // Add duplicate product with new qty
+  function confirmDup() {
+    if (!dupProduct) return;
+    setItems(prev =>
+      prev.map(i =>
+        i.product.id === dupProduct.id ? {...i, quantity: dupQty} : i,
+      ),
+    );
+    setDupProduct(null);
+    setDupQty(1);
   }
 
-  async function handleShareStatement() {
+  // Update item quantity
+  function updateQty(productId: string, delta: number) {
+    setItems(prev =>
+      prev
+        .map(i =>
+          i.product.id === productId
+            ? {...i, quantity: Math.max(1, i.quantity + delta)}
+            : i,
+        ),
+    );
+  }
+
+  // Update item price
+  function updatePrice(productId: string, price: number) {
+    setItems(prev =>
+      prev.map(i =>
+        i.product.id === productId ? {...i, price: Math.max(0, price)} : i,
+      ),
+    );
+  }
+
+  // Remove item
+  function removeItem(productId: string) {
+    setItems(prev => prev.filter(i => i.product.id !== productId));
+  }
+
+  // Totals
+  const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
+  const total = subtotal + (includeDelivery ? (Number(deliveryCharge) || 0) : 0);
+
+  // Complete sale
+  async function handleComplete() {
+    if (items.length === 0) {
+      errorFeedback('Add at least one product');
+      return;
+    }
+    if (items.some(i => i.price <= 0)) {
+      errorFeedback('All items must have a price greater than 0');
+      return;
+    }
+    setBusy(true);
     try {
-      const lines = balances.map(
-        (p) =>
-          `${p.name} (${p.type}) — ${p.balance > 0 ? 'they owe us' : p.balance < 0 ? 'we owe them' : 'settled'}: ${money(Math.abs(p.balance))}`,
-      );
-      const summary =
-        `Khata Net Status\n` +
-        `You'll Get: ${money(youllGet)}\n` +
-        `You'll Give: ${money(youllGive)}\n` +
-        `Net Owed: ${money(netOwed)}\n\n${lines.join('\n')}`;
-      await Share.share({title: 'Khata Statement', message: summary});
-      successFeedback('Khata statement shared');
-    } catch {
-      // user cancelled the share sheet
-    }
-  }
-
-  async function handleAddParty() {
-    if (!name.trim()) return;
-    setSaving(true);
-    try {
-      await createParty.mutateAsync({
-        name: name.trim(),
-        phone: phone.trim() || undefined,
-        type,
+      const templateSettings: BillTemplateSettings = {template, classicColor, twoInOne, mode};
+      const invoice = await createInvoice.mutateAsync({
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        date: new Date().toISOString(),
+        items: items.map(i => ({
+          productId: i.product.id,
+          productName: i.product.name,
+          sku: i.product.sku,
+          color: i.product.color || undefined,
+          size: i.product.size || undefined,
+          quantity: i.quantity,
+          price: i.price,
+        })),
+        amountPaid: subtotal + (includeDelivery ? (Number(deliveryCharge) || 0) : 0),
+        paymentMethod: 'cash',
+        deliveryCharge: includeDelivery ? (Number(deliveryCharge) || 0) : 0,
+        templateSettings,
+        shopDetails: settings
+          ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones ?? [], email: settings.shopEmail ?? ''}
+          : undefined,
       });
-      successFeedback(`${name.trim()} added`);
-      setAddOpen(false);
-      setName('');
-      setPhone('');
-      setType('CUSTOMER');
+
+      // Generate and share PDF
+      const shop = settings ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones ?? [], email: settings.shopEmail ?? ''} : {name: 'My Shop', address: '', phones: [], email: ''};
+      const doc = buildBillDocument({
+        billNo: invoice.invoiceNumber,
+        date: invoice.date,
+        customerName: invoice.customerName,
+        customerPhone: invoice.customerPhone,
+        customerAddress: invoice.customerAddress,
+        shop,
+        lines: invoice.items.map(it => ({
+          productName: it.productName,
+          sku: it.sku,
+          color: it.color,
+          size: it.size,
+          quantity: it.quantity,
+          price: it.price,
+        })),
+        discount: invoice.discount,
+        deliveryCharge: invoice.deliveryCharge,
+        amountPaid: invoice.amountPaid,
+        status: invoice.status,
+      });
+      const html = renderBillHtml(doc);
+      const {uri} = await Print.printToFileAsync({html, base64: false});
+
+      // Save to Downloads (Android) or share (iOS)
+      await savePdf(uri, doc.billNo);
+
+      // Reset
+      setItems([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      successFeedback('Sale completed');
     } catch {
-      errorFeedback('Failed to add party');
+      errorFeedback('Failed to create sale');
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   }
-
-  const FILTERS: {key: BalanceFilter; label: string}[] = [
-    {key: 'all', label: 'All'},
-    {key: 'get', label: "You'll Get"},
-    {key: 'give', label: "You'll Give"},
-    {key: 'settled', label: 'Settled'},
-  ];
 
   return (
     <Screen>
       <HomeHeader title="Sales" />
 
-      {error ? (
-        <ErrorBox message={error} onRetry={reload} />
-      ) : loading || !data ? (
-        <Loading />
-      ) : (
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          {...headerScrollHandlers}>
-          {/* KHATA NET STATUS header strip */}
-          <View style={styles.netStatusRow}>
-            <Text style={styles.netStatusTitle}>KHATA NET STATUS</Text>
-            <Pressable
-              onPress={() => {
-                selectionTick();
-                goToParties();
-              }}
-              style={({pressed}) => [styles.activePartiesPill, pressed && styles.pressed]}>
-              <Text style={styles.activePartiesText}>⚙ {activeParties} Active Parties</Text>
-            </Pressable>
+      <KeyboardAvoidingView style={{flex: 1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{paddingBottom: spacing.xxxl}}
+        {...headerScrollHandlers}>
+        {/* Scan button */}
+        <Card style={{marginHorizontal: CARD_MARGIN}} index={0}>
+          <Pressable
+            onPress={() => { selectionTick(); setScanOpen(true); }}
+            style={styles.scanButton}>
+            <View style={styles.scanIcon}>
+              <Camera size={rs(20)} color={colors.onPrimary} strokeWidth={2.2} />
+            </View>
+            <View style={{flex: 1}}>
+              <Text style={styles.scanTitle}>Scan barcode</Text>
+              <Text style={styles.scanSubtitle}>Tap to scan a product barcode</Text>
+            </View>
+            <Text style={{color: colors.muted, fontSize: typography.h2}}>›</Text>
+          </Pressable>
+        </Card>
+
+        {/* Template options — same model as web + desktop */}
+        <Card style={{marginHorizontal: CARD_MARGIN, marginTop: GRID_GAP}} index={1}>
+          <Text style={styles.cardTitle}>Bill template</Text>
+          <View style={styles.segmentRow}>
+            {(['jewellery', 'ecommerce'] as const).map(t => (
+              <Pressable
+                key={t}
+                accessibilityRole="button"
+                onPress={() => { selectionTick(); setTemplate(t); }}
+                style={({pressed}) => [
+                  styles.segment,
+                  template === t && styles.segmentActive,
+                  pressed && {opacity: 0.75},
+                ]}>
+                <Text style={[styles.segmentText, template === t && styles.segmentTextActive]}>
+                  {t === 'jewellery' ? 'Classic Jewellery' : 'Modern E-commerce'}
+                </Text>
+              </Pressable>
+            ))}
           </View>
 
-          {/* You'll Get / You'll Give tiles */}
-          <View style={styles.tileRow}>
-            <Pressable
-              onPress={() => {
-                selectionTick();
-                setFilter('get');
-              }}
-              style={({pressed}) => [styles.tile, pressed && styles.pressed]}>
-              <View style={styles.tileLabelRow}>
-                <View style={[styles.tileDot, {backgroundColor: palette.danger}]} />
-                <Text style={styles.tileLabel}>You'll Get</Text>
+          {template === 'jewellery' ? (
+            <>
+              <Text style={[styles.cardTitle, {marginTop: spacing.sm}]}>Classic color</Text>
+              <View style={styles.colorRow}>
+                {(['red', 'yellow'] as const).map(c => (
+                  <Pressable
+                    key={c}
+                    accessibilityRole="button"
+                    onPress={() => { selectionTick(); setClassicColor(c); }}
+                    style={({pressed}) => [
+                      styles.colorDotWrap,
+                      classicColor === c && styles.colorDotActive,
+                      pressed && {opacity: 0.75},
+                    ]}>
+                    <View style={[styles.colorDot, {backgroundColor: swatchColor(c)}]} />
+                  </Pressable>
+                ))}
+                <Text style={styles.colorHint}>
+                  {classicColor === 'red' ? 'Red theme' : 'Yellow theme'}
+                </Text>
               </View>
-              <Text style={[styles.tileValue, {color: palette.danger}]} numberOfLines={1} adjustsFontSizeToFit>
-                {money(youllGet)}
-              </Text>
-              <Text style={styles.tileSub}>{data.receivables.length} Customers</Text>
-            </Pressable>
-            <Pressable
-              onPress={() => {
-                selectionTick();
-                setFilter('give');
-              }}
-              style={({pressed}) => [styles.tile, pressed && styles.pressed]}>
-              <View style={styles.tileLabelRow}>
-                <View style={[styles.tileDot, {backgroundColor: palette.success}]} />
-                <Text style={styles.tileLabel}>You'll Give</Text>
-              </View>
-              <Text style={[styles.tileValue, {color: palette.success}]} numberOfLines={1} adjustsFontSizeToFit>
-                {money(youllGive)}
-              </Text>
-              <Text style={styles.tileSub}>Karigar / Vendor</Text>
-            </Pressable>
-          </View>
-
-          {/* Get vs Give composition — chart view of the ledger split */}
-          {(youllGet > 0 || youllGive > 0) ? (
-            <Card style={styles.donutCard}>
-              <DonutChart
-                segments={[
-                  {name: "You'll Get", value: youllGet, color: palette.danger},
-                  {name: "You'll Give", value: youllGive, color: palette.success},
-                ]}
-                centerValue={money(Math.abs(netOwed))}
-                centerSub="Net Owed"
-                size={rw(132)}
-                thickness={rs(16)}
-                onSegmentPress={(name) => setFilter(name === "You'll Get" ? 'get' : 'give')}
-              />
-            </Card>
+            </>
           ) : null}
 
-          {/* Net owed strip */}
-          <View style={[styles.netOwedStrip, {borderColor: palette.border}]}>
-            <Text style={styles.netOwedLabel}>Net Owed</Text>
-            <Text style={[styles.netOwedValue, {color: netOwed >= 0 ? palette.danger : palette.success}]}>
-              {money(Math.abs(netOwed))}
-            </Text>
+          <View style={styles.toggleRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.toggleLabel}>2-in-1 bill</Text>
+              <Text style={{fontSize: typography.caption, color: colors.muted}}>Two bills on one page</Text>
+            </View>
+            <Switch
+              value={twoInOne}
+              onValueChange={value => { selectionTick(); setTwoInOne(value); }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.card}
+            />
           </View>
 
-          {/* Filter chips */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipsRow}>
-            {FILTERS.map((chip) => {
-              const active = filter === chip.key;
-              return (
-                <Pressable
-                  key={chip.key}
-                  onPress={() => {
-                    selectionTick();
-                    setFilter(chip.key);
-                  }}
-                  style={[
-                    styles.chip,
-                    active && {backgroundColor: palette.primary, borderColor: palette.primary},
-                  ]}>
-                  <Text style={[styles.chipText, active && {color: palette.onPrimary}]}>{chip.label}</Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
-
-          {/* Party cards */}
-          {filtered.length === 0 ? (
-            <Card style={styles.card}>
-              <Empty text="No parties in this view yet — add one below" />
-            </Card>
-          ) : (
-            filtered.map((party, i) => {
-              const expanded = expandedId === party.id;
-              const owesUs = party.balance > 0.001;
-              const weOwe = party.balance < -0.001;
-              const settled = !owesUs && !weOwe;
-              const lastInvoice = party.id ? lastInvoiceByParty.get(party.id) : undefined;
-              return (
-                <Card key={party.id} style={styles.card} index={i}>
+          {twoInOne ? (
+            <>
+              <Text style={[styles.cardTitle, {marginTop: spacing.sm}]}>Mode</Text>
+              <View style={styles.segmentRow}>
+                {(['duplicate', 'distinct'] as const).map(m => (
                   <Pressable
-                    onPress={() => {
-                      selectionTick();
-                      setExpandedId(expanded ? null : party.id);
-                    }}
-                    style={styles.partyHead}>
-                    <Avatar name={party.name} tint={owesUs ? palette.primary : weOwe ? palette.success : palette.muted} />
-                    <View style={{flex: 1, minWidth: 0, marginLeft: spacing.sm}}>
-                      <View style={styles.nameRow}>
-                        <Text style={styles.partyName} numberOfLines={1}>
-                          {party.name}
-                        </Text>
-                        <Text style={styles.partyType} numberOfLines={1}>
-                          {party.type === 'WORKER' ? 'Karigar' : party.type === 'SUPPLIER' ? 'Supplier' : party.type === 'OTHER' ? 'Other' : 'Customer'}
-                        </Text>
-                      </View>
-                      {party.phone ? (
-                        <Text style={styles.partyPhone} numberOfLines={1}>
-                          <Phone size={rs(10)} color={palette.muted} /> {party.phone}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View style={{alignItems: 'flex-end', gap: rs(3)}}>
-                      <Text
-                        style={[
-                          styles.partyBalance,
-                          {color: owesUs ? palette.danger : weOwe ? palette.success : palette.muted},
-                        ]}
-                        numberOfLines={1}>
-                        {money(Math.abs(party.balance))}
-                      </Text>
-                      {/* Ledger semantics: balance > 0 → they owe us (we'll get);
-                        balance < 0 → we owe them (we'll give). */}
-                      {owesUs ? (
-                        <Badge text="OWES YOU" tone="muted" />
-                      ) : weOwe ? (
-                        <Badge text="YOU OWE" tone="success" />
-                      ) : (
-                        <Badge text="Settled" tone="success" />
-                      )}
-                    </View>
+                    key={m}
+                    accessibilityRole="button"
+                    onPress={() => { selectionTick(); setMode(m); }}
+                    style={({pressed}) => [
+                      styles.segment,
+                      mode === m && styles.segmentActive,
+                      pressed && {opacity: 0.75},
+                    ]}>
+                    <Text style={[styles.segmentText, mode === m && styles.segmentTextActive]}>
+                      {m === 'duplicate' ? 'Duplicate' : 'Separate'}
+                    </Text>
                   </Pressable>
-
-                  {/* Expanded details — real per-party figures from the ledger model */}
-                  {expanded ? (
-                    <View style={styles.partyDetail}>
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Advances given (open)</Text>
-                        <Text style={styles.detailValue}>{money(party.given)}</Text>
-                      </View>
-                      <View style={styles.detailRow}>
-                        <Text style={styles.detailLabel}>Advances taken (open)</Text>
-                        <Text style={styles.detailValue}>{money(party.taken)}</Text>
-                      </View>
-                      {lastInvoice ? (
-                        <View style={styles.detailRow}>
-                          <Text style={styles.detailLabel}>Last invoice</Text>
-                          <Text style={styles.detailValue}>
-                            {lastInvoice.invoiceNumber} · {formatDate(lastInvoice.date)}
-                          </Text>
-                        </View>
-                      ) : null}
-                      <View style={styles.detailActions}>
-                        <Button
-                          title="Record payment"
-                          variant="outline"
-                          size="small"
-                          onPress={() => goToParties()}
-                        />
-                        <Button
-                          title="Open khata"
-                          variant="outline"
-                          size="small"
-                          onPress={() => goToParties()}
-                        />
-                      </View>
-                    </View>
-                  ) : null}
-                </Card>
-              );
-            })
-          )}
-
-          {/* Download statement — real share feature, no fake export buttons */}
-          <Card style={styles.card} index={0}>
-            <Pressable
-              onPress={() => {
-                selectionTick();
-                void handleShareStatement();
-              }}
-              style={({pressed}) => [styles.statementRow, pressed && styles.pressed]}>
-              <FileDown size={rs(20)} color={palette.primary} />
-              <View style={{flex: 1, marginLeft: spacing.sm}}>
-                <Text style={styles.statementTitle}>Share Khata Statement</Text>
-                <Text style={styles.statementSub}>All party balances — for CA / records</Text>
+                ))}
               </View>
-            </Pressable>
-          </Card>
+            </>
+          ) : null}
+        </Card>
 
-          {/* Add party CTA */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add new party or advance"
-            onPress={() => {
-              actionPress();
-              setAddOpen(true);
-            }}
-            style={({pressed}) => [styles.cta, pressed && styles.ctaPressed]}>
-            <UserPlus size={rs(20)} color={palette.onPrimary} strokeWidth={2.4} />
-            <Text style={styles.ctaText}>+ Add New Party / Advance</Text>
-          </Pressable>
-        </ScrollView>
-      )}
+        {/* Customer info */}
+        <Card style={{marginHorizontal: CARD_MARGIN, marginTop: GRID_GAP}} index={2}>
+          <Text style={styles.cardTitle}>Customer (optional)</Text>
+          <Field label="Name" value={customerName} onChangeText={setCustomerName} placeholder="Walk-in customer" />
+          <Field label="Phone" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" placeholder="Optional" />
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Include delivery charge</Text>
+            <Switch
+              value={includeDelivery}
+              onValueChange={setIncludeDelivery}
+              trackColor={{false: colors.border, true: colors.primary}}
+              thumbColor={colors.card}
+            />
+          </View>
+          {includeDelivery && (
+            <Field label="Delivery charge" value={deliveryCharge} onChangeText={setDeliveryCharge} keyboardType="numeric" placeholder="0" />
+          )}
+        </Card>
 
-      {/* Add party — centered modal (real useCreateParty feature) */}
-      <ModalSheet
-        visible={addOpen}
-        title="Add new party"
-        onClose={() => setAddOpen(false)}
-        dismissable={!saving}
-        centered
-        scrollable>
-        <Field label="Party name *" value={name} onChangeText={setName} placeholder="e.g. Jeetu Karigar" />
-        <Field label="Phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" />
-        <View style={styles.typeRow}>
-          {(['CUSTOMER', 'SUPPLIER', 'WORKER', 'OTHER'] as const).map((t) => (
-            <Pressable
-              key={t}
-              onPress={() => {
-                selectionTick();
-                setType(t);
-              }}
-              style={[styles.typeChip, type === t && {backgroundColor: palette.primary, borderColor: palette.primary}]}>
-              <Text style={[styles.typeChipText, type === t && {color: palette.onPrimary}]}>
-                {t === 'WORKER' ? 'Karigar' : t === 'SUPPLIER' ? 'Supplier' : t === 'OTHER' ? 'Other' : 'Customer'}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        <Button
-          title={saving ? 'Saving…' : 'Add party'}
-          onPress={() => void handleAddParty()}
-          loading={saving}
-          disabled={!name.trim()}
-        />
+        {/* Bill items */}
+        <Card style={{marginHorizontal: CARD_MARGIN, marginTop: GRID_GAP}} index={3}>
+          <View style={styles.billHeader}>
+            <ShoppingCart size={rs(16)} color={colors.primary} strokeWidth={2.2} />
+            <Text style={styles.cardTitle}>Bill items</Text>
+            <Text style={styles.itemCount}>{items.length}</Text>
+          </View>
+
+          {items.length === 0 ? (
+            <Empty text="Scan a barcode to add products." />
+          ) : (
+            <>
+              {items.map(item => (
+                <View key={item.product.id} style={styles.billItem}>
+                  <View style={styles.billItemTop}>
+                    <View style={{flex: 1, minWidth: 0}}>
+                      <Text style={styles.itemName} numberOfLines={1}>{item.product.name}</Text>
+                      <Text style={styles.itemMeta}>
+                        {[item.product.sku, item.product.color, item.product.size].filter(Boolean).join(' · ')}
+                      </Text>
+                    </View>
+                    <Pressable onPress={() => removeItem(item.product.id)} hitSlop={8}>
+                      <Trash2 size={rs(16)} color={colors.danger} strokeWidth={2} />
+                    </Pressable>
+                  </View>
+                  <View style={styles.billItemBottom}>
+                    <View style={styles.qtyRow}>
+                      <Pressable onPress={() => updateQty(item.product.id, -1)} style={styles.qtyBtn}>
+                        <Minus size={rs(14)} color={colors.text} strokeWidth={2.5} />
+                      </Pressable>
+                      <Text style={styles.qtyText}>{item.quantity}</Text>
+                      <Pressable onPress={() => updateQty(item.product.id, 1)} style={styles.qtyBtn}>
+                        <Plus size={rs(14)} color={colors.text} strokeWidth={2.5} />
+                      </Pressable>
+                    </View>
+                    <Text style={styles.itemTotal}>{money(item.quantity * item.price)}</Text>
+                  </View>
+                </View>
+              ))}
+
+              {/* Total */}
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Subtotal</Text>
+                <Text style={styles.totalValue}>{money(subtotal)}</Text>
+              </View>
+              {includeDelivery && (Number(deliveryCharge) || 0) > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Delivery</Text>
+                  <Text style={styles.totalValue}>+{money(Number(deliveryCharge) || 0)}</Text>
+                </View>
+              ) : null}
+              <View style={[styles.totalRow, {borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm}]}>
+                <Text style={[styles.totalLabel, {fontWeight: '800'}]}>Total</Text>
+                <Text style={[styles.totalValue, {color: colors.primary}]}>{money(total)}</Text>
+              </View>
+
+              <Button
+                title={busy ? 'Completing…' : `Complete sale — ${money(total)}`}
+                onPress={handleComplete}
+                loading={busy}
+                disabled={items.length === 0 || busy}
+              />
+            </>
+          )}
+        </Card>
+      </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Barcode scanner */}
+      <BarcodeScannerModal
+        visible={scanOpen}
+        onClose={() => { setScanOpen(false); setScanCode(null); scanningRef.current = false; }}
+        onDetected={handleScanDetected}
+        message={scanMsg}
+      />
+
+      {/* Duplicate product dialog */}
+      <ModalSheet visible={!!dupProduct} title="Product already in bill" onClose={() => setDupProduct(null)} centered>
+        {dupProduct ? (
+          <>
+            <Text style={{fontSize: typography.body, color: colors.text, marginBottom: spacing.md}}>
+              {dupProduct.name} is already in the bill. Update quantity?
+            </Text>
+            <View style={styles.dupQtyRow}>
+              <Pressable onPress={() => setDupQty(q => Math.max(1, q - 1))} style={styles.qtyBtn}>
+                <Minus size={rs(14)} color={colors.text} strokeWidth={2.5} />
+              </Pressable>
+              <Text style={styles.qtyText}>{dupQty}</Text>
+              <Pressable onPress={() => setDupQty(q => q + 1)} style={styles.qtyBtn}>
+                <Plus size={rs(14)} color={colors.text} strokeWidth={2.5} />
+              </Pressable>
+            </View>
+            <Button title="Update quantity" onPress={confirmDup} />
+          </>
+        ) : null}
       </ModalSheet>
     </Screen>
   );
 }
 
-const makeStyles = (c: MobileColors) =>
+const GRID_GAP = spacing.sm;
+
+const makeStyles = () =>
   StyleSheet.create({
-    scrollContent: {
-      paddingBottom: spacing.xxxl,
-    },
-    pressed: {opacity: 0.65},
-    card: {
-      marginHorizontal: CARD_MARGIN,
-    },
-    /* Net status header */
-    netStatusRow: {
+    scanButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      marginHorizontal: CARD_MARGIN,
-      marginTop: spacing.xs,
-      marginBottom: spacing.sm,
-      paddingRight: 2,
+      gap: spacing.md,
+      paddingVertical: spacing.md,
     },
-    netStatusTitle: {
-      fontSize: typography.label,
-      fontWeight: '800',
-      letterSpacing: 0.8,
-      color: c.muted,
-    },
-    activePartiesPill: {
-      borderRadius: radii.full,
-      backgroundColor: c.mutedBg,
-      paddingHorizontal: rs(9),
-      paddingVertical: rs(4),
-    },
-    activePartiesText: {
-      fontSize: typography.caption,
-      fontWeight: '700',
-      color: c.text,
-    },
-    /* Tiles */
-    tileRow: {
-      flexDirection: 'row',
-      gap: rs(8),
-      marginHorizontal: CARD_MARGIN,
-    },
-    tile: {
-      flex: 1,
-      backgroundColor: c.card,
-      borderWidth: 1,
-      borderColor: c.border,
+    scanIcon: {
+      width: rs(40),
+      height: rs(40),
       borderRadius: radii.md,
-      padding: spacing.md,
-    },
-    tileLabelRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: rs(5),
-    },
-    tileDot: {
-      width: rs(7),
-      height: rs(7),
-      borderRadius: radii.full,
-    },
-    tileLabel: {
-      fontSize: typography.caption,
-      fontWeight: '700',
-      color: c.muted,
-    },
-    tileValue: {
-      fontSize: typography.h2,
-      fontWeight: '800',
-      marginTop: rs(4),
-    },
-    tileSub: {
-      fontSize: typography.caption,
-      color: c.muted,
-      marginTop: rs(2),
-    },
-    /* Get vs Give donut card */
-    donutCard: {
-      marginHorizontal: CARD_MARGIN,
-      marginTop: rs(10),
-    },
-    /* Net owed strip */
-    netOwedStrip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'flex-end',
-      gap: rs(8),
-      marginHorizontal: CARD_MARGIN,
-      marginTop: rs(8),
-      borderRadius: radii.md,
-      borderWidth: 1,
-      paddingHorizontal: spacing.md,
-      paddingVertical: rs(8),
-      backgroundColor: c.card,
-    },
-    netOwedLabel: {
-      fontSize: typography.caption,
-      fontWeight: '600',
-      color: c.muted,
-    },
-    netOwedValue: {
-      fontSize: typography.body,
-      fontWeight: '800',
-    },
-    /* Filter chips */
-    chipsRow: {
-      flexDirection: 'row',
-      gap: rs(8),
-      paddingHorizontal: CARD_MARGIN,
-      paddingVertical: spacing.sm,
-    },
-    chip: {
-      paddingHorizontal: rs(12),
-      paddingVertical: rs(6),
-      borderRadius: radii.full,
-      borderWidth: 1,
-      borderColor: c.border,
-      backgroundColor: c.card,
-    },
-    chipText: {
-      fontSize: typography.caption,
-      fontWeight: '600',
-      color: c.muted,
-    },
-    /* Party cards */
-    partyHead: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    nameRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: rs(6),
-    },
-    partyName: {
-      flexShrink: 1,
-      fontSize: typography.body,
-      fontWeight: '700',
-      color: c.text,
-    },
-    partyType: {
-      fontSize: typography.caption,
-      color: c.muted,
-      flexShrink: 0,
-    },
-    partyPhone: {
-      fontSize: typography.caption,
-      color: c.muted,
-      marginTop: rs(2),
-    },
-    partyBalance: {
-      fontSize: typography.body,
-      fontWeight: '800',
-    },
-    partyDetail: {
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: c.border,
-      marginTop: spacing.sm,
-      paddingTop: spacing.sm,
-      gap: rs(6),
-    },
-    detailRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    detailLabel: {
-      fontSize: typography.secondary,
-      color: c.muted,
-    },
-    detailValue: {
-      fontSize: typography.secondary,
-      fontWeight: '700',
-      color: c.text,
-    },
-    detailActions: {
-      flexDirection: 'row',
-      gap: rs(8),
-      marginTop: rs(4),
-    },
-    /* Statement card */
-    statementRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    statementTitle: {
-      fontSize: typography.body,
-      fontWeight: '700',
-      color: c.text,
-    },
-    statementSub: {
-      fontSize: typography.caption,
-      color: c.muted,
-      marginTop: rs(1),
-    },
-    /* CTA */
-    cta: {
-      flexDirection: 'row',
+      backgroundColor: colors.primary,
       alignItems: 'center',
       justifyContent: 'center',
-      gap: rs(8),
-      backgroundColor: c.primary,
-      borderRadius: radii.lg,
-      minHeight: 52,
-      marginHorizontal: CARD_MARGIN,
-      marginTop: spacing.md,
     },
-    ctaPressed: {opacity: 0.85},
-    ctaText: {
-      fontSize: typography.body,
+    scanTitle: {fontSize: typography.body, fontWeight: '700', color: colors.text},
+    scanSubtitle: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
+    cardTitle: {fontSize: typography.h3, fontWeight: '700', color: colors.text, marginBottom: spacing.md},
+    billHeader: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: spacing.md},
+    itemCount: {
+      fontSize: typography.caption,
       fontWeight: '700',
-      color: c.onPrimary,
+      color: colors.onPrimary,
+      backgroundColor: colors.primary,
+      borderRadius: radii.sm,
+      paddingHorizontal: rs(8),
+      paddingVertical: rs(2),
+      overflow: 'hidden',
     },
-    /* Type chips */
-    typeRow: {
+    billItem: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingTop: spacing.md,
+      paddingBottom: spacing.md,
+    },
+    billItemTop: {flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm},
+    itemName: {fontSize: typography.secondary, fontWeight: '600', color: colors.text},
+    itemMeta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
+    billItemBottom: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
+    qtyRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
+    qtyBtn: {
+      width: rs(28),
+      height: rs(28),
+      borderRadius: radii.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.card,
+    },
+    qtyText: {fontSize: typography.body, fontWeight: '700', color: colors.text, minWidth: rs(24), textAlign: 'center'},
+    itemTotal: {fontSize: typography.body, fontWeight: '700', color: colors.primary},
+    totalRow: {
       flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: rs(8),
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingTop: spacing.md,
+      marginTop: spacing.sm,
       marginBottom: spacing.md,
     },
-    typeChip: {
+    totalLabel: {fontSize: typography.h3, fontWeight: '700', color: colors.text},
+    totalValue: {fontSize: typography.h2, fontWeight: '800', color: colors.primary},
+    toggleRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm, paddingTop: spacing.sm, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border},
+    toggleLabel: {fontSize: typography.secondary, fontWeight: '600', color: colors.text},
+    segmentRow: {flexDirection: 'row', gap: spacing.sm},
+    segment: {
+      flex: 1,
       borderWidth: 1,
-      borderColor: c.border,
-      borderRadius: radii.full,
-      paddingHorizontal: rs(12),
-      paddingVertical: rs(6),
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      backgroundColor: colors.card,
     },
-    typeChipText: {
-      fontSize: typography.caption,
-      fontWeight: '600',
-      color: c.muted,
+    segmentActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    segmentText: {fontSize: typography.caption, fontWeight: '600', color: colors.muted},
+    segmentTextActive: {color: colors.onPrimary},
+    colorRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
+    colorDotWrap: {
+      width: rs(36),
+      height: rs(36),
+      borderRadius: rs(18),
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
+    colorDotActive: {borderColor: colors.primary, borderWidth: 2.5},
+    colorDot: {width: rs(22), height: rs(22), borderRadius: rs(11)},
+    colorHint: {fontSize: typography.caption, color: colors.muted, marginLeft: spacing.xs},
+    dupQtyRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.lg, marginVertical: spacing.md},
   });

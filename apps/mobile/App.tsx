@@ -26,7 +26,6 @@ import {
   Home,
   Package,
   ShoppingCart,
-  FileText,
   Users,
   LayoutGrid,
 } from 'lucide-react-native';
@@ -41,18 +40,16 @@ import {ToastProvider} from './src/lib/toast';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
-import {BillingScreen} from './src/screens/BillingScreen';
-import {PartiesScreen} from './src/screens/PartiesScreen';
+import {AdvancesScreen} from './src/screens/AdvancesScreen';
 import {MoreScreen} from './src/screens/MoreScreen';
 
-type Tab = 'home' | 'products' | 'sales' | 'billing' | 'parties' | 'more';
+type Tab = 'home' | 'products' | 'sales' | 'advances' | 'more';
 
 const TABS: {key: Tab; label: string; icon: React.ComponentType<{size?: number; color?: string; strokeWidth?: number}>}[] = [
   {key: 'home', label: 'Home', icon: Home},
   {key: 'products', label: 'Stock', icon: Package},
   {key: 'sales', label: 'Sales', icon: ShoppingCart},
-  {key: 'billing', label: 'Bills', icon: FileText},
-  {key: 'parties', label: 'Khata', icon: Users},
+  {key: 'advances', label: 'Khata', icon: Users},
   {key: 'more', label: 'More', icon: LayoutGrid},
 ];
 
@@ -165,8 +162,7 @@ function AppInner() {
               {tab === 'home' ? <HomeScreen /> : null}
               {tab === 'products' ? <ProductsScreen /> : null}
               {tab === 'sales' ? <SalesScreen /> : null}
-              {tab === 'billing' ? <BillingScreen /> : null}
-              {tab === 'parties' ? <PartiesScreen /> : null}
+              {tab === 'advances' ? <AdvancesScreen /> : null}
               {tab === 'more' ? <MoreScreen /> : null}
             </Animated.View>
           </View>

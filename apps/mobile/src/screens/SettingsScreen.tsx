@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from 'react';
-import {ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
+import {ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
 import {KeyRound} from 'lucide-react-native';
 import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {
@@ -292,6 +292,7 @@ export function SettingsScreen() {
 
   return (
     <Screen>
+      <KeyboardAvoidingView style={{flex: 1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}} {...headerScrollHandlers}>
       <HomeHeader title="Settings" />
       {urlLoaded && !url.trim() ? (
@@ -593,6 +594,7 @@ export function SettingsScreen() {
       </Card>
       </View>
       </ScrollView>
+      </KeyboardAvoidingView>
 
       <ModalSheet
         visible={testOpen}

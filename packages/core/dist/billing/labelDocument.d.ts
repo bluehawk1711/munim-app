@@ -13,10 +13,17 @@ export type ProductLabel = {
     productName: string;
     sku: string;
     barcode: string | null;
+    /** Product type: Gold, Silver, Diamond, Platinum, Other. */
+    productType: string;
     /** Weight value. */
     weightMg: number | null;
     /** Display unit: "mg" or "gm". */
     weightUnit: string;
+    /** Jewelry-specific weight fields (free text). */
+    grossWeight: string | null;
+    nagLessWeight: string | null;
+    chejatWeight: string | null;
+    netWeight: string | null;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
     purity: string | null;
     color: string | null;
@@ -34,8 +41,13 @@ export declare function buildProductLabel(product: {
     name: string;
     sku: string;
     barcode: string | null;
+    type?: string;
     weight: number | null;
     weightUnit?: string;
+    grossWeight?: string | null;
+    nagLessWeight?: string | null;
+    chejatWeight?: string | null;
+    netWeight?: string | null;
     purity?: string | null;
     sellingPrice: number;
     colorName?: string | null;
@@ -46,7 +58,8 @@ export declare function buildProductLabel(product: {
 export declare const LABEL_WIDTH_MM = 63.5;
 export declare const LABEL_HEIGHT_MM = 33.9;
 /** Renders ONE label's inner markup (shared by the sheet + previews).
- * Side-by-side: LEFT = name + weight, RIGHT = barcode.
+ * Silver: LEFT = name + " - sil" + purity + weight, RIGHT = barcode
+ * Gold:   LEFT = name + weight + 4 weight fields, RIGHT = barcode
  */
 export declare function renderLabelMarkup(label: ProductLabel): string;
 export type LabelSheetOptions = {

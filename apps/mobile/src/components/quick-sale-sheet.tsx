@@ -121,7 +121,8 @@ export function QuickSaleSheet({
       title="Record sale"
       onClose={onClose}
       centered
-      scrollable>
+      scrollable
+      size="large">
       {summary}
 
       <View style={styles.row}>

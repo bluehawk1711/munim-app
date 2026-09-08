@@ -127,9 +127,14 @@ const PRODUCT_SELECT = {
     id: schema.products.id,
     sku: schema.products.sku,
     name: schema.products.name,
+    type: schema.products.type,
     barcode: schema.products.barcode,
     weight: schema.products.weight,
     weightUnit: schema.products.weightUnit,
+    grossWeight: schema.products.grossWeight,
+    nagLessWeight: schema.products.nagLessWeight,
+    chejatWeight: schema.products.chejatWeight,
+    netWeight: schema.products.netWeight,
     purity: schema.products.purity,
     imageUrl: schema.products.imageUrl,
     stock: schema.products.stock,
@@ -260,9 +265,14 @@ export async function createProduct(db, input) {
         .values({
         sku,
         name: input.name.trim(),
+        type: input.type?.trim() || "Gold",
         barcode,
         weight: typeof input.weight === "number" && Number.isFinite(input.weight) ? input.weight : null,
         weightUnit: input.weightUnit === "mg" || input.weightUnit === "gm" ? input.weightUnit : "gm",
+        grossWeight: input.grossWeight?.trim() || null,
+        nagLessWeight: input.nagLessWeight?.trim() || null,
+        chejatWeight: input.chejatWeight?.trim() || null,
+        netWeight: input.netWeight?.trim() || null,
         purity: input.purity?.trim() || null,
         imageUrl: input.imageUrl?.trim() || null,
         stock: input.stock ?? 0,
@@ -307,6 +317,7 @@ export async function updateProduct(db, id, input) {
         .update(schema.products)
         .set({
         name: input.name.trim(),
+        type: input.type === undefined ? existing.type : input.type?.trim() || "Gold",
         barcode,
         weight: input.weight === undefined
             ? existing.weight
@@ -316,6 +327,10 @@ export async function updateProduct(db, id, input) {
         weightUnit: input.weightUnit === "mg" || input.weightUnit === "gm"
             ? input.weightUnit
             : existing.weightUnit ?? "gm",
+        grossWeight: input.grossWeight === undefined ? existing.grossWeight : input.grossWeight?.trim() || null,
+        nagLessWeight: input.nagLessWeight === undefined ? existing.nagLessWeight : input.nagLessWeight?.trim() || null,
+        chejatWeight: input.chejatWeight === undefined ? existing.chejatWeight : input.chejatWeight?.trim() || null,
+        netWeight: input.netWeight === undefined ? existing.netWeight : input.netWeight?.trim() || null,
         purity: input.purity === undefined ? existing.purity : input.purity?.trim() || null,
         imageUrl: input.imageUrl?.trim() || null,
         stock: input.stock ?? existing.stock,

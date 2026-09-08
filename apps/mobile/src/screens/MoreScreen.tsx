@@ -1,10 +1,10 @@
 import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {
-  ArrowLeftRight,
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  FileText,
   Palette,
   Receipt,
   ScrollText,
@@ -14,7 +14,7 @@ import {colors, Screen} from '../components/ui';
 import {HomeHeader} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {sectionPress} from '../lib/haptics';
-import {AdvancesScreen} from './AdvancesScreen';
+import {BillingScreen} from './BillingScreen';
 import {CatalogScreen} from './CatalogScreen';
 import {InvoicesScreen} from './InvoicesScreen';
 import {JobLettersScreen} from './JobLettersScreen';
@@ -28,8 +28,8 @@ const SECTIONS: {
   subtitle: string;
   icon: React.ComponentType<{size?: number; color?: string; strokeWidth?: number}>;
 }[] = [
+  {key: 'billing', label: 'Bills', subtitle: 'Create & manage invoices', icon: FileText},
   {key: 'invoices', label: 'Invoices', subtitle: 'All bills & statuses', icon: Receipt},
-  {key: 'advances', label: 'Advances', subtitle: 'Whom I gave money, whom I owe', icon: ArrowLeftRight},
   {key: 'letters', label: 'Job Letters', subtitle: 'Offer letters for staff', icon: ScrollText},
   {key: 'reports', label: 'Reports', subtitle: 'Sales, stock & profit', icon: BarChart3},
   {key: 'catalog', label: 'Catalog', subtitle: 'Colors & sizes for products', icon: Palette},
@@ -80,17 +80,17 @@ export function MoreScreen() {
       </SectionView>
     );
   }
+  if (section === 'billing') {
+    return (
+      <SectionView onBack={closeMore}>
+        <BillingScreen />
+      </SectionView>
+    );
+  }
   if (section === 'invoices') {
     return (
       <SectionView onBack={closeMore}>
         <InvoicesScreen />
-      </SectionView>
-    );
-  }
-  if (section === 'advances') {
-    return (
-      <SectionView onBack={closeMore}>
-        <AdvancesScreen />
       </SectionView>
     );
   }

@@ -86,12 +86,12 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         hri: typeof s.hri === "number" && s.hri >= 0 && s.hri <= 3 ? s.hri as 0 | 1 | 2 | 3 : 0,
         copies: typeof s.copies === "number" && s.copies >= 1 && s.copies <= 999 ? s.copies : 1,
         narrow: typeof s.narrow === "number" && s.narrow >= 1 && s.narrow <= 10 ? s.narrow : 2,
-        wide: typeof s.wide === "number" && s.wide >= 2 && s.wide <= 20 ? s.wide : 4,
-        nameY: typeof s.nameY === "number" && s.nameY >= 0 && s.nameY <= 120 ? s.nameY : 20,
-        weightY: typeof s.weightY === "number" && s.weightY >= 0 && s.weightY <= 120 ? s.weightY : 72,
+        wide: typeof s.wide === "number" && s.wide >= 2 && s.wide <= 20 ? s.wide : 3,
+        nameY: typeof s.nameY === "number" && s.nameY >= 0 && s.nameY <= 120 ? s.nameY : 25,
+        weightY: typeof s.weightY === "number" && s.weightY >= 0 && s.weightY <= 120 ? s.weightY : 80,
         leftMarginMm: typeof s.leftMarginMm === "number" && s.leftMarginMm >= 0 && s.leftMarginMm <= 10 ? s.leftMarginMm : 3.5,
-        barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 0,
-        barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 0,
+        barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 305,
+        barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 30,
         showPurity: s.showPurity === true,
       };
     }

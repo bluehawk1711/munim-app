@@ -36,6 +36,8 @@ export type ProductDto = {
   id: string;
   sku: string;
   name: string;
+  /** Product type: Gold, Silver, Diamond, Platinum, Other. */
+  type: string;
   color: string;
   size: string;
   category?: string;
@@ -44,6 +46,11 @@ export type ProductDto = {
   weight: number | null;
   /** Display & calculation unit: "mg" or "gm". */
   weightUnit: string;
+  /** Jewelry-specific weight fields (free text). */
+  grossWeight: string | null;
+  nagLessWeight: string | null;
+  chejatWeight: string | null;
+  netWeight: string | null;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
   purity: string | null;
   imageUrl: string | null;
@@ -61,12 +68,17 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     id: p.id,
     sku: p.sku,
     name: p.name,
+    type: p.type ?? "Gold",
     color: p.colorName ?? "",
     size: p.sizeName ?? "",
     category: p.categoryName ?? "",
     barcode: p.barcode,
     weight: p.weight,
     weightUnit: p.weightUnit ?? "gm",
+    grossWeight: p.grossWeight,
+    nagLessWeight: p.nagLessWeight,
+    chejatWeight: p.chejatWeight,
+    netWeight: p.netWeight,
     purity: p.purity,
     imageUrl: p.imageUrl,
     stock: p.stock,

@@ -509,6 +509,6 @@ const makeStyles = () =>
       paddingVertical: rs(8),
       textAlign: 'center',
     },
-    fabRow: {position: 'absolute', bottom: 24, left: 16, right: 16},
+    fabRow: {position: 'absolute', bottom: 24, left: 16, right: 16, elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: {width: 0, height: 4}},
     fabFull: {flex: 1},
   });

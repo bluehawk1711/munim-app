@@ -16,7 +16,7 @@
 
 import React, {useCallback, useEffect, useMemo} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
-import {Barcode as BarcodeIcon, X} from 'lucide-react-native';
+import {Barcode as BarcodeIcon, ShoppingCart, X} from 'lucide-react-native';
 import {formatWeight, type ProductDto} from '@munim/core';
 import {MunimBottomSheet, BottomSheetScrollView} from './BottomSheet';
 import type BottomSheet from '@gorhom/bottom-sheet';
@@ -32,9 +32,10 @@ type ProductDetailSheetProps = {
   onClose: () => void;
   onEdit: (p: ProductDto) => void;
   onAdjust: (p: ProductDto) => void;
+  onSell: (p: ProductDto) => void;
 };
 
-export function ProductDetailSheet({product, onClose, onEdit, onAdjust}: ProductDetailSheetProps) {
+export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}: ProductDetailSheetProps) {
   const styles = useThemeStyles(makeStyles);
   const sheetRef = React.useRef<BottomSheet>(null);
   // Start CLOSED (-1): the sheet mounts with the screen, and without this it
@@ -183,10 +184,20 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust}: Product
             accessibilityRole="button"
             onPress={() => {
               actionPress();
+              onSell(product);
+            }}
+            style={({pressed}) => [styles.sellBtn, pressed && {opacity: 0.85}]}>
+            <ShoppingCart size={rs(16)} color={colors.onPrimary} strokeWidth={2.2} />
+            <Text style={styles.sellText}>Sell</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              actionPress();
               onEdit(product);
             }}
             style={({pressed}) => [styles.editBtn, pressed && {opacity: 0.7}]}>
-            <Text style={styles.editText}>Edit Product</Text>
+            <Text style={styles.editText}>Edit</Text>
           </Pressable>
           <Pressable
             accessibilityRole="button"
@@ -195,7 +206,7 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust}: Product
               onAdjust(product);
             }}
             style={({pressed}) => [styles.adjustBtn, pressed && {opacity: 0.85}]}>
-            <Text style={styles.adjustText}>Adjust Stock</Text>
+            <Text style={styles.adjustText}>Stock</Text>
           </Pressable>
         </View>
       </BottomSheetScrollView>
@@ -335,6 +346,17 @@ const makeStyles = () =>
       gap: rs(10),
       marginTop: spacing.lg,
     },
+    sellBtn: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: radii.full,
+      backgroundColor: colors.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: rs(6),
+    },
+    sellText: {fontSize: typography.body, fontWeight: '700', color: colors.onPrimary},
     editBtn: {
       flex: 1,
       minHeight: 52,

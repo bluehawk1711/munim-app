@@ -73,9 +73,14 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         id: string;
         sku: string;
         name: string;
+        type: string;
         barcode: string | null;
         weight: number | null;
         weightUnit: string;
+        grossWeight: string | null;
+        nagLessWeight: string | null;
+        chejatWeight: string | null;
+        netWeight: string | null;
         purity: string | null;
         imageUrl: string | null;
         stock: number;
@@ -103,9 +108,14 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     id: string;
     sku: string;
     name: string;
+    type: string;
     barcode: string | null;
     weight: number | null;
     weightUnit: string;
+    grossWeight: string | null;
+    nagLessWeight: string | null;
+    chejatWeight: string | null;
+    netWeight: string | null;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -122,6 +132,8 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
 export declare function listAllProducts(db: DbClient): Promise<ProductWithMeta[]>;
 export type ProductInput = {
     name: string;
+    /** Product type: Gold, Silver, Diamond, Platinum, Other. */
+    type?: string;
     /** Optional — empty/absent means the product has no color. */
     color?: string;
     size: string;
@@ -132,6 +144,11 @@ export type ProductInput = {
     weight?: number;
     /** Display & calculation unit: "mg" or "gm". */
     weightUnit?: string;
+    /** Jewelry-specific weight fields (free text for formulas). */
+    grossWeight?: string;
+    nagLessWeight?: string;
+    chejatWeight?: string;
+    netWeight?: string;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925".
      * `undefined` → keep existing (edit); `""` → clear; else set. */
     purity?: string;
@@ -154,9 +171,14 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     id: string;
     sku: string;
     name: string;
+    type: string;
     barcode: string | null;
     weight: number | null;
     weightUnit: string;
+    grossWeight: string | null;
+    nagLessWeight: string | null;
+    chejatWeight: string | null;
+    netWeight: string | null;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -177,9 +199,14 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     id: string;
     sku: string;
     name: string;
+    type: string;
     barcode: string | null;
     weight: number | null;
     weightUnit: string;
+    grossWeight: string | null;
+    nagLessWeight: string | null;
+    chejatWeight: string | null;
+    netWeight: string | null;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -207,9 +234,14 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     id: string;
     sku: string;
     name: string;
+    type: string;
     barcode: string | null;
     weight: number | null;
     weightUnit: string;
+    grossWeight: string | null;
+    nagLessWeight: string | null;
+    chejatWeight: string | null;
+    netWeight: string | null;
     purity: string | null;
     imageUrl: string | null;
     stock: number;
@@ -247,9 +279,14 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     id: string;
     sku: string;
     name: string;
+    type: string;
     barcode: string | null;
     weight: number | null;
     weightUnit: string;
+    grossWeight: string | null;
+    nagLessWeight: string | null;
+    chejatWeight: string | null;
+    netWeight: string | null;
     purity: string | null;
     imageUrl: string | null;
     stock: number;

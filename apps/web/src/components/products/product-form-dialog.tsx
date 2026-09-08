@@ -53,6 +53,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     resolver: zodResolver(productSchema) as unknown as Resolver<ProductFormValues>,
     defaultValues: {
       name: "",
+      type: "Gold",
       color: "Black",
       size: "Standard",
       category: "",
@@ -75,6 +76,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       if (product) {
         form.reset({
           name: product.name,
+          type: product.type as "Gold" | "Silver" | "Diamond" | "Platinum" | "Other",
           color: product.color,
           size: product.size,
           category: product.category ?? "",
@@ -289,6 +291,20 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label>Type</Label>
+            <Select value={form.watch("type") ?? "Gold"} onValueChange={(v) => form.setValue("type", v as "Gold" | "Silver" | "Diamond" | "Platinum" | "Other")}>
+              <SelectTrigger className="h-9 w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Gold">Gold</SelectItem>
+                <SelectItem value="Silver">Silver</SelectItem>
+                <SelectItem value="Diamond">Diamond</SelectItem>
+                <SelectItem value="Platinum">Platinum</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="sku">SKU</Label>
@@ -325,6 +341,27 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
             {form.formState.errors.weight && (
               <p className="text-xs text-destructive">{form.formState.errors.weight.message}</p>
             )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="grossWeight">Gross weight</Label>
+              <Input id="grossWeight" placeholder="e.g. 10+5 or 24.5" {...form.register("grossWeight")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nagLessWeight">Nag less weight</Label>
+              <Input id="nagLessWeight" placeholder="e.g. 2.5" {...form.register("nagLessWeight")} />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="chejatWeight">Chejat weight</Label>
+              <Input id="chejatWeight" placeholder="e.g. 3" {...form.register("chejatWeight")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="netWeight">Net weight</Label>
+              <Input id="netWeight" placeholder="e.g. 19" {...form.register("netWeight")} />
+            </div>
           </div>
 
           <div className="space-y-2">
