@@ -75,6 +75,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate native android project (expo prebuild)
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --clean
+
       # Build-time env — bake the API URL/key and the Cloudinary UNSIGNED
       # upload preset into the APK. EXPO_PUBLIC_* vars are inlined by Expo at
       # bundle time (release APK bundles JS during Gradle, so the env must be
