@@ -168,12 +168,33 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
 
 /* ─── Main screen ────────────────────────────────────────────────────── */
 
+const PAGE_SIZE = 40;
+
 export function ProductsScreen() {
   const styles = useThemeStyles(makeStyles);
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [allProducts, setAllProducts] = useState<ProductDto[]>([]);
+
   // Data
-  const {data: listData, error, loading, reload} = useQueryState(useProducts({pageSize: 500}));
-  const data = listData?.products;
+  const {data: listData, error, loading, reload} = useQueryState(useProducts({page, pageSize: PAGE_SIZE}));
+  const data = listData?.products ?? [];
+  const totalCount = listData?.pagination.totalCount ?? 0;
+  const totalPages = listData?.pagination.totalPages ?? 1;
+
+  // Append products when page changes
+  useEffect(() => {
+    if (page === 1) {
+      setAllProducts(data);
+    } else {
+      setAllProducts(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newProducts = data.filter(p => !existingIds.has(p.id));
+        return [...prev, ...newProducts];
+      });
+    }
+  }, [data, page]);
   const {data: colorsCatalog} = useQueryState(useCatalog('color'));
   const {data: sizesCatalog} = useQueryState(useCatalog('size'));
   const {data: categoriesCatalog} = useQueryState(useCatalog('category'));
@@ -269,7 +290,7 @@ export function ProductsScreen() {
   // Filtered list
   const query = search.trim().toLowerCase();
   const filtered = useMemo(() => {
-    let list = data ?? [];
+    let list = allProducts;
     if (query) {
       list = list.filter(
         p =>
@@ -284,19 +305,33 @@ export function ProductsScreen() {
     else if (stockFilter === 'low') list = list.filter(isLow);
     else if (stockFilter === 'out') list = list.filter(isOut);
     return list;
-  }, [data, query, stockFilter]);
+  }, [allProducts, query, stockFilter]);
 
   const counts = useMemo(
     () => ({
-      all: (data ?? []).length,
-      in: (data ?? []).filter(inStock).length,
-      low: (data ?? []).filter(isLow).length,
-      out: (data ?? []).filter(isOut).length,
+      all: allProducts.length,
+      in: allProducts.filter(inStock).length,
+      low: allProducts.filter(isLow).length,
+      out: allProducts.filter(isOut).length,
     }),
-    [data],
+    [allProducts],
   );
 
-  const missingBarcodes = useMemo(() => (data ?? []).some(p => !p.barcode), [data]);
+  const hasMore = page < totalPages;
+  const loadingMore = useRef(false);
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || loadingMore.current) return;
+    loadingMore.current = true;
+    setPage(p => p + 1);
+  }, [hasMore]);
+
+  // Reset loading flag when data arrives
+  useEffect(() => {
+    loadingMore.current = false;
+  }, [data]);
+
+  const missingBarcodes = useMemo(() => allProducts.some(p => !p.barcode), [allProducts]);
 
   // Form handlers
   function resetForm() {
@@ -539,7 +574,7 @@ export function ProductsScreen() {
         <TextInput
           style={styles.searchInput}
           value={search}
-          onChangeText={setSearch}
+          onChangeText={v => { setSearch(v); setPage(1); setAllProducts([]); }}
           placeholder="Search product name, SKU, barcode…"
           placeholderTextColor={colors.inputPlaceholder}
           autoCapitalize="none"
@@ -547,7 +582,7 @@ export function ProductsScreen() {
           returnKeyType="search"
         />
         {search ? (
-          <Pressable onPress={() => setSearch('')} style={styles.searchClear} accessibilityLabel="Clear search">
+          <Pressable onPress={() => { setSearch(''); setPage(1); setAllProducts([]); }} style={styles.searchClear} accessibilityLabel="Clear search">
             <X size={rs(16)} color={colors.muted} />
           </Pressable>
         ) : null}
@@ -569,6 +604,8 @@ export function ProductsScreen() {
               onPress={() => {
                 selectionTick();
                 setStockFilter(f.key);
+                setPage(1);
+                setAllProducts([]);
               }}
               style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
               {f.key === 'low' && f.count > 0 ? <View style={styles.dotWarning} /> : null}
@@ -599,6 +636,19 @@ export function ProductsScreen() {
           keyExtractor={keyExtractor}
           contentContainerStyle={{paddingHorizontal: CARD_MARGIN, paddingBottom: 110, gap: spacing.sm}}
           keyboardShouldPersistTaps="handled"
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            hasMore ? (
+              <View style={{paddingVertical: spacing.md, alignItems: 'center'}}>
+                <Text style={{color: colors.muted, fontSize: rs(13)}}>Loading more…</Text>
+              </View>
+            ) : filtered.length > 0 ? (
+              <View style={{paddingVertical: spacing.md, alignItems: 'center'}}>
+                <Text style={{color: colors.muted, fontSize: rs(12)}}>Showing {filtered.length} of {totalCount} products</Text>
+              </View>
+            ) : null
+          }
           {...headerScrollHandlers}
           ListEmptyComponent={
             query || stockFilter !== 'all' ? (

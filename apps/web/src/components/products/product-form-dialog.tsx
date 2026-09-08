@@ -121,8 +121,8 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
   const colorSelectValue = colorIsCustom ? "__custom" : colorValue || "__none"
   const categorySelectValue = categoryIsCustom ? "__custom" : categoryValue || "__none"
   const margin =
-    watched.sellingPrice - watched.purchasePrice > 0
-      ? (((watched.sellingPrice - watched.purchasePrice) / watched.sellingPrice) * 100).toFixed(0)
+    (watched.sellingPrice ?? 0) - (watched.purchasePrice ?? 0) > 0
+      ? ((((watched.sellingPrice ?? 0) - (watched.purchasePrice ?? 0)) / (watched.sellingPrice ?? 1)) * 100).toFixed(0)
       : null
 
   function handleColorSelect(value: string) {
@@ -186,11 +186,17 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
   async function onSubmit(values: ProductFormValues) {
     try {
+      // Ensure price fields are always numbers (form allows empty/0)
+      const payload = {
+        ...values,
+        purchasePrice: values.purchasePrice ?? 0,
+        sellingPrice: values.sellingPrice ?? 0,
+      }
       if (isEdit && product) {
-        await update.mutateAsync({ id: product.id, values })
+        await update.mutateAsync({ id: product.id, values: payload })
         toast.success("Product updated", { description: values.name })
       } else {
-        await create.mutateAsync(values)
+        await create.mutateAsync(payload)
         toast.success("Product created", { description: `${values.name} added to inventory` })
       }
       onOpenChange(false)
@@ -493,7 +499,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           {margin && (
             <p className="text-xs text-muted-foreground">
               Profit margin: <span className="font-medium text-emerald-600 dark:text-emerald-400">{margin}%</span>{" "}
-              (₹{(watched.sellingPrice - watched.purchasePrice).toFixed(2)} per unit)
+              (₹{((watched.sellingPrice ?? 0) - (watched.purchasePrice ?? 0)).toFixed(2)} per unit)
             </p>
           )}
 

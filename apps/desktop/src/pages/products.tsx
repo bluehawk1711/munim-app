@@ -42,6 +42,7 @@ import {
   useCreateSale,
   useDeleteProduct,
   useInventoryStats,
+  useProductMeta,
   useProducts,
   useQueryState,
   useUpdateProduct,
@@ -167,8 +168,20 @@ type FilterChip =
 
 export function ProductsPage() {
   const [search, setSearch] = useState("");
-  const { data, error, loading, refetching, reload } = useQueryState(useProducts({ search, pageSize: 200 }));
+  const [tablePage, setTablePage] = useState(1);
+  const TABLE_PAGE_SIZE = 40;
+  const { data, error, loading, refetching, reload } = useQueryState(useProducts({ search, page: tablePage, pageSize: TABLE_PAGE_SIZE }));
   const products = data?.products ?? [];
+  const pagination = data?.pagination;
+
+  const metaQ = useProductMeta();
+  const meta = metaQ.data;
+
+  const DEFAULT_COLORS = ["Black", "White", "Navy", "Blue", "Red", "Green", "Grey", "Brown", "Olive", "Silver", "Teal", "Amber"];
+  const DEFAULT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standard", "30", "32", "34", "36", "8", "9", "10", "11"];
+  const colors = useMemo(() => Array.from(new Set([...DEFAULT_COLORS, ...(meta?.colors ?? [])])), [meta?.colors]);
+  const sizes = useMemo(() => Array.from(new Set([...DEFAULT_SIZES, ...(meta?.sizes ?? [])])), [meta?.sizes]);
+  const categories = useMemo(() => Array.from(new Set(meta?.categories ?? [])), [meta?.categories]);
 
   const statsQ = useInventoryStats();
   const stats = statsQ.data;
@@ -190,6 +203,9 @@ export function ProductsPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customColor, setCustomColor] = useState(false);
+  const [customSize, setCustomSize] = useState(false);
+  const [customCategory, setCustomCategory] = useState(false);
 
   const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
   const [adjustQty, setAdjustQty] = useState("");
@@ -297,6 +313,14 @@ export function ProductsPage() {
     ];
   }, [totalCount, inCount, lowCount, outCount, products]);
 
+  // Derived values for Select+custom-input combos
+  const colorIsCustom = customColor || (!!form.color && !colors.includes(form.color));
+  const sizeIsCustom = customSize || (!!form.size && !sizes.includes(form.size));
+  const categoryIsCustom = customCategory || (!!form.category && !categories.includes(form.category));
+  const colorSelectValue = colorIsCustom ? "__custom" : form.color || "__none";
+  const sizeSelectValue = sizeIsCustom ? "__custom" : form.size || "__none";
+  const categorySelectValue = categoryIsCustom ? "__custom" : form.category || "__none";
+
   const visibleProducts = useMemo(() => {
     if (activeCategory.kind === "all") return products;
     if (activeCategory.kind === "instock") {
@@ -342,11 +366,17 @@ export function ProductsPage() {
   function openAdd() {
     setEditing(null);
     setForm(EMPTY_FORM);
+    setCustomColor(false);
+    setCustomSize(false);
+    setCustomCategory(false);
     setFormOpen(true);
   }
 
   function openEdit(p: ProductDto) {
     setEditing(p);
+    setCustomColor(false);
+    setCustomSize(false);
+    setCustomCategory(false);
     setForm({
       name: p.name,
       type: p.type ?? "Gold",
@@ -369,6 +399,45 @@ export function ProductsPage() {
       notes: p.notes ?? "",
     });
     setFormOpen(true);
+  }
+
+  function handleColorSelect(value: string) {
+    if (value === "__custom") {
+      setCustomColor(true);
+      setForm((f) => ({ ...f, color: "" }));
+    } else if (value === "__none") {
+      setCustomColor(false);
+      setForm((f) => ({ ...f, color: "" }));
+    } else {
+      setCustomColor(false);
+      setForm((f) => ({ ...f, color: value }));
+    }
+  }
+
+  function handleSizeSelect(value: string) {
+    if (value === "__custom") {
+      setCustomSize(true);
+      setForm((f) => ({ ...f, size: "" }));
+    } else if (value === "__none") {
+      setCustomSize(false);
+      setForm((f) => ({ ...f, size: "" }));
+    } else {
+      setCustomSize(false);
+      setForm((f) => ({ ...f, size: value }));
+    }
+  }
+
+  function handleCategorySelect(value: string) {
+    if (value === "__custom") {
+      setCustomCategory(true);
+      setForm((f) => ({ ...f, category: "" }));
+    } else if (value === "__none") {
+      setCustomCategory(false);
+      setForm((f) => ({ ...f, category: "" }));
+    } else {
+      setCustomCategory(false);
+      setForm((f) => ({ ...f, category: value }));
+    }
   }
 
   function toggleAnalytics() {
@@ -680,7 +749,7 @@ export function ProductsPage() {
             <Input
               placeholder="Search by product name, SKU, 13-digit code…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setTablePage(1); }}
               className="h-9 pl-9 text-sm"
             />
           </div>
@@ -691,7 +760,7 @@ export function ProductsPage() {
                 <button
                   key={chip.kind}
                   type="button"
-                  onClick={() => setActiveCategory(chip)}
+                  onClick={() => { setActiveCategory(chip); setTablePage(1); }}
                   className={
                     "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors " +
                     (active
@@ -953,6 +1022,18 @@ export function ProductsPage() {
               )}
             </TableBody>
           </Table>
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between border-t px-4 py-2">
+              <span className="text-muted-foreground text-xs">
+                {((pagination.page - 1) * pagination.pageSize) + 1}–{Math.min(pagination.page * pagination.pageSize, pagination.totalCount)} of {pagination.totalCount}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-7" disabled={tablePage <= 1} onClick={() => setTablePage((p) => p - 1)}>Prev</Button>
+                <span className="text-muted-foreground px-2 text-xs">Page {tablePage} of {pagination.totalPages}</span>
+                <Button variant="outline" size="sm" className="h-7" disabled={tablePage >= pagination.totalPages} onClick={() => setTablePage((p) => p + 1)}>Next</Button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -963,202 +1044,186 @@ export function ProductsPage() {
             <DialogDescription>SKU is auto-generated by the shared core.</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label htmlFor="p-name">Name *</Label>
-                <Input id="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            {/* Row 1: Name (full width) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="p-name">Name *</Label>
+              <Input id="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </div>
+
+            {/* Row 2: Type (full width) */}
+            <div className="space-y-1.5">
+              <Label>Type</Label>
+              <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Gold">Gold</SelectItem>
+                  <SelectItem value="Silver">Silver</SelectItem>
+                  <SelectItem value="Diamond">Diamond</SelectItem>
+                  <SelectItem value="Platinum">Platinum</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Row 3: Image (full width, bigger) */}
+            <div className="space-y-1.5">
+              <Label>Product Image</Label>
+              <div className="flex items-center gap-4">
+                {form.imageUrl ? (
+                  <img src={form.imageUrl} alt="Product preview" className="h-24 w-24 rounded-lg border object-cover" />
+                ) : (
+                  <div className="bg-muted text-muted-foreground flex h-24 w-24 items-center justify-center rounded-lg border">
+                    <ImageIcon className="h-8 w-8" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => fileInputRef.current?.click()} className="gap-1.5">
+                      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
+                      {uploading ? "Uploading…" : form.imageUrl ? "Replace image" : "Upload image"}
+                    </Button>
+                    {form.imageUrl && (
+                      <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => setForm({ ...form, imageUrl: "" })}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">JPG, PNG or WebP · up to 5 MB</p>
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </div>
+            </div>
+
+            {/* Row 4: Color + Size */}
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm({ ...form, type: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Label>Color</Label>
+                <Select value={colorSelectValue} onValueChange={handleColorSelect}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select color" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Gold">Gold</SelectItem>
-                    <SelectItem value="Silver">Silver</SelectItem>
-                    <SelectItem value="Diamond">Diamond</SelectItem>
-                    <SelectItem value="Platinum">Platinum</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
+                    <SelectItem value="__none">No color</SelectItem>
+                    {colors.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                    <SelectItem value="__custom"><span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> New…</span></SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Product Image</Label>
-                <div className="flex items-center gap-3">
-                  {form.imageUrl ? (
-                    <img src={form.imageUrl} alt="Product preview" className="h-16 w-16 rounded-lg border object-cover" />
-                  ) : (
-                    <div className="bg-muted text-muted-foreground flex h-16 w-16 items-center justify-center rounded-lg border">
-                      <ImageIcon className="h-6 w-6" />
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={uploading}
-                        onClick={() => fileInputRef.current?.click()}
-                        className="gap-1.5"
-                      >
-                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-                        {uploading ? "Uploading…" : form.imageUrl ? "Replace image" : "Upload image"}
-                      </Button>
-                      {form.imageUrl && (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          aria-label="Remove image"
-                          onClick={() => setForm({ ...form, imageUrl: "" })}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">JPG, PNG or WebP · up to 5 MB · hosted on Cloudinary</p>
-                  </div>
-                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                </div>
+                {colorIsCustom && (
+                  <Input placeholder="Type new color…" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-9" />
+                )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="p-color">Color</Label>
-                <Input id="p-color" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} />
+                <Label>Size</Label>
+                <Select value={sizeSelectValue} onValueChange={handleSizeSelect}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select size" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">No size</SelectItem>
+                    {sizes.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                    <SelectItem value="__custom"><span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> New…</span></SelectItem>
+                  </SelectContent>
+                </Select>
+                {sizeIsCustom && (
+                  <Input placeholder="Type new size…" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} className="h-9" />
+                )}
               </div>
+            </div>
+
+            {/* Row 5: Category + Barcode */}
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="p-size">Size</Label>
-                <Input id="p-size" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-cat">Category</Label>
-                <Input id="p-cat" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
+                <Label>Category</Label>
+                <Select value={categorySelectValue} onValueChange={handleCategorySelect}>
+                  <SelectTrigger className="h-9"><SelectValue placeholder="Select category" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">No category</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                    <SelectItem value="__custom"><span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> New…</span></SelectItem>
+                  </SelectContent>
+                </Select>
+                {categoryIsCustom && (
+                  <Input placeholder="Type new category…" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9" />
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-barcode">Barcode</Label>
-                <Input
-                  id="p-barcode"
-                  value={form.barcode}
-                  onChange={(e) => setForm({ ...form, barcode: e.target.value })}
-                  placeholder="Leave blank to auto-generate"
-                />
+                <Input id="p-barcode" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Auto-generate if blank" />
               </div>
+            </div>
+
+            {/* Row 6: Weight + Purity */}
+            <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="p-weight">Weight</Label>
                 <div className="flex gap-2">
-                  <Input
-                    id="p-weight"
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    value={form.weight}
-                    onChange={(e) => setForm({ ...form, weight: e.target.value })}
-                    placeholder="e.g. 24.5"
-                    className="flex-1"
-                  />
+                  <Input id="p-weight" type="number" min={0} step="0.1" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} placeholder="e.g. 24.5" className="flex-1" />
                   <Select value={form.weightUnit} onValueChange={(v) => setForm({ ...form, weightUnit: v as "mg" | "gm" })}>
-                    <SelectTrigger className="w-[80px]">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-[72px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="gm">gm</SelectItem>
                       <SelectItem value="mg">mg</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
-                <p className="text-[11px] text-muted-foreground">Used for stock weight calculations &amp; label printing</p>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-gross-weight">Gross weight</Label>
-                  <Input
-                    id="p-gross-weight"
-                    value={form.grossWeight}
-                    onChange={(e) => setForm({ ...form, grossWeight: e.target.value })}
-                    placeholder="e.g. 10+5 or 24.5"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
-                  <Input
-                    id="p-nag-less-weight"
-                    value={form.nagLessWeight}
-                    onChange={(e) => setForm({ ...form, nagLessWeight: e.target.value })}
-                    placeholder="e.g. 2.5"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-chejat-weight">Chejat weight</Label>
-                  <Input
-                    id="p-chejat-weight"
-                    value={form.chejatWeight}
-                    onChange={(e) => setForm({ ...form, chejatWeight: e.target.value })}
-                    placeholder="e.g. 3"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-net-weight">Net weight</Label>
-                  <Input
-                    id="p-net-weight"
-                    value={form.netWeight}
-                    onChange={(e) => setForm({ ...form, netWeight: e.target.value })}
-                    placeholder="e.g. 19"
-                  />
-                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-purity">Purity</Label>
-                <Input
-                  id="p-purity"
-                  value={form.purity}
-                  onChange={(e) => setForm({ ...form, purity: e.target.value })}
-                  placeholder="e.g. 24K / 22K / 916 / 925"
-                  maxLength={20}
-                />
+                <Input id="p-purity" value={form.purity} onChange={(e) => setForm({ ...form, purity: e.target.value })} placeholder="e.g. 24K / 925" maxLength={20} />
+              </div>
+            </div>
+
+            {/* Row 7: Gross weight + Nag less weight */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="p-gross-weight">Gross weight</Label>
+                <Input id="p-gross-weight" value={form.grossWeight} onChange={(e) => setForm({ ...form, grossWeight: e.target.value })} placeholder="e.g. 10+5" />
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
+                <Input id="p-nag-less-weight" value={form.nagLessWeight} onChange={(e) => setForm({ ...form, nagLessWeight: e.target.value })} placeholder="e.g. 2.5" />
+              </div>
+            </div>
+
+            {/* Row 8: Chejat weight + Net weight */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="p-chejat-weight">Chejat weight</Label>
+                <Input id="p-chejat-weight" value={form.chejatWeight} onChange={(e) => setForm({ ...form, chejatWeight: e.target.value })} placeholder="e.g. 3" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="p-net-weight">Net weight</Label>
+                <Input id="p-net-weight" value={form.netWeight} onChange={(e) => setForm({ ...form, netWeight: e.target.value })} placeholder="e.g. 19" />
+              </div>
+            </div>
+
+            {/* Row 9: Stock + Buy price */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="p-stock">Stock</Label>
-                <Input
-                  id="p-stock"
-                  type="number"
-                  min={0}
-                  value={form.stock}
-                  onChange={(e) => setForm({ ...form, stock: e.target.value })}
-                />
+                <Input id="p-stock" type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-buy">Buy price</Label>
-                <Input
-                  id="p-buy"
-                  type="number"
-                  min={0}
-                  value={form.purchasePrice}
-                  onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-sell">Sell price</Label>
-                <Input
-                  id="p-sell"
-                  type="number"
-                  min={0}
-                  value={form.sellingPrice}
-                  onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-threshold">Low stock alert at</Label>
-                <Input
-                  id="p-threshold"
-                  type="number"
-                  min={0}
-                  value={form.lowStockThreshold}
-                  onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })}
-                />
+                <Input id="p-buy" type="number" min={0} value={form.purchasePrice} onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })} />
               </div>
             </div>
+
+            {/* Row 10: Sell price + Low stock alert */}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="p-sell">Sell price</Label>
+                <Input id="p-sell" type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="p-threshold">Low stock alert</Label>
+                <Input id="p-threshold" type="number" min={0} value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} />
+              </div>
+            </div>
+
+            {/* Row 11: Notes */}
             <div className="space-y-1.5">
               <Label htmlFor="p-notes">Notes</Label>
               <Input id="p-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />

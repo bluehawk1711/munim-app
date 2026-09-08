@@ -26,8 +26,8 @@ export const productSchema = z.object({
   purity: z.string().max(20).optional().or(z.literal("")),
   imageUrl: z.string().max(1000).optional().or(z.literal("")),
   stock: z.coerce.number().min(0, "Stock cannot be negative"),
-  purchasePrice: z.coerce.number().min(0.01, "Buy price must be greater than 0"),
-  sellingPrice: z.coerce.number().min(0.01, "Sell price must be greater than 0"),
+  purchasePrice: z.coerce.number().min(0).optional(),
+  sellingPrice: z.coerce.number().min(0).optional(),
   lowStockThreshold: z.coerce.number().min(0).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),
 });

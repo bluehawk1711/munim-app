@@ -44,7 +44,9 @@ export function formatWeight(weight: number | null | undefined, unit?: string | 
   const safe = Number.isFinite(weight) ? (weight ?? 0) : 0;
   if (safe === 0) return "—";
   const u = unit === "mg" ? "mg" : "gm";
-  return `${safe} ${u}`;
+  // Round to avoid floating-point display artefacts (e.g. 197.33000000000004)
+  const rounded = Math.round(safe * 1000) / 1000;
+  return `${rounded} ${u}`;
 }
 
 export function todayISO(): string {
