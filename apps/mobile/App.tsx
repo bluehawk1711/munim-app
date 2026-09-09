@@ -14,6 +14,11 @@ import React from 'react';
 import {Pressable, StatusBar, StyleSheet, Text, View} from 'react-native';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Must be called before any React view renders — module scope, not in useEffect.
+SplashScreen.preventAutoHideAsync();
+
 import Animated, {
   FadeIn,
   FadeOut,
@@ -36,7 +41,7 @@ import {MobileQueryProvider} from './src/lib/query';
 import {useAppStore} from './src/lib/store';
 import {loadHapticsEnabled, selectionTick} from './src/lib/haptics';
 import {loadForceTransition} from './src/lib/force-transition';
-import {ToastProvider} from './src/lib/toast';
+import {ToastProvider, useToast, registerToast} from './src/lib/toast';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
 import {SalesScreen} from './src/screens/SalesScreen';
@@ -137,6 +142,7 @@ function TabBar({tab, onSelect}: {tab: Tab; onSelect: (tab: Tab) => void}) {
 function AppInner() {
   const {mode} = useTheme();
   const styles = useThemeStyles(makeStyles);
+  const toast = useToast();
   // Active tab lives in the shared client-state store (@munim/store) so any
   // screen can read/navigate without prop drilling.
   const tab = useAppStore(s => s.activeView) as Tab;
@@ -146,6 +152,16 @@ function AppInner() {
   React.useEffect(() => {
     loadHapticsEnabled().catch(() => {});
     loadForceTransition().catch(() => {});
+  }, []);
+
+  // Register toast context so haptic feedback functions can show toasts.
+  React.useEffect(() => {
+    registerToast(toast);
+  }, [toast]);
+
+  // Hide splash screen once the app tree is mounted and ready.
+  React.useEffect(() => {
+    SplashScreen.hide();
   }, []);
 
   return (

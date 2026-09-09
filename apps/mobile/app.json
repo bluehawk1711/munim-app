@@ -13,7 +13,11 @@
       "foregroundImage": "./assets/adaptive-icon.png",
       "backgroundColor": "#1a2744"
     },
-    "splash": null,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1a2744"
+    },
     "android": {
       "package": "com.munim"
     },
@@ -32,6 +36,14 @@
         "expo-camera",
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to scan product barcodes."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#1a2744"
         }
       ]
     ]
