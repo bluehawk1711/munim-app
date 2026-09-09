@@ -1,51 +1,48 @@
 {
   "name": "Munim",
   "displayName": "Munim",
-  "expo": {
-    "name": "Munim",
-    "slug": "munim",
-    "scheme": "munim",
-    "version": "1.0.0",
-    "orientation": "portrait",
-    "userInterfaceStyle": "automatic",
-    "icon": "./assets/icon.png",
-    "adaptiveIcon": {
-      "foregroundImage": "./assets/adaptive-icon.png",
-      "backgroundColor": "#1a2744"
-    },
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1a2744"
-    },
-    "android": {
-      "package": "com.munim"
-    },
-    "ios": {
-      "bundleIdentifier": "com.munim",
-      "infoPlist": {
-        "NSCameraUsageDescription": "Allow Munim to scan product barcodes.",
-        "NSPhotoLibraryUsageDescription": "Allow Munim to access your photo library to upload product images."
+  "slug": "munim",
+  "scheme": "munim",
+  "version": "1.0.0",
+  "orientation": "portrait",
+  "userInterfaceStyle": "automatic",
+  "icon": "./assets/icon.png",
+  "adaptiveIcon": {
+    "foregroundImage": "./assets/adaptive-icon.png",
+    "backgroundColor": "#1a2744"
+  },
+  "splash": {
+    "image": "./assets/splash-icon.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#1a2744"
+  },
+  "android": {
+    "package": "com.munim"
+  },
+  "ios": {
+    "bundleIdentifier": "com.munim",
+    "infoPlist": {
+      "NSCameraUsageDescription": "Allow Munim to scan product barcodes.",
+      "NSPhotoLibraryUsageDescription": "Allow Munim to access your photo library to upload product images."
+    }
+  },
+  "plugins": [
+    "expo-dev-client",
+    "expo-image-picker",
+    "@react-native-community/datetimepicker",
+    [
+      "expo-camera",
+      {
+        "cameraPermission": "Allow $(PRODUCT_NAME) to scan product barcodes."
       }
-    },
-    "plugins": [
-      "expo-dev-client",
-      "expo-image-picker",
-      "@react-native-community/datetimepicker",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow $(PRODUCT_NAME) to scan product barcodes."
-        }
-      ],
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/splash-icon.png",
-          "resizeMode": "contain",
-          "backgroundColor": "#1a2744"
-        }
-      ]
+    ],
+    [
+      "expo-splash-screen",
+      {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#1a2744"
+      }
     ]
-  }
+  ]
 }
