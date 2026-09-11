@@ -602,8 +602,11 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
     .join(" ");
 
   // Auto-scale font size based on name length (matches TSPL logic)
+  // Gold labels: smaller name font to fit weight fields below
   const nameLen = nameWithPurity.length;
-  const nameFontSize = nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6;
+  const nameFontSize = isGold
+    ? (nameLen <= 10 ? 6 : nameLen <= 14 ? 5.5 : nameLen <= 18 ? 5 : 4.5)
+    : (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6);
 
   // Build weight details for Gold (respect toggles)
   const weightFields: string[] = [];
@@ -626,7 +629,7 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
     <div style="flex:0 0 22%;display:flex;flex-direction:column;justify-content:space-between">
       <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:${nameFontSize}px">${escHTML(nameWithPurity)}</div>
       ${isGold
-        ? `<div style="font-size:7px;color:#555;line-height:1.3">${weightFields.map(wf => `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
+        ? `<div style="font-size:5px;color:#555;line-height:1.2">${weightFields.map(wf => `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
         : `<div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>`
       }
     </div>

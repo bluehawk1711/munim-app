@@ -119,8 +119,12 @@ export function renderLabelMarkup(label: ProductLabel): string {
     .join(" ");
 
   // Auto-scale font size based on name length
+  // Gold labels: smaller name font to fit weight fields below
+  // Silver labels: larger name font (only weight line below)
   const nameLen = nameWithPurity.length;
-  const nameFontSize = nameLen <= 10 ? 11 : nameLen <= 14 ? 10 : nameLen <= 18 ? 9 : 8;
+  const nameFontSize = isGold
+    ? (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6)
+    : (nameLen <= 10 ? 11 : nameLen <= 14 ? 10 : nameLen <= 18 ? 9 : 8);
 
   // Build weight details for Gold
   const weightFields: string[] = [];
@@ -135,7 +139,7 @@ export function renderLabelMarkup(label: ProductLabel): string {
     <div class="l-left">
       <div class="l-name" style="font-size:${nameFontSize}px">${esc(nameWithPurity)}</div>
       ${isGold
-        ? `<div class="l-weight">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
+        ? `<div class="l-weight l-weight-gold">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
         : `<div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>`
       }
     </div>
@@ -213,6 +217,7 @@ export function renderLabelSheetHtml(
   .l-name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .l-nocode { font-size: 8px; color: #999; }
   .l-weight { font-size: 9px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .l-weight-gold { font-size: 7px; line-height: 1.25; }
 </style>
 </head>
 <body>${pages.join("")}</body>

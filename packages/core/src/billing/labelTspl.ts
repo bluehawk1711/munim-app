@@ -81,16 +81,19 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   narrow: 2,
   wide: 3,
   nameY: 25,
-  weightY: 80,
+  weightY: 40,
   leftMarginMm: 3.5,
   barcodeX: 305,
   barcodeY: 30,
   showPurity: false,
+  // Gold label weight field visibility — all enabled by default
   showGrossWeight: true,
   showNagLessWeight: true,
   showNagRate: true,
   showChejatWeight: true,
   showNetWeight: true,
+  // Gold label weight field Y positions (dots, relative to weightY base)
+  // Defaults: 0 = auto-stacked sequentially from weightY
   grossWeightY: 0,
   nagLessWeightY: 0,
   nagRateY: 0,
@@ -204,10 +207,14 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const textAreaW = Math.round(printableW * 0.24);
 
   // Font sizes — 15mm tall = 120 dots at 203 DPI
-  const maxNameSize = toPt(Math.round(h * 0.40));
-  const minNameSize = toPt(Math.round(h * 0.25));
-  const weightSize = toPt(Math.round(h * 0.25));
-  const smallSize = toPt(Math.round(h * 0.18));
+  // Gold labels need smaller fonts to fit name + 6 weight lines in 15mm.
+  // Silver labels (name + 1 weight line) can use larger fonts.
+  // Budget: 120 dots total. Gold: name ~25 dots, 6 weight lines × ~14 dots = 84 dots.
+  // Silver: name ~40 dots, 1 weight line ~30 dots.
+  const maxNameSize = toPt(Math.round(h * 0.21));   // Gold name: ~25 dots = 8.8pt
+  const minNameSize = toPt(Math.round(h * 0.17));   // Gold name min: ~20 dots = 7pt
+  const weightSize = toPt(Math.round(h * 0.25));     // Silver weight: ~30 dots = 10.6pt
+  const smallSize = toPt(Math.round(h * 0.12));      // Gold weight fields: ~14 dots = 4.9pt
 
   const barcodeHeight = 65;
   const barcodeX = (opts.barcodeX && opts.barcodeX > 0) ? opts.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
@@ -270,11 +277,27 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       if (opts.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `C:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
       if (opts.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
 
-      // Print weight fields with individual Y positions
-      for (const entry of weightFieldEntries) {
-        const yBase = opts.weightY ?? 80;
-        const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
-        lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+      // Print weight fields — auto-stack if offsets are all 0, otherwise use individual positions
+      const hasCustomPositions = weightFieldEntries.some(e => {
+        const v = opts[e.yKey];
+        return typeof v === "number" && v !== 0;
+      });
+
+      if (hasCustomPositions) {
+        // Use individual Y positions (relative to weightY base)
+        for (const entry of weightFieldEntries) {
+          const yBase = opts.weightY ?? 40;
+          const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
+          lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+        }
+      } else {
+        // Auto-stack sequentially from weightY with tight line spacing for Gold
+        const lineSpacing = Math.round(smallSize * 1.2);
+        let yOff = opts.weightY ?? 40;
+        for (const entry of weightFieldEntries) {
+          lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+          yOff += lineSpacing;
+        }
       }
     } else {
       // Silver / other: weight below name (same as before)
