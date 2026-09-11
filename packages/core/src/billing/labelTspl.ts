@@ -81,7 +81,7 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   narrow: 2,
   wide: 3,
   nameY: 25,
-  weightY: 40,
+  weightY: 80,
   leftMarginMm: 3.5,
   barcodeX: 305,
   barcodeY: 30,
@@ -277,7 +277,12 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       if (opts.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `C:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
       if (opts.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
 
-      // Print weight fields — auto-stack if offsets are all 0, otherwise use individual positions
+      // Gold labels: auto-pack from Y=30 (after name) to fit all lines in 120 dots.
+      // 120 total - 5 top margin - 25 name = 90 dots available.
+      // 6 lines × 15 dots = 90 dots exactly.
+      const goldStartY = 30;
+      const goldLineSpacing = Math.round(90 / Math.max(1, weightFieldEntries.length));
+
       const hasCustomPositions = weightFieldEntries.some(e => {
         const v = opts[e.yKey];
         return typeof v === "number" && v !== 0;
@@ -286,17 +291,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       if (hasCustomPositions) {
         // Use individual Y positions (relative to weightY base)
         for (const entry of weightFieldEntries) {
-          const yBase = opts.weightY ?? 40;
+          const yBase = opts.weightY ?? 80;
           const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
           lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
         }
       } else {
-        // Auto-stack sequentially from weightY with tight line spacing for Gold
-        const lineSpacing = Math.round(smallSize * 1.2);
-        let yOff = opts.weightY ?? 40;
+        // Auto-pack tightly from goldStartY
+        let yOff = goldStartY;
         for (const entry of weightFieldEntries) {
           lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
-          yOff += lineSpacing;
+          yOff += goldLineSpacing;
         }
       }
     } else {
