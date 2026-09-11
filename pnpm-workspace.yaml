@@ -7,3 +7,6 @@ allowBuilds:
   unrs-resolver: true
 minimumReleaseAgeExclude:
   - react-native-worklets@0.12.2
+overrides:
+  react: 19.3.0
+  react-dom: 19.3.0
