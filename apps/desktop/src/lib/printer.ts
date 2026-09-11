@@ -93,6 +93,16 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 305,
         barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 30,
         showPurity: s.showPurity === true,
+        showGrossWeight: s.showGrossWeight !== false,
+        showNagLessWeight: s.showNagLessWeight !== false,
+        showNagRate: s.showNagRate !== false,
+        showChejatWeight: s.showChejatWeight !== false,
+        showNetWeight: s.showNetWeight !== false,
+        grossWeightY: typeof s.grossWeightY === "number" ? s.grossWeightY : 0,
+        nagLessWeightY: typeof s.nagLessWeightY === "number" ? s.nagLessWeightY : 0,
+        nagRateY: typeof s.nagRateY === "number" ? s.nagRateY : 0,
+        chejatWeightY: typeof s.chejatWeightY === "number" ? s.chejatWeightY : 0,
+        netWeightY: typeof s.netWeightY === "number" ? s.netWeightY : 0,
       };
     }
   } catch {

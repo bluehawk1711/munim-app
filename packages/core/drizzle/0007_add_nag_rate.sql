@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "nag_rate" text;

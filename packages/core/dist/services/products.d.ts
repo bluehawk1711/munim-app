@@ -79,6 +79,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         weightUnit: string;
         grossWeight: string | null;
         nagLessWeight: string | null;
+        nagRate: string | null;
         chejatWeight: string | null;
         netWeight: string | null;
         purity: string | null;
@@ -114,6 +115,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     weightUnit: string;
     grossWeight: string | null;
     nagLessWeight: string | null;
+    nagRate: string | null;
     chejatWeight: string | null;
     netWeight: string | null;
     purity: string | null;
@@ -147,6 +149,7 @@ export type ProductInput = {
     /** Jewelry-specific weight fields (free text for formulas). */
     grossWeight?: string;
     nagLessWeight?: string;
+    nagRate?: string;
     chejatWeight?: string;
     netWeight?: string;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925".
@@ -177,6 +180,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     weightUnit: string;
     grossWeight: string | null;
     nagLessWeight: string | null;
+    nagRate: string | null;
     chejatWeight: string | null;
     netWeight: string | null;
     purity: string | null;
@@ -205,6 +209,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     weightUnit: string;
     grossWeight: string | null;
     nagLessWeight: string | null;
+    nagRate: string | null;
     chejatWeight: string | null;
     netWeight: string | null;
     purity: string | null;
@@ -240,6 +245,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     weightUnit: string;
     grossWeight: string | null;
     nagLessWeight: string | null;
+    nagRate: string | null;
     chejatWeight: string | null;
     netWeight: string | null;
     purity: string | null;
@@ -285,6 +291,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     weightUnit: string;
     grossWeight: string | null;
     nagLessWeight: string | null;
+    nagRate: string | null;
     chejatWeight: string | null;
     netWeight: string | null;
     purity: string | null;

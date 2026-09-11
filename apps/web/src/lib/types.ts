@@ -17,6 +17,13 @@ export type Product = {
   weight: number | null
   /** Display & calculation unit: "mg" or "gm". */
   weightUnit: string
+  /** Jewelry-specific weight fields (free text). */
+  grossWeight: string | null
+  nagLessWeight: string | null
+  /** Nag rate. */
+  nagRate: string | null
+  chejatWeight: string | null
+  netWeight: string | null
   /** Metal purity, e.g. "22K" or "916". */
   purity: string | null
   imageUrl: string | null

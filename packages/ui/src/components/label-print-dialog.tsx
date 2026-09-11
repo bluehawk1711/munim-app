@@ -17,7 +17,7 @@
  * so the preview, the printed sheet and the PDF are always identical.
  */
 import * as React from "react";
-import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb, ChevronDown, ChevronUp, RotateCcw } from "lucide-react";
+import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb, ChevronDown, ChevronUp, RotateCcw, MoveVertical } from "lucide-react";
 import {
   renderLabelSheetHtml,
   formatWeight,
@@ -51,6 +51,15 @@ export type DirectLabelPrint = {
   savedSettings: LabelPrintSettings;
   onSaveSettings: (settings: LabelPrintSettings) => void;
 };
+
+/** Weight field toggle + position config for the Gold label fields section. */
+const WEIGHT_FIELDS = [
+  { key: "showGrossWeight" as const, posKey: "grossWeightY" as const, label: "Gross weight", prefix: "G" },
+  { key: "showNagLessWeight" as const, posKey: "nagLessWeightY" as const, label: "Nag less weight", prefix: "N" },
+  { key: "showNagRate" as const, posKey: "nagRateY" as const, label: "Nag rate", prefix: "NR" },
+  { key: "showChejatWeight" as const, posKey: "chejatWeightY" as const, label: "Chejat weight", prefix: "C" },
+  { key: "showNetWeight" as const, posKey: "netWeightY" as const, label: "Net weight", prefix: "Net" },
+] as const;
 
 export function LabelPrintDialog({
   open,
@@ -96,6 +105,35 @@ export function LabelPrintDialog({
     setPrintSettings((prev) => ({ ...prev, [key]: value }));
   }
 
+  /** Auto-enable all weight field toggles (Gold defaults). */
+  function handleAutoEnableGold() {
+    setPrintSettings((prev) => ({
+      ...prev,
+      showGrossWeight: true,
+      showNagLessWeight: true,
+      showNagRate: true,
+      showChejatWeight: true,
+      showNetWeight: true,
+      grossWeightY: 0,
+      nagLessWeightY: 0,
+      nagRateY: 0,
+      chejatWeightY: 0,
+      netWeightY: 0,
+    }));
+  }
+
+  /** Disable all weight field toggles. */
+  function handleDisableAll() {
+    setPrintSettings((prev) => ({
+      ...prev,
+      showGrossWeight: false,
+      showNagLessWeight: false,
+      showNagRate: false,
+      showChejatWeight: false,
+      showNetWeight: false,
+    }));
+  }
+
   function handleSaveSettings() {
     directPrint?.onSaveSettings(printSettings);
   }
@@ -112,7 +150,7 @@ export function LabelPrintDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -131,11 +169,11 @@ export function LabelPrintDialog({
         <div className="space-y-4">
           {/* Label preview — matches thermal label aspect ratio (101:15 ≈ 6.7:1). */}
           <div className="flex items-center justify-center rounded-lg border bg-muted/40 p-4">
-            <div className="overflow-hidden rounded-md bg-white shadow-sm" style={{ width: "390px", height: "58px" }}>
+            <div className="overflow-hidden rounded-md bg-white shadow-sm" style={{ width: "480px", height: "72px" }}>
               {first ? (
                 <div
-                  style={{ transform: "scale(0.95)", transformOrigin: "center", width: "390px", height: "58px" }}
-                  dangerouslySetInnerHTML={{ __html: renderLabelMarkupHTML(first) }}
+                  style={{ transform: "scale(0.95)", transformOrigin: "center", width: "480px", height: "72px" }}
+                  dangerouslySetInnerHTML={{ __html: renderLabelMarkupHTML(first, printSettings) }}
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
@@ -165,7 +203,7 @@ export function LabelPrintDialog({
 
           {/* Direct thermal label printer (desktop) */}
           {directPrint && (
-            <div className="space-y-2 rounded-lg border border-primary/25 bg-primary/5 p-3">
+            <div className="space-y-3 rounded-lg border border-primary/25 bg-primary/5 p-4">
               <div className="flex items-center gap-2">
                 <Usb className="h-4 w-4 text-primary" />
                 <p className="text-sm font-medium">Label printer (direct)</p>
@@ -220,15 +258,16 @@ export function LabelPrintDialog({
               <div>
                 <button
                   type="button"
-                  className="flex w-full items-center justify-between rounded border bg-background/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-background/80 transition-colors"
+                  className="flex w-full items-center justify-between rounded border bg-background/60 px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-background/80 transition-colors"
                   onClick={() => setAdvancedOpen((v) => !v)}
                 >
                   <span>Advanced TSPL2 settings</span>
                   {advancedOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                 </button>
                 {advancedOpen && (
-                  <div className="mt-2 space-y-3 rounded border bg-background/40 p-3">
-                    <div className="grid grid-cols-2 gap-3">
+                  <div className="mt-2 space-y-4 rounded border bg-background/40 p-4">
+                    {/* ── Basic printer settings ──────────────────── */}
+                    <div className="grid grid-cols-2 gap-4">
                       {/* GAP */}
                       <div className="space-y-1">
                         <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-gap">Gap (mm)</label>
@@ -285,7 +324,65 @@ export function LabelPrintDialog({
                       </span>
                     </label>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    {/* ── Gold label weight fields + positions ────── */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-medium text-muted-foreground">Gold label fields</p>
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={handleAutoEnableGold}>
+                            Enable all
+                          </Button>
+                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={handleDisableAll}>
+                            Disable all
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="rounded-md border divide-y">
+                        {/* Header row */}
+                        <div className="grid grid-cols-[1fr_60px_80px] gap-2 px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                          <span>Field</span>
+                          <span className="text-center">Show</span>
+                          <span className="text-center">Y offset</span>
+                        </div>
+
+                        {WEIGHT_FIELDS.map(({ key, posKey, label, prefix }) => (
+                          <div key={key} className="grid grid-cols-[1fr_60px_80px] gap-2 items-center px-3 py-2">
+                            <span className="text-xs">
+                              <span className="font-medium">{label}</span>
+                              <span className="ml-1 text-muted-foreground">({prefix})</span>
+                            </span>
+                            <div className="flex justify-center">
+                              <input
+                                type="checkbox"
+                                checked={printSettings[key]}
+                                onChange={(e) => updateSetting(key, e.target.checked)}
+                                className="h-3.5 w-3.5 accent-primary"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min={-60}
+                                max={60}
+                                step={1}
+                                value={printSettings[posKey]}
+                                onChange={(e) => updateSetting(posKey, Number(e.target.value) || 0)}
+                                disabled={!printSettings[key]}
+                                className="flex h-7 w-full rounded border bg-background px-1.5 text-[11px] tabular-nums disabled:opacity-40"
+                              />
+                              <MoveVertical className="h-3 w-3 text-muted-foreground shrink-0" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        Y offset is relative to the Weight Y base position. Positive = down, negative = up.
+                      </p>
+                    </div>
+
+                    {/* ── Barcode dimensions ──────────────────────── */}
+                    <div className="grid grid-cols-2 gap-4">
                       {/* Narrow */}
                       <div className="space-y-1">
                         <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-narrow">Narrow (dots)</label>
@@ -317,92 +414,92 @@ export function LabelPrintDialog({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3">
-                      {/* nameY */}
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-nameY">Name Y</label>
-                        <input
-                          id="lbl-nameY"
-                          type="number"
-                          min={0}
-                          max={120}
-                          step={1}
-                          value={printSettings.nameY}
-                          onChange={(e) => updateSetting("nameY", Number(e.target.value) || 20)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
-                        />
+                    {/* ── Layout positions ────────────────────────── */}
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-medium text-muted-foreground">Layout positions (dots)</p>
+                      <div className="grid grid-cols-4 gap-3">
+                        {/* nameY */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-nameY">Name Y</label>
+                          <input
+                            id="lbl-nameY"
+                            type="number"
+                            min={0}
+                            max={120}
+                            step={1}
+                            value={printSettings.nameY}
+                            onChange={(e) => updateSetting("nameY", Number(e.target.value) || 20)}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          />
+                        </div>
+
+                        {/* weightY */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-weightY">Weight Y</label>
+                          <input
+                            id="lbl-weightY"
+                            type="number"
+                            min={0}
+                            max={120}
+                            step={1}
+                            value={printSettings.weightY}
+                            onChange={(e) => updateSetting("weightY", Number(e.target.value) || 72)}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          />
+                        </div>
+
+                        {/* leftMarginMm */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-leftMargin">Left Margin (mm)</label>
+                          <input
+                            id="lbl-leftMargin"
+                            type="number"
+                            min={0}
+                            max={10}
+                            step={0.5}
+                            value={printSettings.leftMarginMm}
+                            onChange={(e) => updateSetting("leftMarginMm", Number(e.target.value) || 3.5)}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          />
+                        </div>
+
+                        {/* barcodeY */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-barcodeY">Barcode Y</label>
+                          <input
+                            id="lbl-barcodeY"
+                            type="number"
+                            min={0}
+                            max={120}
+                            step={1}
+                            value={printSettings.barcodeY}
+                            onChange={(e) => updateSetting("barcodeY", Number(e.target.value) || 0)}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          />
+                          <p className="text-[9px] text-muted-foreground">0 = centered</p>
+                        </div>
                       </div>
 
-                      {/* weightY */}
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-weightY">Weight Y</label>
-                        <input
-                          id="lbl-weightY"
-                          type="number"
-                          min={0}
-                          max={120}
-                          step={1}
-                          value={printSettings.weightY}
-                          onChange={(e) => updateSetting("weightY", Number(e.target.value) || 72)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
-                        />
-                      </div>
-
-                      {/* leftMarginMm */}
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-leftMargin">Left Margin (mm)</label>
-                        <input
-                          id="lbl-leftMargin"
-                          type="number"
-                          min={0}
-                          max={10}
-                          step={0.5}
-                          value={printSettings.leftMarginMm}
-                          onChange={(e) => updateSetting("leftMarginMm", Number(e.target.value) || 3.5)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* barcodeX */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-barcodeX">Barcode X (dots)</label>
+                          <input
+                            id="lbl-barcodeX"
+                            type="number"
+                            min={0}
+                            max={800}
+                            step={1}
+                            value={printSettings.barcodeX}
+                            onChange={(e) => updateSetting("barcodeX", Number(e.target.value) || 0)}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          />
+                          <p className="text-[9px] text-muted-foreground">0 = auto-computed</p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* barcodeX */}
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-barcodeX">Barcode X (dots)</label>
-                        <input
-                          id="lbl-barcodeX"
-                          type="number"
-                          min={0}
-                          max={800}
-                          step={1}
-                          value={printSettings.barcodeX}
-                          onChange={(e) => updateSetting("barcodeX", Number(e.target.value) || 0)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
-                        />
-                        <p className="text-[10px] text-muted-foreground">
-                          0 = auto-computed
-                        </p>
-                      </div>
-
-                      {/* barcodeY */}
-                      <div className="space-y-1">
-                        <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-barcodeY">Barcode Y (dots)</label>
-                        <input
-                          id="lbl-barcodeY"
-                          type="number"
-                          min={0}
-                          max={120}
-                          step={1}
-                          value={printSettings.barcodeY}
-                          onChange={(e) => updateSetting("barcodeY", Number(e.target.value) || 0)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
-                        />
-                        <p className="text-[10px] text-muted-foreground">
-                          0 = auto-computed (vertically centered)
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 pt-1">
                       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleResetDefaults}>
                         <RotateCcw className="mr-1 h-3 w-3" /> Reset defaults
                       </Button>
@@ -488,10 +585,10 @@ export function LabelPrintDialog({
   );
 }
 
-function renderLabelMarkupHTML(label: ProductLabel): string {
+function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSettings): string {
   // Inline preview matching the thermal label layout:
   // Silver: LEFT = name + " - sil" + purity (top) + weight (bottom), RIGHT = barcode
-  // Gold:   LEFT = name (top) + weight + 4 weight fields (bottom), RIGHT = barcode
+  // Gold:   LEFT = name (top) + weight + weight fields (bottom), RIGHT = barcode
   const isGold = label.productType === "Gold";
   const weight = label.weightMg != null ? formatWeight(label.weightMg, label.weightUnit) : "";
 
@@ -508,13 +605,14 @@ function renderLabelMarkupHTML(label: ProductLabel): string {
   const nameLen = nameWithPurity.length;
   const nameFontSize = nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6;
 
-  // Build weight details for Gold
+  // Build weight details for Gold (respect toggles)
   const weightFields: string[] = [];
   if (weight) weightFields.push(weight);
-  if (label.grossWeight?.trim()) weightFields.push(`G: ${label.grossWeight.trim()}`);
-  if (label.nagLessWeight?.trim()) weightFields.push(`N: ${label.nagLessWeight.trim()}`);
-  if (label.chejatWeight?.trim()) weightFields.push(`C: ${label.chejatWeight.trim()}`);
-  if (label.netWeight?.trim()) weightFields.push(`Net: ${label.netWeight.trim()}`);
+  if (settings?.showGrossWeight !== false && label.grossWeight?.trim()) weightFields.push(`G: ${label.grossWeight.trim()}`);
+  if (settings?.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFields.push(`N: ${label.nagLessWeight.trim()}`);
+  if (settings?.showNagRate !== false && label.nagRate?.trim()) weightFields.push(`NR: ${label.nagRate.trim()}`);
+  if (settings?.showChejatWeight !== false && label.chejatWeight?.trim()) weightFields.push(`C: ${label.chejatWeight.trim()}`);
+  if (settings?.showNetWeight !== false && label.netWeight?.trim()) weightFields.push(`Net: ${label.netWeight.trim()}`);
 
   const barcodeDigits = label.barcode?.replace(/\D/g, "") ?? "";
   let barcodeBars = "";

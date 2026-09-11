@@ -12,7 +12,7 @@
     "backgroundColor": "#1a2744"
   },
   "splash": {
-    "image": "./assets/splash-icon.png",
+    "image": "./assets/icon.png",
     "resizeMode": "contain",
     "backgroundColor": "#1a2744"
   },
@@ -39,7 +39,7 @@
     [
       "expo-splash-screen",
       {
-        "image": "./assets/splash-icon.png",
+        "image": "./assets/icon.png",
         "resizeMode": "contain",
         "backgroundColor": "#1a2744"
       }

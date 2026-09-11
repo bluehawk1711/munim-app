@@ -20,6 +20,7 @@ export const productSchema = z.object({
   /** Jewelry-specific weight fields (free text for formulas). */
   grossWeight: z.string().max(40).optional().or(z.literal("")),
   nagLessWeight: z.string().max(40).optional().or(z.literal("")),
+  nagRate: z.string().max(40).optional().or(z.literal("")),
   chejatWeight: z.string().max(40).optional().or(z.literal("")),
   netWeight: z.string().max(40).optional().or(z.literal("")),
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */

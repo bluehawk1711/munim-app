@@ -226,6 +226,7 @@ export function ProductsScreen() {
   const [weightUnit, setWeightUnit] = useState<'mg' | 'gm'>('gm');
   const [grossWeight, setGrossWeight] = useState('');
   const [nagLessWeight, setNagLessWeight] = useState('');
+  const [nagRate, setNagRate] = useState('');
   const [chejatWeight, setChejatWeight] = useState('');
   const [netWeight, setNetWeight] = useState('');
   const [purity, setPurity] = useState('');
@@ -344,6 +345,7 @@ export function ProductsScreen() {
     setWeightUnit('gm');
     setGrossWeight('');
     setNagLessWeight('');
+    setNagRate('');
     setChejatWeight('');
     setNetWeight('');
     setPurity('');
@@ -370,6 +372,7 @@ export function ProductsScreen() {
     setWeightUnit(p.weightUnit === 'mg' ? 'mg' : 'gm');
     setGrossWeight(p.grossWeight ?? '');
     setNagLessWeight(p.nagLessWeight ?? '');
+    setNagRate(p.nagRate ?? '');
     setChejatWeight(p.chejatWeight ?? '');
     setNetWeight(p.netWeight ?? '');
     setPurity(p.purity ?? '');
@@ -412,6 +415,7 @@ export function ProductsScreen() {
         weightUnit,
         grossWeight: grossWeight.trim() || undefined,
         nagLessWeight: nagLessWeight.trim() || undefined,
+        nagRate: nagRate.trim() || undefined,
         chejatWeight: chejatWeight.trim() || undefined,
         netWeight: netWeight.trim() || undefined,
         purity: purity.trim() || undefined,
@@ -510,7 +514,7 @@ export function ProductsScreen() {
     setLabelBusy(true);
     try {
       const label = buildProductLabel(
-        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, sellingPrice: labelTarget.sellingPrice, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
+        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, sellingPrice: labelTarget.sellingPrice, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
         {name: settings?.shopName ?? ''},
       );
       const html = renderLabelSheetHtml([label], {copies: labelCopies});
@@ -703,6 +707,7 @@ export function ProductsScreen() {
         </View>
         <Field label="Gross weight" value={grossWeight} onChangeText={setGrossWeight} placeholder="e.g. 10+5 or 24.5" />
         <Field label="Nag less weight" value={nagLessWeight} onChangeText={setNagLessWeight} placeholder="e.g. 2.5" />
+        <Field label="Nag rate" value={nagRate} onChangeText={setNagRate} placeholder="e.g. 5" />
         <Field label="Chejat weight" value={chejatWeight} onChangeText={setChejatWeight} placeholder="e.g. 3" />
         <Field label="Net weight" value={netWeight} onChangeText={setNetWeight} placeholder="e.g. 19" />
         <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />

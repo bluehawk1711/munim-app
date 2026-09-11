@@ -59,6 +59,18 @@ export type LabelPrintSettings = {
   barcodeY: number;
   /** Include the product purity after its name. */
   showPurity: boolean;
+  /** Gold label weight field visibility toggles. */
+  showGrossWeight: boolean;
+  showNagLessWeight: boolean;
+  showNagRate: boolean;
+  showChejatWeight: boolean;
+  showNetWeight: boolean;
+  /** Gold label weight field Y positions (dots) — relative to weightY base. */
+  grossWeightY: number;
+  nagLessWeightY: number;
+  nagRateY: number;
+  chejatWeightY: number;
+  netWeightY: number;
 };
 
 /** Default settings for the first print — easy to override in the dialog. */
@@ -74,6 +86,16 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   barcodeX: 305,
   barcodeY: 30,
   showPurity: false,
+  showGrossWeight: true,
+  showNagLessWeight: true,
+  showNagRate: true,
+  showChejatWeight: true,
+  showNetWeight: true,
+  grossWeightY: 0,
+  nagLessWeightY: 0,
+  nagRateY: 0,
+  chejatWeightY: 0,
+  netWeightY: 0,
 };
 
 export type TsplLabelOptions = Partial<LabelSizeSettings> & {
@@ -103,6 +125,18 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   barcodeY?: number;
   /** Include the product purity after its name. */
   showPurity?: boolean;
+  /** Gold label weight field visibility toggles. */
+  showGrossWeight?: boolean;
+  showNagLessWeight?: boolean;
+  showNagRate?: boolean;
+  showChejatWeight?: boolean;
+  showNetWeight?: boolean;
+  /** Gold label weight field Y positions (dots) — relative to weightY base. */
+  grossWeightY?: number;
+  nagLessWeightY?: number;
+  nagRateY?: number;
+  chejatWeightY?: number;
+  netWeightY?: number;
 };
 
 /** TSPL2 content is double-quoted — strip quotes/newlines so a value can't
@@ -226,19 +260,21 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     }
 
     if (isGold) {
-      // Gold label: weight + 4 weight fields + purity stacked below name
-      const weightFields: string[] = [];
-      if (weight) weightFields.push(weight);
-      if (label.grossWeight?.trim()) weightFields.push(`G:${label.grossWeight.trim()}`);
-      if (label.nagLessWeight?.trim()) weightFields.push(`N:${label.nagLessWeight.trim()}`);
-      if (label.chejatWeight?.trim()) weightFields.push(`C:${label.chejatWeight.trim()}`);
-      if (label.netWeight?.trim()) weightFields.push(`Net:${label.netWeight.trim()}`);
+      // Gold label: weight + weight fields + purity stacked below name
+      // Each field can have its own Y offset relative to weightY base
+      const weightFieldEntries: { text: string; yKey: keyof TsplLabelOptions }[] = [];
+      if (weight) weightFieldEntries.push({ text: weight, yKey: "weightY" });
+      if (opts.showGrossWeight !== false && label.grossWeight?.trim()) weightFieldEntries.push({ text: `G:${label.grossWeight.trim()}`, yKey: "grossWeightY" });
+      if (opts.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFieldEntries.push({ text: `N:${label.nagLessWeight.trim()}`, yKey: "nagLessWeightY" });
+      if (opts.showNagRate !== false && label.nagRate?.trim()) weightFieldEntries.push({ text: `NR:${label.nagRate.trim()}`, yKey: "nagRateY" });
+      if (opts.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `C:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
+      if (opts.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
 
-      // Print weight fields on separate lines below name
-      let yOff = weightY;
-      for (const wf of weightFields) {
-        lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(wf)}"`);
-        yOff += Math.round(smallSize * 1.3);
+      // Print weight fields with individual Y positions
+      for (const entry of weightFieldEntries) {
+        const yBase = opts.weightY ?? 80;
+        const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
+        lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
       }
     } else {
       // Silver / other: weight below name (same as before)

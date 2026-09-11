@@ -117,6 +117,7 @@ type FormState = {
   weightUnit: "mg" | "gm";
   grossWeight: string;
   nagLessWeight: string;
+  nagRate: string;
   chejatWeight: string;
   netWeight: string;
   purity: string;
@@ -139,6 +140,7 @@ const EMPTY_FORM: FormState = {
   weightUnit: "gm",
   grossWeight: "",
   nagLessWeight: "",
+  nagRate: "",
   chejatWeight: "",
   netWeight: "",
   purity: "",
@@ -388,6 +390,7 @@ export function ProductsPage() {
       weightUnit: (p.weightUnit === "mg" || p.weightUnit === "gm") ? p.weightUnit : "gm",
       grossWeight: p.grossWeight ?? "",
       nagLessWeight: p.nagLessWeight ?? "",
+      nagRate: p.nagRate ?? "",
       chejatWeight: p.chejatWeight ?? "",
       netWeight: p.netWeight ?? "",
       purity: p.purity ?? "",
@@ -530,6 +533,7 @@ export function ProductsPage() {
         weightUnit: form.weightUnit,
         grossWeight: form.grossWeight.trim() || undefined,
         nagLessWeight: form.nagLessWeight.trim() || undefined,
+        nagRate: form.nagRate.trim() || undefined,
         chejatWeight: form.chejatWeight.trim() || undefined,
         netWeight: form.netWeight.trim() || undefined,
         purity: form.purity.trim() || undefined,
@@ -670,6 +674,11 @@ export function ProductsPage() {
         barcode: p.barcode,
         weight: p.weight,
         weightUnit: p.weightUnit ?? "gm",
+        grossWeight: p.grossWeight ?? null,
+        nagLessWeight: p.nagLessWeight ?? null,
+        nagRate: p.nagRate ?? null,
+        chejatWeight: p.chejatWeight ?? null,
+        netWeight: p.netWeight ?? null,
         purity: p.purity,
         sellingPrice: p.sellingPrice,
         colorName: p.color || null,
@@ -1184,6 +1193,10 @@ export function ProductsPage() {
               <div className="space-y-1.5">
                 <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
                 <Input id="p-nag-less-weight" value={form.nagLessWeight} onChange={(e) => setForm({ ...form, nagLessWeight: e.target.value })} placeholder="e.g. 2.5" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="p-nag-rate">Nag rate</Label>
+                <Input id="p-nag-rate" value={form.nagRate} onChange={(e) => setForm({ ...form, nagRate: e.target.value })} placeholder="e.g. 5" />
               </div>
             </div>
 

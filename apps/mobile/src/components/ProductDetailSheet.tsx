@@ -14,11 +14,12 @@
  * keyboard, backdrop, safe-area and theme behavior match every other sheet.
  */
 
-import React, {useCallback, useEffect, useMemo} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
-import {Barcode as BarcodeIcon, ShoppingCart, X} from 'lucide-react-native';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
+import {Barcode as BarcodeIcon, Package, ShoppingCart, X} from 'lucide-react-native';
 import {formatWeight, type ProductDto} from '@munim/core';
 import {MunimBottomSheet, BottomSheetScrollView} from './BottomSheet';
+import {ImageFullScreen} from './ImageFullScreen';
 import type BottomSheet from '@gorhom/bottom-sheet';
 import {colors, useThemeStyles} from '../theme';
 import {copyText} from '../lib/clipboard';
@@ -38,6 +39,7 @@ type ProductDetailSheetProps = {
 export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}: ProductDetailSheetProps) {
   const styles = useThemeStyles(makeStyles);
   const sheetRef = React.useRef<BottomSheet>(null);
+  const [fullImage, setFullImage] = useState<string | null>(null);
   // Start CLOSED (-1): the sheet mounts with the screen, and without this it
   // would auto-open as an empty sheet on entering Inventory.
   const snapPoints = useMemo(() => ['92%'], []);
@@ -103,6 +105,19 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
         {/* Name + variant subtitle */}
         <Text style={styles.name}>{product.name}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+
+        {/* Product image */}
+        {product.imageUrl ? (
+          <Pressable
+            onPress={() => { actionPress(); setFullImage(product.imageUrl); }}
+            style={({pressed}) => [styles.imageWrap, pressed && {opacity: 0.8}]}>
+            <Image source={{uri: product.imageUrl}} style={styles.heroImage} />
+          </Pressable>
+        ) : (
+          <View style={[styles.imageWrap, styles.imageEmpty]}>
+            <Package size={rs(28)} color={colors.muted} />
+          </View>
+        )}
 
         {/* Barcode card */}
         {product.barcode ? (
@@ -210,6 +225,7 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
           </Pressable>
         </View>
       </BottomSheetScrollView>
+      <ImageFullScreen visible={!!fullImage} imageUrl={fullImage} onClose={() => setFullImage(null)} />
     </MunimBottomSheet>
   );
 }
@@ -250,6 +266,25 @@ const makeStyles = () =>
       fontSize: typography.secondary,
       color: colors.muted,
       marginTop: rs(2),
+    },
+    imageWrap: {
+      marginTop: spacing.md,
+      borderRadius: radii.lg,
+      overflow: 'hidden',
+      alignSelf: 'flex-start',
+    },
+    heroImage: {
+      width: rs(120),
+      height: rs(120),
+      borderRadius: radii.lg,
+    },
+    imageEmpty: {
+      width: rs(120),
+      height: rs(120),
+      borderRadius: radii.lg,
+      backgroundColor: colors.mutedSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     barcodeCard: {
       flexDirection: 'row',

@@ -330,6 +330,23 @@ export declare const products: import("drizzle-orm/pg-core").PgTableWithColumns<
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        nagRate: import("drizzle-orm/pg-core").PgColumn<{
+            name: "nag_rate";
+            tableName: "products";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         chejatWeight: import("drizzle-orm/pg-core").PgColumn<{
             name: "chejat_weight";
             tableName: "products";

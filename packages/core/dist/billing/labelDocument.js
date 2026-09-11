@@ -11,6 +11,7 @@ export function buildProductLabel(product, shop) {
         weightUnit: product.weightUnit ?? "gm",
         grossWeight: product.grossWeight ?? null,
         nagLessWeight: product.nagLessWeight ?? null,
+        nagRate: product.nagRate ?? null,
         chejatWeight: product.chejatWeight ?? null,
         netWeight: product.netWeight ?? null,
         purity: product.purity ?? null,
@@ -58,6 +59,8 @@ export function renderLabelMarkup(label) {
         weightFields.push(`G: ${label.grossWeight.trim()}`);
     if (label.nagLessWeight?.trim())
         weightFields.push(`N: ${label.nagLessWeight.trim()}`);
+    if (label.nagRate?.trim())
+        weightFields.push(`NR: ${label.nagRate.trim()}`);
     if (label.chejatWeight?.trim())
         weightFields.push(`C: ${label.chejatWeight.trim()}`);
     if (label.netWeight?.trim())
@@ -151,6 +154,8 @@ export function renderLabelText(label) {
             lines.push(`G: ${label.grossWeight.trim()}`);
         if (label.nagLessWeight?.trim())
             lines.push(`N: ${label.nagLessWeight.trim()}`);
+        if (label.nagRate?.trim())
+            lines.push(`NR: ${label.nagRate.trim()}`);
         if (label.chejatWeight?.trim())
             lines.push(`C: ${label.chejatWeight.trim()}`);
         if (label.netWeight?.trim())

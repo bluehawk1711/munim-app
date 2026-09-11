@@ -44,6 +44,7 @@ import {
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
+import {ProductDetailSheet} from '../components/ProductDetailSheet';
 import {useThemeStyles} from '../theme';
 import {savePdf} from '../lib/save-pdf';
 
@@ -81,6 +82,9 @@ export function SalesScreen() {
   // Duplicate product warning
   const [dupProduct, setDupProduct] = useState<ProductDto | null>(null);
   const [dupQty, setDupQty] = useState(1);
+
+  // Product detail sheet
+  const [detailTarget, setDetailTarget] = useState<ProductDto | null>(null);
 
   const scanQ = useProductByBarcode(scanCode);
 
@@ -375,7 +379,10 @@ export function SalesScreen() {
           ) : (
             <>
               {items.map(item => (
-                <View key={item.product.id} style={styles.billItem}>
+                <Pressable
+                  key={item.product.id}
+                  onPress={() => setDetailTarget(item.product)}
+                  style={({pressed}) => [styles.billItem, pressed && {opacity: 0.7}]}>
                   <View style={styles.billItemTop}>
                     <View style={{flex: 1, minWidth: 0}}>
                       <Text style={styles.itemName} numberOfLines={1}>{item.product.name}</Text>
@@ -399,7 +406,7 @@ export function SalesScreen() {
                     </View>
                     <Text style={styles.itemTotal}>{money(item.quantity * item.price)}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
 
               {/* Total */}
@@ -458,6 +465,15 @@ export function SalesScreen() {
           </>
         ) : null}
       </ModalSheet>
+
+      {/* Product detail sheet */}
+      <ProductDetailSheet
+        product={detailTarget}
+        onClose={() => setDetailTarget(null)}
+        onEdit={() => setDetailTarget(null)}
+        onAdjust={() => setDetailTarget(null)}
+        onSell={() => setDetailTarget(null)}
+      />
     </Screen>
   );
 }

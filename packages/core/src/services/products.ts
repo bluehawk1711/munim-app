@@ -193,6 +193,7 @@ const PRODUCT_SELECT = {
   weightUnit: schema.products.weightUnit,
   grossWeight: schema.products.grossWeight,
   nagLessWeight: schema.products.nagLessWeight,
+  nagRate: schema.products.nagRate,
   chejatWeight: schema.products.chejatWeight,
   netWeight: schema.products.netWeight,
   purity: schema.products.purity,
@@ -322,6 +323,7 @@ export type ProductInput = {
   /** Jewelry-specific weight fields (free text for formulas). */
   grossWeight?: string;
   nagLessWeight?: string;
+  nagRate?: string;
   chejatWeight?: string;
   netWeight?: string;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925".
@@ -372,6 +374,7 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       weightUnit: input.weightUnit === "mg" || input.weightUnit === "gm" ? input.weightUnit : "gm",
       grossWeight: input.grossWeight?.trim() || null,
       nagLessWeight: input.nagLessWeight?.trim() || null,
+      nagRate: input.nagRate?.trim() || null,
       chejatWeight: input.chejatWeight?.trim() || null,
       netWeight: input.netWeight?.trim() || null,
       purity: input.purity?.trim() || null,
@@ -436,6 +439,7 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
         : existing.weightUnit ?? "gm",
       grossWeight: input.grossWeight === undefined ? existing.grossWeight : input.grossWeight?.trim() || null,
       nagLessWeight: input.nagLessWeight === undefined ? existing.nagLessWeight : input.nagLessWeight?.trim() || null,
+      nagRate: input.nagRate === undefined ? existing.nagRate : input.nagRate?.trim() || null,
       chejatWeight: input.chejatWeight === undefined ? existing.chejatWeight : input.chejatWeight?.trim() || null,
       netWeight: input.netWeight === undefined ? existing.netWeight : input.netWeight?.trim() || null,
       purity: input.purity === undefined ? existing.purity : input.purity?.trim() || null,

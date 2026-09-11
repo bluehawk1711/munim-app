@@ -50,6 +50,13 @@
       "when": 1788867256463,
       "tag": "0006_daffy_dagger",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789099758933,
+      "tag": "0007_add_nag_rate",
+      "breakpoints": true
     }
   ]
 }

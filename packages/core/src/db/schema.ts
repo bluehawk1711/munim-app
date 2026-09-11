@@ -66,6 +66,7 @@ export const products = pgTable(
     /** Jewelry-specific weight fields (free text for formulas like "10+5"). */
     grossWeight: text("gross_weight"),
     nagLessWeight: text("nag_less_weight"),
+    nagRate: text("nag_rate"),
     chejatWeight: text("chejat_weight"),
     netWeight: text("net_weight"),
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". Free text so

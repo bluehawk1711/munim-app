@@ -83,6 +83,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           barcode: product.barcode ?? "",
           weight: product.weight ?? undefined,
           weightUnit: product.weightUnit === "mg" || product.weightUnit === "gm" ? product.weightUnit : "gm",
+          nagRate: product.nagRate ?? "",
           purity: product.purity ?? "",
           imageUrl: product.imageUrl ?? "",
           stock: product.stock,
@@ -357,6 +358,10 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
             <div className="space-y-2">
               <Label htmlFor="nagLessWeight">Nag less weight</Label>
               <Input id="nagLessWeight" placeholder="e.g. 2.5" {...form.register("nagLessWeight")} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="nagRate">Nag rate</Label>
+              <Input id="nagRate" placeholder="e.g. 5" {...form.register("nagRate")} />
             </div>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">

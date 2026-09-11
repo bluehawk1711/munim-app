@@ -49,6 +49,7 @@ export type ProductDto = {
   /** Jewelry-specific weight fields (free text). */
   grossWeight: string | null;
   nagLessWeight: string | null;
+  nagRate: string | null;
   chejatWeight: string | null;
   netWeight: string | null;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
@@ -77,6 +78,7 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     weightUnit: p.weightUnit ?? "gm",
     grossWeight: p.grossWeight,
     nagLessWeight: p.nagLessWeight,
+    nagRate: p.nagRate,
     chejatWeight: p.chejatWeight,
     netWeight: p.netWeight,
     purity: p.purity,

@@ -26,6 +26,7 @@ export type ProductLabel = {
   /** Jewelry-specific weight fields (free text). */
   grossWeight: string | null;
   nagLessWeight: string | null;
+  nagRate: string | null;
   chejatWeight: string | null;
   netWeight: string | null;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
@@ -53,6 +54,7 @@ export function buildProductLabel(
     weightUnit?: string;
     grossWeight?: string | null;
     nagLessWeight?: string | null;
+    nagRate?: string | null;
     chejatWeight?: string | null;
     netWeight?: string | null;
     purity?: string | null;
@@ -73,6 +75,7 @@ export function buildProductLabel(
     weightUnit: product.weightUnit ?? "gm",
     grossWeight: product.grossWeight ?? null,
     nagLessWeight: product.nagLessWeight ?? null,
+    nagRate: product.nagRate ?? null,
     chejatWeight: product.chejatWeight ?? null,
     netWeight: product.netWeight ?? null,
     purity: product.purity ?? null,
@@ -124,6 +127,7 @@ export function renderLabelMarkup(label: ProductLabel): string {
   if (weight) weightFields.push(weight);
   if (label.grossWeight?.trim()) weightFields.push(`G: ${label.grossWeight.trim()}`);
   if (label.nagLessWeight?.trim()) weightFields.push(`N: ${label.nagLessWeight.trim()}`);
+  if (label.nagRate?.trim()) weightFields.push(`NR: ${label.nagRate.trim()}`);
   if (label.chejatWeight?.trim()) weightFields.push(`C: ${label.chejatWeight.trim()}`);
   if (label.netWeight?.trim()) weightFields.push(`Net: ${label.netWeight.trim()}`);
 
@@ -236,6 +240,7 @@ export function renderLabelText(label: ProductLabel): string {
     if (weight) lines.push(weight);
     if (label.grossWeight?.trim()) lines.push(`G: ${label.grossWeight.trim()}`);
     if (label.nagLessWeight?.trim()) lines.push(`N: ${label.nagLessWeight.trim()}`);
+    if (label.nagRate?.trim()) lines.push(`NR: ${label.nagRate.trim()}`);
     if (label.chejatWeight?.trim()) lines.push(`C: ${label.chejatWeight.trim()}`);
     if (label.netWeight?.trim()) lines.push(`Net: ${label.netWeight.trim()}`);
   } else {

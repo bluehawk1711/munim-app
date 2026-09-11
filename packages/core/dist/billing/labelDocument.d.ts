@@ -22,6 +22,7 @@ export type ProductLabel = {
     /** Jewelry-specific weight fields (free text). */
     grossWeight: string | null;
     nagLessWeight: string | null;
+    nagRate: string | null;
     chejatWeight: string | null;
     netWeight: string | null;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
@@ -46,6 +47,7 @@ export declare function buildProductLabel(product: {
     weightUnit?: string;
     grossWeight?: string | null;
     nagLessWeight?: string | null;
+    nagRate?: string | null;
     chejatWeight?: string | null;
     netWeight?: string | null;
     purity?: string | null;
