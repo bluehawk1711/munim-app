@@ -629,7 +629,7 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
     <div style="flex:0 0 22%;display:flex;flex-direction:column;justify-content:space-between">
       <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:${nameFontSize}px">${escHTML(nameWithPurity)}</div>
       ${isGold
-        ? `<div style="font-size:5px;color:#555;line-height:1.2">${weightFields.map(wf => `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
+        ? `<div style="display:flex;flex-wrap:wrap;gap:0 1px">${weightFields.map(wf => `<div style="flex:0 0 48%;font-size:5px;color:#555;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
         : `<div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>`
       }
     </div>

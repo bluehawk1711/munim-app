@@ -73,7 +73,7 @@ export function renderLabelMarkup(label) {
     <div class="l-left">
       <div class="l-name" style="font-size:${nameFontSize}px">${esc(nameWithPurity)}</div>
       ${isGold
-        ? `<div class="l-weight l-weight-gold">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
+        ? `<div class="l-weight l-weight-gold-grid">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
         : `<div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>`}
     </div>
     <div class="l-right">${barcode || `<span class="l-nocode">NO BARCODE</span>`}</div>
@@ -133,6 +133,8 @@ export function renderLabelSheetHtml(labels, opts = {}) {
   .l-nocode { font-size: 8px; color: #999; }
   .l-weight { font-size: 9px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .l-weight-gold { font-size: 7px; line-height: 1.25; }
+  .l-weight-gold-grid { display: flex; flex-wrap: wrap; gap: 0 2mm; }
+  .l-weight-gold-grid > div { flex: 0 0 48%; font-size: 7px; line-height: 1.25; }
 </style>
 </head>
 <body>${pages.join("")}</body>

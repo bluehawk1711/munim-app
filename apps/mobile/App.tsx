@@ -35,6 +35,7 @@ import {
   LayoutGrid,
 } from 'lucide-react-native';
 import {colors, SafeScreen} from './src/components/ui';
+import {ErrorBoundary} from './src/components/ErrorBoundary';
 import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
 import {PinProvider} from './src/lib/pin-provider';
 import {MobileQueryProvider} from './src/lib/query';
@@ -159,11 +160,6 @@ function AppInner() {
     registerToast(toast);
   }, [toast]);
 
-  // Hide splash screen once the app tree is mounted and ready.
-  React.useEffect(() => {
-    SplashScreen.hide();
-  }, []);
-
   return (
     <GestureHandlerRootView style={{flex: 1}}>
       <SafeAreaProvider>
@@ -193,14 +189,16 @@ function AppInner() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <PinProvider>
-        <MobileQueryProvider>
-          <ToastProvider>
-            <AppInner />
-          </ToastProvider>
-        </MobileQueryProvider>
-      </PinProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <PinProvider>
+          <MobileQueryProvider>
+            <ToastProvider>
+              <AppInner />
+            </ToastProvider>
+          </MobileQueryProvider>
+        </PinProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

@@ -6,6 +6,8 @@
  * live status.
  */
 import React, {createContext, useContext, useEffect, useMemo, useState} from 'react';
+import {View, Text} from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import {PinLockScreen} from '../screens/PinLockScreen';
 import {OnboardingScreen} from '../screens/OnboardingScreen';
 import {ResetConfigScreen} from '../screens/ResetConfigScreen';
@@ -45,32 +47,43 @@ export function PinProvider({children}: {children: React.ReactNode}) {
   const [isTestAccount, setIsTestAccount] = useState(false);
   const [accountEmail, setAccountEmail] = useState('');
   const [phase, setPhase] = useState<SetupPhase>('checking');
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
     void (async () => {
-      // Adopt build-time EXPO_PUBLIC_* values into storage so Settings shows
-      // the real config and `clearAppSetup` returns to onboarding correctly.
-      await adoptBuildTimeConfig();
-      // Setup gate: first launch (no saved DB URL) → onboarding flow first.
-      const setup = await getSavedAppSetup();
-      if (!active) return;
-      setPhase(setup ? 'gate' : 'onboarding');
-      let s: pin.PinSnapshot;
       try {
-        s = await pin.initializePin();
-      } catch {
-        // Storage failure — fall back to unlocked so the app still opens.
+        // Adopt build-time EXPO_PUBLIC_* values into storage so Settings shows
+        // the real config and `clearAppSetup` returns to onboarding correctly.
+        await adoptBuildTimeConfig();
+        // Setup gate: first launch (no saved DB URL) → onboarding flow first.
+        const setup = await getSavedAppSetup();
         if (!active) return;
-        setStatus('unlocked');
-        setLockEnabled(false);
-        return;
+        setPhase(setup ? 'gate' : 'onboarding');
+        let s: pin.PinSnapshot;
+        try {
+          s = await pin.initializePin();
+        } catch {
+          // Storage failure — fall back to unlocked so the app still opens.
+          if (!active) return;
+          setStatus('unlocked');
+          setLockEnabled(false);
+          return;
+        }
+        if (!active) return;
+        setStatus(s.status);
+        setLockEnabled(s.lockEnabled);
+        setIsTestAccount(s.isTestAccount);
+        setAccountEmail(s.accountEmail);
+      } catch (err) {
+        // Catastrophic init failure — show error UI so the app isn't stuck.
+        if (!active) return;
+        setInitError(err instanceof Error ? err.message : 'Failed to initialize app');
+      } finally {
+        // Always dismiss the splash — covers onboarding, locked, unlocked,
+        // and error paths. Idempotent so safe even if unmounted first.
+        SplashScreen.hide();
       }
-      if (!active) return;
-      setStatus(s.status);
-      setLockEnabled(s.lockEnabled);
-      setIsTestAccount(s.isTestAccount);
-      setAccountEmail(s.accountEmail);
     })();
     return () => {
       active = false;
@@ -133,6 +146,14 @@ export function PinProvider({children}: {children: React.ReactNode}) {
   );
 
   if (phase === 'checking' || status === 'loading') return null;
+  if (initError) {
+    return (
+      <View style={{flex:1,backgroundColor:'#1a2744',alignItems:'center',justifyContent:'center',padding:32}}>
+        <Text style={{fontSize:20,fontWeight:'700',color:'#fff',marginBottom:12}}>Failed to start</Text>
+        <Text style={{fontSize:14,color:'#94a3b8',textAlign:'center',marginBottom:28,lineHeight:20}}>{initError}</Text>
+      </View>
+    );
+  }
   if (phase === 'onboarding') {
     return (
       <OnboardingScreen

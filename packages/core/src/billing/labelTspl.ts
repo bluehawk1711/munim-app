@@ -214,7 +214,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const maxNameSize = toPt(Math.round(h * 0.21));   // Gold name: ~25 dots = 8.8pt
   const minNameSize = toPt(Math.round(h * 0.17));   // Gold name min: ~20 dots = 7pt
   const weightSize = toPt(Math.round(h * 0.25));     // Silver weight: ~30 dots = 10.6pt
-  const smallSize = toPt(Math.round(h * 0.12));      // Gold weight fields: ~14 dots = 4.9pt
+  const smallSize = toPt(Math.round(h * 0.14));      // Gold weight fields: ~17 dots = 5.7pt
 
   const barcodeHeight = 65;
   const barcodeX = (opts.barcodeX && opts.barcodeX > 0) ? opts.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
@@ -267,8 +267,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     }
 
     if (isGold) {
-      // Gold label: weight + weight fields + purity stacked below name
-      // Each field can have its own Y offset relative to weightY base
+      // Gold label: weight + weight fields in 2 columns to use horizontal space.
+      // LEFT is ~24mm wide. At 5.7pt, ~13 chars per column.
+      // Line 1: Name (top) | Line 2: weight fields (2-col below name)
       const weightFieldEntries: { text: string; yKey: keyof TsplLabelOptions }[] = [];
       if (weight) weightFieldEntries.push({ text: weight, yKey: "weightY" });
       if (opts.showGrossWeight !== false && label.grossWeight?.trim()) weightFieldEntries.push({ text: `G:${label.grossWeight.trim()}`, yKey: "grossWeightY" });
@@ -277,30 +278,46 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       if (opts.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `C:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
       if (opts.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
 
-      // Gold labels: auto-pack from Y=30 (after name) to fit all lines in 120 dots.
-      // 120 total - 5 top margin - 25 name = 90 dots available.
-      // 6 lines × 15 dots = 90 dots exactly.
-      const goldStartY = 30;
-      const goldLineSpacing = Math.round(90 / Math.max(1, weightFieldEntries.length));
+      if (weightFieldEntries.length > 0) {
+        // Layout: name at top (maxNameSize), weight fields below in 2 columns (smallSize).
+        // 120 total - 5 top margin - 25 name = 90 dots for weight fields.
+        // 2 rows × 35 dots = 70 dots (fits within 90).
+        const goldStartY = 30;
+        const goldLineSpacing = 35;
+        const columnGap = mmToDots(12, dpi);
 
-      const hasCustomPositions = weightFieldEntries.some(e => {
-        const v = opts[e.yKey];
-        return typeof v === "number" && v !== 0;
-      });
+        const hasCustomPositions = weightFieldEntries.some(e => {
+          const v = opts[e.yKey];
+          return typeof v === "number" && v !== 0;
+        });
 
-      if (hasCustomPositions) {
-        // Use individual Y positions (relative to weightY base)
-        for (const entry of weightFieldEntries) {
-          const yBase = opts.weightY ?? 80;
-          const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
-          lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
-        }
-      } else {
-        // Auto-pack tightly from goldStartY
-        let yOff = goldStartY;
-        for (const entry of weightFieldEntries) {
-          lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
-          yOff += goldLineSpacing;
+        if (hasCustomPositions) {
+          // Custom Y positions — still use 2-column layout
+          const leftCol = weightFieldEntries.filter(e => e.yKey !== 'nagRateY' && e.yKey !== 'netWeightY');
+          const rightCol = weightFieldEntries.filter(e => e.yKey === 'nagRateY' || e.yKey === 'netWeightY');
+          for (const entry of leftCol) {
+            const yBase = opts.weightY ?? 80;
+            const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
+            lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+          }
+          for (const entry of rightCol) {
+            const yBase = opts.weightY ?? 80;
+            const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
+            lines.push(`TEXT ${leftMargin + columnGap},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+          }
+        } else {
+          // Auto-pack in 2 columns from goldStartY
+          // Split into 2 rows: row 1 (first 2 fields), row 2 (remaining)
+          const row1 = weightFieldEntries.slice(0, 2);
+          const row2 = weightFieldEntries.slice(2);
+          let yOff = goldStartY;
+          for (const entry of row1) {
+            lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+            yOff += goldLineSpacing;
+          }
+          for (const entry of row2) {
+            lines.push(`TEXT ${leftMargin + columnGap},${yOff - goldLineSpacing},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+          }
         }
       }
     } else {
