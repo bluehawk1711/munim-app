@@ -377,7 +377,8 @@ export function LabelPrintDialog({
                         ))}
                       </div>
                       <p className="text-[10px] text-muted-foreground">
-                        Y offset is relative to the Weight Y base position. Positive = down, negative = up.
+                        Fields auto-stack in two columns below the name (starting at Fields start Y).
+                        Y offset nudges a field from its stacked position: positive = down, negative = up. 0 = auto.
                       </p>
                     </div>
 
@@ -446,6 +447,22 @@ export function LabelPrintDialog({
                             onChange={(e) => updateSetting("weightY", Number(e.target.value) || 72)}
                             className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
                           />
+                        </div>
+
+                        {/* goldFieldsStartY */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-goldFieldsY">Fields start Y</label>
+                          <input
+                            id="lbl-goldFieldsY"
+                            type="number"
+                            min={0}
+                            max={120}
+                            step={1}
+                            value={printSettings.goldFieldsStartY}
+                            onChange={(e) => updateSetting("goldFieldsStartY", Number(e.target.value) || 45)}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          />
+                          <p className="text-[9px] text-muted-foreground">Gold: where fields begin below the name</p>
                         </div>
 
                         {/* leftMarginMm */}

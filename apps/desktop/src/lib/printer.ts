@@ -89,6 +89,10 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         wide: typeof s.wide === "number" && s.wide >= 2 && s.wide <= 20 ? s.wide : 3,
         nameY: typeof s.nameY === "number" && s.nameY >= 0 && s.nameY <= 120 ? s.nameY : 25,
         weightY: typeof s.weightY === "number" && s.weightY >= 0 && s.weightY <= 120 ? s.weightY : 80,
+        goldFieldsStartY:
+          typeof s.goldFieldsStartY === "number" && s.goldFieldsStartY >= 0 && s.goldFieldsStartY <= 120
+            ? s.goldFieldsStartY
+            : 45,
         leftMarginMm: typeof s.leftMarginMm === "number" && s.leftMarginMm >= 0 && s.leftMarginMm <= 10 ? s.leftMarginMm : 3.5,
         barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 305,
         barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 30,
@@ -142,10 +146,21 @@ export async function printLabelsToThermal(
     wide: ps.wide,
     nameY: ps.nameY,
     weightY: ps.weightY,
+    goldFieldsStartY: ps.goldFieldsStartY,
     leftMarginMm: ps.leftMarginMm,
     barcodeX: ps.barcodeX,
     barcodeY: ps.barcodeY,
     showPurity: ps.showPurity,
+    showGrossWeight: ps.showGrossWeight,
+    showNagLessWeight: ps.showNagLessWeight,
+    showNagRate: ps.showNagRate,
+    showChejatWeight: ps.showChejatWeight,
+    showNetWeight: ps.showNetWeight,
+    grossWeightY: ps.grossWeightY,
+    nagLessWeightY: ps.nagLessWeightY,
+    nagRateY: ps.nagRateY,
+    chejatWeightY: ps.chejatWeightY,
+    netWeightY: ps.netWeightY,
   });
   const data = Array.from(new TextEncoder().encode(tspl));
   console.info("[Munim label print]", {

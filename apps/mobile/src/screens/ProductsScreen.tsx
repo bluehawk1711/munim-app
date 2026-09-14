@@ -679,7 +679,7 @@ export function ProductsScreen() {
       />
 
       {/* Product form sheet — centered modal */}
-      <ModalSheet visible={formOpen} title={editing ? `Edit — ${editing.name}` : 'Add product'} onClose={() => setFormOpen(false)} dismissable={!saving && !uploading} centered scrollable>
+      <ModalSheet visible={formOpen} size="xl" title={editing ? `Edit — ${editing.name}` : 'Add product'} onClose={() => setFormOpen(false)} dismissable={!saving && !uploading} centered scrollable>
         <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
         <SelectField label="Type" value={type} placeholder="Select type" onPress={() => setTypePickerOpen(true)} />
         <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>

@@ -607,7 +607,7 @@ export function ModalSheet({
   dismissable?: boolean;
   centered?: boolean;
   scrollable?: boolean;
-  size?: 'normal' | 'large';
+  size?: 'normal' | 'large' | 'xl';
 }) {
   return (
     <Modal
@@ -632,13 +632,19 @@ export function ModalSheet({
           style={{
             backgroundColor: colors.card,
             ...(centered
-              ? {
-                  borderRadius: radii.lg,
-                  width: '100%',
-                  maxWidth: size === 'large' ? rs(420) : rs(360),
-                  padding: spacing.lg,
-                  maxHeight: size === 'large' ? '90%' : '80%',
-                }
+              ? (() => {
+                  // Per-size dimensions: wider and taller sheets for long forms
+                  // (product add/edit) so fewer fields hide below the fold.
+                  const width = size === 'xl' ? rs(480) : size === 'large' ? rs(420) : rs(360);
+                  const maxHeight = size === 'xl' ? '95%' : size === 'large' ? '90%' : '80%';
+                  return {
+                      borderRadius: radii.lg,
+                      width: '100%',
+                      maxWidth: width,
+                      padding: spacing.lg,
+                      maxHeight: maxHeight,
+                      };
+                })()
               : {
                   borderTopLeftRadius: radii.xl,
                   borderTopRightRadius: radii.xl,
@@ -651,7 +657,7 @@ export function ModalSheet({
             {title}
           </Text>
           {scrollable ? (
-            <ScrollView style={{maxHeight: centered ? (size === 'large' ? 550 : 400) : 500}}>
+            <ScrollView style={{maxHeight: centered ? (size === 'xl' ? 680 : size === 'large' ? 550 : 400) : 500}}>
               {children}
             </ScrollView>
           ) : (

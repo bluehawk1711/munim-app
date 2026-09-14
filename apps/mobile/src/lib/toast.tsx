@@ -13,6 +13,7 @@
 
 import React, {createContext, useContext, useState, useCallback, useEffect} from 'react';
 import {Animated, StyleSheet, Text, View} from 'react-native';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {colors, useThemeStyles} from '../theme';
 import {rs, spacing} from '../lib/responsive';
 
@@ -84,8 +85,11 @@ const ToastContainer = React.memo(function ToastContainer({
   onRemove: (id: string) => void;
 }) {
   const styles = useThemeStyles(makeToastStyles);
+  // Lift toasts clear of the gesture/nav bar so the bottom never gets cut off:
+  // safe-area inset + an extra breathing margin above it.
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, {bottom: insets.bottom + rs(32)}]}>
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}

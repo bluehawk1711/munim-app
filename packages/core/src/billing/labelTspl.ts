@@ -65,12 +65,15 @@ export type LabelPrintSettings = {
   showNagRate: boolean;
   showChejatWeight: boolean;
   showNetWeight: boolean;
-  /** Gold label weight field Y positions (dots) — relative to weightY base. */
+  /** Gold label weight field Y nudges (dots) from each field's auto-stacked
+   *  position in its column. 0 = auto. */
   grossWeightY: number;
   nagLessWeightY: number;
   nagRateY: number;
   chejatWeightY: number;
   netWeightY: number;
+  /** Y (dots) where the gold weight-fields column starts, below the name. */
+  goldFieldsStartY: number;
 };
 
 /** Default settings for the first print — easy to override in the dialog. */
@@ -82,6 +85,9 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   wide: 3,
   nameY: 25,
   weightY: 80,
+  // Gold weight-fields column starts below the name (~40-45 dots) so the
+  // smaller field text never collides with the taller name line.
+  goldFieldsStartY: 45,
   leftMarginMm: 3.5,
   barcodeX: 305,
   barcodeY: 30,
@@ -134,12 +140,16 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   showNagRate?: boolean;
   showChejatWeight?: boolean;
   showNetWeight?: boolean;
-  /** Gold label weight field Y positions (dots) — relative to weightY base. */
+  /** Gold label weight field Y nudges (dots) from each field's auto-stacked
+   *  position in its column. 0 = auto. */
   grossWeightY?: number;
   nagLessWeightY?: number;
   nagRateY?: number;
   chejatWeightY?: number;
   netWeightY?: number;
+  /** Y (dots) where the gold weight-fields column starts, below the name.
+   *  Default 45. */
+  goldFieldsStartY?: number;
 };
 
 /** TSPL2 content is double-quoted — strip quotes/newlines so a value can't
@@ -211,10 +221,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // Silver labels (name + 1 weight line) can use larger fonts.
   // Budget: 120 dots total. Gold: name ~25 dots, 6 weight lines × ~14 dots = 84 dots.
   // Silver: name ~40 dots, 1 weight line ~30 dots.
-  const maxNameSize = toPt(Math.round(h * 0.21));   // Gold name: ~25 dots = 8.8pt
+  const maxNameSize = toPt(Math.round(h * 0.20));   // Gold name: ~24 dots = 8.5pt
   const minNameSize = toPt(Math.round(h * 0.17));   // Gold name min: ~20 dots = 7pt
   const weightSize = toPt(Math.round(h * 0.25));     // Silver weight: ~30 dots = 10.6pt
-  const smallSize = toPt(Math.round(h * 0.14));      // Gold weight fields: ~17 dots = 5.7pt
+  const smallSize = toPt(Math.round(h * 0.16));      // Gold weight fields: ~19 dots = 6.8pt
 
   const barcodeHeight = 65;
   const barcodeX = (opts.barcodeX && opts.barcodeX > 0) ? opts.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
@@ -269,9 +279,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     if (isGold) {
       // Gold label: weight + weight fields in 2 columns to use horizontal space.
       // LEFT is ~24mm wide. At 5.7pt, ~13 chars per column.
-      // Line 1: Name (top) | Line 2: weight fields (2-col below name)
-      const weightFieldEntries: { text: string; yKey: keyof TsplLabelOptions }[] = [];
-      if (weight) weightFieldEntries.push({ text: weight, yKey: "weightY" });
+      // Line 1: Name (top) | Lines 2+: weight fields stacked in 2 columns below.
+      type GoldFieldYKey = "grossWeightY" | "nagLessWeightY" | "nagRateY" | "chejatWeightY" | "netWeightY";
+      const weightFieldEntries: { text: string; yKey: GoldFieldYKey | null }[] = [];
+      if (weight) weightFieldEntries.push({ text: weight, yKey: null });
       if (opts.showGrossWeight !== false && label.grossWeight?.trim()) weightFieldEntries.push({ text: `G:${label.grossWeight.trim()}`, yKey: "grossWeightY" });
       if (opts.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFieldEntries.push({ text: `N:${label.nagLessWeight.trim()}`, yKey: "nagLessWeightY" });
       if (opts.showNagRate !== false && label.nagRate?.trim()) weightFieldEntries.push({ text: `NR:${label.nagRate.trim()}`, yKey: "nagRateY" });
@@ -279,46 +290,32 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       if (opts.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
 
       if (weightFieldEntries.length > 0) {
-        // Layout: name at top (maxNameSize), weight fields below in 2 columns (smallSize).
-        // 120 total - 5 top margin - 25 name = 90 dots for weight fields.
-        // 2 rows × 35 dots = 70 dots (fits within 90).
-        const goldStartY = 30;
-        const goldLineSpacing = 35;
+        // Column geometry. 15mm tall = 120 dots at 203 dpi: the name occupies
+        // the top band, fields start below it (goldFieldsStartY, default 45)
+        // and stack goldLineSpacing apart so nothing shares a Y in a column.
+        // The old code drew every second-row field at ONE Y — they printed on
+        // top of each other.
+        const fieldsStartY = opts.goldFieldsStartY ?? 45;
+        const goldLineSpacing = 28;
         const columnGap = mmToDots(12, dpi);
 
-        const hasCustomPositions = weightFieldEntries.some(e => {
-          const v = opts[e.yKey];
-          return typeof v === "number" && v !== 0;
-        });
+        // Distribute round-robin down the two columns (row reads L→R), so the
+        // deepest row with all 6 fields is 45 + 2×28 = 101 dots — inside 120.
+        const leftCol: typeof weightFieldEntries = [];
+        const rightCol: typeof weightFieldEntries = [];
+        weightFieldEntries.forEach((entry, i) => (i % 2 === 0 ? leftCol : rightCol).push(entry));
 
-        if (hasCustomPositions) {
-          // Custom Y positions — still use 2-column layout
-          const leftCol = weightFieldEntries.filter(e => e.yKey !== 'nagRateY' && e.yKey !== 'netWeightY');
-          const rightCol = weightFieldEntries.filter(e => e.yKey === 'nagRateY' || e.yKey === 'netWeightY');
-          for (const entry of leftCol) {
-            const yBase = opts.weightY ?? 80;
-            const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
-            lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
-          }
-          for (const entry of rightCol) {
-            const yBase = opts.weightY ?? 80;
-            const yOff = yBase + (typeof opts[entry.yKey] === "number" ? (opts[entry.yKey] as number) : 0);
-            lines.push(`TEXT ${leftMargin + columnGap},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
-          }
-        } else {
-          // Auto-pack in 2 columns from goldStartY
-          // Split into 2 rows: row 1 (first 2 fields), row 2 (remaining)
-          const row1 = weightFieldEntries.slice(0, 2);
-          const row2 = weightFieldEntries.slice(2);
-          let yOff = goldStartY;
-          for (const entry of row1) {
-            lines.push(`TEXT ${leftMargin},${yOff},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
-            yOff += goldLineSpacing;
-          }
-          for (const entry of row2) {
-            lines.push(`TEXT ${leftMargin + columnGap},${yOff - goldLineSpacing},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
-          }
-        }
+        const drawColumn = (entries: typeof weightFieldEntries, x: number) => {
+          entries.forEach((entry, row) => {
+            const yAuto = fieldsStartY + row * goldLineSpacing;
+            // Per-field Y nudge (dots) — user-configurable in the print dialog.
+            const yNudge = entry.yKey ? opts[entry.yKey] : 0;
+            const y = yAuto + (typeof yNudge === "number" ? yNudge : 0);
+            lines.push(`TEXT ${x},${y},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
+          });
+        };
+        drawColumn(leftCol, leftMargin);
+        drawColumn(rightCol, leftMargin + columnGap);
       }
     } else {
       // Silver / other: weight below name (same as before)
