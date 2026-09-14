@@ -10,3 +10,6 @@ minimumReleaseAgeExclude:
 overrides:
   react: 19.3.0
   react-dom: 19.3.0
+  # @nestjs/platform-fastify pins fastify@5.11.3 exactly while apps/api's ^5.11.3
+  # resolves newer (5.12.3) — two copies break plugin types at build. Dedupe to one.
+  fastify: 5.12.3
