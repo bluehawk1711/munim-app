@@ -622,7 +622,7 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
   // Gold labels: smaller name font to fit weight fields below
   const nameLen = nameWithPurity.length;
   const nameFontSize = isGold
-    ? (nameLen <= 10 ? 6 : nameLen <= 14 ? 5.5 : nameLen <= 18 ? 5 : 4.5)
+    ? (nameLen <= 8 ? 6 : nameLen <= 12 ? 5.5 : nameLen <= 16 ? 5 : 4.5)
     : (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6);
 
   // Build weight details for Gold (respect toggles)
@@ -643,11 +643,11 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
     barcodeBars = `<div style="font-size:7px;color:#999">NO BARCODE</div>`;
   }
   return `<div style="display:flex;align-items:stretch;height:100%;padding:4px 6px;font-family:system-ui,sans-serif;font-weight:600;line-height:1.2">
-    <div style="flex:0 0 22%;display:flex;flex-direction:column;justify-content:space-between">
+    <div style="flex:0 0 22%;display:flex;flex-direction:column;justify-content:flex-start">
       <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:${nameFontSize}px">${escHTML(nameWithPurity)}</div>
       ${isGold
-        ? `<div style="display:flex;flex-wrap:wrap;gap:0 1px">${weightFields.map(wf => `<div style="flex:0 0 48%;font-size:5px;color:#555;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
-        : `<div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>`
+        ? `<div style="display:flex;flex-wrap:wrap;gap:0 1px;margin-top:3px">${weightFields.map(wf => `<div style="flex:0 0 48%;font-size:5px;color:#555;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
+        : `<div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto">${weight ? escHTML(weight) : "&nbsp;"}</div>`
       }
     </div>
     <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">${barcodeBars}</div>

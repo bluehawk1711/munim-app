@@ -87,7 +87,7 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   weightY: 80,
   // Gold weight-fields column starts below the name (~40-45 dots) so the
   // smaller field text never collides with the taller name line.
-  goldFieldsStartY: 45,
+  goldFieldsStartY: 55,
   leftMarginMm: 3.5,
   barcodeX: 305,
   barcodeY: 30,
@@ -291,16 +291,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
       if (weightFieldEntries.length > 0) {
         // Column geometry. 15mm tall = 120 dots at 203 dpi: the name occupies
-        // the top band, fields start below it (goldFieldsStartY, default 45)
+        // the top band, fields start below it (goldFieldsStartY, default 55) and stack down in two columns.
         // and stack goldLineSpacing apart so nothing shares a Y in a column.
         // The old code drew every second-row field at ONE Y — they printed on
         // top of each other.
-        const fieldsStartY = opts.goldFieldsStartY ?? 45;
+        const fieldsStartY = opts.goldFieldsStartY ?? 55;
         const goldLineSpacing = 28;
         const columnGap = mmToDots(12, dpi);
 
         // Distribute round-robin down the two columns (row reads L→R), so the
-        // deepest row with all 6 fields is 45 + 2×28 = 101 dots — inside 120.
+        // deepest row with all 6 fields is 55 + 2×28 = 111 dots — inside 120.
         const leftCol: typeof weightFieldEntries = [];
         const rightCol: typeof weightFieldEntries = [];
         weightFieldEntries.forEach((entry, i) => (i % 2 === 0 ? leftCol : rightCol).push(entry));
@@ -318,7 +318,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
         drawColumn(rightCol, leftMargin + columnGap);
       }
     } else {
-      // Silver / other: weight below name (same as before)
+      // Silver / other: weight below name at weightY position
       if (weight) {
         lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
       }

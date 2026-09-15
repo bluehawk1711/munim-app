@@ -1184,33 +1184,37 @@ export function ProductsPage() {
               </div>
             </div>
 
-            {/* Row 7: Gross weight + Nag less weight */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="p-gross-weight">Gross weight</Label>
-                <Input id="p-gross-weight" value={form.grossWeight} onChange={(e) => setForm({ ...form, grossWeight: e.target.value })} placeholder="e.g. 10+5" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
-                <Input id="p-nag-less-weight" value={form.nagLessWeight} onChange={(e) => setForm({ ...form, nagLessWeight: e.target.value })} placeholder="e.g. 2.5" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-nag-rate">Nag rate</Label>
-                <Input id="p-nag-rate" value={form.nagRate} onChange={(e) => setForm({ ...form, nagRate: e.target.value })} placeholder="e.g. 5" />
-              </div>
-            </div>
+            {form.type !== "Silver" && (
+              <>
+                {/* Row 7: Gross weight + Nag less weight */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-gross-weight">Gross weight</Label>
+                    <Input id="p-gross-weight" value={form.grossWeight} onChange={(e) => setForm({ ...form, grossWeight: e.target.value })} placeholder="e.g. 10+5" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
+                    <Input id="p-nag-less-weight" value={form.nagLessWeight} onChange={(e) => setForm({ ...form, nagLessWeight: e.target.value })} placeholder="e.g. 2.5" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-nag-rate">Nag rate</Label>
+                    <Input id="p-nag-rate" value={form.nagRate} onChange={(e) => setForm({ ...form, nagRate: e.target.value })} placeholder="e.g. 5" />
+                  </div>
+                </div>
 
-            {/* Row 8: Chejat weight + Net weight */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="p-chejat-weight">Chejat weight</Label>
-                <Input id="p-chejat-weight" value={form.chejatWeight} onChange={(e) => setForm({ ...form, chejatWeight: e.target.value })} placeholder="e.g. 3" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-net-weight">Net weight</Label>
-                <Input id="p-net-weight" value={form.netWeight} onChange={(e) => setForm({ ...form, netWeight: e.target.value })} placeholder="e.g. 19" />
-              </div>
-            </div>
+                {/* Row 8: Chejat weight + Net weight */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-chejat-weight">Chejat weight</Label>
+                    <Input id="p-chejat-weight" value={form.chejatWeight} onChange={(e) => setForm({ ...form, chejatWeight: e.target.value })} placeholder="e.g. 3" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-net-weight">Net weight</Label>
+                    <Input id="p-net-weight" value={form.netWeight} onChange={(e) => setForm({ ...form, netWeight: e.target.value })} placeholder="e.g. 19" />
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* Row 9: Stock + Buy price */}
             <div className="grid gap-3 sm:grid-cols-2">

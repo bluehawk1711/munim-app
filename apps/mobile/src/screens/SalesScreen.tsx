@@ -45,6 +45,8 @@ import {
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {ProductDetailSheet} from '../components/ProductDetailSheet';
+import {EditProductModal} from '../components/EditProductModal';
+import {AdjustStockModal} from '../components/AdjustStockModal';
 import {useThemeStyles} from '../theme';
 import {savePdf} from '../lib/save-pdf';
 
@@ -85,6 +87,11 @@ export function SalesScreen() {
 
   // Product detail sheet
   const [detailTarget, setDetailTarget] = useState<ProductDto | null>(null);
+
+  // Edit & adjust stock (reusing shared modals)
+  const [editing, setEditing] = useState<ProductDto | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
 
   const scanQ = useProductByBarcode(scanCode);
 
@@ -470,9 +477,25 @@ export function SalesScreen() {
       <ProductDetailSheet
         product={detailTarget}
         onClose={() => setDetailTarget(null)}
-        onEdit={() => setDetailTarget(null)}
-        onAdjust={() => setDetailTarget(null)}
+        onEdit={p => { setDetailTarget(null); setEditing(p); setFormOpen(true); }}
+        onAdjust={p => { setDetailTarget(null); setAdjusting(p); }}
         onSell={() => setDetailTarget(null)}
+      />
+
+      {/* Edit product modal (shared) */}
+      <EditProductModal
+        visible={formOpen}
+        product={editing}
+        onClose={() => { setFormOpen(false); setEditing(null); }}
+        onSaved={() => { setFormOpen(false); setEditing(null); }}
+      />
+
+      {/* Adjust stock modal (shared) */}
+      <AdjustStockModal
+        visible={adjusting !== null}
+        product={adjusting}
+        onClose={() => setAdjusting(null)}
+        onSaved={() => setAdjusting(null)}
       />
     </Screen>
   );

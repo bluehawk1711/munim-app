@@ -26,7 +26,6 @@ import Animated, {FadeInUp} from 'react-native-reanimated';
 import {FlashList} from '@shopify/flash-list';
 import {Search, ScanLine, Package, X} from 'lucide-react-native';
 import {SvgXml} from 'react-native-svg';
-import * as ImagePicker from 'expo-image-picker';
 import * as Print from 'expo-print';
 import {
   barcodeSvg,
@@ -37,21 +36,14 @@ import {
 } from '@munim/core';
 import {ApiClientError} from '@munim/api-client';
 import {
-  useAdjustStock,
   useBackfillBarcodes,
-  useCatalog,
-  useCreateProduct,
   useDeleteProduct,
   useProductByBarcode,
   useProducts,
   useQueryState,
   useSettings,
-  useUpdateProduct,
-  useUploadImage,
 } from '@munim/query';
-import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
-import {uploadImageDirect} from '../lib/cloudinary';
 import {rw, rh, rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
 import {
   Button,
@@ -61,13 +53,14 @@ import {
   Loading,
   ModalSheet,
   Screen,
-  SelectField,
   ConfirmDialog,
   colors,
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {ProductDetailSheet} from '../components/ProductDetailSheet';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
+import {EditProductModal} from '../components/EditProductModal';
+import {AdjustStockModal} from '../components/AdjustStockModal';
 import {QuickSaleSheet} from '../components/quick-sale-sheet';
 import {useThemeStyles} from '../theme';
 
@@ -195,18 +188,11 @@ export function ProductsScreen() {
       });
     }
   }, [data, page]);
-  const {data: colorsCatalog} = useQueryState(useCatalog('color'));
-  const {data: sizesCatalog} = useQueryState(useCatalog('size'));
-  const {data: categoriesCatalog} = useQueryState(useCatalog('category'));
   const {data: settings} = useQueryState(useSettings());
 
   // Mutations
-  const createProduct = useCreateProduct();
-  const updateProduct = useUpdateProduct();
-  const adjustStock = useAdjustStock();
   const deleteProduct = useDeleteProduct();
   const backfillBarcodes = useBackfillBarcodes();
-  const uploadImage = useUploadImage();
 
   // UI state
   const [search, setSearch] = useState('');
@@ -214,42 +200,9 @@ export function ProductsScreen() {
   const [detailTarget, setDetailTarget] = useState<ProductDto | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductDto | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  // Form fields
-  const [name, setName] = useState('');
-  const [type, setType] = useState('Gold');
-  const [color, setColor] = useState('');
-  const [size, setSize] = useState('');
-  const [category, setCategory] = useState('');
-  const [weight, setWeight] = useState('');
-  const [weightUnit, setWeightUnit] = useState<'mg' | 'gm'>('gm');
-  const [grossWeight, setGrossWeight] = useState('');
-  const [nagLessWeight, setNagLessWeight] = useState('');
-  const [nagRate, setNagRate] = useState('');
-  const [chejatWeight, setChejatWeight] = useState('');
-  const [netWeight, setNetWeight] = useState('');
-  const [purity, setPurity] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [stock, setStock] = useState('0');
-  const [buy, setBuy] = useState('0');
-  const [sell, setSell] = useState('0');
-
-  // Catalog pickers
-  const [typePickerOpen, setTypePickerOpen] = useState(false);
-  const [colorPickerOpen, setColorPickerOpen] = useState(false);
-  const [sizePickerOpen, setSizePickerOpen] = useState(false);
-  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
-  const catalogColors = useMemo(() => (colorsCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [colorsCatalog]);
-  const catalogSizes = useMemo(() => (sizesCatalog ?? []).map((s: {name: string}) => ({label: s.name, value: s.name})), [sizesCatalog]);
-  const catalogCategories = useMemo(() => (categoriesCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [categoriesCatalog]);
 
   // Stock adjustment
   const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
-  const [adjustQty, setAdjustQty] = useState('');
-  const [adjustReason, setAdjustReason] = useState('');
-  const [adjustBusy, setAdjustBusy] = useState(false);
 
   // Label
   const [labelTarget, setLabelTarget] = useState<ProductDto | null>(null);
@@ -335,51 +288,13 @@ export function ProductsScreen() {
   const missingBarcodes = useMemo(() => allProducts.some(p => !p.barcode), [allProducts]);
 
   // Form handlers
-  function resetForm() {
-    setName('');
-    setType('Gold');
-    setColor('');
-    setSize('');
-    setCategory('');
-    setWeight('');
-    setWeightUnit('gm');
-    setGrossWeight('');
-    setNagLessWeight('');
-    setNagRate('');
-    setChejatWeight('');
-    setNetWeight('');
-    setPurity('');
-    setImageUrl('');
-    setStock('0');
-    setBuy('0');
-    setSell('0');
-  }
-
   function openAdd() {
     setEditing(null);
-    resetForm();
     setFormOpen(true);
   }
 
   function openEdit(p: ProductDto) {
     setEditing(p);
-    setName(p.name);
-    setType(p.type ?? 'Gold');
-    setColor(p.color);
-    setSize(p.size);
-    setCategory(p.category ?? '');
-    setWeight(p.weight != null ? String(p.weight) : '');
-    setWeightUnit(p.weightUnit === 'mg' ? 'mg' : 'gm');
-    setGrossWeight(p.grossWeight ?? '');
-    setNagLessWeight(p.nagLessWeight ?? '');
-    setNagRate(p.nagRate ?? '');
-    setChejatWeight(p.chejatWeight ?? '');
-    setNetWeight(p.netWeight ?? '');
-    setPurity(p.purity ?? '');
-    setImageUrl(p.imageUrl ?? '');
-    setStock(String(p.stock));
-    setBuy(String(p.purchasePrice));
-    setSell(String(p.sellingPrice));
     setFormOpen(true);
   }
 
@@ -393,71 +308,7 @@ export function ProductsScreen() {
   const handleDetailAdjust = useCallback((p: ProductDto) => {
     setDetailTarget(null);
     setAdjusting(p);
-    setAdjustQty('');
-    setAdjustReason('');
   }, []);
-
-  async function handleSave() {
-    if (!name.trim()) return;
-    const buyVal = Number(buy) || 0;
-    const sellVal = Number(sell) || 0;
-    if (buyVal <= 0) { errorFeedback('Buy price must be greater than 0'); return; }
-    if (sellVal <= 0) { errorFeedback('Sell price must be greater than 0'); return; }
-    setSaving(true);
-    try {
-      const input = {
-        name: name.trim(),
-        type: type as "Gold" | "Silver" | "Diamond" | "Platinum" | "Other",
-        color: color.trim() || undefined,
-        size: size.trim() || 'Standard',
-        category: category.trim() || undefined,
-        weight: weight.trim() ? Math.max(0, Number(weight) || 0) : undefined,
-        weightUnit,
-        grossWeight: grossWeight.trim() || undefined,
-        nagLessWeight: nagLessWeight.trim() || undefined,
-        nagRate: nagRate.trim() || undefined,
-        chejatWeight: chejatWeight.trim() || undefined,
-        netWeight: netWeight.trim() || undefined,
-        purity: purity.trim() || undefined,
-        imageUrl: imageUrl.trim() || undefined,
-        stock: Math.max(0, Number(stock) || 0),
-        purchasePrice: buyVal,
-        sellingPrice: sellVal,
-      };
-      if (editing) {
-        await updateProduct.mutateAsync({id: editing.id, values: input});
-        successFeedback(`${name} updated`);
-      } else {
-        await createProduct.mutateAsync(input);
-        successFeedback(`${name} created`);
-      }
-      setFormOpen(false);
-      setEditing(null);
-      resetForm();
-    } catch {
-      errorFeedback('Failed to save product');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleAdjust() {
-    if (!adjusting) return;
-    const qty = Math.round(Number(adjustQty));
-    if (!qty) return;
-    setAdjustBusy(true);
-    try {
-      await adjustStock.mutateAsync({id: adjusting.id, values: {adjustment: qty, reason: adjustReason.trim() || undefined}});
-      successFeedback(`Stock adjusted for ${adjusting.name}`);
-      setAdjusting(null);
-      setAdjustQty('');
-      setAdjustReason('');
-    } catch {
-      errorFeedback('Stock adjustment failed');
-    } finally {
-      setAdjustBusy(false);
-    }
-  }
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -468,45 +319,6 @@ export function ProductsScreen() {
       errorFeedback('Failed to delete product');
     }
     setDeleteTarget(null);
-  }
-
-  async function handlePickImage() {
-    try {
-      const mediaPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!mediaPermission.granted) {
-        errorFeedback();
-        return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
-        allowsEditing: false,
-      });
-      if (result.canceled || result.assets.length === 0) return;
-      const asset = result.assets[0];
-      setUploading(true);
-      const file = {uri: asset.uri, name: asset.fileName ?? `product-${Date.now()}.jpg`, type: asset.mimeType ?? 'image/jpeg'};
-      try {
-        const {url} = await uploadImage.mutateAsync(file);
-        setImageUrl(url);
-        successFeedback();
-      } catch (uploadErr) {
-        // Fallback to direct Cloudinary upload if API endpoint unavailable
-        try {
-          const url = await uploadImageDirect(file);
-          setImageUrl(url);
-          successFeedback();
-        } catch (directErr) {
-          errorFeedback();
-          console.error('Image upload failed:', uploadErr, directErr);
-        }
-      }
-    } catch (err) {
-      errorFeedback();
-      console.error('Image picker failed:', err);
-    } finally {
-      setUploading(false);
-    }
   }
 
   async function handleLabelShare() {
@@ -679,50 +491,20 @@ export function ProductsScreen() {
       />
 
       {/* Product form sheet — centered modal */}
-      <ModalSheet visible={formOpen} size="xl" title={editing ? `Edit — ${editing.name}` : 'Add product'} onClose={() => setFormOpen(false)} dismissable={!saving && !uploading} centered scrollable>
-        <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
-        <SelectField label="Type" value={type} placeholder="Select type" onPress={() => setTypePickerOpen(true)} />
-        <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
-          {imageUrl ? (
-            <Image source={{uri: imageUrl}} style={styles.imagePickerThumb} />
-          ) : (
-            <Text style={styles.imagePickerText}>{uploading ? 'Uploading…' : '+ Add image'}</Text>
-          )}
-        </Pressable>
-        <SelectField label="Color" value={color} placeholder="Select color (optional)" onPress={() => setColorPickerOpen(true)} />
-        <SelectField label="Size" value={size} placeholder="Select size" onPress={() => setSizePickerOpen(true)} />
-        <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
-        <View style={{flexDirection: 'row', gap: spacing.sm}}>
-          <View style={{flex: 1}}>
-            <Field label="Weight" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder={weightUnit === 'gm' ? 'e.g. 24.5' : 'e.g. 24500'} />
-          </View>
-          <View style={{width: 70}}>
-            <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Unit</Text>
-            <Pressable
-              onPress={() => setWeightUnit(u => u === 'gm' ? 'mg' : 'gm')}
-              style={{height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center'}}>
-              <Text style={{fontSize: 14, fontWeight: '700', color: colors.primary}}>{weightUnit}</Text>
-            </Pressable>
-          </View>
-        </View>
-        <Field label="Gross weight" value={grossWeight} onChangeText={setGrossWeight} placeholder="e.g. 10+5 or 24.5" />
-        <Field label="Nag less weight" value={nagLessWeight} onChangeText={setNagLessWeight} placeholder="e.g. 2.5" />
-        <Field label="Nag rate" value={nagRate} onChangeText={setNagRate} placeholder="e.g. 5" />
-        <Field label="Chejat weight" value={chejatWeight} onChangeText={setChejatWeight} placeholder="e.g. 3" />
-        <Field label="Net weight" value={netWeight} onChangeText={setNetWeight} placeholder="e.g. 19" />
-        <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
-        <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
-        <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
-        <Field label="Sell price" value={sell} onChangeText={setSell} keyboardType="numeric" />
-        <Button title={saving ? 'Saving…' : editing ? 'Save changes' : 'Save product'} onPress={handleSave} loading={saving} />
-      </ModalSheet>
+      <EditProductModal
+        visible={formOpen}
+        product={editing}
+        onClose={() => { setFormOpen(false); setEditing(null); }}
+        onSaved={() => { setFormOpen(false); setEditing(null); }}
+      />
 
       {/* Stock adjustment sheet — centered modal */}
-      <ModalSheet visible={adjusting !== null} title={`Adjust stock — ${adjusting?.name ?? ''}`} onClose={() => setAdjusting(null)} dismissable={!adjustBusy} centered scrollable>
-        <Field label="Quantity (+/−)" value={adjustQty} onChangeText={setAdjustQty} keyboardType="numeric" placeholder="e.g. 10 or -2" />
-        <Field label="Reason (optional)" value={adjustReason} onChangeText={setAdjustReason} multiline placeholder="e.g. Restocked, damaged…" />
-        <Button title="Adjust" onPress={handleAdjust} loading={adjustBusy} />
-      </ModalSheet>
+      <AdjustStockModal
+        visible={adjusting !== null}
+        product={adjusting}
+        onClose={() => setAdjusting(null)}
+        onSaved={() => setAdjusting(null)}
+      />
 
       {/* Label sheet — centered modal */}
       <ModalSheet visible={labelOpen} title={`Print label — ${labelTarget?.name ?? ''}`} onClose={() => setLabelOpen(false)} dismissable={!labelBusy} centered scrollable>
@@ -748,49 +530,6 @@ export function ProductsScreen() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
-
-      {/* Type picker */}
-      <ModalSheet visible={typePickerOpen} title="Select type" onClose={() => setTypePickerOpen(false)} centered scrollable>
-        {['Gold', 'Silver', 'Diamond', 'Platinum', 'Other'].map(t => (
-          <Pressable key={t} onPress={() => { setType(t); setTypePickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
-            <Text style={{fontSize: typography.body, color: t === type ? colors.primary : colors.text, fontWeight: t === type ? '700' : '400'}}>{t}</Text>
-          </Pressable>
-        ))}
-      </ModalSheet>
-
-      {/* Catalog pickers — centered modals with scroll */}
-      <ModalSheet visible={colorPickerOpen} title="Select color" onClose={() => setColorPickerOpen(false)} centered scrollable>
-        {catalogColors.map(c => (
-          <Pressable key={c.value} onPress={() => { setColor(c.value); setColorPickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
-            <Text style={{fontSize: typography.body, color: c.value === color ? colors.primary : colors.text, fontWeight: c.value === color ? '700' : '400'}}>{c.label}</Text>
-          </Pressable>
-        ))}
-        <Pressable onPress={() => { setColor(''); setColorPickerOpen(false); }} style={{paddingVertical: spacing.md}}>
-          <Text style={{fontSize: typography.body, color: colors.muted}}>Clear color</Text>
-        </Pressable>
-      </ModalSheet>
-
-      <ModalSheet visible={sizePickerOpen} title="Select size" onClose={() => setSizePickerOpen(false)} centered scrollable>
-        {catalogSizes.map(s => (
-          <Pressable key={s.value} onPress={() => { setSize(s.value); setSizePickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
-            <Text style={{fontSize: typography.body, color: s.value === size ? colors.primary : colors.text, fontWeight: s.value === size ? '700' : '400'}}>{s.label}</Text>
-          </Pressable>
-        ))}
-        <Pressable onPress={() => { setSize(''); setSizePickerOpen(false); }} style={{paddingVertical: spacing.md}}>
-          <Text style={{fontSize: typography.body, color: colors.muted}}>Clear size</Text>
-        </Pressable>
-      </ModalSheet>
-
-      <ModalSheet visible={categoryPickerOpen} title="Select category" onClose={() => setCategoryPickerOpen(false)} centered scrollable>
-        {catalogCategories.map(c => (
-          <Pressable key={c.value} onPress={() => { setCategory(c.value); setCategoryPickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
-            <Text style={{fontSize: typography.body, color: c.value === category ? colors.primary : colors.text, fontWeight: c.value === category ? '700' : '400'}}>{c.label}</Text>
-          </Pressable>
-        ))}
-        <Pressable onPress={() => { setCategory(''); setCategoryPickerOpen(false); }} style={{paddingVertical: spacing.md}}>
-          <Text style={{fontSize: typography.body, color: colors.muted}}>Clear category</Text>
-        </Pressable>
-      </ModalSheet>
 
       {/* Camera scanner (shared) — found products open the QuickSaleSheet */}
       <BarcodeScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onDetected={handleScanDetected} message={scanMsg} />
@@ -937,17 +676,4 @@ const makeStyles = () =>
       backgroundColor: colors.danger,
     },
     fab: {position: 'absolute', bottom: rs(32), left: CARD_MARGIN, right: CARD_MARGIN, elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: {width: 0, height: 4}},
-    imagePicker: {
-      height: rs(120),
-      borderRadius: radii.lg,
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginBottom: spacing.md,
-      overflow: 'hidden',
-    },
-    imagePickerThumb: {width: '100%', height: '100%'},
-    imagePickerText: {fontSize: typography.secondary, color: colors.muted, fontWeight: '600'},
   });

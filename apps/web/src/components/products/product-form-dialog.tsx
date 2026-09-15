@@ -350,30 +350,34 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="grossWeight">Gross weight</Label>
-              <Input id="grossWeight" placeholder="e.g. 10+5 or 24.5" {...form.register("grossWeight")} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nagLessWeight">Nag less weight</Label>
-              <Input id="nagLessWeight" placeholder="e.g. 2.5" {...form.register("nagLessWeight")} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="nagRate">Nag rate</Label>
-              <Input id="nagRate" placeholder="e.g. 5" {...form.register("nagRate")} />
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="chejatWeight">Chejat weight</Label>
-              <Input id="chejatWeight" placeholder="e.g. 3" {...form.register("chejatWeight")} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="netWeight">Net weight</Label>
-              <Input id="netWeight" placeholder="e.g. 19" {...form.register("netWeight")} />
-            </div>
-          </div>
+          {form.watch("type") !== "Silver" && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="grossWeight">Gross weight</Label>
+                  <Input id="grossWeight" placeholder="e.g. 10+5 or 24.5" {...form.register("grossWeight")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nagLessWeight">Nag less weight</Label>
+                  <Input id="nagLessWeight" placeholder="e.g. 2.5" {...form.register("nagLessWeight")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="nagRate">Nag rate</Label>
+                  <Input id="nagRate" placeholder="e.g. 5" {...form.register("nagRate")} />
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="chejatWeight">Chejat weight</Label>
+                  <Input id="chejatWeight" placeholder="e.g. 3" {...form.register("chejatWeight")} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="netWeight">Net weight</Label>
+                  <Input id="netWeight" placeholder="e.g. 19" {...form.register("netWeight")} />
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="purity">Purity</Label>
