@@ -11,7 +11,7 @@
  * ProductWithMeta) so this component stays app-agnostic.
  */
 import * as React from "react";
-import { Package, Ruler, Weight, Boxes, IndianRupee, FileText, CalendarDays, Tag, Layers } from "lucide-react";
+import { Package, Ruler, Weight, Boxes, IndianRupee, FileText, CalendarDays, Tag, Layers, Scale } from "lucide-react";
 import { BarcodeSvg } from "./barcode-svg";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -41,6 +41,12 @@ export type ProductDetails = {
   weightUnit: string;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
   purity?: string | null;
+  /** Gold-only weight fields */
+  grossWeight?: string | null;
+  nagLessWeight?: string | null;
+  nagRate?: string | null;
+  chejatWeight?: string | null;
+  netWeight?: string | null;
   imageUrl: string | null;
   stock: number;
   lowStockThreshold: number;
@@ -76,11 +82,19 @@ export function ProductDetailsDialog({
         : { label: "In stock", variant: "success" as const };
 
   const rows: { label: string; value: string; icon?: React.ReactNode }[] = [
+    { label: "Type", value: product.type || "—", icon: <Tag className="h-3.5 w-3.5" /> },
     { label: "SKU", value: product.sku, icon: <Tag className="h-3.5 w-3.5" /> },
     { label: "Color", value: product.color || "—", icon: <Layers className="h-3.5 w-3.5" /> },
     { label: "Size", value: product.size || "—", icon: <Ruler className="h-3.5 w-3.5" /> },
     { label: "Category", value: product.category || "—", icon: <Boxes className="h-3.5 w-3.5" /> },
     { label: "Weight", value: formatWeight(product.weight, product.weightUnit), icon: <Weight className="h-3.5 w-3.5" /> },
+    ...(product.type === "Gold" ? [
+      { label: "Gross weight", value: product.grossWeight || "—", icon: <Scale className="h-3.5 w-3.5" /> },
+      { label: "Nag less weight", value: product.nagLessWeight || "—" },
+      { label: "Nag rate", value: product.nagRate || "—" },
+      { label: "Chejat weight", value: product.chejatWeight || "—" },
+      { label: "Net weight", value: product.netWeight || "—" },
+    ] : []),
     { label: "Purity", value: product.purity || "—", icon: <Tag className="h-3.5 w-3.5" /> },
     { label: "Stock", value: `${product.stock} unit${product.stock !== 1 ? "s" : ""}`, icon: <Package className="h-3.5 w-3.5" /> },
     { label: "Buy price", value: formatCurrency(product.purchasePrice), icon: <IndianRupee className="h-3.5 w-3.5" /> },

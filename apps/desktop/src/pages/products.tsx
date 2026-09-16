@@ -164,7 +164,9 @@ type FilterChip =
   | { kind: "instock"; label: string; value: number }
   | { kind: "low"; label: string; value: number }
   | { kind: "out"; label: string; value: number }
-  | { kind: "uncategorized"; label: string; value: number };
+  | { kind: "uncategorized"; label: string; value: number }
+  | { kind: "gold"; label: string; value: number }
+  | { kind: "silver"; label: string; value: number };
 
 /* ─── Page ─────────────────────────────────────────────────────── */
 
@@ -306,11 +308,15 @@ export function ProductsPage() {
 
   const chips = useMemo<FilterChip[]>(() => {
     const uncatCount = products.filter((p) => !p.category || !p.category.trim()).length;
+    const goldCount = products.filter((p) => (p.type ?? "Gold") === "Gold").length;
+    const silverCount = products.filter((p) => p.type === "Silver").length;
     return [
       { kind: "all", label: "All SKUs", value: totalCount },
       { kind: "instock", label: "In Stock", value: inCount },
       { kind: "low", label: "Low Stock", value: lowCount },
       { kind: "out", label: "Out of Stock", value: outCount },
+      { kind: "gold", label: "Gold", value: goldCount },
+      { kind: "silver", label: "Silver", value: silverCount },
       { kind: "uncategorized", label: "Uncategorized", value: uncatCount },
     ];
   }, [totalCount, inCount, lowCount, outCount, products]);
@@ -336,6 +342,12 @@ export function ProductsPage() {
     }
     if (activeCategory.kind === "uncategorized") {
       return products.filter((p) => !p.category || !p.category.trim());
+    }
+    if (activeCategory.kind === "gold") {
+      return products.filter((p) => (p.type ?? "Gold") === "Gold");
+    }
+    if (activeCategory.kind === "silver") {
+      return products.filter((p) => p.type === "Silver");
     }
     return products;
   }, [products, activeCategory]);
@@ -1280,6 +1292,11 @@ export function ProductsPage() {
                 weight: detailsProduct.weight,
                 weightUnit: detailsProduct.weightUnit ?? "gm",
                 purity: detailsProduct.purity,
+                grossWeight: detailsProduct.grossWeight,
+                nagLessWeight: detailsProduct.nagLessWeight,
+                nagRate: detailsProduct.nagRate,
+                chejatWeight: detailsProduct.chejatWeight,
+                netWeight: detailsProduct.netWeight,
                 imageUrl: detailsProduct.imageUrl,
                 stock: detailsProduct.stock,
                 lowStockThreshold: detailsProduct.lowStockThreshold,

@@ -1,6 +1,6 @@
 "use client";
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
-import { Package, Ruler, Weight, Boxes, IndianRupee, FileText, CalendarDays, Tag, Layers } from "lucide-react";
+import { Package, Ruler, Weight, Boxes, IndianRupee, FileText, CalendarDays, Tag, Layers, Scale } from "lucide-react";
 import { BarcodeSvg } from "./barcode-svg";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -15,11 +15,19 @@ export function ProductDetailsDialog({ open, onOpenChange, product, formatCurren
             ? { label: "Low stock", variant: "warning" }
             : { label: "In stock", variant: "success" };
     const rows = [
+        { label: "Type", value: product.type || "—", icon: _jsx(Tag, { className: "h-3.5 w-3.5" }) },
         { label: "SKU", value: product.sku, icon: _jsx(Tag, { className: "h-3.5 w-3.5" }) },
         { label: "Color", value: product.color || "—", icon: _jsx(Layers, { className: "h-3.5 w-3.5" }) },
         { label: "Size", value: product.size || "—", icon: _jsx(Ruler, { className: "h-3.5 w-3.5" }) },
         { label: "Category", value: product.category || "—", icon: _jsx(Boxes, { className: "h-3.5 w-3.5" }) },
         { label: "Weight", value: formatWeight(product.weight, product.weightUnit), icon: _jsx(Weight, { className: "h-3.5 w-3.5" }) },
+        ...(product.type === "Gold" ? [
+            { label: "Gross weight", value: product.grossWeight || "—", icon: _jsx(Scale, { className: "h-3.5 w-3.5" }) },
+            { label: "Nag less weight", value: product.nagLessWeight || "—" },
+            { label: "Nag rate", value: product.nagRate || "—" },
+            { label: "Chejat weight", value: product.chejatWeight || "—" },
+            { label: "Net weight", value: product.netWeight || "—" },
+        ] : []),
         { label: "Purity", value: product.purity || "—", icon: _jsx(Tag, { className: "h-3.5 w-3.5" }) },
         { label: "Stock", value: `${product.stock} unit${product.stock !== 1 ? "s" : ""}`, icon: _jsx(Package, { className: "h-3.5 w-3.5" }) },
         { label: "Buy price", value: formatCurrency(product.purchasePrice), icon: _jsx(IndianRupee, { className: "h-3.5 w-3.5" }) },

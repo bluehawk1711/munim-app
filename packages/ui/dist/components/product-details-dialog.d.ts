@@ -25,6 +25,12 @@ export type ProductDetails = {
     weightUnit: string;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
     purity?: string | null;
+    /** Gold-only weight fields */
+    grossWeight?: string | null;
+    nagLessWeight?: string | null;
+    nagRate?: string | null;
+    chejatWeight?: string | null;
+    netWeight?: string | null;
     imageUrl: string | null;
     stock: number;
     lowStockThreshold: number;
