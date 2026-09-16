@@ -14,7 +14,7 @@ on:
         type: choice
         options:
           - "release" # self-contained APK with bundled JS + baked secrets (default — installable on any device, skips onboarding)
-          - "debug"   # dev-client shell — loads JS from Metro (pnpm start); only useful when paired with a running Metro server
+          - "debug" # dev-client shell — loads JS from Metro (pnpm start); only useful when paired with a running Metro server
 
 jobs:
   android-apk:
@@ -70,7 +70,12 @@ jobs:
       # Accepts Android SDK licenses and sets ANDROID_HOME so the Gradle
       # wrapper can resolve the SDK without a local.properties file.
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        shell: bash
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          sdkmanager --version
+          yes | sdkmanager --licenses > /dev/null || true
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
