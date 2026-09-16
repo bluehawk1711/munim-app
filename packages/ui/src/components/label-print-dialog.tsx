@@ -88,6 +88,9 @@ export function LabelPrintDialog({
   const [previewIndex, setPreviewIndex] = React.useState(0);
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
+  // Whether any label in the batch is a Gold product (controls gold-only UI sections)
+  const hasGold = labels.some((l) => l.productType === "Gold");
+
   // Per-dialog print settings (reset from saved on open)
   const [printSettings, setPrintSettings] = React.useState<LabelPrintSettings>(
     () => directPrint?.savedSettings ?? { ...DEFAULT_LABEL_PRINT_SETTINGS },
@@ -279,7 +282,8 @@ export function LabelPrintDialog({
                           step={0.5}
                           value={printSettings.gapMm}
                           onChange={(e) => updateSetting("gapMm", Number(e.target.value) || 0)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          disabled={printSettings.useDefaults}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                         />
                         <p className="text-[10px] text-muted-foreground">
                           0 = continuous (no gap). 2 = standard die-cut.
@@ -292,6 +296,7 @@ export function LabelPrintDialog({
                         <Select
                           value={String(printSettings.hri)}
                           onValueChange={(v) => updateSetting("hri", Number(v) as 0 | 1 | 2 | 3)}
+                          disabled={printSettings.useDefaults}
                         >
                           <SelectTrigger id="lbl-hri" className="h-8 text-xs">
                             <SelectValue />
@@ -310,12 +315,13 @@ export function LabelPrintDialog({
                     </div>
 
                     <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background/60 p-2.5 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={printSettings.showPurity}
-                        onChange={(e) => updateSetting("showPurity", e.target.checked)}
-                        className="mt-0.5 h-3.5 w-3.5 accent-primary"
-                      />
+                        <input
+                          type="checkbox"
+                          checked={printSettings.showPurity}
+                          onChange={(e) => updateSetting("showPurity", e.target.checked)}
+                          disabled={printSettings.useDefaults}
+                          className="mt-0.5 h-3.5 w-3.5 accent-primary disabled:opacity-40"
+                        />
                       <span>
                         <span className="block font-medium">Print purity with product name</span>
                         <span className="text-[10px] text-muted-foreground">
@@ -324,15 +330,32 @@ export function LabelPrintDialog({
                       </span>
                     </label>
 
+                    {/* ── Use defaults toggle ─────────────────────── */}
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={printSettings.useDefaults}
+                        onChange={(e) => updateSetting("useDefaults", e.target.checked)}
+                        className="mt-0.5 h-3.5 w-3.5 accent-primary"
+                      />
+                      <span>
+                        <span className="block font-medium">Use default settings</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Ignore saved values and always print with factory defaults.
+                        </span>
+                      </span>
+                    </label>
+
                     {/* ── Gold label weight fields + positions ────── */}
+                    {hasGold && (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <p className="text-[11px] font-medium text-muted-foreground">Gold label fields</p>
                         <div className="flex items-center gap-1.5">
-                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={handleAutoEnableGold}>
+                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={handleAutoEnableGold} disabled={printSettings.useDefaults}>
                             Enable all
                           </Button>
-                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={handleDisableAll}>
+                          <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={handleDisableAll} disabled={printSettings.useDefaults}>
                             Disable all
                           </Button>
                         </div>
@@ -357,7 +380,8 @@ export function LabelPrintDialog({
                                 type="checkbox"
                                 checked={printSettings[key]}
                                 onChange={(e) => updateSetting(key, e.target.checked)}
-                                className="h-3.5 w-3.5 accent-primary"
+                                disabled={printSettings.useDefaults}
+                                className="h-3.5 w-3.5 accent-primary disabled:opacity-40"
                               />
                             </div>
                             <div className="flex items-center gap-1">
@@ -368,7 +392,7 @@ export function LabelPrintDialog({
                                 step={1}
                                 value={printSettings[posKey]}
                                 onChange={(e) => updateSetting(posKey, Number(e.target.value) || 0)}
-                                disabled={!printSettings[key]}
+                                disabled={printSettings.useDefaults || !printSettings[key]}
                                 className="flex h-7 w-full rounded border bg-background px-1.5 text-[11px] tabular-nums disabled:opacity-40"
                               />
                               <MoveVertical className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -381,6 +405,7 @@ export function LabelPrintDialog({
                         Y offset nudges a field from its stacked position: positive = down, negative = up. 0 = auto.
                       </p>
                     </div>
+                    )}
 
                     {/* ── Barcode dimensions ──────────────────────── */}
                     <div className="grid grid-cols-2 gap-4">
@@ -395,7 +420,8 @@ export function LabelPrintDialog({
                           step={1}
                           value={printSettings.narrow}
                           onChange={(e) => updateSetting("narrow", Number(e.target.value) || 2)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          disabled={printSettings.useDefaults}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                         />
                       </div>
 
@@ -410,7 +436,8 @@ export function LabelPrintDialog({
                           step={1}
                           value={printSettings.wide}
                           onChange={(e) => updateSetting("wide", Number(e.target.value) || 4)}
-                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                          disabled={printSettings.useDefaults}
+                          className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                         />
                       </div>
                     </div>
@@ -430,7 +457,8 @@ export function LabelPrintDialog({
                             step={1}
                             value={printSettings.nameY}
                             onChange={(e) => updateSetting("nameY", Number(e.target.value) || 20)}
-                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />
                         </div>
 
@@ -445,11 +473,32 @@ export function LabelPrintDialog({
                             step={1}
                             value={printSettings.weightY}
                             onChange={(e) => updateSetting("weightY", Number(e.target.value) || 72)}
-                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />
                         </div>
 
+                        {/* goldNameY */}
+                        {hasGold && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-goldNameY">Gold name Y</label>
+                          <input
+                            id="lbl-goldNameY"
+                            type="number"
+                            min={0}
+                            max={120}
+                            step={1}
+                            value={printSettings.goldNameY}
+                            onChange={(e) => updateSetting("goldNameY", Number(e.target.value) || 0)}
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
+                          />
+                          <p className="text-[9px] text-muted-foreground">0 = same as Name Y</p>
+                        </div>
+                        )}
+
                         {/* goldFieldsStartY */}
+                        {hasGold && (
                         <div className="space-y-1">
                           <label className="text-[10px] text-muted-foreground" htmlFor="lbl-goldFieldsY">Fields start Y</label>
                           <input
@@ -460,10 +509,69 @@ export function LabelPrintDialog({
                             step={1}
                             value={printSettings.goldFieldsStartY}
                             onChange={(e) => updateSetting("goldFieldsStartY", Number(e.target.value) || 45)}
-                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />
                           <p className="text-[9px] text-muted-foreground">Gold: where fields begin below the name</p>
                         </div>
+                        )}
+
+                        {/* goldColSpacing */}
+                        {hasGold && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-goldColSpacing">Gold col gap (dots)</label>
+                          <input
+                            id="lbl-goldColSpacing"
+                            type="number"
+                            min={0}
+                            max={200}
+                            step={1}
+                            value={printSettings.goldColSpacing}
+                            onChange={(e) => updateSetting("goldColSpacing", Number(e.target.value) || 96)}
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
+                          />
+                          <p className="text-[9px] text-muted-foreground">Gap between L/R weight columns</p>
+                        </div>
+                        )}
+
+                        {/* goldColY */}
+                        {hasGold && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-goldColY">Gold col Y nudge</label>
+                          <input
+                            id="lbl-goldColY"
+                            type="number"
+                            min={-60}
+                            max={60}
+                            step={1}
+                            value={printSettings.goldColY}
+                            onChange={(e) => updateSetting("goldColY", Number(e.target.value) || 0)}
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
+                          />
+                          <p className="text-[9px] text-muted-foreground">± nudge entire gold field block</p>
+                        </div>
+                        )}
+
+                        {/* goldLineSpacing */}
+                        {hasGold && (
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-goldLineSpacing">Gold row gap (dots)</label>
+                          <input
+                            id="lbl-goldLineSpacing"
+                            type="number"
+                            min={10}
+                            max={60}
+                            step={1}
+                            value={printSettings.goldLineSpacing}
+                            onChange={(e) => updateSetting("goldLineSpacing", Number(e.target.value) || 28)}
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
+                          />
+                          <p className="text-[9px] text-muted-foreground">Vertical gap between gold field rows</p>
+                        </div>
+                        )}
 
                         {/* leftMarginMm */}
                         <div className="space-y-1">
@@ -476,7 +584,8 @@ export function LabelPrintDialog({
                             step={0.5}
                             value={printSettings.leftMarginMm}
                             onChange={(e) => updateSetting("leftMarginMm", Number(e.target.value) || 3.5)}
-                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />
                         </div>
 
@@ -491,7 +600,8 @@ export function LabelPrintDialog({
                             step={1}
                             value={printSettings.barcodeY}
                             onChange={(e) => updateSetting("barcodeY", Number(e.target.value) || 0)}
-                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />
                           <p className="text-[9px] text-muted-foreground">0 = centered</p>
                         </div>
@@ -509,7 +619,8 @@ export function LabelPrintDialog({
                             step={1}
                             value={printSettings.barcodeX}
                             onChange={(e) => updateSetting("barcodeX", Number(e.target.value) || 0)}
-                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs"
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />
                           <p className="text-[9px] text-muted-foreground">0 = auto-computed</p>
                         </div>
@@ -517,10 +628,10 @@ export function LabelPrintDialog({
                     </div>
 
                     <div className="flex items-center gap-2 pt-1">
-                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleResetDefaults}>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleResetDefaults} disabled={printSettings.useDefaults}>
                         <RotateCcw className="mr-1 h-3 w-3" /> Reset defaults
                       </Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleSaveSettings}>
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handleSaveSettings} disabled={printSettings.useDefaults}>
                         Save to device
                       </Button>
                     </div>

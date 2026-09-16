@@ -5,11 +5,13 @@ import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/en
 import {
   DEFAULT_LABEL_SIZE,
   getSavedLabelPrinter,
+  getSavedLabelPrintSettings,
   getSavedLabelSize,
   isDesktopApp,
   listLabelPrinters,
   printLabelsToThermal,
   saveLabelPrinter,
+  saveLabelPrintSettings,
   saveLabelSize,
 } from "@/lib/printer";
 import { useSettings, useUpdateSettings, useQueryState } from "@munim/query";
@@ -96,6 +98,7 @@ export function SettingsPage() {
   const [labelPrinterError, setLabelPrinterError] = useState<string | null>(null);
   const [testingLabel, setTestingLabel] = useState(false);
   const [labelSize, setLabelSize] = useState(() => getSavedLabelSize());
+  const [useDefaults, setUseDefaults] = useState(() => getSavedLabelPrintSettings().useDefaults);
 
   // Masked host of the currently saved URL (shown instead of the raw string).
   const savedHost = maskApiHost(getSavedApiUrl());
@@ -235,6 +238,13 @@ export function SettingsPage() {
     setLabelSize(size);
     saveLabelSize(size);
     toast.success(`Label size saved — ${widthMm} × ${heightMm} mm, gap ${gapMm} mm`);
+  }
+
+  function handleToggleUseDefaults(checked: boolean) {
+    setUseDefaults(checked);
+    const current = getSavedLabelPrintSettings();
+    saveLabelPrintSettings({ ...current, useDefaults: checked });
+    toast.success(checked ? "Using default label settings — edits ignored at print time" : "Custom label settings enabled");
   }
 
   /** Prints a sample label so the shop can verify size/alignment before real use. */
@@ -511,6 +521,20 @@ export function SettingsPage() {
                   <Button onClick={handleSaveLabelSize}>
                     <Save className="h-4 w-4" /> Save label size
                   </Button>
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Use default label settings</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Ignore custom positions and always print with factory defaults. Toggle off to
+                      fine-tune positions in the print dialog.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={useDefaults}
+                    onCheckedChange={handleToggleUseDefaults}
+                    aria-label="Use default label settings"
+                  />
                 </div>
               </>
             )}

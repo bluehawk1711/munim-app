@@ -50,11 +50,11 @@ export function renderLabelMarkup(label) {
         .join(" ");
     // Auto-scale font size based on name length
     // Gold labels: smaller name font to fit weight fields below
-    // Silver labels: larger name font (only weight line below)
+    // Silver labels: name font fits cleanly above weight line
     const nameLen = nameWithPurity.length;
     const nameFontSize = isGold
-        ? (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6)
-        : (nameLen <= 10 ? 11 : nameLen <= 14 ? 10 : nameLen <= 18 ? 9 : 8);
+        ? (nameLen <= 8 ? 8 : nameLen <= 12 ? 7 : nameLen <= 16 ? 6.5 : 6)
+        : (nameLen <= 10 ? 10 : nameLen <= 14 ? 9 : nameLen <= 18 ? 8 : 7);
     // Build weight details for Gold
     const weightFields = [];
     if (weight)
@@ -74,7 +74,7 @@ export function renderLabelMarkup(label) {
       <div class="l-name" style="font-size:${nameFontSize}px">${esc(nameWithPurity)}</div>
       ${isGold
         ? `<div class="l-weight l-weight-gold-grid">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
-        : `<div class="l-weight">${weight ? esc(weight) : "&nbsp;"}</div>`}
+        : `<div class="l-weight" style="margin-top:auto">${weight ? esc(weight) : "&nbsp;"}</div>`}
     </div>
     <div class="l-right">${barcode || `<span class="l-nocode">NO BARCODE</span>`}</div>
   </div>`;
@@ -126,15 +126,15 @@ export function renderLabelSheetHtml(labels, opts = {}) {
     gap: 2mm;
   }
   .label-empty { border: none; }
-  .l-left { flex: 0 0 42%; display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; }
+  .l-left { flex: 0 0 42%; display: flex; flex-direction: column; justify-content: flex-start; height: 100%; min-width: 0; }
   .l-right { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; }
   .l-right svg { display: block; max-width: 100%; height: auto; }
-  .l-name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .l-name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
   .l-nocode { font-size: 8px; color: #999; }
-  .l-weight { font-size: 9px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .l-weight-gold { font-size: 7px; line-height: 1.25; }
-  .l-weight-gold-grid { display: flex; flex-wrap: wrap; gap: 0 2mm; }
-  .l-weight-gold-grid > div { flex: 0 0 48%; font-size: 7px; line-height: 1.25; }
+  .l-weight { font-size: 9px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .l-weight-gold { font-size: 7px; line-height: 1.3; margin-top: 4px; }
+  .l-weight-gold-grid { display: flex; flex-wrap: wrap; gap: 1px 2mm; margin-top: 4px; }
+  .l-weight-gold-grid > div { flex: 0 0 48%; font-size: 7px; line-height: 1.3; }
 </style>
 </head>
 <body>${pages.join("")}</body>

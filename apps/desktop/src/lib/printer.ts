@@ -81,6 +81,8 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
     const parsed: unknown = JSON.parse(raw);
     if (parsed && typeof parsed === "object") {
       const s = parsed as Partial<LabelPrintSettings>;
+      // When useDefaults is on, ignore saved values
+      if (s.useDefaults === true) return { ...DEFAULT_LABEL_PRINT_SETTINGS, useDefaults: true };
       return {
         gapMm: typeof s.gapMm === "number" && s.gapMm >= 0 && s.gapMm <= 10 ? s.gapMm : 2,
         hri: typeof s.hri === "number" && s.hri >= 0 && s.hri <= 3 ? s.hri as 0 | 1 | 2 | 3 : 0,
@@ -92,7 +94,11 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         goldFieldsStartY:
           typeof s.goldFieldsStartY === "number" && s.goldFieldsStartY >= 0 && s.goldFieldsStartY <= 120
             ? s.goldFieldsStartY
-            : 45,
+            : 55,
+        goldNameY: typeof s.goldNameY === "number" && s.goldNameY >= 0 && s.goldNameY <= 120 ? s.goldNameY : 0,
+        goldColSpacing: typeof s.goldColSpacing === "number" && s.goldColSpacing >= 0 && s.goldColSpacing <= 200 ? s.goldColSpacing : 96,
+        goldColY: typeof s.goldColY === "number" && s.goldColY >= -60 && s.goldColY <= 60 ? s.goldColY : 0,
+        goldLineSpacing: typeof s.goldLineSpacing === "number" && s.goldLineSpacing >= 10 && s.goldLineSpacing <= 60 ? s.goldLineSpacing : 28,
         leftMarginMm: typeof s.leftMarginMm === "number" && s.leftMarginMm >= 0 && s.leftMarginMm <= 10 ? s.leftMarginMm : 3.5,
         barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 305,
         barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 30,
@@ -107,6 +113,7 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         nagRateY: typeof s.nagRateY === "number" ? s.nagRateY : 0,
         chejatWeightY: typeof s.chejatWeightY === "number" ? s.chejatWeightY : 0,
         netWeightY: typeof s.netWeightY === "number" ? s.netWeightY : 0,
+        useDefaults: !!s.useDefaults,
       };
     }
   } catch {
@@ -140,6 +147,7 @@ export async function printLabelsToThermal(
   const tspl = buildLabelTspl2(labels, {
     ...size,
     copies,
+    useDefaults: ps.useDefaults,
     gapMm: ps.gapMm,
     hri: ps.hri,
     narrow: ps.narrow,
@@ -147,6 +155,10 @@ export async function printLabelsToThermal(
     nameY: ps.nameY,
     weightY: ps.weightY,
     goldFieldsStartY: ps.goldFieldsStartY,
+    goldNameY: ps.goldNameY,
+    goldColSpacing: ps.goldColSpacing,
+    goldColY: ps.goldColY,
+    goldLineSpacing: ps.goldLineSpacing,
     leftMarginMm: ps.leftMarginMm,
     barcodeX: ps.barcodeX,
     barcodeY: ps.barcodeY,

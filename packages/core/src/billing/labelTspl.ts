@@ -1,5 +1,9 @@
 import { formatWeight } from "../utils/format.js";
 import { type ProductLabel } from "./labelDocument.js";
+import { type LabelPrintSettings, DEFAULT_LABEL_PRINT_SETTINGS } from "./labelDefaults.js";
+
+export type { LabelPrintSettings };
+export { DEFAULT_LABEL_PRINT_SETTINGS };
 
 /**
  * TSPL2 label commands — direct thermal printing to TSC label printers
@@ -33,78 +37,6 @@ export type LabelSizeSettings = {
   heightMm: number;
   /** Gap between labels in mm (0 for continuous stock). */
   gapMm: number;
-};
-
-/** Advanced TSPL2 print settings — adjustable per-print from the dialog. */
-export type LabelPrintSettings = {
-  /** Gap between labels in mm (0 for continuous stock). */
-  gapMm: number;
-  /** BARCODE human-readable interpretation: 0 = off, 1 = left, 2 = center, 3 = right. */
-  hri: 0 | 1 | 2 | 3;
-  /** Number of copies per label. */
-  copies: number;
-  /** Barcode narrow element width in dots. */
-  narrow: number;
-  /** Barcode wide element width in dots. */
-  wide: number;
-  /** Name text Y position in dots. */
-  nameY: number;
-  /** Weight text Y position in dots. */
-  weightY: number;
-  /** Left margin in mm. */
-  leftMarginMm: number;
-  /** Barcode X position in dots. */
-  barcodeX: number;
-  /** Barcode Y position in dots. */
-  barcodeY: number;
-  /** Include the product purity after its name. */
-  showPurity: boolean;
-  /** Gold label weight field visibility toggles. */
-  showGrossWeight: boolean;
-  showNagLessWeight: boolean;
-  showNagRate: boolean;
-  showChejatWeight: boolean;
-  showNetWeight: boolean;
-  /** Gold label weight field Y nudges (dots) from each field's auto-stacked
-   *  position in its column. 0 = auto. */
-  grossWeightY: number;
-  nagLessWeightY: number;
-  nagRateY: number;
-  chejatWeightY: number;
-  netWeightY: number;
-  /** Y (dots) where the gold weight-fields column starts, below the name. */
-  goldFieldsStartY: number;
-};
-
-/** Default settings for the first print — easy to override in the dialog. */
-export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
-  gapMm: 2,
-  hri: 0,
-  copies: 1,
-  narrow: 2,
-  wide: 3,
-  nameY: 25,
-  weightY: 80,
-  // Gold weight-fields column starts below the name (~40-45 dots) so the
-  // smaller field text never collides with the taller name line.
-  goldFieldsStartY: 55,
-  leftMarginMm: 3.5,
-  barcodeX: 305,
-  barcodeY: 30,
-  showPurity: false,
-  // Gold label weight field visibility — all enabled by default
-  showGrossWeight: true,
-  showNagLessWeight: true,
-  showNagRate: true,
-  showChejatWeight: true,
-  showNetWeight: true,
-  // Gold label weight field Y positions (dots, relative to weightY base)
-  // Defaults: 0 = auto-stacked sequentially from weightY
-  grossWeightY: 0,
-  nagLessWeightY: 0,
-  nagRateY: 0,
-  chejatWeightY: 0,
-  netWeightY: 0,
 };
 
 export type TsplLabelOptions = Partial<LabelSizeSettings> & {
@@ -148,8 +80,18 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   chejatWeightY?: number;
   netWeightY?: number;
   /** Y (dots) where the gold weight-fields column starts, below the name.
-   *  Default 45. */
+   *  Default 55. */
   goldFieldsStartY?: number;
+  /** Name Y position for gold labels (dots). 0 = use nameY. */
+  goldNameY?: number;
+  /** Column gap between left and right weight fields in gold labels (dots). */
+  goldColSpacing?: number;
+  /** Global Y nudge (dots) for the entire gold weight-field block. Positive = down. */
+  goldColY?: number;
+  /** Vertical spacing between rows in gold weight fields (dots). */
+  goldLineSpacing?: number;
+  /** When true, ignore saved settings and always use defaults. */
+  useDefaults?: boolean;
 };
 
 /** TSPL2 content is double-quoted — strip quotes/newlines so a value can't
@@ -190,22 +132,25 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string,
  * Direction 0: Y from top (downward). Direction 1: Y from bottom (upward).
  */
 export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions = {}): string {
-  const copies = Math.min(999, Math.max(1, Math.floor(opts.copies ?? 1)));
-  const widthMm = opts.widthMm ?? LABEL_WIDTH_MM;
-  const heightMm = opts.heightMm ?? LABEL_HEIGHT_MM;
-  const gapMm = opts.gapMm ?? 2;
-  const dpi = opts.dpi ?? 203;
-  const direction = opts.direction ?? 1;  // MUST be 1 for TSC TE244
-  const codepage = opts.codepage ?? "UTF-8";
-  const hri = opts.hri ?? 0;
-  const narrow = opts.narrow ?? 2;
-  const wide = opts.wide ?? 3;
+  // When useDefaults is on, ignore caller-provided values and use built-in defaults
+  const o: TsplLabelOptions = opts.useDefaults ? { ...DEFAULT_LABEL_PRINT_SETTINGS, dpi: opts.dpi, widthMm: opts.widthMm, heightMm: opts.heightMm, gapMm: opts.gapMm, direction: opts.direction, codepage: opts.codepage, copies: opts.copies } : opts;
+
+  const copies = Math.min(999, Math.max(1, Math.floor(o.copies ?? 1)));
+  const widthMm = o.widthMm ?? LABEL_WIDTH_MM;
+  const heightMm = o.heightMm ?? LABEL_HEIGHT_MM;
+  const gapMm = o.gapMm ?? 2;
+  const dpi = o.dpi ?? 203;
+  const direction =  1;  // MUST be 1 for TSC TE244
+  const codepage = o.codepage ?? "UTF-8";
+  const hri = o.hri ?? 0;
+  const narrow = o.narrow ?? 2;
+  const wide = o.wide ?? 3;
 
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
 
   // Printer margins
-  const leftMargin = mmToDots(opts.leftMarginMm ?? 3.5, dpi);
+  const leftMargin = mmToDots(o.leftMarginMm ?? 3.5, dpi);
   const rightMargin = mmToDots(0.5, dpi);
   const printableW = w - leftMargin - rightMargin;
 
@@ -227,10 +172,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const smallSize = toPt(Math.round(h * 0.16));      // Gold weight fields: ~19 dots = 6.8pt
 
   const barcodeHeight = 65;
-  const barcodeX = (opts.barcodeX && opts.barcodeX > 0) ? opts.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
-  const barcodeY = (opts.barcodeY && opts.barcodeY > 0) ? opts.barcodeY : Math.round((h - barcodeHeight) / 2) - 8;
-  const nameY = opts.nameY ?? 25;
-  const weightY = opts.weightY ?? 80;
+  const barcodeX = (o.barcodeX && o.barcodeX > 0) ? o.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
+  const barcodeY = (o.barcodeY && o.barcodeY > 0) ? o.barcodeY : Math.round((h - barcodeHeight) / 2) - 8;
+  const nameY = o.nameY ?? 25;
+  const weightY = o.weightY ?? 80;
   // A period is valid TSPL text. Size names to fit before truncating, so
   // values such as "92.5ring1" are not shortened to "92.5..".
   const availableNameWidth = Math.max(1, barcodeX - leftMargin - gapBetween);
@@ -252,7 +197,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     if (!isGold) {
       displayName = `${displayName} - sil`;
     }
-    const nameWithPurity = [displayName, opts.showPurity ? label.purity : null]
+    const nameWithPurity = [displayName, o.showPurity ? label.purity : null]
       .filter((value): value is string => Boolean(value?.trim()))
       .join(" ");
     const fittingNameSize = Math.floor(
@@ -265,7 +210,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     );
 
     // Build weight line
-    const weight = label.weightMg != null && label.weightMg > 0
+    const weight = label.weightMg != null 
       ? `${label.weightMg} ${label.weightUnit}`
       : "";
 
@@ -273,7 +218,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
     // LEFT: product name (top)
     if (name) {
-      lines.push(`TEXT ${leftMargin},${nameY},"0",0,${nameSize},${nameSize},"${name}"`);
+      const effectiveNameY = isGold && o.goldNameY ? o.goldNameY : nameY;
+      lines.push(`TEXT ${leftMargin},${effectiveNameY},"0",0,${nameSize},${nameSize},"${name}"`);
     }
 
     if (isGold) {
@@ -283,11 +229,11 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       type GoldFieldYKey = "grossWeightY" | "nagLessWeightY" | "nagRateY" | "chejatWeightY" | "netWeightY";
       const weightFieldEntries: { text: string; yKey: GoldFieldYKey | null }[] = [];
       if (weight) weightFieldEntries.push({ text: weight, yKey: null });
-      if (opts.showGrossWeight !== false && label.grossWeight?.trim()) weightFieldEntries.push({ text: `G:${label.grossWeight.trim()}`, yKey: "grossWeightY" });
-      if (opts.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFieldEntries.push({ text: `N:${label.nagLessWeight.trim()}`, yKey: "nagLessWeightY" });
-      if (opts.showNagRate !== false && label.nagRate?.trim()) weightFieldEntries.push({ text: `NR:${label.nagRate.trim()}`, yKey: "nagRateY" });
-      if (opts.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `C:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
-      if (opts.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
+      if (o.showGrossWeight !== false && label.grossWeight?.trim()) weightFieldEntries.push({ text: `G:${label.grossWeight.trim()}`, yKey: "grossWeightY" });
+      if (o.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFieldEntries.push({ text: `N:${label.nagLessWeight.trim()}`, yKey: "nagLessWeightY" });
+      if (o.showNagRate !== false && label.nagRate?.trim()) weightFieldEntries.push({ text: `NR:${label.nagRate.trim()}`, yKey: "nagRateY" });
+      if (o.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `C:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
+      if (o.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
 
       if (weightFieldEntries.length > 0) {
         // Column geometry. 15mm tall = 120 dots at 203 dpi: the name occupies
@@ -295,9 +241,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
         // and stack goldLineSpacing apart so nothing shares a Y in a column.
         // The old code drew every second-row field at ONE Y — they printed on
         // top of each other.
-        const fieldsStartY = opts.goldFieldsStartY ?? 55;
-        const goldLineSpacing = 28;
-        const columnGap = mmToDots(12, dpi);
+        const fieldsStartY = o.goldFieldsStartY ?? 55;
+        const goldLineSpacing = o.goldLineSpacing ?? 28;
+        const columnGap = o.goldColSpacing ?? mmToDots(12, dpi);
+        const goldColY = o.goldColY ?? 0;
 
         // Distribute round-robin down the two columns (row reads L→R), so the
         // deepest row with all 6 fields is 55 + 2×28 = 111 dots — inside 120.
@@ -307,9 +254,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
         const drawColumn = (entries: typeof weightFieldEntries, x: number) => {
           entries.forEach((entry, row) => {
-            const yAuto = fieldsStartY + row * goldLineSpacing;
+            const yAuto = fieldsStartY + row * goldLineSpacing + goldColY;
             // Per-field Y nudge (dots) — user-configurable in the print dialog.
-            const yNudge = entry.yKey ? opts[entry.yKey] : 0;
+            const yNudge = entry.yKey ? o[entry.yKey] : 0;
             const y = yAuto + (typeof yNudge === "number" ? yNudge : 0);
             lines.push(`TEXT ${x},${y},"0",0,${smallSize},${smallSize},"${tsplText(entry.text)}"`);
           });
