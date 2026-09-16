@@ -163,19 +163,21 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Font sizes — 15mm tall = 120 dots at 203 DPI
   // Gold labels need smaller fonts to fit name + 6 weight lines in 15mm.
-  // Silver labels (name + 1 weight line) can use larger fonts.
+  // Silver labels (name + 1 weight line) can use much larger fonts.
   // Budget: 120 dots total. Gold: name ~25 dots, 6 weight lines × ~14 dots = 84 dots.
-  // Silver: name ~40 dots, 1 weight line ~30 dots.
+  // Silver: name ~30 dots, weight ~54 dots.
   const maxNameSize = toPt(Math.round(h * 0.20));   // Gold name: ~24 dots = 8.5pt
   const minNameSize = toPt(Math.round(h * 0.17));   // Gold name min: ~20 dots = 7pt
-  const weightSize = toPt(Math.round(h * 0.25));     // Silver weight: ~30 dots = 10.6pt
+  const weightSize = toPt(Math.round(h * 0.55));     // Silver weight: ~66 dots = 23pt
   const smallSize = toPt(Math.round(h * 0.16));      // Gold weight fields: ~19 dots = 6.8pt
 
   const barcodeHeight = 65;
   const barcodeX = (o.barcodeX && o.barcodeX > 0) ? o.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
   const barcodeY = (o.barcodeY && o.barcodeY > 0) ? o.barcodeY : Math.round((h - barcodeHeight) / 2) - 8;
   const nameY = o.nameY ?? 25;
-  const weightY = o.weightY ?? 80;
+  // Silver weight: bigger font → move up so it fits within label height.
+  // Name ends ~y=49 (25+24), weight 66 dots tall → start at 52, ends at 118.
+  const weightY = o.weightY ?? 52;
   // A period is valid TSPL text. Size names to fit before truncating, so
   // values such as "92.5ring1" are not shortened to "92.5..".
   const availableNameWidth = Math.max(1, barcodeX - leftMargin - gapBetween);
@@ -192,18 +194,20 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   for (const label of labels) {
     const isGold = label.productType === "Gold";
 
-    // Build display name
-    let displayName = label.productName;
-    if (!isGold) {
-      displayName = `${displayName} - sil`;
-    }
+    // Build display name — no suffix on thermal labels; weight fields already
+    // distinguish gold from silver, and the suffix wastes horizontal space that
+    // silver needs for its larger font size.
+    const displayName = label.productName;
     const nameWithPurity = [displayName, o.showPurity ? label.purity : null]
       .filter((value): value is string => Boolean(value?.trim()))
       .join(" ");
     const fittingNameSize = Math.floor(
       availableNameWidth / (Math.max(1, nameWithPurity.length) * nameCharWidthAtOnePoint),
     );
-    const nameSize = Math.max(minNameSize, Math.min(maxNameSize, fittingNameSize));
+    // Silver labels (name + weight only) can use a much larger name than gold.
+    const silverMaxNameSize = toPt(Math.round(h * 0.35));
+    const effectiveMaxNameSize = isGold ? maxNameSize : silverMaxNameSize;
+    const nameSize = Math.max(minNameSize, Math.min(effectiveMaxNameSize, fittingNameSize));
     const name = truncateToWidth(
       tsplText(nameWithPurity),
       Math.max(2, Math.floor(availableNameWidth / (minNameSize * nameCharWidthAtOnePoint))),
@@ -242,7 +246,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
         // The old code drew every second-row field at ONE Y — they printed on
         // top of each other.
         const fieldsStartY = o.goldFieldsStartY ?? 55;
-        const goldLineSpacing = o.goldLineSpacing ?? 28;
+        const goldLineSpacing = o.goldLineSpacing ?? 25;
         const columnGap = o.goldColSpacing ?? mmToDots(12, dpi);
         const goldColY = o.goldColY ?? 0;
 
