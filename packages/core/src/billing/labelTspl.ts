@@ -163,21 +163,18 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
 
   // Font sizes — 15mm tall = 120 dots at 203 DPI
   // Gold labels need smaller fonts to fit name + 6 weight lines in 15mm.
-  // Silver labels (name + 1 weight line) can use much larger fonts.
-  // Budget: 120 dots total. Gold: name ~25 dots, 6 weight lines × ~14 dots = 84 dots.
-  // Silver: name ~30 dots, weight ~54 dots.
-  const maxNameSize = toPt(Math.round(h * 0.20));   // Gold name: ~24 dots = 8.5pt
+  // Silver labels (name + weight): name is prominent, weight is secondary.
+  const maxNameSize = toPt(Math.round(h * 0.30));   // Gold name: ~24 dots = 8.5pt
   const minNameSize = toPt(Math.round(h * 0.17));   // Gold name min: ~20 dots = 7pt
-  const weightSize = toPt(Math.round(h * 0.55));     // Silver weight: ~66 dots = 23pt
+  const weightSize = toPt(Math.round(h * 0.20));     // Silver weight: ~22 dots = 8pt
   const smallSize = toPt(Math.round(h * 0.16));      // Gold weight fields: ~19 dots = 6.8pt
 
   const barcodeHeight = 65;
   const barcodeX = (o.barcodeX && o.barcodeX > 0) ? o.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
   const barcodeY = (o.barcodeY && o.barcodeY > 0) ? o.barcodeY : Math.round((h - barcodeHeight) / 2) - 8;
   const nameY = o.nameY ?? 25;
-  // Silver weight: bigger font → move up so it fits within label height.
-  // Name ends ~y=49 (25+24), weight 66 dots tall → start at 52, ends at 118.
-  const weightY = o.weightY ?? 52;
+  // Silver weight position — smaller font, positioned below the name.
+  const weightY = o.weightY ?? 60;
   // A period is valid TSPL text. Size names to fit before truncating, so
   // values such as "92.5ring1" are not shortened to "92.5..".
   const availableNameWidth = Math.max(1, barcodeX - leftMargin - gapBetween);
@@ -204,8 +201,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     const fittingNameSize = Math.floor(
       availableNameWidth / (Math.max(1, nameWithPurity.length) * nameCharWidthAtOnePoint),
     );
-    // Silver labels (name + weight only) can use a much larger name than gold.
-    const silverMaxNameSize = toPt(Math.round(h * 0.35));
+    // Silver label name is the dominant text — use the full available height.
+    const silverMaxNameSize = toPt(Math.round(h * 0.26));
     const effectiveMaxNameSize = isGold ? maxNameSize : silverMaxNameSize;
     const nameSize = Math.max(minNameSize, Math.min(effectiveMaxNameSize, fittingNameSize));
     const name = truncateToWidth(
@@ -214,8 +211,13 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     );
 
     // Build weight line
-    const weight = label.weightMg != null 
+    const weight = label.weightMg != null
       ? `${label.weightMg} ${label.weightUnit}`
+      : "";
+
+    // Build price line — Indian comma formatting with ₹ prefix
+    const priceText = label.sellingPrice > 0
+      ? `p: \u20B9${Math.round(label.sellingPrice).toLocaleString("en-IN")}`
       : "";
 
     lines.push("CLS");
@@ -272,6 +274,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       // Silver / other: weight below name at weightY position
       if (weight) {
         lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+      }
+      if (priceText) {
+        const priceY = weightY + Math.round(weightSize * 3.2);
+        lines.push(`TEXT ${leftMargin},${priceY},"0",0,${weightSize},${weightSize},"${tsplText(priceText)}"`);
       }
     }
 

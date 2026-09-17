@@ -204,6 +204,7 @@ export function ProductsView() {
                 name: labelTarget.name,
                 sku: labelTarget.sku,
                 barcode: labelTarget.barcode,
+                type: labelTarget.type,
                 weight: labelTarget.weight,
                 weightUnit: labelTarget.weightUnit,
                 grossWeight: labelTarget.grossWeight ?? null,

@@ -684,6 +684,7 @@ export function ProductsPage() {
         name: p.name,
         sku: p.sku,
         barcode: p.barcode,
+        type: p.type,
         weight: p.weight,
         weightUnit: p.weightUnit ?? "gm",
         grossWeight: p.grossWeight ?? null,
