@@ -13,6 +13,8 @@ export type ShopSettingsInput = {
     theme?: string;
     /** Light/dark mode ("light" | "dark" | "system"). LEGACY — see `theme`. */
     mode?: string;
+    /** Allow creating invoices with a total of ₹0. */
+    allowZeroTotal?: boolean;
 };
 /** Fetches settings, creating the singleton row on first use. */
 export declare function getSettings(db: DbClient): Promise<{
@@ -27,6 +29,7 @@ export declare function getSettings(db: DbClient): Promise<{
     currency: string;
     defaultTemplate: Record<string, unknown>;
     theme: string;
+    allowZeroTotal: boolean;
 }>;
 export declare function updateSettings(db: DbClient, input: ShopSettingsInput): Promise<{
     id: string;
@@ -39,6 +42,7 @@ export declare function updateSettings(db: DbClient, input: ShopSettingsInput): 
     defaultTemplate: Record<string, unknown>;
     theme: string;
     mode: string;
+    allowZeroTotal: boolean;
     updatedAt: Date;
 }>;
 //# sourceMappingURL=settings.d.ts.map

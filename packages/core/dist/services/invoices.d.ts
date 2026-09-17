@@ -38,6 +38,10 @@ export type InvoiceInput = {
     items: InvoiceItemInput[];
     deliveryCharge?: number;
     discount?: number;
+    /** Material returned by customer — free text weight, e.g. "5gm". */
+    materialReturnedWeight?: string;
+    /** Monetary value of material returned (deducted from total). */
+    materialReturnedValue?: number;
     notes?: string;
     shopDetails?: {
         name: string;
@@ -92,6 +96,8 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
         subtotal: number;
         deliveryCharge: number;
         discount: number;
+        materialReturnedWeight: string | null;
+        materialReturnedValue: number;
         total: number;
         amountPaid: number;
         notes: string | null;

@@ -52,6 +52,14 @@ export type LabelPrintSettings = {
   goldColY: number;
   /** Vertical spacing between rows in gold weight fields (dots). */
   goldLineSpacing: number;
+  /** Gold weight field prefixes (shown before value on label). */
+  grossWeightPrefix: string;
+  nagLessWeightPrefix: string;
+  nagRatePrefix: string;
+  chejatWeightPrefix: string;
+  netWeightPrefix: string;
+  /** Silver price prefix (shown before ₹ value). */
+  pricePrefix: string;
   /** When true, ignore saved settings and always use these defaults. */
   useDefaults: boolean;
 };
@@ -70,6 +78,12 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   goldColSpacing: 96,
   goldColY: 0,
   goldLineSpacing: 22,
+  grossWeightPrefix: "G",
+  nagLessWeightPrefix: "N",
+  nagRatePrefix: "NR",
+  chejatWeightPrefix: "C",
+  netWeightPrefix: "Net",
+  pricePrefix: "p",
   leftMarginMm: 3.5,
   barcodeX: 295,
   barcodeY: 65,

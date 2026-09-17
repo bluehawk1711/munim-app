@@ -62,6 +62,10 @@ export interface BillDocument {
   subtotal: number;
   discount: number;
   deliveryCharge: number;
+  /** Material returned by customer — weight description, e.g. "5gm". */
+  materialReturnedWeight: string | null;
+  /** Monetary value of material returned (deducted from total). */
+  materialReturnedValue: number;
   total: number;
   amountInWords: string;
   amountPaid: number;
@@ -80,6 +84,8 @@ export interface BuildBillInput {
   lines: BillLineInput[];
   discount?: number;
   deliveryCharge?: number;
+  materialReturnedWeight?: string | null;
+  materialReturnedValue?: number;
   amountPaid?: number;
   status?: BillStatus;
   currency?: string;
@@ -99,7 +105,8 @@ export function buildBillDocument(input: BuildBillInput): BillDocument {
   const subtotal = round2(lines.reduce((sum, l) => sum + l.total, 0));
   const discount = round2(Math.max(0, input.discount ?? 0));
   const deliveryCharge = round2(Math.max(0, input.deliveryCharge ?? 0));
-  const total = round2(Math.max(0, subtotal - discount + deliveryCharge));
+  const materialReturnedValue = round2(Math.max(0, input.materialReturnedValue ?? 0));
+  const total = round2(Math.max(0, subtotal - discount - materialReturnedValue + deliveryCharge));
   const amountPaid = round2(Math.min(Math.max(0, input.amountPaid ?? 0), total));
   const dueAmount = round2(total - amountPaid);
 
@@ -121,6 +128,8 @@ export function buildBillDocument(input: BuildBillInput): BillDocument {
     subtotal,
     discount,
     deliveryCharge,
+    materialReturnedWeight: input.materialReturnedWeight?.trim() || null,
+    materialReturnedValue,
     total,
     amountInWords: amountInWords(total),
     amountPaid,
@@ -152,6 +161,7 @@ export function renderBillText(bill: BillDocument): string {
     "",
     `Subtotal:      ${currency}${bill.subtotal.toFixed(2)}`,
     bill.discount > 0 ? `Discount:      -${currency}${bill.discount.toFixed(2)}` : "",
+    bill.materialReturnedValue > 0 ? `Material Retd:  -${currency}${bill.materialReturnedValue.toFixed(2)}${bill.materialReturnedWeight ? ` (${bill.materialReturnedWeight})` : ""}` : "",
     bill.deliveryCharge > 0 ? `Delivery:      +${currency}${bill.deliveryCharge.toFixed(2)}` : "",
     `TOTAL:         ${currency}${bill.total.toFixed(2)}`,
     `Amount paid:   ${currency}${bill.amountPaid.toFixed(2)}`,
@@ -196,6 +206,7 @@ export function renderBillHtml(bill: BillDocument): string {
 
   const extraRows = [
     ...(bill.discount > 0 ? [`<tr><td colspan="5">Discount</td><td class="num">− ${money(bill.discount)}</td></tr>`] : []),
+    ...(bill.materialReturnedValue > 0 ? [`<tr><td colspan="5">Material Returned${bill.materialReturnedWeight ? ` (${esc(bill.materialReturnedWeight)})` : ""}</td><td class="num">− ${money(bill.materialReturnedValue)}</td></tr>`] : []),
     ...(bill.deliveryCharge > 0 ? [`<tr><td colspan="5">Delivery</td><td class="num">+ ${money(bill.deliveryCharge)}</td></tr>`] : []),
   ].join("");
 

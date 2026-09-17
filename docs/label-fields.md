@@ -4,14 +4,29 @@ Single source of truth for every configurable field in the thermal label printer
 (TSC TE244) and the HTML label sheet. All values live in
 `packages/core/src/billing/labelDefaults.ts`.
 
+**Stable commit:** `3110c44` — restore to this commit if label layout breaks.
+
 ---
 
 ## Label layout
 
+### Silver label
 ```
 ┌────────────────────────────┬────────────────────────────┐
 │  Product Name              │                            │
-│  (nameY / goldNameY)       │        BARCODE             │
+│  (nameY)                   │        BARCODE             │
+│                            │        (barcodeX, barcodeY)│
+│  100 gm                    │                            │
+│  p: ₹12,500               │                            │
+└────────────────────────────┴────────────────────────────┘
+  LEFT (~24%)                   RIGHT (~76%)
+```
+
+### Gold label
+```
+┌────────────────────────────┬────────────────────────────┐
+│  Product Name              │                            │
+│  (goldNameY / nameY)       │        BARCODE             │
 │                            │        (barcodeX, barcodeY)│
 │ ── gold fields start ──    │                            │
 │  weight        G:xx        │                            │
@@ -29,15 +44,15 @@ Single source of truth for every configurable field in the thermal label printer
 
 | Field | Default | Affects | Description |
 |-------|---------|---------|-------------|
-| `nameY` | `25` | Silver + Gold | Y position of product name. For Gold, overridden by `goldNameY` if > 0. |
-| `goldNameY` | `25` | Gold only | Y position of product name on gold labels. `0` = fall back to `nameY`. |
-| `weightY` | `80` | Silver only | Y position of weight text below the name. |
-| `goldFieldsStartY` | `55` | Gold only | Y where the first row of weight fields begins (below name). |
+| `nameY` | `30` | Silver + Gold | Y position of product name. For Gold, overridden by `goldNameY` if > 0. |
+| `goldNameY` | `30` | Gold only | Y position of product name on gold labels. `0` = fall back to `nameY`. |
+| `weightY` | `67` | Silver only | Y position of weight text below the name. |
+| `goldFieldsStartY` | `60` | Gold only | Y where the first row of weight fields begins (below name). |
 | `goldColY` | `0` | Gold only | ± nudge the entire gold field block up/down from `goldFieldsStartY`. |
-| `goldLineSpacing` | `28` | Gold only | Vertical spacing between rows of weight fields (dots). |
+| `goldLineSpacing` | `22` | Gold only | Vertical spacing between rows of weight fields (dots). |
 | `goldColSpacing` | `96` | Gold only | Horizontal gap between left and right weight columns (dots). |
-| `barcodeX` | `305` | Both | X position of barcode. `0` = auto-computed (right side). |
-| `barcodeY` | `30` | Both | Y position of barcode. `0` = vertically centered. |
+| `barcodeX` | `295` | Both | X position of barcode. `0` = auto-computed (right side). |
+| `barcodeY` | `65` | Both | Y position of barcode. `0` = vertically centered. |
 | `leftMarginMm` | `3.5` | Both | Left margin in mm. Text starts here. |
 
 ---
@@ -71,12 +86,12 @@ Row = `Math.floor(indexInColumn)`.
 
 ## Gold field Y example
 
-With defaults (`goldFieldsStartY=55`, `goldLineSpacing=28`, `goldColY=0`):
+With defaults (`goldFieldsStartY=60`, `goldLineSpacing=22`, `goldColY=0`):
 
 ```
-Row 0 (Y=55):   weight (left)     |  G:xx (right)
-Row 1 (Y=83):   NR:xx (left)      |  N:xx (right)
-Row 2 (Y=111):  C:xx (left)       |  Net:xx (right)
+Row 0 (Y=60):   weight (left)     |  G:xx (right)
+Row 1 (Y=82):   NR:xx (left)      |  N:xx (right)
+Row 2 (Y=104):  C:xx (left)       |  Net:xx (right)
 ```
 
 To move ALL gold fields down by 10 dots: set `goldColY = 10`.
@@ -101,7 +116,7 @@ To move ONLY gross weight down: set `grossWeightY = 10`.
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `useDefaults` | `true` | When `true`, all position/visibility values from `DEFAULT_LABEL_PRINT_SETTINGS` are used. Locally saved values and dialog edits are ignored at print time. |
+| `useDefaults` | `false` | When `true`, all position/visibility values from `DEFAULT_LABEL_PRINT_SETTINGS` are used. Locally saved values and dialog edits are ignored at print time. |
 
 **Flow when `useDefaults: true`:**
 1. `getSavedLabelPrintSettings()` returns `{ ...DEFAULT_LABEL_PRINT_SETTINGS, useDefaults: true }`
@@ -117,16 +132,27 @@ To move ONLY gross weight down: set `grossWeightY = 10`.
 
 ## Silver label — TEXT commands
 
+Silver labels show: **product name** (large), **weight** (medium), **selling price** (medium, prefixed `p:`). No "- sil" suffix — weight fields already distinguish gold from silver, and the suffix wastes horizontal space needed for the larger silver font.
+
 ```
-TEXT leftMargin, nameY,    "0", 0, nameSize,   nameSize,   "Product Name - sil"
-TEXT leftMargin, weightY,  "0", 0, weightSize,  weightSize, "100 gm"
+TEXT leftMargin, nameY,     "0", 0, nameSize,   nameSize,   "Product Name"
+TEXT leftMargin, weightY,   "0", 0, weightSize,  weightSize, "24.5 gm"
+TEXT leftMargin, priceY,    "0", 0, weightSize,  weightSize, "p: ₹12,500"
 BARCODE barcodeX, barcodeY, "128", height, hri, 0, narrow, wide, "BARCODE"
 ```
 
+**Font sizes** (silver):
+- `nameSize`: capped at `h × 0.26` (~11pt), fitting within the text area width. Dominant text.
+- `weightSize`: `h × 0.20` (~9pt). Secondary text.
+
+**Price:** Only shown when `sellingPrice > 0`. Formatted as `p: ₹XX,XXX` (Indian comma grouping). Positioned at `weightY + weightSize × 3.2` below the weight.
+
 ## Gold label — TEXT commands
 
+Gold labels show: **product name** + purity, then weight + up to 5 weight fields in 2 columns. No selling price.
+
 ```
-TEXT leftMargin, effectiveNameY, "0", 0, nameSize,  nameSize,  "Product Name"
+TEXT leftMargin, effectiveNameY, "0", 0, nameSize,  nameSize,  "Product Name 92.5"
 TEXT leftMargin, autoY+nudge,    "0", 0, smallSize, smallSize, "100 gm"
 TEXT leftMargin, autoY+nudge,    "0", 0, smallSize, smallSize, "G:10.5"
 TEXT leftMargin, autoY+nudge,    "0", 0, smallSize, smallSize, "N:2.3"
@@ -136,6 +162,23 @@ TEXT leftMargin, autoY+nudge,    "0", 0, smallSize, smallSize, "Net:7.0"
 BARCODE barcodeX, barcodeY, "128", height, hri, 0, narrow, wide, "BARCODE"
 ```
 
+**Font sizes** (gold):
+- `nameSize`: capped at `h × 0.30` (~13pt), fitting within the text area width.
+- `smallSize`: `h × 0.16` (~7pt). All weight fields use this smaller size to fit in 15mm.
+
+---
+
+## Key differences — Gold vs Silver
+
+| Aspect | Gold | Silver |
+|--------|------|--------|
+| Name size | `h × 0.30` (capped by width) | `h × 0.26` (capped by width) |
+| Weight/field size | `h × 0.16` (small) | `h × 0.20` (medium) |
+| Weight fields | 2-column layout, up to 6 entries | Single weight line |
+| Selling price | Not shown | Shown (`p: ₹XX,XXX`) |
+| Purity | Appended to name | Appended to name |
+| "- sil" suffix | No | No |
+
 ---
 
 ## Files
@@ -144,7 +187,9 @@ BARCODE barcodeX, barcodeY, "128", height, hri, 0, narrow, wide, "BARCODE"
 |------|------|
 | `packages/core/src/billing/labelDefaults.ts` | Type + default values (single source of truth) |
 | `packages/core/src/billing/labelTspl.ts` | TSPL2 command builder (`buildLabelTspl2`) |
-| `packages/core/src/billing/labelDocument.ts` | HTML label sheet renderer |
+| `packages/core/src/billing/labelDocument.ts` | HTML label sheet renderer + `ProductLabel` type + `buildProductLabel()` |
 | `packages/ui/src/components/label-print-dialog.tsx` | Print dialog UI (shared web + desktop) |
 | `apps/desktop/src/lib/printer.ts` | Desktop thermal print bridge + localStorage |
 | `apps/desktop/src/pages/settings.tsx` | Settings → Printing (useDefaults toggle) |
+| `apps/desktop/src/pages/products.tsx` | Products page — label print + gold/silver filter |
+| `apps/web/src/views/products-view.tsx` | Web products — label print |

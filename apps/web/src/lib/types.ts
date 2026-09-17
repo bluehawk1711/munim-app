@@ -30,6 +30,7 @@ export type Product = {
   stock: number
   purchasePrice: number
   sellingPrice: number
+  silverPercentage: number
   lowStockThreshold: number
   notes: string | null
   createdAt: string
@@ -120,6 +121,7 @@ export type StockDistributionPoint = {
 
 export type ProductFilters = {
   search?: string
+  type?: string
   color?: string
   size?: string
   category?: string

@@ -90,6 +90,14 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   goldColY?: number;
   /** Vertical spacing between rows in gold weight fields (dots). */
   goldLineSpacing?: number;
+  /** Gold weight field prefixes (shown before value on label). */
+  grossWeightPrefix?: string;
+  nagLessWeightPrefix?: string;
+  nagRatePrefix?: string;
+  chejatWeightPrefix?: string;
+  netWeightPrefix?: string;
+  /** Silver price prefix (shown before ₹ value). */
+  pricePrefix?: string;
   /** When true, ignore saved settings and always use defaults. */
   useDefaults?: boolean;
 };
@@ -215,9 +223,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       ? `${label.weightMg} ${label.weightUnit}`
       : "";
 
-    // Build price line — Indian comma formatting with ₹ prefix
+    // Build price line — Indian comma formatting with configurable prefix
     const priceText = label.sellingPrice > 0
-      ? `p: \u20B9${Math.round(label.sellingPrice).toLocaleString("en-IN")}`
+      ? `${o.pricePrefix ?? "p"}: \u20B9${label.sellingPrice.toLocaleString("en-IN")}`
       : "";
 
     lines.push("CLS");
@@ -235,11 +243,11 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       type GoldFieldYKey = "grossWeightY" | "nagLessWeightY" | "nagRateY" | "chejatWeightY" | "netWeightY";
       const weightFieldEntries: { text: string; yKey: GoldFieldYKey | null }[] = [];
       if (weight) weightFieldEntries.push({ text: weight, yKey: null });
-      if (o.showGrossWeight !== false && label.grossWeight?.trim()) weightFieldEntries.push({ text: `G:${label.grossWeight.trim()}`, yKey: "grossWeightY" });
-      if (o.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFieldEntries.push({ text: `N:${label.nagLessWeight.trim()}`, yKey: "nagLessWeightY" });
-      if (o.showNagRate !== false && label.nagRate?.trim()) weightFieldEntries.push({ text: `NR:${label.nagRate.trim()}`, yKey: "nagRateY" });
-      if (o.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `C:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
-      if (o.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `Net:${label.netWeight.trim()}`, yKey: "netWeightY" });
+      if (o.showGrossWeight !== false && label.grossWeight?.trim()) weightFieldEntries.push({ text: `${o.grossWeightPrefix ?? "G"}:${label.grossWeight.trim()}`, yKey: "grossWeightY" });
+      if (o.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFieldEntries.push({ text: `${o.nagLessWeightPrefix ?? "N"}:${label.nagLessWeight.trim()}`, yKey: "nagLessWeightY" });
+      if (o.showNagRate !== false && label.nagRate?.trim()) weightFieldEntries.push({ text: `${o.nagRatePrefix ?? "NR"}:${label.nagRate.trim()}`, yKey: "nagRateY" });
+      if (o.showChejatWeight !== false && label.chejatWeight?.trim()) weightFieldEntries.push({ text: `${o.chejatWeightPrefix ?? "C"}:${label.chejatWeight.trim()}`, yKey: "chejatWeightY" });
+      if (o.showNetWeight !== false && label.netWeight?.trim()) weightFieldEntries.push({ text: `${o.netWeightPrefix ?? "Net"}:${label.netWeight.trim()}`, yKey: "netWeightY" });
 
       if (weightFieldEntries.length > 0) {
         // Column geometry. 15mm tall = 120 dots at 203 dpi: the name occupies

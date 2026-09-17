@@ -466,6 +466,23 @@ export declare const products: import("drizzle-orm/pg-core").PgTableWithColumns<
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        silverPercentage: import("drizzle-orm/pg-core").PgColumn<{
+            name: "silver_percentage";
+            tableName: "products";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         notes: import("drizzle-orm/pg-core").PgColumn<{
             name: "notes";
             tableName: "products";
@@ -1233,6 +1250,40 @@ export declare const invoices: import("drizzle-orm/pg-core").PgTableWithColumns<
         }, {}, {}>;
         discount: import("drizzle-orm/pg-core").PgColumn<{
             name: "discount";
+            tableName: "invoices";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        materialReturnedWeight: import("drizzle-orm/pg-core").PgColumn<{
+            name: "material_returned_weight";
+            tableName: "invoices";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        materialReturnedValue: import("drizzle-orm/pg-core").PgColumn<{
+            name: "material_returned_value";
             tableName: "invoices";
             dataType: "number";
             columnType: "PgDoublePrecision";
@@ -2041,6 +2092,23 @@ export declare const settings: import("drizzle-orm/pg-core").PgTableWithColumns<
             isAutoincrement: false;
             hasRuntimeDefault: false;
             enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        allowZeroTotal: import("drizzle-orm/pg-core").PgColumn<{
+            name: "allow_zero_total";
+            tableName: "settings";
+            dataType: "boolean";
+            columnType: "PgBoolean";
+            data: boolean;
+            driverParam: boolean;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
             baseColumn: never;
             identity: undefined;
             generated: undefined;

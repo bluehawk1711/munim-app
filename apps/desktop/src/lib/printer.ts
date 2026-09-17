@@ -113,6 +113,12 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         nagRateY: typeof s.nagRateY === "number" ? s.nagRateY : 0,
         chejatWeightY: typeof s.chejatWeightY === "number" ? s.chejatWeightY : 0,
         netWeightY: typeof s.netWeightY === "number" ? s.netWeightY : 0,
+        grossWeightPrefix: typeof s.grossWeightPrefix === "string" ? s.grossWeightPrefix : "G",
+        nagLessWeightPrefix: typeof s.nagLessWeightPrefix === "string" ? s.nagLessWeightPrefix : "N",
+        nagRatePrefix: typeof s.nagRatePrefix === "string" ? s.nagRatePrefix : "NR",
+        chejatWeightPrefix: typeof s.chejatWeightPrefix === "string" ? s.chejatWeightPrefix : "C",
+        netWeightPrefix: typeof s.netWeightPrefix === "string" ? s.netWeightPrefix : "Net",
+        pricePrefix: typeof s.pricePrefix === "string" ? s.pricePrefix : "p",
         useDefaults: !!s.useDefaults,
       };
     }
@@ -173,6 +179,12 @@ export async function printLabelsToThermal(
     nagRateY: ps.nagRateY,
     chejatWeightY: ps.chejatWeightY,
     netWeightY: ps.netWeightY,
+    grossWeightPrefix: ps.grossWeightPrefix,
+    nagLessWeightPrefix: ps.nagLessWeightPrefix,
+    nagRatePrefix: ps.nagRatePrefix,
+    chejatWeightPrefix: ps.chejatWeightPrefix,
+    netWeightPrefix: ps.netWeightPrefix,
+    pricePrefix: ps.pricePrefix,
   });
   const data = Array.from(new TextEncoder().encode(tspl));
   console.info("[Munim label print]", {

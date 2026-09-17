@@ -162,27 +162,25 @@ function AppInner() {
 
   return (
     <GestureHandlerRootView style={{flex: 1}}>
-      <SafeAreaProvider>
-        <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
-        <SafeScreen>
-          <View style={styles.content}>
-            <Animated.View
-              key={tab}
-              entering={FadeIn.duration(220).delay(40)}
-              exiting={FadeOut.duration(120)}
-              style={styles.screen}>
-              {tab === 'home' ? <HomeScreen /> : null}
-              {tab === 'products' ? <ProductsScreen /> : null}
-              {tab === 'sales' ? <SalesScreen /> : null}
-              {tab === 'advances' ? <AdvancesScreen /> : null}
-              {tab === 'more' ? <MoreScreen /> : null}
-            </Animated.View>
-          </View>
-          <Animated.View entering={SlideInDown.duration(320)}>
-            <TabBar tab={tab} onSelect={setTab} />
+      <StatusBar barStyle={mode === 'dark' ? 'light-content' : 'dark-content'} />
+      <SafeScreen>
+        <View style={styles.content}>
+          <Animated.View
+            key={tab}
+            entering={FadeIn.duration(220).delay(40)}
+            exiting={FadeOut.duration(120)}
+            style={styles.screen}>
+            {tab === 'home' ? <HomeScreen /> : null}
+            {tab === 'products' ? <ProductsScreen /> : null}
+            {tab === 'sales' ? <SalesScreen /> : null}
+            {tab === 'advances' ? <AdvancesScreen /> : null}
+            {tab === 'more' ? <MoreScreen /> : null}
           </Animated.View>
-        </SafeScreen>
-      </SafeAreaProvider>
+        </View>
+        <Animated.View entering={SlideInDown.duration(320)}>
+          <TabBar tab={tab} onSelect={setTab} />
+        </Animated.View>
+      </SafeScreen>
     </GestureHandlerRootView>
   );
 }
@@ -191,13 +189,15 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <PinProvider>
-          <MobileQueryProvider>
-            <ToastProvider>
-              <AppInner />
-            </ToastProvider>
-          </MobileQueryProvider>
-        </PinProvider>
+        <SafeAreaProvider>
+          <PinProvider>
+            <MobileQueryProvider>
+              <ToastProvider>
+                <AppInner />
+              </ToastProvider>
+            </MobileQueryProvider>
+          </PinProvider>
+        </SafeAreaProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

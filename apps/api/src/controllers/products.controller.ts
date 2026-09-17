@@ -47,6 +47,7 @@ export class ProductsController {
   @Get()
   async list(
     @Query("search") search?: string,
+    @Query("type") type?: string,
     @Query("color") color?: string,
     @Query("size") size?: string,
     @Query("category") category?: string,
@@ -56,6 +57,7 @@ export class ProductsController {
   ) {
     const filters: ProductFilters = {
       search,
+      type,
       color,
       size,
       category,

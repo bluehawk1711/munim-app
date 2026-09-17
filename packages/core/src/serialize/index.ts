@@ -58,6 +58,8 @@ export type ProductDto = {
   stock: number;
   purchasePrice: number;
   sellingPrice: number;
+  /** Silver purity percentage — e.g. 90 means 90% silver content. */
+  silverPercentage: number;
   lowStockThreshold: number;
   notes: string | null;
   createdAt: string;
@@ -86,6 +88,7 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     stock: p.stock,
     purchasePrice: p.purchasePrice,
     sellingPrice: p.sellingPrice,
+    silverPercentage: p.silverPercentage ?? 100,
     notes: p.notes,
     lowStockThreshold: p.lowStockThreshold,
     createdAt: p.createdAt.toISOString(),

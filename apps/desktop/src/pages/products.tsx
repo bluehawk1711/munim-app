@@ -104,6 +104,14 @@ import {
   ProductDetailsDialog,
 } from "@munim/ui";
 
+const PRODUCT_TYPE_COLORS: Record<string, string> = {
+  Gold: "#D4AF37",
+  Silver: "#C0C0C0",
+  Diamond: "#B9F2FF",
+  Platinum: "#E5E4E2",
+  Other: "#9CA3AF",
+};
+
 /* ─── Form state (mirrors the original inline form) ────────────── */
 
 type FormState = {
@@ -125,6 +133,7 @@ type FormState = {
   stock: string;
   purchasePrice: string;
   sellingPrice: string;
+  silverPercentage: string;
   lowStockThreshold: string;
   notes: string;
 };
@@ -148,6 +157,7 @@ const EMPTY_FORM: FormState = {
   stock: "0",
   purchasePrice: "0",
   sellingPrice: "0",
+  silverPercentage: "100",
   lowStockThreshold: "5",
   notes: "",
 };
@@ -173,8 +183,9 @@ type FilterChip =
 export function ProductsPage() {
   const [search, setSearch] = useState("");
   const [tablePage, setTablePage] = useState(1);
+  const [typeFilter, setTypeFilter] = useState<string>("all");
   const TABLE_PAGE_SIZE = 40;
-  const { data, error, loading, refetching, reload } = useQueryState(useProducts({ search, page: tablePage, pageSize: TABLE_PAGE_SIZE }));
+  const { data, error, loading, refetching, reload } = useQueryState(useProducts({ search, type: typeFilter, page: tablePage, pageSize: TABLE_PAGE_SIZE }));
   const products = data?.products ?? [];
   const pagination = data?.pagination;
 
@@ -343,12 +354,6 @@ export function ProductsPage() {
     if (activeCategory.kind === "uncategorized") {
       return products.filter((p) => !p.category || !p.category.trim());
     }
-    if (activeCategory.kind === "gold") {
-      return products.filter((p) => (p.type ?? "Gold") === "Gold");
-    }
-    if (activeCategory.kind === "silver") {
-      return products.filter((p) => p.type === "Silver");
-    }
     return products;
   }, [products, activeCategory]);
 
@@ -410,6 +415,7 @@ export function ProductsPage() {
       stock: String(p.stock),
       purchasePrice: String(p.purchasePrice),
       sellingPrice: String(p.sellingPrice),
+      silverPercentage: String(p.silverPercentage ?? 100),
       lowStockThreshold: String(p.lowStockThreshold),
       notes: p.notes ?? "",
     });
@@ -528,10 +534,6 @@ export function ProductsPage() {
       toast.error("Product name is required");
       return;
     }
-    const buyVal = Number(form.purchasePrice) || 0;
-    const sellVal = Number(form.sellingPrice) || 0;
-    if (buyVal <= 0) { toast.error("Buy price must be greater than 0"); return; }
-    if (sellVal <= 0) { toast.error("Sell price must be greater than 0"); return; }
     setSaving(true);
     try {
       const input = {
@@ -553,6 +555,7 @@ export function ProductsPage() {
         stock: Math.max(0, Number(form.stock) || 0),
         purchasePrice: Math.max(0, Number(form.purchasePrice) || 0),
         sellingPrice: Math.max(0, Number(form.sellingPrice) || 0),
+        silverPercentage: Number(form.silverPercentage) || 100,
         lowStockThreshold: Math.max(0, Number(form.lowStockThreshold) || 0),
         notes: form.notes.trim() || undefined,
       };
@@ -782,7 +785,13 @@ export function ProductsPage() {
                 <button
                   key={chip.kind}
                   type="button"
-                  onClick={() => { setActiveCategory(chip); setTablePage(1); }}
+                  onClick={() => {
+                    setActiveCategory(chip);
+                    setTablePage(1);
+                    if (chip.kind === "gold") setTypeFilter("Gold");
+                    else if (chip.kind === "silver") setTypeFilter("Silver");
+                    else setTypeFilter("all");
+                  }}
                   className={
                     "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold tabular-nums transition-colors " +
                     (active
@@ -953,6 +962,7 @@ export function ProductsPage() {
               <TableRow>
                 <TableHead>Image</TableHead>
                 <TableHead>Product Name & Karigar</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>SKU & Barcode</TableHead>
                 <TableHead>Variant Specs</TableHead>
                 <TableHead>Weight Breakdown</TableHead>
@@ -963,7 +973,7 @@ export function ProductsPage() {
             <TableBody>
               {visibleProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-muted-foreground text-center">
+                  <TableCell colSpan={8} className="text-muted-foreground text-center">
                     No products found
                   </TableCell>
                 </TableRow>
@@ -984,6 +994,18 @@ export function ProductsPage() {
                       {p.category ? (
                         <div className="text-muted-foreground text-xs">{p.category}</div>
                       ) : null}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        style={{
+                          backgroundColor: `${PRODUCT_TYPE_COLORS[p.type ?? "Other"]}22`,
+                          color: PRODUCT_TYPE_COLORS[p.type ?? "Other"],
+                          border: `1px solid ${PRODUCT_TYPE_COLORS[p.type ?? "Other"]}44`,
+                        }}
+                      >
+                        {p.type ?? "Other"}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <div className="text-muted-foreground text-xs">{p.sku}</div>
@@ -1196,6 +1218,14 @@ export function ProductsPage() {
                 <Input id="p-purity" value={form.purity} onChange={(e) => setForm({ ...form, purity: e.target.value })} placeholder="e.g. 24K / 925" maxLength={20} />
               </div>
             </div>
+
+            {form.type === "Silver" && (
+              <div className="space-y-1.5">
+                <Label htmlFor="p-silver-pct">Silver %</Label>
+                <Input id="p-silver-pct" type="number" min={0} max={100} value={form.silverPercentage} onChange={(e) => setForm({ ...form, silverPercentage: e.target.value })} placeholder="e.g. 90" />
+                <p className="text-[11px] text-muted-foreground">Silver purity percentage — e.g. 90 means 90% silver content</p>
+              </div>
+            )}
 
             {form.type !== "Silver" && (
               <>

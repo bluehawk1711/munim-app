@@ -30,6 +30,7 @@ export async function updateSettings(db, input) {
         ...(input.defaultTemplate !== undefined ? { defaultTemplate: input.defaultTemplate } : {}),
         ...(input.theme !== undefined ? { theme: input.theme } : {}),
         ...(input.mode !== undefined ? { mode: input.mode } : {}),
+        ...(input.allowZeroTotal !== undefined ? { allowZeroTotal: input.allowZeroTotal } : {}),
         updatedAt: new Date(),
     })
         .where(eq(schema.settings.id, SETTINGS_ID))

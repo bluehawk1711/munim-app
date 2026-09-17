@@ -77,6 +77,7 @@ export function SettingsPage() {
   const [shopEmail, setShopEmail] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
+  const [allowZeroTotal, setAllowZeroTotal] = useState(true);
   // Only guards one-time population of the form from settings — a ref avoids
   // a pointless re-render (its value is never read in JSX).
   const loadedRef = useRef(false);
@@ -112,6 +113,7 @@ export function SettingsPage() {
       setShopEmail(settings.shopEmail ?? "");
       setCurrency(settings.currency);
       setLowStockThreshold(String(settings.lowStockThreshold));
+      setAllowZeroTotal(settings.allowZeroTotal ?? true);
     }
   }, [settings]);
 
@@ -125,6 +127,7 @@ export function SettingsPage() {
         shopEmail: shopEmail.trim() || undefined,
         currency: currency.trim() || "INR",
         lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
+        allowZeroTotal,
       });
       toast.success("Settings saved");
     } catch (err) {
@@ -355,6 +358,19 @@ export function SettingsPage() {
                 <Label htmlFor="st-threshold">Global low-stock alert at</Label>
                 <Input id="st-threshold" type="number" min={0} value={lowStockThreshold} onChange={(e) => setLowStockThreshold(e.target.value)} />
               </div>
+            </div>
+            <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Allow ₹0 invoices</Label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, bills with a total of ₹0 can be created (useful for complimentary items or samples).
+                </p>
+              </div>
+              <Switch
+                checked={allowZeroTotal}
+                onCheckedChange={setAllowZeroTotal}
+                aria-label="Allow zero-total invoices"
+              />
             </div>
             <Button onClick={handleSaveShop} disabled={savingShop}>
               {savingShop ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : <><Save className="h-4 w-4" /> Save shop profile</>}

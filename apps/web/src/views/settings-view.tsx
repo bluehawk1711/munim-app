@@ -57,6 +57,7 @@ export function SettingsView() {
   const [shopEmail, setShopEmail] = React.useState("")
   const [currency, setCurrency] = React.useState("INR")
   const [lowStockThreshold, setLowStockThreshold] = React.useState("5")
+  const [allowZeroTotal, setAllowZeroTotal] = React.useState(true)
   const [loaded, setLoaded] = React.useState(false)
 
   // Hydrate form fields once when settings arrive.
@@ -70,6 +71,7 @@ export function SettingsView() {
       setShopEmail(settings.shopEmail ?? "")
       setCurrency(settings.currency)
       setLowStockThreshold(String(settings.lowStockThreshold))
+      setAllowZeroTotal(settings.allowZeroTotal ?? true)
       setLoaded(true)
     }
   }
@@ -84,6 +86,7 @@ export function SettingsView() {
           shopEmail: shopEmail.trim() || undefined,
           currency: currency.trim() || "INR",
           lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
+          allowZeroTotal,
         },
         {
           onSuccess: () => toast.success("Settings saved"),
@@ -225,6 +228,19 @@ export function SettingsView() {
                       onChange={(e) => setLowStockThreshold(e.target.value)}
                     />
                   </div>
+                </div>
+                <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-3">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm font-medium">Allow ₹0 invoices</Label>
+                    <p className="text-xs text-muted-foreground">
+                      When enabled, bills with a total of ₹0 can be created (useful for complimentary items or samples).
+                    </p>
+                  </div>
+                  <Switch
+                    checked={allowZeroTotal}
+                    onCheckedChange={setAllowZeroTotal}
+                    aria-label="Allow zero-total invoices"
+                  />
                 </div>
                 <Button onClick={() => save.mutate()} disabled={save.isPending} className="gap-1.5">
                   {save.isPending ? (

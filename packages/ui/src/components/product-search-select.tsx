@@ -26,6 +26,7 @@ export type ProductOption = {
   size?: string | null;
   sellingPrice: number;
   stock: number;
+  silverPercentage?: number;
 };
 
 function stockMeta(stock: number): { label: string; className: string } {

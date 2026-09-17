@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, doublePrecision, json, index, uniqueIndex, } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, doublePrecision, boolean, json, index, uniqueIndex, } from "drizzle-orm/pg-core";
 import { newId } from "../utils/id.js";
 const id = () => text("id").primaryKey().$defaultFn(newId);
 /* ────────────────────────────────────────────────────────────────
@@ -46,6 +46,9 @@ export const products = pgTable("products", {
     stock: doublePrecision("stock").notNull().default(0),
     purchasePrice: doublePrecision("purchase_price").notNull().default(0),
     sellingPrice: doublePrecision("selling_price").notNull().default(0),
+    /** Silver purity percentage — e.g. 90 means 90% silver content. Used to
+     *  compute effective weight for pricing (weight × silverPercentage / 100). */
+    silverPercentage: doublePrecision("silver_percentage").notNull().default(100),
     notes: text("notes"),
     lowStockThreshold: doublePrecision("low_stock_threshold").notNull().default(5),
     colorId: text("color_id").references(() => colors.id, { onDelete: "set null" }),
@@ -120,6 +123,10 @@ export const invoices = pgTable("invoices", {
     subtotal: doublePrecision("subtotal").notNull().default(0),
     deliveryCharge: doublePrecision("delivery_charge").notNull().default(0),
     discount: doublePrecision("discount").notNull().default(0),
+    /** Material returned by customer — free text weight, e.g. "5gm". */
+    materialReturnedWeight: text("material_returned_weight"),
+    /** Monetary value of material returned (deducted from total). */
+    materialReturnedValue: doublePrecision("material_returned_value").notNull().default(0),
     total: doublePrecision("total").notNull().default(0),
     amountPaid: doublePrecision("amount_paid").notNull().default(0),
     notes: text("notes"),
@@ -195,6 +202,8 @@ export const settings = pgTable("settings", {
     theme: text("theme").notNull().default("apple"),
     /** Light/dark mode shared across apps ("light" | "dark" | "system"). */
     mode: text("mode").notNull().default("system"),
+    /** Allow creating invoices with a total of ₹0 (default: true). */
+    allowZeroTotal: boolean("allow_zero_total").notNull().default(true),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 export const activityLogs = pgTable("activity_logs", {

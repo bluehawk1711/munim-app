@@ -38,6 +38,26 @@ import {
 } from "./dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
+const PRODUCT_TYPE_COLORS: Record<string, string> = {
+  Gold: "#D4AF37",
+  Silver: "#C0C0C0",
+  Diamond: "#B9F2FF",
+  Platinum: "#E5E4E2",
+  Other: "#9CA3AF",
+};
+
+function ProductTypeBadge({ type }: { type: string }) {
+  const bg = PRODUCT_TYPE_COLORS[type] ?? PRODUCT_TYPE_COLORS.Other;
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+      style={{ backgroundColor: `${bg}22`, color: bg, border: `1px solid ${bg}44` }}
+    >
+      {type}
+    </span>
+  );
+}
+
 /** Host-provided bridge for direct thermal printing (desktop only). */
 export type DirectLabelPrint = {
   printers: LabelPrinterInfo[];
@@ -54,11 +74,11 @@ export type DirectLabelPrint = {
 
 /** Weight field toggle + position config for the Gold label fields section. */
 const WEIGHT_FIELDS = [
-  { key: "showGrossWeight" as const, posKey: "grossWeightY" as const, label: "Gross weight", prefix: "G" },
-  { key: "showNagLessWeight" as const, posKey: "nagLessWeightY" as const, label: "Nag less weight", prefix: "N" },
-  { key: "showNagRate" as const, posKey: "nagRateY" as const, label: "Nag rate", prefix: "NR" },
-  { key: "showChejatWeight" as const, posKey: "chejatWeightY" as const, label: "Chejat weight", prefix: "C" },
-  { key: "showNetWeight" as const, posKey: "netWeightY" as const, label: "Net weight", prefix: "Net" },
+  { key: "showGrossWeight" as const, posKey: "grossWeightY" as const, prefixKey: "grossWeightPrefix" as const, label: "Gross weight", defaultPrefix: "G" },
+  { key: "showNagLessWeight" as const, posKey: "nagLessWeightY" as const, prefixKey: "nagLessWeightPrefix" as const, label: "Nag less weight", defaultPrefix: "N" },
+  { key: "showNagRate" as const, posKey: "nagRateY" as const, prefixKey: "nagRatePrefix" as const, label: "Nag rate", defaultPrefix: "NR" },
+  { key: "showChejatWeight" as const, posKey: "chejatWeightY" as const, prefixKey: "chejatWeightPrefix" as const, label: "Chejat weight", defaultPrefix: "C" },
+  { key: "showNetWeight" as const, posKey: "netWeightY" as const, prefixKey: "netWeightPrefix" as const, label: "Net weight", defaultPrefix: "Net" },
 ] as const;
 
 export function LabelPrintDialog({
@@ -151,6 +171,19 @@ export function LabelPrintDialog({
 
   const first = labels[previewIndex] ?? labels[0];
 
+  const typeCounts = React.useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const l of labels) {
+      const t = l.productType ?? "Other";
+      counts[t] = (counts[t] ?? 0) + 1;
+    }
+    return counts;
+  }, [labels]);
+
+  const summaryParts = Object.entries(typeCounts)
+    .filter(([, c]) => c > 0)
+    .map(([t, c]) => `${c} ${t}`);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -167,6 +200,16 @@ export function LabelPrintDialog({
               </DialogDescription>
             </div>
           </div>
+          {summaryParts.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {Object.entries(typeCounts).map(([t, c]) => (
+                c > 0 ? <ProductTypeBadge key={t} type={t} /> : null
+              ))}
+              <span className="text-xs text-muted-foreground ml-1">
+                Printing {summaryParts.join(", ")} label{labels.length !== 1 ? "s" : ""}
+              </span>
+            </div>
+          )}
         </DialogHeader>
 
         <div className="space-y-4">
@@ -201,6 +244,12 @@ export function LabelPrintDialog({
                   aria-label={`Preview label ${i + 1}`}
                 />
               ))}
+            </div>
+          )}
+
+          {first && (
+            <div className="flex justify-center">
+              <ProductTypeBadge type={first.productType ?? "Other"} />
             </div>
           )}
 
@@ -363,18 +412,16 @@ export function LabelPrintDialog({
 
                       <div className="rounded-md border divide-y">
                         {/* Header row */}
-                        <div className="grid grid-cols-[1fr_60px_80px] gap-2 px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
+                        <div className="grid grid-cols-[1fr_50px_60px_70px] gap-2 px-3 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
                           <span>Field</span>
                           <span className="text-center">Show</span>
+                          <span className="text-center">Prefix</span>
                           <span className="text-center">Y offset</span>
                         </div>
 
-                        {WEIGHT_FIELDS.map(({ key, posKey, label, prefix }) => (
-                          <div key={key} className="grid grid-cols-[1fr_60px_80px] gap-2 items-center px-3 py-2">
-                            <span className="text-xs">
-                              <span className="font-medium">{label}</span>
-                              <span className="ml-1 text-muted-foreground">({prefix})</span>
-                            </span>
+                        {WEIGHT_FIELDS.map(({ key, posKey, prefixKey, label, defaultPrefix }) => (
+                          <div key={key} className="grid grid-cols-[1fr_50px_60px_70px] gap-2 items-center px-3 py-2">
+                            <span className="text-xs font-medium">{label}</span>
                             <div className="flex justify-center">
                               <input
                                 type="checkbox"
@@ -384,6 +431,14 @@ export function LabelPrintDialog({
                                 className="h-3.5 w-3.5 accent-primary disabled:opacity-40"
                               />
                             </div>
+                            <input
+                              type="text"
+                              maxLength={10}
+                              value={printSettings[prefixKey]}
+                              onChange={(e) => updateSetting(prefixKey, e.target.value || defaultPrefix)}
+                              disabled={printSettings.useDefaults}
+                              className="flex h-7 w-full rounded border bg-background px-1.5 text-[11px] disabled:opacity-40"
+                            />
                             <div className="flex items-center gap-1">
                               <input
                                 type="number"
@@ -473,6 +528,20 @@ export function LabelPrintDialog({
                             step={1}
                             value={printSettings.weightY}
                             onChange={(e) => updateSetting("weightY", Number(e.target.value) || 72)}
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
+                          />
+                        </div>
+
+                        {/* silver price prefix */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-pricePrefix">Price prefix</label>
+                          <input
+                            id="lbl-pricePrefix"
+                            type="text"
+                            maxLength={10}
+                            value={printSettings.pricePrefix}
+                            onChange={(e) => updateSetting("pricePrefix", e.target.value || "p")}
                             disabled={printSettings.useDefaults}
                             className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />

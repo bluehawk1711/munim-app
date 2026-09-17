@@ -25,6 +25,14 @@ import {
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, BarcodeSvg } from "@munim/ui"
 
+const PRODUCT_TYPE_COLORS: Record<string, string> = {
+  Gold: "#D4AF37",
+  Silver: "#C0C0C0",
+  Diamond: "#B9F2FF",
+  Platinum: "#E5E4E2",
+  Other: "#9CA3AF",
+};
+
 
 
 
@@ -103,6 +111,26 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
             <BarcodeSvg value={b} height={30} scale={1} />
           ) : (
             <span className="text-xs text-muted-foreground">—</span>
+          )
+        },
+      },
+      {
+        accessorKey: "type",
+        header: ({ column }) => (
+          <button type="button" className="flex items-center gap-1 font-medium hover:text-foreground" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
+            Type <ArrowUpDown className="h-3 w-3" />
+          </button>
+        ),
+        cell: ({ row }) => {
+          const t = row.original.type || "Other"
+          const bg = PRODUCT_TYPE_COLORS[t] ?? PRODUCT_TYPE_COLORS.Other
+          return (
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ backgroundColor: `${bg}22`, color: bg, border: `1px solid ${bg}44` }}
+            >
+              {t}
+            </span>
           )
         },
       },

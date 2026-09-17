@@ -27,16 +27,6 @@ async function main() {
   const db = getDb();
 
   await expectError(
-    "zero-price item",
-    () =>
-      createInvoice(db, {
-        customerName: "ZZZ-Guard-Verify",
-        items: [{ productName: "Test", quantity: 1, price: 0 }],
-      }),
-    "ZERO_PRICE_ITEM",
-  );
-
-  await expectError(
     "zero-qty item",
     () =>
       createInvoice(db, {
@@ -44,17 +34,6 @@ async function main() {
         items: [{ productName: "Test", quantity: 0, price: 100 }],
       }),
     "BAD_QUANTITY",
-  );
-
-  await expectError(
-    "zero total (discount exceeds subtotal)",
-    () =>
-      createInvoice(db, {
-        customerName: "ZZZ-Guard-Verify",
-        items: [{ productName: "Test", quantity: 1, price: 100 }],
-        discount: 100,
-      }),
-    "ZERO_TOTAL",
   );
 
   // Delivery charge IS correctly added to the total.

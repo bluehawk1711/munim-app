@@ -141,6 +141,7 @@ const PRODUCT_SELECT = {
     stock: schema.products.stock,
     purchasePrice: schema.products.purchasePrice,
     sellingPrice: schema.products.sellingPrice,
+    silverPercentage: schema.products.silverPercentage,
     notes: schema.products.notes,
     lowStockThreshold: schema.products.lowStockThreshold,
     colorId: schema.products.colorId,
@@ -151,6 +152,7 @@ const PRODUCT_SELECT = {
 };
 export async function listProducts(db, filters = {}) {
     const search = filters.search?.trim() || "";
+    const type = filters.type && filters.type !== "all" ? filters.type : undefined;
     const color = filters.color && filters.color !== "all" ? filters.color : undefined;
     const size = filters.size && filters.size !== "all" ? filters.size : undefined;
     const category = filters.category && filters.category !== "all" ? filters.category : undefined;
@@ -167,6 +169,8 @@ export async function listProducts(db, filters = {}) {
         conditions.push(sql `exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name = ${size})`);
     if (category)
         conditions.push(sql `exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name = ${category})`);
+    if (type)
+        conditions.push(eq(schema.products.type, type));
     const threshold = sql `${schema.products.lowStockThreshold}`;
     if (status === "in_stock")
         conditions.push(sql `${schema.products.stock} > ${threshold}`);
@@ -280,6 +284,7 @@ export async function createProduct(db, input) {
         stock: input.stock ?? 0,
         purchasePrice: input.purchasePrice ?? 0,
         sellingPrice: input.sellingPrice ?? 0,
+        silverPercentage: typeof input.silverPercentage === "number" && input.silverPercentage > 0 ? input.silverPercentage : 100,
         lowStockThreshold: input.lowStockThreshold ?? 5,
         notes: input.notes?.trim() || null,
         colorId,
@@ -339,6 +344,11 @@ export async function updateProduct(db, id, input) {
         stock: input.stock ?? existing.stock,
         purchasePrice: input.purchasePrice ?? existing.purchasePrice,
         sellingPrice: input.sellingPrice ?? existing.sellingPrice,
+        silverPercentage: input.silverPercentage === undefined
+            ? existing.silverPercentage
+            : typeof input.silverPercentage === "number" && input.silverPercentage > 0
+                ? input.silverPercentage
+                : 100,
         lowStockThreshold: input.lowStockThreshold ?? existing.lowStockThreshold,
         notes: input.notes?.trim() || null,
         colorId,

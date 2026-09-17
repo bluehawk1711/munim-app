@@ -56,10 +56,11 @@ type LineState = {
   description: string;
   quantity: string;
   price: string;
+  silverPercentage: string;
 };
 
 function emptyLine(): LineState {
-  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", quantity: "1", price: "0" };
+  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", quantity: "1", price: "0", silverPercentage: "100" };
 }
 
 function settingsToShop(s: SettingsDto): BillShopDetails {
@@ -94,6 +95,8 @@ function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency:
     })),
     discount: inv.discount,
     deliveryCharge: inv.deliveryCharge,
+    materialReturnedWeight: inv.materialReturnedWeight,
+    materialReturnedValue: inv.materialReturnedValue,
     amountPaid: inv.amountPaid,
     status: inv.status,
     currency,
@@ -117,6 +120,8 @@ export function BillingPage() {
   const [notes, setNotes] = useState("");
   const [discount, setDiscount] = useState("0");
   const [deliveryCharge, setDeliveryCharge] = useState("0");
+  const [materialReturnedWeight, setMaterialReturnedWeight] = useState("");
+  const [materialReturnedValue, setMaterialReturnedValue] = useState("0");
   const [amountPaid, setAmountPaid] = useState("0");
   const [lines, setLines] = useState<LineState[]>([emptyLine()]);
 
@@ -159,7 +164,7 @@ export function BillingPage() {
     () => lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [lines],
   );
-  const total = Math.max(0, subtotal - (Number(discount) || 0) + (Number(deliveryCharge) || 0));
+  const total = Math.max(0, subtotal - (Number(discount) || 0) - (Number(materialReturnedValue) || 0) + (Number(deliveryCharge) || 0));
   const secondSubtotal = useMemo(
     () => secondLines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [secondLines],
@@ -183,6 +188,7 @@ export function BillingPage() {
       color: p.color ?? "",
       size: p.size ?? "",
       price: String(p.sellingPrice),
+      silverPercentage: String(p.silverPercentage ?? 100),
     };
     if (target === "second") updateSecondLine(index, patch);
     else updateLine(index, patch);
@@ -210,6 +216,8 @@ export function BillingPage() {
     setPartyId("");
     setDiscount("0");
     setDeliveryCharge("0");
+    setMaterialReturnedWeight("");
+    setMaterialReturnedValue("0");
     setAmountPaid("0");
     setLines([emptyLine()]);
     setSecondCustomerName("");
@@ -242,24 +250,10 @@ export function BillingPage() {
       toast.error("Second bill customer name is required");
       return;
     }
-    const zeroPrice = items.findIndex((it) => !(it.price > 0));
-    if (zeroPrice >= 0) {
-      toast.error(`Set a price above 0 for item ${zeroPrice + 1} — picking a product auto-fills its selling price`);
-      return;
-    }
-    if (total <= 0) {
-      toast.error("Bill total must be above 0 — check item prices, discount and delivery charge");
-      return;
-    }
     if (distinct) {
       const secondItems = lineItems(secondLines);
-      const secondZero = secondItems.findIndex((it) => !(it.price > 0));
-      if (secondZero >= 0) {
-        toast.error(`Bill 2: set a price above 0 for item ${secondZero + 1}`);
-        return;
-      }
-      if (secondTotal <= 0) {
-        toast.error("Bill 2 total must be above 0");
+      if (secondItems.length === 0) {
+        toast.error("Bill 2 needs at least one line item");
         return;
       }
     }
@@ -281,6 +275,8 @@ export function BillingPage() {
         items,
         discount: Number(discount) || 0,
         deliveryCharge: Number(deliveryCharge) || 0,
+        materialReturnedWeight: materialReturnedWeight.trim() || undefined,
+        materialReturnedValue: Number(materialReturnedValue) || 0,
         // "Mark as paid" wins over the Paid-now field — the invoice is saved
         // with its full total as paid, so it lands as PAID (not UNPAID).
         amountPaid: markPaid ? total : Number(amountPaid) || 0,
@@ -304,6 +300,8 @@ export function BillingPage() {
             items: lineItems(secondLines),
             discount: Number(secondDiscount) || 0,
             deliveryCharge: Number(secondDeliveryCharge) || 0,
+            materialReturnedWeight: undefined,
+            materialReturnedValue: 0,
             amountPaid: markPaid ? secondTotal : Number(secondAmountPaid) || 0,
           });
           if (secondInvoice) {
@@ -474,6 +472,16 @@ export function BillingPage() {
                     onPaid={setAmountPaid}
                     idPrefix="b"
                   />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="b-mr-weight">Material returned weight</Label>
+                      <Input id="b-mr-weight" value={materialReturnedWeight} onChange={(e) => setMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="b-mr-value">Material returned value (₹)</Label>
+                      <Input id="b-mr-value" type="number" min={0} value={materialReturnedValue} onChange={(e) => setMaterialReturnedValue(e.target.value)} />
+                    </div>
+                  </div>
                   <TotalsSummary
                     subtotal={subtotal}
                     discount={Number(discount) || 0}
@@ -819,6 +827,12 @@ function LineItemsEditor({
             <Label>Price</Label>
             <Input type="number" min={0} value={line.price} onChange={(e) => update(index, { price: e.target.value })} />
           </div>
+          {line.productId && (
+            <div className="w-24 space-y-1.5">
+              <Label>Silver %</Label>
+              <Input type="number" min={0} max={100} value={line.silverPercentage} onChange={(e) => update(index, { silverPercentage: e.target.value })} />
+            </div>
+          )}
           <Button variant="ghost" size="icon" onClick={() => remove(index)}>
             <Trash2 className="h-4 w-4" />
           </Button>

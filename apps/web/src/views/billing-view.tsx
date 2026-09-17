@@ -23,6 +23,7 @@ type LineItem = {
   description: string
   quantity: number
   price: number
+  silverPercentage?: number
 }
 
 const emptyLine = (): LineItem => ({
@@ -38,8 +39,10 @@ type PickableProduct = {
   sku: string | null
   color: string | null
   size: string | null
+  type: string
   stock: number
   sellingPrice: number
+  silverPercentage?: number
 }
 
 export function BillingView() {
@@ -65,6 +68,8 @@ export function BillingView() {
   const [items, setItems] = React.useState<LineItem[]>([emptyLine()])
   const [deliveryCharge, setDeliveryCharge] = React.useState(0)
   const [discount, setDiscount] = React.useState(0)
+  const [materialReturnedWeight, setMaterialReturnedWeight] = React.useState("")
+  const [materialReturnedValue, setMaterialReturnedValue] = React.useState(0)
   const [notes, setNotes] = React.useState("")
   const [amountPaid, setAmountPaid] = React.useState(0)
   const [template, setTemplate] = React.useState<BillTemplate>("jewellery")
@@ -85,7 +90,7 @@ export function BillingView() {
   const distinct = twoInOne && mode === "distinct"
 
   const subtotal = items.reduce((s, it) => s + it.quantity * it.price, 0)
-  const total = Math.max(0, subtotal + deliveryCharge - discount)
+  const total = Math.max(0, subtotal + deliveryCharge - discount - materialReturnedValue)
   const paid = Math.min(amountPaid, total)
 
   const secondSubtotal = secondItems.reduce((s, it) => s + it.quantity * it.price, 0)
@@ -118,6 +123,7 @@ export function BillingView() {
       description: "",
       quantity: 1,
       price: p.sellingPrice,
+      silverPercentage: p.silverPercentage ?? 100,
     }
     if (idx >= 0) {
       setItems((prev) => prev.map((it, i) => (i === idx ? item : it)))
@@ -139,6 +145,8 @@ export function BillingView() {
     deliveryCharge: number
     discount: number
     amountPaid: number
+    materialReturnedWeight?: string
+    materialReturnedValue?: number
   }): BillDocument {
     return buildBillDocument({
       billNo: "NEW",
@@ -163,6 +171,8 @@ export function BillingView() {
       })),
       deliveryCharge: opts.deliveryCharge,
       discount: opts.discount,
+      materialReturnedWeight: opts.materialReturnedWeight,
+      materialReturnedValue: opts.materialReturnedValue,
       amountPaid: opts.amountPaid,
       currency: "INR",
     })
@@ -177,6 +187,8 @@ export function BillingView() {
       deliveryCharge,
       discount,
       amountPaid: paid,
+      materialReturnedWeight: materialReturnedWeight || undefined,
+      materialReturnedValue,
     })
   }
 
@@ -192,16 +204,12 @@ export function BillingView() {
     })
   }
 
-  /** Client-side mirror of the server guards: qty ≥ 1, price > 0, total > 0. */
+  /** Client-side mirror of the server guards: qty ≥ 1. */
   function validateBill(name: string, its: LineItem[], tot: number): string | null {
     if (!name.trim()) return "Customer name is required"
     if (!its.length) return "Add at least one line item"
     const badQty = its.findIndex((it) => !(it.quantity > 0))
     if (badQty >= 0) return `Item ${badQty + 1} needs a quantity of at least 1`
-    const zeroPrice = its.findIndex((it) => !(it.price > 0))
-    if (zeroPrice >= 0)
-      return `Set a price above 0 for item ${zeroPrice + 1} — picking a product auto-fills its selling price`
-    if (!(tot > 0)) return "Bill total must be above 0 — check item prices, discount and delivery charge"
     return null
   }
 
@@ -245,6 +253,8 @@ export function BillingView() {
         .map((it) => ({ ...it, quantity: it.quantity, price: it.price })),
       deliveryCharge,
       discount,
+      materialReturnedWeight: materialReturnedWeight || undefined,
+      materialReturnedValue,
       amountPaid: paid,
     }
 
@@ -290,6 +300,8 @@ export function BillingView() {
     setItems([emptyLine()])
     setDeliveryCharge(0)
     setDiscount(0)
+    setMaterialReturnedWeight("")
+    setMaterialReturnedValue(0)
     setNotes("")
     setAmountPaid(0)
     setSecondCustomerName("")
@@ -523,6 +535,16 @@ export function BillingView() {
               rows={4}
               className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
             />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Material returned weight</Label>
+                <Input value={materialReturnedWeight} onChange={(e) => setMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" className="h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Material returned value (₹)</Label>
+                <Input type="number" min={0} value={materialReturnedValue || ""} onChange={(e) => setMaterialReturnedValue(Number(e.target.value))} className="h-9" />
+              </div>
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Amount paid now (₹)</Label>
               <Input type="number" min={0} value={amountPaid || ""} onChange={(e) => setAmountPaid(Number(e.target.value))} className="h-9" />
@@ -535,6 +557,12 @@ export function BillingView() {
             <Row label="Subtotal" value={formatCurrency(subtotal)} />
             {deliveryCharge > 0 && <Row label="Delivery" value={formatCurrency(deliveryCharge)} />}
             {discount > 0 && <Row label="Discount" value={`−${formatCurrency(discount)}`} />}
+            {materialReturnedValue > 0 && (
+              <Row
+                label={`Material Returned${materialReturnedWeight ? ` (${materialReturnedWeight})` : ""}`}
+                value={`−${formatCurrency(materialReturnedValue)}`}
+              />
+            )}
             <Separator />
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold">Total</span>
@@ -620,6 +648,7 @@ function BillItemsCard({
       description: "",
       quantity: 1,
       price: p.sellingPrice,
+      silverPercentage: p.silverPercentage ?? 100,
     }
     if (idx >= 0) {
       setItems((prev) => prev.map((it, i) => (i === idx ? item : it)))
@@ -674,6 +703,26 @@ function BillItemsCard({
                     placeholder="Description (optional)"
                     className="h-8 text-xs"
                   />
+                  {item.productId && (() => {
+                    const selectedProduct = products.find(p => p.id === item.productId)
+                    if (selectedProduct?.type !== "Silver") return null
+                    return (
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          max={100}
+                          value={item.silverPercentage ?? 100}
+                          onChange={(e) => updateItem(idx, { silverPercentage: Number(e.target.value) || 100 })}
+                          className="h-8 w-20 text-xs"
+                          placeholder="Silver %"
+                        />
+                        <span className="text-[11px] text-muted-foreground">
+                          Silver % — {item.quantity}gm @ {item.silverPercentage ?? 100}% = {(item.quantity * (item.silverPercentage ?? 100) / 100).toFixed(1)}gm
+                        </span>
+                      </div>
+                    )
+                  })()}
                 </div>
                 <Input
                   type="number"

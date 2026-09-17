@@ -58,6 +58,7 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
   const [stock, setStock] = useState('0');
   const [buy, setBuy] = useState('0');
   const [sell, setSell] = useState('0');
+  const [silverPercentage, setSilverPercentage] = useState('100');
 
   // Catalog pickers
   const [typePickerOpen, setTypePickerOpen] = useState(false);
@@ -90,6 +91,7 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
       setStock(String(product.stock));
       setBuy(String(product.purchasePrice));
       setSell(String(product.sellingPrice));
+      setSilverPercentage(String(product.silverPercentage ?? 100));
     } else {
       setName('');
       setType('Gold');
@@ -108,6 +110,7 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
       setStock('0');
       setBuy('0');
       setSell('0');
+      setSilverPercentage('100');
     }
   }, [visible, product]);
 
@@ -151,10 +154,6 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
 
   async function handleSave() {
     if (!name.trim()) return;
-    const buyVal = Number(buy) || 0;
-    const sellVal = Number(sell) || 0;
-    if (buyVal <= 0) { errorFeedback('Buy price must be greater than 0'); return; }
-    if (sellVal <= 0) { errorFeedback('Sell price must be greater than 0'); return; }
     setSaving(true);
     try {
       const input = {
@@ -173,8 +172,9 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
         purity: purity.trim() || undefined,
         imageUrl: imageUrl.trim() || undefined,
         stock: Math.max(0, Number(stock) || 0),
-        purchasePrice: buyVal,
-        sellingPrice: sellVal,
+        purchasePrice: Number(buy) || 0,
+        sellingPrice: Number(sell) || 0,
+        silverPercentage: Number(silverPercentage) || 100,
       };
       if (isEdit) {
         await updateProduct.mutateAsync({id: product.id, values: input});
@@ -230,6 +230,9 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
           </>
         )}
         <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
+        {type === 'Silver' && (
+          <Field label="Silver %" value={silverPercentage} onChangeText={setSilverPercentage} keyboardType="numeric" placeholder="e.g. 90" />
+        )}
         <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
         <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
         <Field label="Sell price" value={sell} onChangeText={setSell} keyboardType="numeric" />

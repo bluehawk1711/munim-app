@@ -169,6 +169,7 @@ export async function resolveCategoryId(db: DbClient, name: string): Promise<str
 
 export type ProductFilters = {
   search?: string;
+  type?: string;
   color?: string;
   size?: string;
   category?: string;
@@ -201,6 +202,7 @@ const PRODUCT_SELECT = {
   stock: schema.products.stock,
   purchasePrice: schema.products.purchasePrice,
   sellingPrice: schema.products.sellingPrice,
+  silverPercentage: schema.products.silverPercentage,
   notes: schema.products.notes,
   lowStockThreshold: schema.products.lowStockThreshold,
   colorId: schema.products.colorId,
@@ -212,6 +214,7 @@ const PRODUCT_SELECT = {
 
 export async function listProducts(db: DbClient, filters: ProductFilters = {}) {
   const search = filters.search?.trim() || "";
+  const type = filters.type && filters.type !== "all" ? filters.type : undefined;
   const color = filters.color && filters.color !== "all" ? filters.color : undefined;
   const size = filters.size && filters.size !== "all" ? filters.size : undefined;
   const category = filters.category && filters.category !== "all" ? filters.category : undefined;
@@ -235,6 +238,7 @@ export async function listProducts(db: DbClient, filters: ProductFilters = {}) {
   if (color) conditions.push(sql`exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name = ${color})`);
   if (size) conditions.push(sql`exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name = ${size})`);
   if (category) conditions.push(sql`exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name = ${category})`);
+  if (type) conditions.push(eq(schema.products.type, type));
 
   const threshold = sql`${schema.products.lowStockThreshold}`;
   if (status === "in_stock") conditions.push(sql`${schema.products.stock} > ${threshold}`);
@@ -333,6 +337,8 @@ export type ProductInput = {
   stock?: number;
   purchasePrice?: number;
   sellingPrice?: number;
+  /** Silver purity percentage — e.g. 90 means 90% silver content. */
+  silverPercentage?: number;
   lowStockThreshold?: number;
   notes?: string;
 };
@@ -382,6 +388,7 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       stock: input.stock ?? 0,
       purchasePrice: input.purchasePrice ?? 0,
       sellingPrice: input.sellingPrice ?? 0,
+      silverPercentage: typeof input.silverPercentage === "number" && input.silverPercentage > 0 ? input.silverPercentage : 100,
       lowStockThreshold: input.lowStockThreshold ?? 5,
       notes: input.notes?.trim() || null,
       colorId,
@@ -447,6 +454,11 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
       stock: input.stock ?? existing.stock,
       purchasePrice: input.purchasePrice ?? existing.purchasePrice,
       sellingPrice: input.sellingPrice ?? existing.sellingPrice,
+      silverPercentage: input.silverPercentage === undefined
+        ? existing.silverPercentage
+        : typeof input.silverPercentage === "number" && input.silverPercentage > 0
+          ? input.silverPercentage
+          : 100,
       lowStockThreshold: input.lowStockThreshold ?? existing.lowStockThreshold,
       notes: input.notes?.trim() || null,
       colorId,

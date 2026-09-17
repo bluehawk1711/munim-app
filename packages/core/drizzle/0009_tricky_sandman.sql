@@ -1,0 +1,1 @@
+ALTER TABLE "settings" ADD COLUMN "allow_zero_total" boolean DEFAULT true NOT NULL;

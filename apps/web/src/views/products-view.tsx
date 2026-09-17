@@ -51,15 +51,18 @@ export function ProductsView() {
   const productSizeFilter = useAppStore((s) => s.productSizeFilter)
   const productCategoryFilter = useAppStore((s) => s.productCategoryFilter)
   const productStatusFilter = useAppStore((s) => s.productStatusFilter)
+  const productTypeFilter = useAppStore((s) => s.productTypeFilter)
   const setProductColorFilter = useAppStore((s) => s.setProductColorFilter)
   const setProductSizeFilter = useAppStore((s) => s.setProductSizeFilter)
   const setProductCategoryFilter = useAppStore((s) => s.setProductCategoryFilter)
   const setProductStatusFilter = useAppStore((s) => s.setProductStatusFilter)
+  const setProductTypeFilter = useAppStore((s) => s.setProductTypeFilter)
 
   const [color, setColor] = React.useState<string>(productColorFilter)
   const [size, setSize] = React.useState<string>(productSizeFilter)
   const [category, setCategory] = React.useState<string>(productCategoryFilter)
   const [status, setStatus] = React.useState<StockStatus | "all">(productStatusFilter as StockStatus | "all")
+  const [type, setType] = React.useState<string>(productTypeFilter)
   const [page, setPage] = React.useState(1)
   const pageSize = 20
 
@@ -70,6 +73,7 @@ export function ProductsView() {
   React.useEffect(() => { setSize(productSizeFilter) }, [productSizeFilter])
   React.useEffect(() => { setCategory(productCategoryFilter) }, [productCategoryFilter])
   React.useEffect(() => { setStatus(productStatusFilter as StockStatus | "all") }, [productStatusFilter])
+  React.useEffect(() => { setType(productTypeFilter) }, [productTypeFilter])
 
   function setGlobalSearch(value: string) {
     setGlobalSearchStore(value)
@@ -96,6 +100,11 @@ export function ProductsView() {
     setProductStatusFilter(value)
     setPage(1)
   }
+  function changeType(value: string) {
+    setType(value)
+    setProductTypeFilter(value)
+    setPage(1)
+  }
 
   const [formOpen, setFormOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Product | null>(null)
@@ -119,6 +128,7 @@ export function ProductsView() {
     size,
     category,
     status,
+    type,
     page,
     pageSize,
   }
@@ -126,7 +136,7 @@ export function ProductsView() {
   const products = data?.products ?? []
   const pagination = data?.pagination
 
-  const hasActiveFilters = color !== "all" || size !== "all" || category !== "all" || status !== "all" || !!globalSearch
+  const hasActiveFilters = color !== "all" || size !== "all" || category !== "all" || status !== "all" || type !== "all" || !!globalSearch
 
   function clearFilters() {
     setGlobalSearch("")
@@ -134,6 +144,7 @@ export function ProductsView() {
     changeSize("all")
     changeCategory("all")
     changeStatus("all")
+    changeType("all")
     setPage(1)
   }
 
@@ -325,6 +336,19 @@ export function ProductsView() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={type} onValueChange={changeType}>
+              <SelectTrigger className="h-9 w-[130px]" aria-label="Filter by type">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="Gold">Gold</SelectItem>
+                <SelectItem value="Silver">Silver</SelectItem>
+                <SelectItem value="Diamond">Diamond</SelectItem>
+                <SelectItem value="Platinum">Platinum</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
             <Select value={status} onValueChange={(v) => changeStatus(v as StockStatus | "all")}>
               <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by stock status">
                 <SelectValue placeholder="Status" />
@@ -371,6 +395,7 @@ export function ProductsView() {
           {color !== "all" && <Badge variant="secondary">Color: {color}</Badge>}
           {size !== "all" && <Badge variant="secondary">Size: {size}</Badge>}
           {category !== "all" && <Badge variant="secondary">Category: {category}</Badge>}
+          {type !== "all" && <Badge variant="secondary">Type: {type}</Badge>}
           {status !== "all" && <Badge variant="secondary">Status: {status.replace("_", " ")}</Badge>}
         </div>
       )}

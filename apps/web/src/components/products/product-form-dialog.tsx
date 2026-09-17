@@ -65,6 +65,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       stock: 0,
       purchasePrice: 0,
       sellingPrice: 0,
+      silverPercentage: 100,
       notes: "",
     },
   })
@@ -89,21 +90,25 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           stock: product.stock,
           purchasePrice: product.purchasePrice,
           sellingPrice: product.sellingPrice,
+          silverPercentage: product.silverPercentage ?? 100,
           notes: product.notes ?? "",
         })
       } else {
         form.reset({
           name: "",
+          type: "Gold",
           color: "Black",
           size: "Standard",
           category: "",
           barcode: "",
           weight: undefined,
+          weightUnit: "gm",
           purity: "",
           imageUrl: "",
           stock: 0,
           purchasePrice: 0,
           sellingPrice: 0,
+          silverPercentage: 100,
           notes: "",
         })
       }
@@ -386,6 +391,17 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
               <p className="text-xs text-destructive">{form.formState.errors.purity.message}</p>
             )}
           </div>
+
+          {form.watch("type") === "Silver" && (
+            <div className="space-y-2">
+              <Label htmlFor="silverPercentage">Silver %</Label>
+              <Input id="silverPercentage" type="number" step="1" min={0} max={100} placeholder="e.g. 90" {...form.register("silverPercentage")} />
+              <p className="text-[11px] text-muted-foreground">Silver purity percentage — e.g. 90 means 90% silver content</p>
+              {form.formState.errors.silverPercentage && (
+                <p className="text-xs text-destructive">{form.formState.errors.silverPercentage.message}</p>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

@@ -21,6 +21,7 @@ export type AppClientState = {
   /** Bumped by the header search to force consumers to refetch. */
   searchNonce: number;
   sellDialogOpen: boolean;
+  productTypeFilter: string;
   productColorFilter: string;
   productSizeFilter: string;
   productCategoryFilter: string;
@@ -29,6 +30,7 @@ export type AppClientState = {
   setGlobalSearch: (value: string) => void;
   bumpSearch: () => void;
   setSellDialogOpen: (open: boolean) => void;
+  setProductTypeFilter: (value: string) => void;
   setProductColorFilter: (value: string) => void;
   setProductSizeFilter: (value: string) => void;
   setProductCategoryFilter: (value: string) => void;
@@ -47,6 +49,7 @@ export function createAppStore(initialView = "dashboard") {
     globalSearch: "",
     searchNonce: 0,
     sellDialogOpen: false,
+    productTypeFilter: "all",
     productColorFilter: "all",
     productSizeFilter: "all",
     productCategoryFilter: "all",
@@ -55,6 +58,7 @@ export function createAppStore(initialView = "dashboard") {
     setGlobalSearch: (value: string) => set({ globalSearch: value }),
     bumpSearch: () => set((s) => ({ searchNonce: s.searchNonce + 1 })),
     setSellDialogOpen: (open) => set({ sellDialogOpen: open }),
+    setProductTypeFilter: (value) => set({ productTypeFilter: value }),
     setProductColorFilter: (value) => set({ productColorFilter: value }),
     setProductSizeFilter: (value) => set({ productSizeFilter: value }),
     setProductCategoryFilter: (value) => set({ productCategoryFilter: value }),

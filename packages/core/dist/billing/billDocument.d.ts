@@ -53,6 +53,10 @@ export interface BillDocument {
     subtotal: number;
     discount: number;
     deliveryCharge: number;
+    /** Material returned by customer — weight description, e.g. "5gm". */
+    materialReturnedWeight: string | null;
+    /** Monetary value of material returned (deducted from total). */
+    materialReturnedValue: number;
     total: number;
     amountInWords: string;
     amountPaid: number;
@@ -70,6 +74,8 @@ export interface BuildBillInput {
     lines: BillLineInput[];
     discount?: number;
     deliveryCharge?: number;
+    materialReturnedWeight?: string | null;
+    materialReturnedValue?: number;
     amountPaid?: number;
     status?: BillStatus;
     currency?: string;

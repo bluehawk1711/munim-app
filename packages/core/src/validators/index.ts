@@ -29,6 +29,7 @@ export const productSchema = z.object({
   stock: z.coerce.number().min(0, "Stock cannot be negative"),
   purchasePrice: z.coerce.number().min(0).optional(),
   sellingPrice: z.coerce.number().min(0).optional(),
+  silverPercentage: z.coerce.number().min(0).max(100).optional(),
   lowStockThreshold: z.coerce.number().min(0).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),
 });
@@ -86,6 +87,8 @@ export const invoiceSchema = z.object({
   items: z.array(invoiceItemSchema).min(1, "At least one line item is required"),
   deliveryCharge: z.coerce.number().min(0).optional(),
   discount: z.coerce.number().min(0).optional(),
+  materialReturnedWeight: z.string().optional(),
+  materialReturnedValue: z.coerce.number().min(0).optional(),
   notes: z.string().optional(),
   shopDetails: z
     .object({
@@ -231,6 +234,7 @@ export const settingsSchema = z.object({
     .nullish()
     .transform((v) => v ?? undefined)
     .optional(),
+  allowZeroTotal: z.boolean().optional(),
 });
 
 export type SettingsFormValues = z.infer<typeof settingsSchema>;

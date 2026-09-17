@@ -67,6 +67,8 @@ export function SalesScreen() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [includeDelivery, setIncludeDelivery] = useState(true);
   const [deliveryCharge, setDeliveryCharge] = useState('');
+  const [materialReturnedWeight, setMaterialReturnedWeight] = useState('');
+  const [materialReturnedValue, setMaterialReturnedValue] = useState('');
   const [busy, setBusy] = useState(false);
 
   // Template settings (same model as web + desktop)
@@ -170,16 +172,12 @@ export function SalesScreen() {
 
   // Totals
   const subtotal = items.reduce((s, i) => s + i.quantity * i.price, 0);
-  const total = subtotal + (includeDelivery ? (Number(deliveryCharge) || 0) : 0);
+  const total = Math.max(0, subtotal + (includeDelivery ? (Number(deliveryCharge) || 0) : 0) - (Number(materialReturnedValue) || 0));
 
   // Complete sale
   async function handleComplete() {
     if (items.length === 0) {
       errorFeedback('Add at least one product');
-      return;
-    }
-    if (items.some(i => i.price <= 0)) {
-      errorFeedback('All items must have a price greater than 0');
       return;
     }
     setBusy(true);
@@ -198,9 +196,11 @@ export function SalesScreen() {
           quantity: i.quantity,
           price: i.price,
         })),
-        amountPaid: subtotal + (includeDelivery ? (Number(deliveryCharge) || 0) : 0),
+        amountPaid: subtotal + (includeDelivery ? (Number(deliveryCharge) || 0) : 0) - (Number(materialReturnedValue) || 0),
         paymentMethod: 'cash',
         deliveryCharge: includeDelivery ? (Number(deliveryCharge) || 0) : 0,
+        materialReturnedWeight: materialReturnedWeight.trim() || undefined,
+        materialReturnedValue: Number(materialReturnedValue) || 0,
         templateSettings,
         shopDetails: settings
           ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones ?? [], email: settings.shopEmail ?? ''}
@@ -226,6 +226,8 @@ export function SalesScreen() {
         })),
         discount: invoice.discount,
         deliveryCharge: invoice.deliveryCharge,
+        materialReturnedWeight: invoice.materialReturnedWeight,
+        materialReturnedValue: invoice.materialReturnedValue,
         amountPaid: invoice.amountPaid,
         status: invoice.status,
       });
@@ -371,6 +373,8 @@ export function SalesScreen() {
           {includeDelivery && (
             <Field label="Delivery charge" value={deliveryCharge} onChangeText={setDeliveryCharge} keyboardType="numeric" placeholder="0" />
           )}
+          <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
+          <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" placeholder="0" />
         </Card>
 
         {/* Bill items */}
@@ -425,6 +429,12 @@ export function SalesScreen() {
                 <View style={styles.totalRow}>
                   <Text style={styles.totalLabel}>Delivery</Text>
                   <Text style={styles.totalValue}>+{money(Number(deliveryCharge) || 0)}</Text>
+                </View>
+              ) : null}
+              {(Number(materialReturnedValue) || 0) > 0 ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Material Returned{materialReturnedWeight ? ` (${materialReturnedWeight})` : ''}</Text>
+                  <Text style={[styles.totalValue, {color: colors.danger}]}>−{money(Number(materialReturnedValue) || 0)}</Text>
                 </View>
               ) : null}
               <View style={[styles.totalRow, {borderTopWidth: 1, borderTopColor: colors.border, paddingTop: spacing.sm}]}>

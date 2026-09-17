@@ -66,7 +66,16 @@ import {useThemeStyles} from '../theme';
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
+const PRODUCT_TYPE_COLORS: Record<string, string> = {
+  Gold: '#D4AF37',
+  Silver: '#C0C0C0',
+  Diamond: '#B9F2FF',
+  Platinum: '#E5E4E2',
+  Other: '#9CA3AF',
+};
+
 type StockFilter = 'all' | 'in' | 'low' | 'out';
+type TypeFilter = 'all' | 'Gold' | 'Silver';
 
 function inStock(p: ProductDto): boolean {
   return p.stock > p.lowStockThreshold;
@@ -102,6 +111,8 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
     .filter(Boolean)
     .join(' · ');
 
+  const typeColor = PRODUCT_TYPE_COLORS[item.type ?? 'Other'] ?? PRODUCT_TYPE_COLORS.Other;
+
   const stockPillStyle =
     item.stock <= 0 ? styles.pillOut : isLow(item) ? styles.pillLow : styles.pillOk;
 
@@ -125,6 +136,9 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
         </Text>
         {variantBits || item.weight != null ? (
           <View style={styles.variantChip}>
+            <View style={[styles.typeBadge, {backgroundColor: `${typeColor}22`, borderColor: `${typeColor}44`}]}>
+              <Text style={[styles.typeBadgeText, {color: typeColor}]}>{item.type ?? 'Other'}</Text>
+            </View>
             <Text style={styles.variantText} numberOfLines={1}>
               {[
                 variantBits || null,
@@ -170,8 +184,13 @@ export function ProductsScreen() {
   const [page, setPage] = useState(1);
   const [allProducts, setAllProducts] = useState<ProductDto[]>([]);
 
+  // UI state (declared early so useProducts can reference them)
+  const [search, setSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+
   // Data
-  const {data: listData, error, loading, reload} = useQueryState(useProducts({page, pageSize: PAGE_SIZE}));
+  const {data: listData, error, loading, reload} = useQueryState(useProducts({page, pageSize: PAGE_SIZE, type: typeFilter}));
   const data = listData?.products ?? [];
   const totalCount = listData?.pagination.totalCount ?? 0;
   const totalPages = listData?.pagination.totalPages ?? 1;
@@ -195,8 +214,6 @@ export function ProductsScreen() {
   const backfillBarcodes = useBackfillBarcodes();
 
   // UI state
-  const [search, setSearch] = useState('');
-  const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [detailTarget, setDetailTarget] = useState<ProductDto | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<ProductDto | null>(null);
@@ -380,6 +397,12 @@ export function ProductsScreen() {
     {key: 'out', label: 'Out of Stock', count: counts.out},
   ];
 
+  const TYPE_FILTERS: {key: TypeFilter; label: string}[] = [
+    {key: 'all', label: 'All'},
+    {key: 'Gold', label: 'Gold'},
+    {key: 'Silver', label: 'Silver'},
+  ];
+
   return (
     <Screen>
       <HomeHeader title="Stock" />
@@ -430,6 +453,26 @@ export function ProductsScreen() {
                 {f.label}
               </Text>
               {f.count > 0 ? <Text style={[styles.chipCount, active && styles.chipTextActive]}>{f.count}</Text> : null}
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.chipRow}>
+        {TYPE_FILTERS.map(f => {
+          const active = typeFilter === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              onPress={() => {
+                selectionTick();
+                setTypeFilter(f.key);
+                setPage(1);
+                setAllProducts([]);
+              }}
+              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {f.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -580,7 +623,15 @@ const makeRowStyles = () =>
       paddingVertical: rs(2.5),
       marginTop: rs(4),
       maxWidth: '100%',
+      gap: rs(4),
     },
+    typeBadge: {
+      borderRadius: radii.full,
+      paddingHorizontal: rs(5),
+      paddingVertical: rs(1),
+      borderWidth: 1,
+    },
+    typeBadgeText: {fontSize: rs(9), fontWeight: '700'},
     variantText: {fontSize: rs(10.5), fontWeight: '600', color: colors.muted},
     priceRow: {flexDirection: 'row', alignItems: 'baseline', gap: rs(8), marginTop: rs(5)},
     price: {fontSize: rs(17), fontWeight: '800', color: colors.primary},

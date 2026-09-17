@@ -53,6 +53,7 @@ export declare function resolveSizeId(db: DbClient, name: string): Promise<strin
 export declare function resolveCategoryId(db: DbClient, name: string): Promise<string | null>;
 export type ProductFilters = {
     search?: string;
+    type?: string;
     color?: string;
     size?: string;
     category?: string;
@@ -87,6 +88,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         stock: number;
         purchasePrice: number;
         sellingPrice: number;
+        silverPercentage: number;
         notes: string | null;
         lowStockThreshold: number;
         colorId: string | null;
@@ -123,6 +125,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     stock: number;
     purchasePrice: number;
     sellingPrice: number;
+    silverPercentage: number;
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -159,6 +162,8 @@ export type ProductInput = {
     stock?: number;
     purchasePrice?: number;
     sellingPrice?: number;
+    /** Silver purity percentage — e.g. 90 means 90% silver content. */
+    silverPercentage?: number;
     lowStockThreshold?: number;
     notes?: string;
 };
@@ -188,6 +193,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     stock: number;
     purchasePrice: number;
     sellingPrice: number;
+    silverPercentage: number;
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -217,6 +223,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     stock: number;
     purchasePrice: number;
     sellingPrice: number;
+    silverPercentage: number;
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -253,6 +260,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     stock: number;
     purchasePrice: number;
     sellingPrice: number;
+    silverPercentage: number;
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -299,6 +307,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     stock: number;
     purchasePrice: number;
     sellingPrice: number;
+    silverPercentage: number;
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;

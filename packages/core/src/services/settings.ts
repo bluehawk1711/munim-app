@@ -18,6 +18,8 @@ export type ShopSettingsInput = {
   theme?: string;
   /** Light/dark mode ("light" | "dark" | "system"). LEGACY — see `theme`. */
   mode?: string;
+  /** Allow creating invoices with a total of ₹0. */
+  allowZeroTotal?: boolean;
 };
 
 /** Fetches settings, creating the singleton row on first use. */
@@ -49,6 +51,7 @@ export async function updateSettings(db: DbClient, input: ShopSettingsInput) {
       ...(input.defaultTemplate !== undefined ? { defaultTemplate: input.defaultTemplate } : {}),
       ...(input.theme !== undefined ? { theme: input.theme } : {}),
       ...(input.mode !== undefined ? { mode: input.mode } : {}),
+      ...(input.allowZeroTotal !== undefined ? { allowZeroTotal: input.allowZeroTotal } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.settings.id, SETTINGS_ID))

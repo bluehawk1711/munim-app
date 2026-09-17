@@ -52,6 +52,7 @@ type LineState = {
   size: string;
   quantity: string;
   price: string;
+  silverPercentage: string;
 };
 
 const emptyLine = (): LineState => ({
@@ -62,6 +63,7 @@ const emptyLine = (): LineState => ({
   size: '',
   quantity: '1',
   price: '0',
+  silverPercentage: '100',
 });
 
 const TYPE_LABELS: Record<string, string> = {
@@ -253,52 +255,71 @@ function LineItemsEditor({
   const styles = useThemeStyles(makeStyles);
   return (
     <>
-      {lines.map((line, index) => (
-        <View key={index} style={styles.lineBox}>
-          <ProductPicker
-            products={products}
-            productId={line.productId}
-            onSelect={(id, product) => onSelectProduct(index, id, product)}
-          />
-          <Field
-            label="Item name"
-            value={line.productName}
-            onChangeText={text => onChange(index, {productName: text})}
-            placeholder="Or type manually"
-          />
-          <View style={styles.lineRow}>
-            <Field
-              label="Qty"
-              value={line.quantity}
-              onChangeText={text => onChange(index, {quantity: text})}
-              keyboardType="numeric"
-              style={{flex: 1, marginRight: 8}}
+      {lines.map((line, index) => {
+        const selectedProduct = line.productId ? products?.find(p => p.id === line.productId) : undefined;
+        const isSilver = selectedProduct?.type === 'Silver';
+        return (
+          <View key={index} style={styles.lineBox}>
+            <ProductPicker
+              products={products}
+              productId={line.productId}
+              onSelect={(id, product) => onSelectProduct(index, id, product)}
             />
             <Field
-              label="Price"
-              value={line.price}
-              onChangeText={text => onChange(index, {price: text})}
-              keyboardType="numeric"
-              style={{flex: 2}}
+              label="Item name"
+              value={line.productName}
+              onChangeText={text => onChange(index, {productName: text})}
+              placeholder="Or type manually"
             />
+            <View style={styles.lineRow}>
+              <Field
+                label="Qty"
+                value={line.quantity}
+                onChangeText={text => onChange(index, {quantity: text})}
+                keyboardType="numeric"
+                style={{flex: 1, marginRight: 8}}
+              />
+              <Field
+                label="Price"
+                value={line.price}
+                onChangeText={text => onChange(index, {price: text})}
+                keyboardType="numeric"
+                style={{flex: 2}}
+              />
+            </View>
+            {isSilver ? (
+              <View style={styles.lineRow}>
+                <Field
+                  label="Silver %"
+                  value={line.silverPercentage}
+                  onChangeText={text => onChange(index, {silverPercentage: text})}
+                  keyboardType="numeric"
+                  style={{flex: 1}}
+                />
+                <Text style={{fontSize: 12, color: colors.muted, alignSelf: 'center', marginLeft: 8}}>
+                  {`${line.quantity || '0'}gm @ ${line.silverPercentage || '100'}% = ${((Number(line.quantity) || 0) * (Number(line.silverPercentage) || 100) / 100).toFixed(1)}gm`}
+                </Text>
+              </View>
+            ) : null}
+            {index > 0 ? (
+              <Button title="Remove item" variant="outline" onPress={() => onRemove(index)} />
+            ) : null}
           </View>
-          {index > 0 ? (
-            <Button title="Remove item" variant="outline" onPress={() => onRemove(index)} />
-          ) : null}
-        </View>
-      ))}
+        );
+      })}
       <Button title="+ Add item" variant="outline" onPress={onAdd} style={{marginBottom: 12}} />
     </>
   );
 }
 
-/** Live math strip: subtotal − discount + delivery = total (matches core's bill engine). */
+/** Live math strip: subtotal − discount − materialReturned + delivery = total (matches core's bill engine). */
 function TotalsBlock({
   styles,
   label,
   subtotal,
   discount,
   delivery,
+  materialReturned,
   total,
 }: {
   styles: ReturnType<typeof makeStyles>;
@@ -306,6 +327,7 @@ function TotalsBlock({
   subtotal: number;
   discount: number;
   delivery: number;
+  materialReturned: number;
   total: number;
 }) {
   return (
@@ -319,6 +341,12 @@ function TotalsBlock({
           <View style={styles.totalRow}>
             <Text style={styles.totalRowLabel}>Discount</Text>
             <Text style={styles.totalRowValue}>−{money(discount)}</Text>
+          </View>
+        ) : null}
+        {materialReturned > 0 ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.totalRowLabel}>Material Returned</Text>
+            <Text style={styles.totalRowValue}>−{money(materialReturned)}</Text>
           </View>
         ) : null}
         {delivery > 0 ? (
@@ -354,6 +382,8 @@ export function BillingScreen() {
   const [delivery, setDelivery] = useState('0');
   const [paid, setPaid] = useState('0');
   const [lines, setLines] = useState<LineState[]>([emptyLine()]);
+  const [materialReturnedWeight, setMaterialReturnedWeight] = useState('');
+  const [materialReturnedValue, setMaterialReturnedValue] = useState('');
 
   // ── Template options (same model as web + desktop) ──────────────────────
   const [template, setTemplate] = useState<BillTemplate>('jewellery');
@@ -368,6 +398,8 @@ export function BillingScreen() {
   const [secondPartyId, setSecondPartyId] = useState('');
   const [secondDiscount, setSecondDiscount] = useState('0');
   const [secondDelivery, setSecondDelivery] = useState('0');
+  const [secondMaterialReturnedWeight, setSecondMaterialReturnedWeight] = useState('');
+  const [secondMaterialReturnedValue, setSecondMaterialReturnedValue] = useState('');
   const [secondPaid, setSecondPaid] = useState('0');
   const [secondLines, setSecondLines] = useState<LineState[]>([emptyLine()]);
   const [secondPreview, setSecondPreview] = useState<BillDocument | null>(null);
@@ -381,13 +413,13 @@ export function BillingScreen() {
     () => lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [lines],
   );
-  // Same totals math as web/desktop: subtotal − discount + delivery.
-  const total = Math.max(0, subtotal - (Number(discount) || 0) + (Number(delivery) || 0));
+  // Same totals math as web/desktop: subtotal − discount − materialReturned + delivery.
+  const total = Math.max(0, subtotal - (Number(discount) || 0) - (Number(materialReturnedValue) || 0) + (Number(delivery) || 0));
   const secondSubtotal = useMemo(
     () => secondLines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [secondLines],
   );
-  const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0) + (Number(secondDelivery) || 0));
+  const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0) - (Number(secondMaterialReturnedValue) || 0) + (Number(secondDelivery) || 0));
 
   const productIds = useMemo(() => lines.map(l => l.productId), [lines]);
 
@@ -407,6 +439,7 @@ export function BillingScreen() {
       color: product?.color ?? '',
       size: product?.size ?? '',
       price: product ? String(product.sellingPrice) : '',
+      silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
     });
   }
 
@@ -418,6 +451,7 @@ export function BillingScreen() {
       color: product?.color ?? '',
       size: product?.size ?? '',
       price: product ? String(product.sellingPrice) : '',
+      silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
     });
   }
 
@@ -458,6 +492,8 @@ export function BillingScreen() {
       })),
       discount: invoice.discount,
       deliveryCharge: invoice.deliveryCharge,
+      materialReturnedWeight: invoice.materialReturnedWeight,
+      materialReturnedValue: invoice.materialReturnedValue,
       amountPaid: invoice.amountPaid,
       status: invoice.status,
       currency: settings?.currency ?? 'INR',
@@ -477,12 +513,16 @@ export function BillingScreen() {
     setDelivery('0');
     setPaid('0');
     setLines([emptyLine()]);
+    setMaterialReturnedWeight('');
+    setMaterialReturnedValue('');
     setSecondCustomer('');
     setSecondCustomerPhone('');
     setSecondCustomerAddress('');
     setSecondPartyId('');
     setSecondDiscount('0');
     setSecondDelivery('0');
+    setSecondMaterialReturnedWeight('');
+    setSecondMaterialReturnedValue('');
     setSecondPaid('0');
     setSecondLines([emptyLine()]);
   }
@@ -497,38 +537,10 @@ export function BillingScreen() {
       );
       return;
     }
-    const zeroPriceIdx = items.findIndex(it => !(it.price > 0));
-    if (zeroPriceIdx >= 0) {
-      errorFeedback();
-      Alert.alert(
-        'Price needed',
-        `Set a price above 0 for item ${zeroPriceIdx + 1} — picking a product auto-fills its selling price.`,
-      );
-      return;
-    }
-    if (total <= 0) {
-      errorFeedback();
-      Alert.alert(
-        'Total is zero',
-        'The bill total must be above 0 — check item prices, discount and delivery charge.',
-      );
-      return;
-    }
     const secondItems = distinct ? collectItems(secondLines) : [];
     if (distinct && secondItems.length === 0) {
       errorFeedback();
       Alert.alert('Second bill needed', 'Separate mode needs at least one item in Bill 2.');
-      return;
-    }
-    const secondZeroIdx = distinct ? secondItems.findIndex(it => !(it.price > 0)) : -1;
-    if (secondZeroIdx >= 0) {
-      errorFeedback();
-      Alert.alert('Bill 2 price needed', `Set a price above 0 for item ${secondZeroIdx + 1} in Bill 2.`);
-      return;
-    }
-    if (distinct && secondTotal <= 0) {
-      errorFeedback();
-      Alert.alert('Bill 2 total is zero', 'Bill 2 total must be above 0 — check its item prices, discount and delivery charge.');
       return;
     }
     setSaving(true);
@@ -551,6 +563,8 @@ export function BillingScreen() {
         items,
         discount: Number(discount) || 0,
         deliveryCharge: Number(delivery) || 0,
+        materialReturnedWeight: materialReturnedWeight.trim() || undefined,
+        materialReturnedValue: Number(materialReturnedValue) || 0,
         amountPaid: Number(paid) || 0,
         paymentMethod: 'cash',
         shopDetails: shop,
@@ -570,6 +584,8 @@ export function BillingScreen() {
             items: collectItems(secondLines),
             discount: Number(secondDiscount) || 0,
             deliveryCharge: Number(secondDelivery) || 0,
+            materialReturnedWeight: secondMaterialReturnedWeight.trim() || undefined,
+            materialReturnedValue: Number(secondMaterialReturnedValue) || 0,
             amountPaid: Number(secondPaid) || 0,
             paymentMethod: 'cash',
             shopDetails: shop,
@@ -795,6 +811,8 @@ export function BillingScreen() {
           />
           <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
           <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="numeric" />
+          <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
+          <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" />
           <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="numeric" />
           <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
           <TotalsBlock
@@ -803,6 +821,7 @@ export function BillingScreen() {
             subtotal={subtotal}
             discount={Number(discount) || 0}
             delivery={Number(delivery) || 0}
+            materialReturned={Number(materialReturnedValue) || 0}
             total={total}
           />
           <Button title={saving ? 'Saving…' : 'Create invoice'} onPress={handleCreate} loading={saving} />
@@ -841,6 +860,8 @@ export function BillingScreen() {
             />
             <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="numeric" />
             <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="numeric" />
+            <Field label="Material returned weight" value={secondMaterialReturnedWeight} onChangeText={setSecondMaterialReturnedWeight} placeholder="e.g. 5gm" />
+            <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="numeric" />
             <Field label="Paid now" value={secondPaid} onChangeText={setSecondPaid} keyboardType="numeric" />
             <TotalsBlock
               styles={styles}
@@ -848,6 +869,7 @@ export function BillingScreen() {
               subtotal={secondSubtotal}
               discount={Number(secondDiscount) || 0}
               delivery={Number(secondDelivery) || 0}
+              materialReturned={Number(secondMaterialReturnedValue) || 0}
               total={secondTotal}
             />
           </Card>
@@ -901,6 +923,12 @@ export function BillingScreen() {
                 <View style={styles.previewRow}>
                   <Text style={styles.previewLabel}>Delivery</Text>
                   <Text style={styles.previewValue}>+{money(preview.deliveryCharge)}</Text>
+                </View>
+              ) : null}
+              {preview.materialReturnedValue > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Material Returned{preview.materialReturnedWeight ? ` (${preview.materialReturnedWeight})` : ''}</Text>
+                  <Text style={[styles.previewValue, {color: colors.danger}]}>−{money(preview.materialReturnedValue)}</Text>
                 </View>
               ) : null}
               <View style={[styles.previewRow, styles.previewTotalRow]}>

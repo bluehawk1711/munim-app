@@ -50,6 +50,7 @@ export function SettingsScreen() {
   const [shopEmail, setShopEmail] = useState('');
   const [currency, setCurrency] = useState('INR');
   const [lowStockThreshold, setLowStockThreshold] = useState('5');
+  const [allowZeroTotal, setAllowZeroTotal] = useState(true);
   const [shopLoaded, setShopLoaded] = useState(false);
   const [savingShop, setSavingShop] = useState(false);
   // DB connection test modal: opens first, stays open (non-dismissible) while
@@ -91,6 +92,7 @@ export function SettingsScreen() {
       setShopEmail(settings.shopEmail ?? '');
       setCurrency(settings.currency);
       setLowStockThreshold(String(settings.lowStockThreshold));
+      setAllowZeroTotal(settings.allowZeroTotal ?? true);
       setShopLoaded(true);
     }
   }, [settings, shopLoaded]);
@@ -146,6 +148,7 @@ export function SettingsScreen() {
         shopEmail: shopEmail.trim() || undefined,
         currency: currency.trim() || 'INR',
         lowStockThreshold: Math.max(0, Number(lowStockThreshold) || 0),
+        allowZeroTotal,
       });
       successFeedback();
     } catch {
@@ -314,6 +317,18 @@ export function SettingsScreen() {
         <Field label="Email" value={shopEmail} onChangeText={setShopEmail} />
         <Field label="Currency code" value={currency} onChangeText={setCurrency} placeholder="INR" />
         <Field label="Low-stock alert at" value={lowStockThreshold} onChangeText={setLowStockThreshold} keyboardType="numeric" placeholder="5" />
+        <View style={styles.toggleRow}>
+          <View style={{flex: 1, paddingRight: 12}}>
+            <Text style={styles.switchLabel}>Allow ₹0 invoices</Text>
+            <Text style={{fontSize: 12, color: colors.muted}}>Bills with ₹0 total can be created</Text>
+          </View>
+          <Switch
+            value={allowZeroTotal}
+            onValueChange={setAllowZeroTotal}
+            trackColor={{true: colors.primary, false: colors.border}}
+            thumbColor={colors.card}
+          />
+        </View>
         <Button title={savingShop ? 'Saving…' : 'Save shop profile'} onPress={handleSaveShop} loading={savingShop} />
       </Card>
       <Section title="Appearance" index={1} />
@@ -702,4 +717,6 @@ const makeStyles = () =>
   },
   swatchCheck: {fontSize: 15, fontWeight: '800'},
   swatchLabel: {fontSize: 10, fontWeight: '600'},
+  toggleRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border},
+  switchLabel: {fontSize: 14, fontWeight: '600', color: colors.text},
 });

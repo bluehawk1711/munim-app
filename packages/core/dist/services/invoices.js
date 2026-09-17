@@ -87,9 +87,6 @@ export async function createInvoice(db, input) {
     const badQty = input.items.find((it) => !(it.quantity > 0));
     if (badQty)
         throw new InvoiceError(`Item "${badQty.productName}" needs a quantity of at least 1`, "BAD_QUANTITY");
-    const zeroPrice = input.items.find((it) => !(it.price > 0));
-    if (zeroPrice)
-        throw new InvoiceError(`Item "${zeroPrice.productName}" needs a price above 0 — a ₹0 bill cannot be created`, "ZERO_PRICE_ITEM");
     const invoiceNumber = await generateInvoiceNumber(async (num) => {
         const r = await db.select({ id: schema.invoices.id }).from(schema.invoices).where(eq(schema.invoices.invoiceNumber, num));
         return r.length > 0;
@@ -97,8 +94,12 @@ export async function createInvoice(db, input) {
     const subtotal = input.items.reduce((sum, it) => sum + it.quantity * it.price, 0);
     const delivery = input.deliveryCharge ?? 0;
     const discount = input.discount ?? 0;
-    const total = Math.max(0, subtotal + delivery - discount);
-    if (!(total > 0))
+    const materialReturnedValue = input.materialReturnedValue ?? 0;
+    const total = Math.max(0, subtotal + delivery - discount - materialReturnedValue);
+    // Check if zero-total invoices are allowed (default: true)
+    const settingsRow = await db.query.settings.findFirst();
+    const allowZeroTotal = settingsRow?.allowZeroTotal ?? true;
+    if (!allowZeroTotal && !(total > 0))
         throw new InvoiceError("Invoice total must be greater than 0 — check item prices, discount and delivery charge", "ZERO_TOTAL");
     const amountPaid = Math.min(input.amountPaid ?? 0, total);
     // Validate + reserve stock
@@ -127,6 +128,8 @@ export async function createInvoice(db, input) {
         subtotal,
         deliveryCharge: delivery,
         discount,
+        materialReturnedWeight: input.materialReturnedWeight?.trim() || null,
+        materialReturnedValue,
         total,
         amountPaid,
         notes: input.notes?.trim() || null,
