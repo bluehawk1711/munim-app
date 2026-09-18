@@ -164,7 +164,7 @@ export function DashboardPage() {
   }, [productsData]);
 
   const shop: BillShopDetails | null = settings
-    ? { name: settings.shopName, address: settings.shopAddress, phones: settings.shopPhones, email: settings.shopEmail }
+    ? { name: settings.shopName, address: settings.shopAddress, phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail }
     : null;
 
   async function handlePdf(inv: InvoiceDto) {

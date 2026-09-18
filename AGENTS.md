@@ -127,8 +127,18 @@ Rules:
 
 ## 7. Working agreements
 
-- Migrations are generated with `drizzle-kit generate` **from** `packages/core`
-  and committed; never hand-edit migration SQL unless a comment explains why.
+- **Schema migrations** are applied with `drizzle-kit push` from `packages/core`
+  (reads `DATABASE_URL` from the root `.env`). Generate SQL files with
+  `drizzle-kit generate` for committing; never hand-edit migration SQL unless a
+  comment explains why.
+- **Data migration** between databases: use the root `db:backup` / `db:restore`
+  commands (wraps `db-sync.mjs`). To transfer data from an old DB to a new one:
+  ```bash
+  DB_BACKUP_SOURCE_URL=<old> pnpm db:backup        # → backup-<ts>.json
+  DATABASE_URL=<new> pnpm db:restore --file <json>
+  ```
+- `.env` contains `DATABASE_URL` (active DB) and `DB_BACKUP_SOURCE_URL` (legacy
+  DB for data migration). Update both when switching databases.
 - Run `pnpm --filter <pkg> ...` for targeted commands; `pnpm turbo <task>` for
   repo-wide.
 - Typecheck your change (`tsc --noEmit` for the affected app/package) before

@@ -67,7 +67,7 @@ function settingsToShop(s: SettingsDto): BillShopDetails {
   return {
     name: s.shopName,
     address: s.shopAddress,
-    phones: s.shopPhones,
+    phones: Array.isArray(s.shopPhones) ? s.shopPhones : [],
     email: s.shopEmail,
   };
 }

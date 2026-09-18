@@ -203,12 +203,12 @@ export function SalesScreen() {
         materialReturnedValue: Number(materialReturnedValue) || 0,
         templateSettings,
         shopDetails: settings
-          ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones ?? [], email: settings.shopEmail ?? ''}
+          ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail ?? ''}
           : undefined,
       });
 
       // Generate and share PDF
-      const shop = settings ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones ?? [], email: settings.shopEmail ?? ''} : {name: 'My Shop', address: '', phones: [], email: ''};
+      const shop = settings ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail ?? ''} : {name: 'My Shop', address: '', phones: [], email: ''};
       const doc = buildBillDocument({
         billNo: invoice.invoiceNumber,
         date: invoice.date,

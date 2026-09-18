@@ -29,7 +29,7 @@
     "db:studio": "drizzle-kit studio",
     "db:backup": "node scripts/db-sync.mjs backup",
     "db:restore": "node scripts/db-sync.mjs restore",
-    "db:migrate": "node scripts/db-sync.mjs migrate",
+    "db:transfer": "node scripts/db-sync.mjs migrate",
     "smoke": "esbuild scripts/smoke-test.mjs --bundle --platform=node --format=esm --outfile=scripts/.smoke-bundle.mjs && node scripts/.smoke-bundle.mjs"
   },
   "dependencies": {

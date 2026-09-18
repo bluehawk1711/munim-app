@@ -109,7 +109,9 @@ export function SettingsPage() {
       loadedRef.current = true;
       setShopName(settings.shopName);
       setShopAddress(settings.shopAddress ?? "");
-      setShopPhones(settings.shopPhones.join(", "));
+      setShopPhones(
+        Array.isArray(settings.shopPhones) ? settings.shopPhones.join(", ") : typeof settings.shopPhones === "string" ? settings.shopPhones : "",
+      );
       setShopEmail(settings.shopEmail ?? "");
       setCurrency(settings.currency);
       setLowStockThreshold(String(settings.lowStockThreshold));

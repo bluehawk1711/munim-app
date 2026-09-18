@@ -546,7 +546,7 @@ export function BillingScreen() {
     setSaving(true);
     try {
       const shop = settings
-        ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones, email: settings.shopEmail ?? ''}
+        ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail ?? ''}
         : undefined;
       // Same template snapshot web saves — the options follow each invoice.
       const templateSettings: BillTemplateSettings = {template, classicColor, twoInOne, mode};

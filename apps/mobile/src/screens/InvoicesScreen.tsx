@@ -149,7 +149,7 @@ export function InvoicesScreen() {
     if (!settings) return;
     setExporting(inv);
     try {
-      const shop = {name: settings.shopName, address: settings.shopAddress ?? '', phones: settings.shopPhones, email: settings.shopEmail ?? ''};
+      const shop = {name: settings.shopName, address: settings.shopAddress ?? '', phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail ?? ''};
       const doc = buildBillDocument({
         billNo: inv.invoiceNumber,
         date: inv.date,

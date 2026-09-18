@@ -121,7 +121,7 @@ export function InvoicesPage() {
   }
 
   function settingsToShop(s: SettingsDto): BillShopDetails {
-    return { name: s.shopName, address: s.shopAddress, phones: s.shopPhones, email: s.shopEmail };
+    return { name: s.shopName, address: s.shopAddress, phones: Array.isArray(s.shopPhones) ? s.shopPhones : [], email: s.shopEmail };
   }
 
   async function handleDownload(inv: InvoiceRow) {

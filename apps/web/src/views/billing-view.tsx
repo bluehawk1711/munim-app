@@ -157,7 +157,7 @@ export function BillingView() {
       shop: {
         name: shop.shopName,
         address: shop.shopAddress ?? null,
-        phones: shop.shopPhones ?? [],
+        phones: Array.isArray(shop.shopPhones) ? shop.shopPhones : [],
         email: shop.shopEmail ?? null,
       },
       lines: opts.items.map((it) => ({
@@ -238,7 +238,7 @@ export function BillingView() {
       shopDetails: {
         name: shop.shopName,
         address: shop.shopAddress ?? "",
-        phones: shop.shopPhones ?? [],
+        phones: Array.isArray(shop.shopPhones) ? shop.shopPhones : [],
         email: shop.shopEmail ?? "",
       },
       templateSettings: buildSettings(),
@@ -405,7 +405,7 @@ export function BillingView() {
               <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
                 <p className="font-medium text-foreground">{shop.shopName}</p>
                 <p className="mt-1">{shop.shopAddress}</p>
-                <p className="mt-1">Ph: {(shop.shopPhones ?? []).join(" · ")}</p>
+                <p className="mt-1">Ph: {Array.isArray(shop.shopPhones) ? shop.shopPhones.join(" · ") : ""}</p>
                 {shop.shopEmail && <p className="mt-1">{shop.shopEmail}</p>}
               </div>
             </div>
