@@ -291,20 +291,35 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       }
     }
 
-    // RIGHT: barcode
-    if (label.barcode) {
-      lines.push(barcodeCommand(barcodeX, barcodeY, barcodeHeight, label.barcode, hri, narrow, wide));
-    } else {
-      lines.push(`TEXT ${barcodeX},${barcodeY},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
+    // RIGHT: barcode + SKU below it. When the SKU line is on, reserve the
+    // room it needs (and the HRI digits, if on) BELOW the bars first: with a
+    // lowered/custom barcodeY the old bottom-clamp pulled the SKU up INTO the
+    // barcode band and printed it over/behind the bars. Lifting the barcode
+    // instead keeps both fully inside the label.
+    const skuText = label.sku.trim();
+    const showSku = o.showSku !== false && skuText.length > 0;
+    const skuSize = showSku ? Math.max(2, toPt(Math.round(h * 0.13))) : 0;
+    const skuTextDots = showSku ? Math.round((skuSize * dpi) / 72) : 0;
+    const hriDots = showSku && hri !== 0 ? Math.round(barcodeHeight * 0.2) : 0;
+    const skuGap = 2;
+    let barcodeDrawY = barcodeY;
+    if (showSku && barcodeDrawY + barcodeHeight + hriDots + skuGap + skuTextDots > h) {
+      barcodeDrawY = Math.max(0, h - barcodeHeight - hriDots - skuGap - skuTextDots);
     }
 
-    // SKU — small line directly below the barcode (gold + silver), clamped
-    // so the text always stays inside the label.
-    if (o.showSku !== false && label.sku.trim()) {
-      const skuSize = Math.max(2, toPt(Math.round(h * 0.13)));
-      const skuTextDots = Math.round((skuSize * dpi) / 72);
-      const skuY = Math.min(barcodeY + barcodeHeight + 2, Math.max(0, h - skuTextDots));
-      lines.push(`TEXT ${barcodeX},${skuY},"0",0,${skuSize},${skuSize},"${tsplText(label.sku.trim())}"`);
+    if (label.barcode) {
+      lines.push(barcodeCommand(barcodeX, barcodeDrawY, barcodeHeight, label.barcode, hri, narrow, wide));
+    } else {
+      lines.push(`TEXT ${barcodeX},${barcodeDrawY},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
+    }
+
+    // SKU — small line directly below the barcode (gold + silver).
+    if (showSku) {
+      const skuY = Math.min(
+        barcodeDrawY + barcodeHeight + hriDots + skuGap,
+        Math.max(0, h - skuTextDots),
+      );
+      lines.push(`TEXT ${barcodeX},${skuY},"0",0,${skuSize},${skuSize},"${tsplText(skuText)}"`);
     }
 
     lines.push(`PRINT ${copies},1`);
