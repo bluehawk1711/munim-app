@@ -50,9 +50,9 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   codepage?: string;
   /** BARCODE HRI: 0 = off, 1 = left, 2 = center, 3 = right. Default 0. */
   hri?: 0 | 1 | 2 | 3;
-  /** Barcode narrow element width in dots. Default 2. */
+  /** Barcode narrow element width in dots. Default 1. */
   narrow?: number;
-  /** Barcode wide element width in dots. Default 4. */
+  /** Barcode wide element width in dots. Default 2 (2:1 ratio with narrow). */
   wide?: number;
   /** Name text Y position in dots. */
   nameY?: number;
@@ -153,8 +153,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const direction =  1;  // MUST be 1 for TSC TE244
   const codepage = o.codepage ?? "UTF-8";
   const hri = o.hri ?? 0;
-  const narrow = o.narrow ?? 2;
-  const wide = o.wide ?? 3;
+  const narrow = o.narrow ?? 1;
+  const wide = o.wide ?? 2;
 
   const w = mmToDots(widthMm, dpi);
   const h = mmToDots(heightMm, dpi);
@@ -179,7 +179,10 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   const weightSize = toPt(Math.round(h * 0.20));     // Silver weight: ~22 dots = 8pt
   const smallSize = toPt(Math.round(h * 0.16));      // Gold weight fields: ~19 dots = 6.8pt
 
-  const barcodeHeight = 65;
+  // Barcode height in dots — 48 ≈ 6 mm @203dpi (40% of a 15 mm label).
+  // Kept modest so it never crowds the SKU line below it (a 65-dot bar ran
+  // to the label edge and swallowed the SKU on lowered barcode positions).
+  const barcodeHeight = 48;
   const barcodeX = (o.barcodeX && o.barcodeX > 0) ? o.barcodeX : leftMargin + textAreaW + gapBetween + mmToDots(10, dpi);
   const barcodeY = (o.barcodeY && o.barcodeY > 0) ? o.barcodeY : Math.round((h - barcodeHeight) / 2) - 8;
   const nameY = o.nameY ?? 25;
@@ -292,19 +295,19 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     }
 
     // RIGHT: barcode + SKU below it. When the SKU line is on, reserve the
-    // room it needs (and the HRI digits, if on) BELOW the bars first: with a
-    // lowered/custom barcodeY the old bottom-clamp pulled the SKU up INTO the
-    // barcode band and printed it over/behind the bars. Lifting the barcode
-    // instead keeps both fully inside the label.
+    // room it needs BELOW the bars first: with a lowered/custom barcodeY the
+    // old bottom-clamp pulled the SKU up INTO the barcode band and printed it
+    // over/behind the bars. Lifting the barcode instead keeps both fully
+    // inside the label. No allowance for HRI digits — barcode digits are
+    // never shown on these labels.
     const skuText = label.sku.trim();
     const showSku = o.showSku !== false && skuText.length > 0;
     const skuSize = showSku ? Math.max(2, toPt(Math.round(h * 0.13))) : 0;
     const skuTextDots = showSku ? Math.round((skuSize * dpi) / 72) : 0;
-    const hriDots = showSku && hri !== 0 ? Math.round(barcodeHeight * 0.2) : 0;
     const skuGap = 2;
     let barcodeDrawY = barcodeY;
-    if (showSku && barcodeDrawY + barcodeHeight + hriDots + skuGap + skuTextDots > h) {
-      barcodeDrawY = Math.max(0, h - barcodeHeight - hriDots - skuGap - skuTextDots);
+    if (showSku && barcodeDrawY + barcodeHeight + skuGap + skuTextDots > h) {
+      barcodeDrawY = Math.max(0, h - barcodeHeight - skuGap - skuTextDots);
     }
 
     if (label.barcode) {
@@ -316,7 +319,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     // SKU — small line directly below the barcode (gold + silver).
     if (showSku) {
       const skuY = Math.min(
-        barcodeDrawY + barcodeHeight + hriDots + skuGap,
+        barcodeDrawY + barcodeHeight + skuGap,
         Math.max(0, h - skuTextDots),
       );
       lines.push(`TEXT ${barcodeX},${skuY},"0",0,${skuSize},${skuSize},"${tsplText(skuText)}"`);

@@ -490,7 +490,7 @@ export function LabelPrintDialog({
                           max={10}
                           step={1}
                           value={printSettings.narrow}
-                          onChange={(e) => updateSetting("narrow", Number(e.target.value) || 2)}
+                          onChange={(e) => updateSetting("narrow", Number(e.target.value) || 1)}
                           disabled={printSettings.useDefaults}
                           className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                         />
@@ -506,7 +506,7 @@ export function LabelPrintDialog({
                           max={20}
                           step={1}
                           value={printSettings.wide}
-                          onChange={(e) => updateSetting("wide", Number(e.target.value) || 4)}
+                          onChange={(e) => updateSetting("wide", Number(e.target.value) || 2)}
                           disabled={printSettings.useDefaults}
                           className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                         />

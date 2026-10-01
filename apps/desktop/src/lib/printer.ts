@@ -87,8 +87,8 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         gapMm: typeof s.gapMm === "number" && s.gapMm >= 0 && s.gapMm <= 10 ? s.gapMm : 2,
         hri: typeof s.hri === "number" && s.hri >= 0 && s.hri <= 3 ? s.hri as 0 | 1 | 2 | 3 : 0,
         copies: typeof s.copies === "number" && s.copies >= 1 && s.copies <= 999 ? s.copies : 1,
-        narrow: typeof s.narrow === "number" && s.narrow >= 1 && s.narrow <= 10 ? s.narrow : 2,
-        wide: typeof s.wide === "number" && s.wide >= 2 && s.wide <= 20 ? s.wide : 3,
+        narrow: typeof s.narrow === "number" && s.narrow >= 1 && s.narrow <= 10 ? s.narrow : 1,
+        wide: typeof s.wide === "number" && s.wide >= 2 && s.wide <= 20 ? s.wide : 2,
         nameY: typeof s.nameY === "number" && s.nameY >= 0 && s.nameY <= 120 ? s.nameY : 25,
         weightY: typeof s.weightY === "number" && s.weightY >= 0 && s.weightY <= 120 ? s.weightY : 80,
         goldFieldsStartY:
