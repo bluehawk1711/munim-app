@@ -395,6 +395,36 @@ export function LabelPrintDialog({
                       </span>
                     </label>
 
+                    {/* ── Silver size (beside weight, same line) ──── */}
+                    <div className="rounded-md border bg-background/60 p-2.5 text-xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <label className="flex cursor-pointer items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={printSettings.showSize}
+                            onChange={(e) => updateSetting("showSize", e.target.checked)}
+                            disabled={printSettings.useDefaults}
+                            className="mt-0.5 h-3.5 w-3.5 accent-primary disabled:opacity-40"
+                          />
+                          <span>
+                            <span className="block font-medium">Print size beside weight (silver)</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              Concatenated with the weight line — no Y position needed.
+                            </span>
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          aria-label="Size prefix"
+                          maxLength={6}
+                          value={printSettings.sizePrefix}
+                          onChange={(e) => updateSetting("sizePrefix", e.target.value || "S:")}
+                          disabled={printSettings.useDefaults || !printSettings.showSize}
+                          className="flex h-7 w-16 shrink-0 rounded border bg-background px-1.5 text-[11px] disabled:opacity-40"
+                        />
+                      </div>
+                    </div>
+
                     {/* ── Use defaults toggle ─────────────────────── */}
                     <label className="flex items-start gap-2 cursor-pointer">
                       <input
@@ -840,6 +870,14 @@ export function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrint
     ? `${settings?.pricePrefix ?? "p"}: ₹${label.sellingPrice.toLocaleString("en-IN")}`
     : "";
 
+  // Silver size — concatenated with the weight on the same line (no position).
+  const sizeValue = isGold ? "" : label.size?.trim() ?? "";
+  const showSize = (settings?.showSize ?? true) && sizeValue.length > 0;
+  const sizeText = showSize
+    ? [settings?.sizePrefix ?? "S:", sizeValue].filter((part) => part.length > 0).join(" ")
+    : "";
+  const silverLine = [weight, sizeText].filter((part) => part.length > 0).join(" ");
+
   const barcodeDigits = label.barcode?.replace(/\D/g, "") ?? "";
   const showSku = (settings?.showSku ?? true) && Boolean(label.sku.trim());
   const hri = settings?.hri ?? 0;
@@ -857,7 +895,7 @@ export function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrint
       <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:${nameFontSize}px">${escHTML(nameWithPurity)}</div>
       ${isGold
         ? `<div style="display:flex;flex-wrap:wrap;gap:0 1px;margin-top:3px">${weightFields.map(wf => `<div style="flex:0 0 48%;font-size:5px;color:#555;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
-        : `<div style="margin-top:auto"><div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>${priceText ? `<div style="font-size:7px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${escHTML(priceText)}</div>` : ""}</div>`
+        : `<div style="margin-top:auto"><div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${silverLine ? escHTML(silverLine) : "&nbsp;"}</div>${priceText ? `<div style="font-size:7px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${escHTML(priceText)}</div>` : ""}</div>`
       }
     </div>
     <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden">
@@ -873,5 +911,10 @@ function escHTML(s: string): string {
 }
 
 function renderLabelSheetHtmlFor(labels: ProductLabel[], copies: number, settings: LabelPrintSettings): string {
-  return renderLabelSheetHtml(labels, { copies, showSku: settings.showSku });
+  return renderLabelSheetHtml(labels, {
+    copies,
+    showSku: settings.showSku,
+    showSize: settings.showSize,
+    sizePrefix: settings.sizePrefix,
+  });
 }

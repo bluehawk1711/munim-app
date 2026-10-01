@@ -31,6 +31,10 @@ export type LabelPrintSettings = {
   showPurity: boolean;
   /** Print the product SKU below the barcode (small text). */
   showSku: boolean;
+  /** Silver label: print the size beside the weight (same line — no Y position to manage). */
+  showSize: boolean;
+  /** Silver size prefix shown before the size value (e.g. "S:"). */
+  sizePrefix: string;
   /** Gold label weight field visibility toggles. */
   showGrossWeight: boolean;
   showNagLessWeight: boolean;
@@ -91,6 +95,8 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   barcodeY: 65,
   showPurity: true,
   showSku: true,
+  showSize: true,
+  sizePrefix: "S:",
   showGrossWeight: true,
   showNagLessWeight: true,
   showNagRate: true,

@@ -68,6 +68,10 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   showPurity?: boolean;
   /** Print the product SKU below the barcode (small text). Default on. */
   showSku?: boolean;
+  /** Silver label: print the size beside the weight (same line). Default on. */
+  showSize?: boolean;
+  /** Silver size prefix shown before the size value. Default "S:". */
+  sizePrefix?: string;
   /** Gold label weight field visibility toggles. */
   showGrossWeight?: boolean;
   showNagLessWeight?: boolean;
@@ -132,7 +136,7 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string,
  * Two label designs based on product type:
  *
  * Silver / other:
- *   LEFT:  product name + " - sil" (top) + weight (bottom), stacked
+ *   LEFT:  product name + " - sil" (top) + weight + size (bottom), stacked
  *   RIGHT: barcode (takes remaining width, vertically centered) + SKU below it
  *
  * Gold:
@@ -284,9 +288,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
         drawColumn(rightCol, leftMargin + columnGap);
       }
     } else {
-      // Silver / other: weight below name at weightY position
-      if (weight) {
-        lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weight)}"`);
+      // Silver / other: size concatenated with the weight on the SAME line at
+      // weightY — no separate Y position or prefix setting to manage.
+      const sizeValue = label.size?.trim() ?? "";
+      const showSize = (o.showSize ?? true) && sizeValue.length > 0;
+      const sizeText = showSize
+        ? [o.sizePrefix ?? "S:", sizeValue].filter((part) => part.length > 0).join(" ")
+        : "";
+      const weightLine = [weight, sizeText].filter((part) => part.length > 0).join(" ");
+      if (weightLine) {
+        lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weightLine)}"`);
       }
       if (priceText) {
         const priceY = weightY + Math.round(weightSize * 3.2);

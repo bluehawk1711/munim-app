@@ -31,9 +31,10 @@ const esc = (s) => (s ?? "")
 export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
 /** Renders ONE label's inner markup (shared by the sheet + previews).
- * Silver: LEFT = name + " - sil" + purity + weight, RIGHT = barcode (+ SKU)
+ * Silver: LEFT = name + " - sil" + purity + weight + size, RIGHT = barcode (+ SKU)
  * Gold:   LEFT = name + weight + 4 weight fields, RIGHT = barcode (+ SKU)
  * The SKU is a small line directly below the barcode (opts.showSku, default on).
+ * The size is concatenated after the silver weight (opts.showSize + opts.sizePrefix).
  */
 export function renderLabelMarkup(label, opts) {
     const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 50, scale: 2, fontSize: 8 }) : "";
@@ -70,6 +71,12 @@ export function renderLabelMarkup(label, opts) {
         weightFields.push(`C: ${label.chejatWeight.trim()}`);
     if (label.netWeight?.trim())
         weightFields.push(`Net: ${label.netWeight.trim()}`);
+    // Silver size — concatenated after the weight on the same line (no position).
+    const sizeValue = isGold ? "" : label.size?.trim() ?? "";
+    const sizeText = opts?.showSize !== false && sizeValue.length > 0
+        ? [opts?.sizePrefix ?? "S:", sizeValue].filter((part) => part.length > 0).join(" ")
+        : "";
+    const silverLine = [weight, sizeText].filter((part) => part.length > 0).join(" ");
     const skuLine = opts?.showSku !== false && label.sku.trim()
         ? `<div class="l-sku">${esc(label.sku.trim())}</div>`
         : "";
@@ -78,7 +85,7 @@ export function renderLabelMarkup(label, opts) {
       <div class="l-name" style="font-size:${nameFontSize}px">${esc(nameWithPurity)}</div>
       ${isGold
         ? `<div class="l-weight l-weight-gold-grid">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
-        : `<div class="l-weight" style="margin-top:auto">${weight ? esc(weight) : "&nbsp;"}</div>`}
+        : `<div class="l-weight" style="margin-top:auto">${silverLine ? esc(silverLine) : "&nbsp;"}</div>`}
     </div>
     <div class="l-right">${barcode || `<span class="l-nocode">NO BARCODE</span>`}${skuLine}</div>
   </div>`;
@@ -101,7 +108,9 @@ export function renderLabelSheetHtml(labels, opts = {}) {
     const pages = [];
     for (let i = 0; i < all.length; i += perPage) {
         const slice = all.slice(i, i + perPage);
-        const cells = slice.map((l) => renderLabelMarkup(l, { showSku: opts.showSku })).join("");
+        const cells = slice
+            .map((l) => renderLabelMarkup(l, { showSku: opts.showSku, showSize: opts.showSize, sizePrefix: opts.sizePrefix }))
+            .join("");
         // Pad the final page so the grid keeps its shape (print doesn't reflow).
         const pad = Math.max(0, perPage - slice.length);
         const pads = Array.from({ length: pad }, () => `<div class="label label-empty"></div>`).join("");
@@ -176,6 +185,8 @@ export function renderLabelText(label) {
     else {
         if (weight)
             lines.push(weight);
+        if (label.size?.trim())
+            lines.push(`S: ${label.size.trim()}`);
     }
     if (label.barcode)
         lines.push(`Barcode: ${label.barcode}`);
