@@ -43,4 +43,7 @@ export declare function LabelPrintDialog({ open, onOpenChange, labels, copies, o
     directPrint?: DirectLabelPrint;
     busy?: boolean;
 }): React.JSX.Element;
+/** Thermal-style label preview markup — reactive to printSettings
+ *  (show/hide toggles + prefix text). Exported for tests. */
+export declare function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSettings): string;
 //# sourceMappingURL=label-print-dialog.d.ts.map

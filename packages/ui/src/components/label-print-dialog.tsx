@@ -379,6 +379,22 @@ export function LabelPrintDialog({
                       </span>
                     </label>
 
+                    <label className="flex cursor-pointer items-start gap-2 rounded-md border bg-background/60 p-2.5 text-xs">
+                        <input
+                          type="checkbox"
+                          checked={printSettings.showSku}
+                          onChange={(e) => updateSetting("showSku", e.target.checked)}
+                          disabled={printSettings.useDefaults}
+                          className="mt-0.5 h-3.5 w-3.5 accent-primary disabled:opacity-40"
+                        />
+                      <span>
+                        <span className="block font-medium">Print SKU below barcode</span>
+                        <span className="text-[10px] text-muted-foreground">
+                          Small SKU line under the barcode on both gold and silver labels.
+                        </span>
+                      </span>
+                    </label>
+
                     {/* ── Use defaults toggle ─────────────────────── */}
                     <label className="flex items-start gap-2 cursor-pointer">
                       <input
@@ -765,13 +781,13 @@ export function LabelPrintDialog({
           </Button>
           <Button
             variant="outline"
-            onClick={() => onPrint(renderLabelSheetHtmlFor(labels, copies))}
+            onClick={() => onPrint(renderLabelSheetHtmlFor(labels, copies, printSettings))}
             disabled={busy || labels.length === 0}
           >
             <Printer className="h-4 w-4" /> Print
           </Button>
           <Button
-            onClick={() => onDownloadPdf(renderLabelSheetHtmlFor(labels, copies))}
+            onClick={() => onDownloadPdf(renderLabelSheetHtmlFor(labels, copies, printSettings))}
             disabled={busy || labels.length === 0}
           >
             <FileDown className="h-4 w-4" /> Download PDF
@@ -782,10 +798,15 @@ export function LabelPrintDialog({
   );
 }
 
-function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSettings): string {
-  // Inline preview matching the thermal label layout:
-  // Silver: LEFT = name + " - sil" + purity (top) + weight (bottom), RIGHT = barcode
-  // Gold:   LEFT = name (top) + weight + weight fields (bottom), RIGHT = barcode
+/** Thermal-style label preview markup — reactive to printSettings
+ *  (show/hide toggles + prefix text). Exported for tests. */
+export function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSettings): string {
+  // Inline preview matching the thermal label layout, reactive to every
+  // show/hide toggle and label text (prefix) in printSettings:
+  // Silver: LEFT = name (+ purity) top, weight + price bottom;
+  //         RIGHT = barcode (+ HRI digits + SKU)
+  // Gold:   LEFT = name (+ purity) top, weight + toggled weight fields bottom;
+  //         RIGHT = barcode (+ HRI digits + SKU)
   const isGold = label.productType === "Gold";
   const weight = label.weightMg != null ? formatWeight(label.weightMg, label.weightUnit) : "";
 
@@ -794,7 +815,7 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
   if (!isGold) {
     displayName = `${displayName} - sil`;
   }
-  const nameWithPurity = [displayName, label.purity?.trim() || null]
+  const nameWithPurity = [displayName, settings?.showPurity ? label.purity?.trim() || null : null]
     .filter((v): v is string => Boolean(v))
     .join(" ");
 
@@ -805,20 +826,29 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
     ? (nameLen <= 8 ? 6 : nameLen <= 12 ? 5.5 : nameLen <= 16 ? 5 : 4.5)
     : (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6);
 
-  // Build weight details for Gold (respect toggles)
+  // Build weight details for Gold — respect each field's toggle + prefix text
   const weightFields: string[] = [];
   if (weight) weightFields.push(weight);
-  if (settings?.showGrossWeight !== false && label.grossWeight?.trim()) weightFields.push(`G: ${label.grossWeight.trim()}`);
-  if (settings?.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFields.push(`N: ${label.nagLessWeight.trim()}`);
-  if (settings?.showNagRate !== false && label.nagRate?.trim()) weightFields.push(`NR: ${label.nagRate.trim()}`);
-  if (settings?.showChejatWeight !== false && label.chejatWeight?.trim()) weightFields.push(`C: ${label.chejatWeight.trim()}`);
-  if (settings?.showNetWeight !== false && label.netWeight?.trim()) weightFields.push(`Net: ${label.netWeight.trim()}`);
+  if (settings?.showGrossWeight !== false && label.grossWeight?.trim()) weightFields.push(`${settings?.grossWeightPrefix ?? "G"}: ${label.grossWeight.trim()}`);
+  if (settings?.showNagLessWeight !== false && label.nagLessWeight?.trim()) weightFields.push(`${settings?.nagLessWeightPrefix ?? "N"}: ${label.nagLessWeight.trim()}`);
+  if (settings?.showNagRate !== false && label.nagRate?.trim()) weightFields.push(`${settings?.nagRatePrefix ?? "NR"}: ${label.nagRate.trim()}`);
+  if (settings?.showChejatWeight !== false && label.chejatWeight?.trim()) weightFields.push(`${settings?.chejatWeightPrefix ?? "C"}: ${label.chejatWeight.trim()}`);
+  if (settings?.showNetWeight !== false && label.netWeight?.trim()) weightFields.push(`${settings?.netWeightPrefix ?? "Net"}: ${label.netWeight.trim()}`);
+
+  // Silver price line (TSPL prints it for non-gold, prefix configurable)
+  const priceText = !isGold && label.sellingPrice > 0
+    ? `${settings?.pricePrefix ?? "p"}: ₹${label.sellingPrice.toLocaleString("en-IN")}`
+    : "";
 
   const barcodeDigits = label.barcode?.replace(/\D/g, "") ?? "";
+  const showSku = (settings?.showSku ?? true) && Boolean(label.sku.trim());
+  const hri = settings?.hri ?? 0;
+  const showHri = hri !== 0 && barcodeDigits.length >= 12;
+  const hriAlign = hri === 1 ? "flex-start" : hri === 3 ? "flex-end" : "center";
   let barcodeBars = "";
   if (barcodeDigits.length >= 12) {
     const pattern = [1,1,1,...barcodeDigits.slice(0, 6).split("").flatMap((d) => { const n = Number(d); const left = [[3,2,1,1],[2,2,2,1],[2,1,2,2],[1,4,1,1],[1,1,3,2],[1,2,3,1],[1,1,1,4],[1,3,1,2],[1,2,1,3],[3,1,1,2]]; return left[n] ?? [2,1,1,2]; }),1,1,1,1,1,...barcodeDigits.slice(6, 12).split("").flatMap((d) => { const n = Number(d); const right = [[2,1,1,2],[1,2,1,2],[2,2,1,1],[1,1,2,2],[2,1,2,1],[1,2,2,1],[1,1,4,1],[1,3,2,1],[2,1,3,1],[1,1,2,3]]; return right[n] ?? [1,1,2,2]; }),1,1,1];
-    barcodeBars = `<div style="display:flex;align-items:center;height:90%;gap:0">${pattern.map((w, i) => `<div style="width:${w * 2}px;height:100%;background:${i % 2 === 0 ? "#000" : "transparent"};flex-shrink:0"></div>`).join("")}</div>`;
+    barcodeBars = `<div style="display:flex;align-items:center;height:100%;gap:0">${pattern.map((w, i) => `<div style="width:${w * 2}px;height:100%;background:${i % 2 === 0 ? "#000" : "transparent"};flex-shrink:0"></div>`).join("")}</div>`;
   } else {
     barcodeBars = `<div style="font-size:7px;color:#999">NO BARCODE</div>`;
   }
@@ -827,10 +857,14 @@ function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrintSetting
       <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:${nameFontSize}px">${escHTML(nameWithPurity)}</div>
       ${isGold
         ? `<div style="display:flex;flex-wrap:wrap;gap:0 1px;margin-top:3px">${weightFields.map(wf => `<div style="flex:0 0 48%;font-size:5px;color:#555;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(wf)}</div>`).join("")}</div>`
-        : `<div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:auto">${weight ? escHTML(weight) : "&nbsp;"}</div>`
+        : `<div style="margin-top:auto"><div style="font-size:8px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${weight ? escHTML(weight) : "&nbsp;"}</div>${priceText ? `<div style="font-size:7px;color:#555;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px">${escHTML(priceText)}</div>` : ""}</div>`
       }
     </div>
-    <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden">${barcodeBars}</div>
+    <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden">
+      <div style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;width:100%">${barcodeBars}</div>
+      ${showHri ? `<div style="font-size:6px;font-weight:600;color:#111;align-self:${hriAlign};max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(label.barcode ?? "")}</div>` : ""}
+      ${showSku ? `<div style="font-size:6px;font-weight:600;color:#333;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escHTML(label.sku.trim())}</div>` : ""}
+    </div>
   </div>`;
 }
 
@@ -838,6 +872,6 @@ function escHTML(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function renderLabelSheetHtmlFor(labels: ProductLabel[], copies: number): string {
-  return renderLabelSheetHtml(labels, { copies });
+function renderLabelSheetHtmlFor(labels: ProductLabel[], copies: number, settings: LabelPrintSettings): string {
+  return renderLabelSheetHtml(labels, { copies, showSku: settings.showSku });
 }

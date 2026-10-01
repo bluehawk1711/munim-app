@@ -66,56 +66,57 @@ export function LabourInput({
   return (
     <div className={cn("space-y-1.5", className)}>
       <Label htmlFor={inputId}>{label}</Label>
-      <div className="flex items-center gap-2">
-        <div
-          role="tablist"
-          aria-label="Labour method"
-          className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border bg-muted/40 p-0.5"
-        >
-          {LABOUR_TYPES.map((method) => {
-            const m = METHOD_META[method];
-            const active = method === type;
-            return (
-              <button
-                key={method}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                title={m.title}
-                disabled={disabled}
-                onClick={() => onTypeChange(method)}
-                className={cn(
-                  "flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors",
-                  active
-                    ? "bg-background text-foreground shadow-xs"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <m.Icon className="h-3.5 w-3.5" />
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="relative flex-1">
-          <Input
-            id={inputId}
-            type="text"
-            inputMode="decimal"
-            className="h-9 pr-10 tabular-nums"
-            placeholder={type === "FIXED" ? "e.g. 1500" : type === "PER_GRAM" ? "e.g. 120" : "e.g. 12"}
-            value={shown}
-            disabled={disabled}
-            onChange={(e) => {
-              setEditing(e.target.value);
-              onValueChange(e.target.value);
-            }}
-            onBlur={() => setEditing(null)}
-          />
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
-            {meta.unit}
-          </span>
-        </div>
+      {/* Method tabs get their own full-width row — sharing one row with the
+          input squeezed the field to a few px in narrow grid columns, which
+          made typed values invisible (desktop Settings → Rates & labour). */}
+      <div
+        role="tablist"
+        aria-label="Labour method"
+        className="grid grid-cols-3 gap-1 rounded-lg border bg-muted/40 p-1"
+      >
+        {LABOUR_TYPES.map((method) => {
+          const m = METHOD_META[method];
+          const active = method === type;
+          return (
+            <button
+              key={method}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              title={m.title}
+              disabled={disabled}
+              onClick={() => onTypeChange(method)}
+              className={cn(
+                "flex h-8 items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-colors",
+                active
+                  ? "bg-background text-foreground shadow-xs"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <m.Icon className="h-3.5 w-3.5" />
+              {m.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="relative">
+        <Input
+          id={inputId}
+          type="text"
+          inputMode="decimal"
+          className="h-9 pr-10 tabular-nums"
+          placeholder={type === "FIXED" ? "e.g. 1500" : type === "PER_GRAM" ? "e.g. 120" : "e.g. 12"}
+          value={shown}
+          disabled={disabled}
+          onChange={(e) => {
+            setEditing(e.target.value);
+            onValueChange(e.target.value);
+          }}
+          onBlur={() => setEditing(null)}
+        />
+        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted-foreground">
+          {meta.unit}
+        </span>
       </div>
       {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
     </div>

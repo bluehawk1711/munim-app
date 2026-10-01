@@ -19,7 +19,7 @@ export { DEFAULT_LABEL_PRINT_SETTINGS };
  *
  * Horizontal layout (101 × 15 mm — wide strip):
  *   LEFT:  product name (top) + weight (bottom), stacked vertically
- *   RIGHT: barcode (wide, vertically centered)
+ *   RIGHT: barcode (wide, vertically centered) + SKU below it (small)
  * Font "0" (Monotype CG Triumvirate Bold) — scalable, x/y = point size.
  */
 
@@ -66,6 +66,8 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   barcodeY?: number;
   /** Include the product purity after its name. */
   showPurity?: boolean;
+  /** Print the product SKU below the barcode (small text). Default on. */
+  showSku?: boolean;
   /** Gold label weight field visibility toggles. */
   showGrossWeight?: boolean;
   showNagLessWeight?: boolean;
@@ -131,11 +133,11 @@ function barcodeCommand(x: number, y: number, heightDots: number, value: string,
  *
  * Silver / other:
  *   LEFT:  product name + " - sil" (top) + weight (bottom), stacked
- *   RIGHT: barcode (takes remaining width, vertically centered)
+ *   RIGHT: barcode (takes remaining width, vertically centered) + SKU below it
  *
  * Gold:
  *   LEFT:  product name (top) + weight + 4 weight fields + purity (bottom)
- *   RIGHT: barcode (takes remaining width, vertically centered)
+ *   RIGHT: barcode (takes remaining width, vertically centered) + SKU below it
  *
  * Direction 0: Y from top (downward). Direction 1: Y from bottom (upward).
  */
@@ -295,6 +297,16 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
     } else {
       lines.push(`TEXT ${barcodeX},${barcodeY},"0",0,${weightSize},${weightSize},"NO BARCODE"`);
     }
+
+    // SKU — small line directly below the barcode (gold + silver), clamped
+    // so the text always stays inside the label.
+    if (o.showSku !== false && label.sku.trim()) {
+      const skuSize = Math.max(2, toPt(Math.round(h * 0.13)));
+      const skuTextDots = Math.round((skuSize * dpi) / 72);
+      const skuY = Math.min(barcodeY + barcodeHeight + 2, Math.max(0, h - skuTextDots));
+      lines.push(`TEXT ${barcodeX},${skuY},"0",0,${skuSize},${skuSize},"${tsplText(label.sku.trim())}"`);
+    }
+
     lines.push(`PRINT ${copies},1`);
   }
 

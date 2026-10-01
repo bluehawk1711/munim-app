@@ -103,6 +103,7 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         barcodeX: typeof s.barcodeX === "number" && s.barcodeX >= 0 && s.barcodeX <= 800 ? s.barcodeX : 305,
         barcodeY: typeof s.barcodeY === "number" && s.barcodeY >= 0 && s.barcodeY <= 120 ? s.barcodeY : 30,
         showPurity: s.showPurity === true,
+        showSku: s.showSku !== false,
         showGrossWeight: s.showGrossWeight !== false,
         showNagLessWeight: s.showNagLessWeight !== false,
         showNagRate: s.showNagRate !== false,

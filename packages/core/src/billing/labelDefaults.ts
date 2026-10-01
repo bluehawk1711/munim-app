@@ -29,6 +29,8 @@ export type LabelPrintSettings = {
   barcodeY: number;
   /** Include the product purity after its name. */
   showPurity: boolean;
+  /** Print the product SKU below the barcode (small text). */
+  showSku: boolean;
   /** Gold label weight field visibility toggles. */
   showGrossWeight: boolean;
   showNagLessWeight: boolean;
@@ -88,6 +90,7 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   barcodeX: 295,
   barcodeY: 65,
   showPurity: true,
+  showSku: true,
   showGrossWeight: true,
   showNagLessWeight: true,
   showNagRate: true,

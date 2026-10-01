@@ -323,13 +323,15 @@ export function GoldRateEditor({
                 <div
                   key={row.karat}
                   className={cn(
-                    "flex items-center gap-2 rounded-xl border bg-background/40 px-3 py-2",
+                    "rounded-xl border bg-background/40 px-3 py-2.5",
                     row.isCustom && "border-primary/30 bg-primary/5",
                     isBase && "ring-1 ring-primary/20",
                   )}
                 >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
+                  {/* Header: karat + purity (+ Base) on the left, status chip
+                      + reset on the right — keeps every card one clean block. */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1.5">
                       <span className="text-sm font-semibold tabular-nums">{row.karat}K</span>
                       <span className="text-[11px] text-muted-foreground tabular-nums">
                         {row.purityPercent}%
@@ -340,35 +342,49 @@ export function GoldRateEditor({
                         </span>
                       ) : null}
                     </div>
-                    <span className="text-[11px] text-muted-foreground">
-                      {row.isCustom ? "Quoted" : row.derived ? "Derived" : "Not set"}
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                          row.isCustom
+                            ? "bg-primary/15 text-primary"
+                            : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {row.isCustom ? "Quoted" : row.derived ? "Derived" : "Not set"}
+                      </span>
+                      {row.isCustom ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Reset to the derived rate"
+                          onClick={() => resetKarat(row.karat)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
-                  <Input
-                    aria-label={`${row.karat}K rate per gram`}
-                    type="text"
-                    inputMode="decimal"
-                    className="h-8 w-24 text-right tabular-nums"
-                    value={shownText(`rate:${row.karat}`, row.ratePerGram)}
-                    onChange={(e) =>
-                      editText(`rate:${row.karat}`, e.target.value, (t) => setRate(row.karat, t))
-                    }
-                    onBlur={() => setEditing(null)}
-                  />
-                  {row.isCustom ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
-                      title="Reset to the derived rate"
-                      onClick={() => resetKarat(row.karat)}
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  ) : (
-                    <span className="w-7 shrink-0" />
-                  )}
+                  {/* Full-width ₹-prefixed value — a fixed-width field next to
+                      the label left no room to read what was typed. */}
+                  <div className="relative mt-2">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-xs text-muted-foreground">
+                      ₹
+                    </span>
+                    <Input
+                      aria-label={`${row.karat}K rate per gram`}
+                      type="text"
+                      inputMode="decimal"
+                      className="h-9 pl-7 text-left tabular-nums"
+                      value={shownText(`rate:${row.karat}`, row.ratePerGram)}
+                      onChange={(e) =>
+                        editText(`rate:${row.karat}`, e.target.value, (t) => setRate(row.karat, t))
+                      }
+                      onBlur={() => setEditing(null)}
+                    />
+                  </div>
                 </div>
               );
             })}

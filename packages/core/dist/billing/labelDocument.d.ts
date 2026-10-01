@@ -60,10 +60,13 @@ export declare function buildProductLabel(product: {
 export declare const LABEL_WIDTH_MM = 63.5;
 export declare const LABEL_HEIGHT_MM = 33.9;
 /** Renders ONE label's inner markup (shared by the sheet + previews).
- * Silver: LEFT = name + " - sil" + purity + weight, RIGHT = barcode
- * Gold:   LEFT = name + weight + 4 weight fields, RIGHT = barcode
+ * Silver: LEFT = name + " - sil" + purity + weight, RIGHT = barcode (+ SKU)
+ * Gold:   LEFT = name + weight + 4 weight fields, RIGHT = barcode (+ SKU)
+ * The SKU is a small line directly below the barcode (opts.showSku, default on).
  */
-export declare function renderLabelMarkup(label: ProductLabel): string;
+export declare function renderLabelMarkup(label: ProductLabel, opts?: {
+    showSku?: boolean;
+}): string;
 export type LabelSheetOptions = {
     /** Total physical labels (each copy = one label on the sheet). Default 1. */
     copies?: number;
@@ -73,6 +76,8 @@ export type LabelSheetOptions = {
     rows?: number;
     /** Rendered page width in px (96 dpi A4 ≈ 794). Default 794. */
     pageWidthPx?: number;
+    /** Print the SKU below each barcode in small text. Default true. */
+    showSku?: boolean;
 };
 /**
  * Full print-ready HTML sheet: an A4 page with a grid of labels (default
