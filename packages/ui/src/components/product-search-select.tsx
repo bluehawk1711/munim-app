@@ -14,6 +14,7 @@
  */
 import * as React from "react";
 import { Package, Search, X } from "lucide-react";
+import { classifyProduct } from "@munim/core";
 import { cn } from "../lib/utils";
 import { formatMoney } from "../lib/format";
 import { Input } from "./input";
@@ -22,11 +23,22 @@ export type ProductOption = {
   id: string;
   name: string;
   sku?: string | null;
+  barcode?: string | null;
   color?: string | null;
   size?: string | null;
   sellingPrice: number;
+  /** SQL-computed current price (auto gold); falls back to sellingPrice. */
+  effectivePrice?: number | null;
   stock: number;
   silverPercentage?: number;
+  /** Product type (Gold/Silver/…) — renders the "Gold · 22K" chip. */
+  type?: string | null;
+  /** Gold karat 0–24 — part of the classification chip. */
+  goldKarat?: number | null;
+  /** Free-text purity stamp ("22K", "916", "925"). */
+  purity?: string | null;
+  /** Category name — silver subcategories ("92.5 Stock") live here. */
+  category?: string | null;
 };
 
 function stockMeta(stock: number): { label: string; className: string } {
@@ -71,8 +83,12 @@ export function ProductSearchSelect({
       (p) =>
         p.name.toLowerCase().includes(q) ||
         (p.sku ?? "").toLowerCase().includes(q) ||
+        (p.barcode ?? "").toLowerCase().includes(q) ||
         (p.color ?? "").toLowerCase().includes(q) ||
-        (p.size ?? "").toLowerCase().includes(q),
+        (p.size ?? "").toLowerCase().includes(q) ||
+        (p.type ?? "").toLowerCase().includes(q) ||
+        (p.purity ?? "").toLowerCase().includes(q) ||
+        (p.category ?? "").toLowerCase().includes(q),
     );
   }, [products, query]);
 
@@ -194,9 +210,21 @@ export function ProductSearchSelect({
                   onMouseDown={(e) => e.preventDefault()} // keep input focus
                   onClick={() => select(p)}
                 >
-                  <p className="truncate text-sm font-medium">{p.name}</p>
+                  <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                    <span className="truncate">{p.name}</span>
+                    {p.type ? (
+                      <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        {classifyProduct({
+                          type: p.type,
+                          goldKarat: p.goldKarat,
+                          purity: p.purity,
+                          categoryName: p.category,
+                        }).text}
+                      </span>
+                    ) : null}
+                  </p>
                   <p className="text-muted-foreground truncate text-xs">
-                    {[p.sku, [p.color, p.size].filter(Boolean).join(" / ") || null, formatMoney(p.sellingPrice)]
+                    {[p.sku, [p.color, p.size].filter(Boolean).join(" / ") || null, formatMoney(p.effectivePrice ?? p.sellingPrice)]
                       .filter(Boolean)
                       .join(" · ")}{" "}
                     · <span className={stock.className}>{stock.label}</span>

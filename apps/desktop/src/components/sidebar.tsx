@@ -1,5 +1,5 @@
 import * as m from "motion/react-m";
-import { LayoutDashboard, Package, Palette, ShoppingCart, FileText, Receipt, Users, HandCoins, ScrollText, BarChart3, Settings } from "lucide-react";
+import { LayoutDashboard, Package, Palette, ShoppingCart, FileText, Receipt, Users, HandCoins, ScrollText, BarChart3, Settings, CircleHelp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigate } from "@/lib/navigation";
 
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: "/job-letters", label: "Job Letters", icon: ScrollText },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/help", label: "Help", icon: CircleHelp },
 ] as const;
 
 export function Sidebar({ current }: { current: string }) {

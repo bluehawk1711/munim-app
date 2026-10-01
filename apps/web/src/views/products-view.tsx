@@ -12,8 +12,27 @@ import {
   Download,
   FileSpreadsheet,
   Barcode,
+  Printer,
+  RefreshCw,
 } from "lucide-react"
-import { Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Card, CardContent, Skeleton, Badge, BarcodeLookupInput, LabelPrintDialog, ProductDetailsDialog } from "@munim/ui"
+import {
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Card,
+  CardContent,
+  Skeleton,
+  Badge,
+  BarcodeLookupInput,
+  LabelPrintDialog,
+  LabelPrintSelectDialog,
+  type LabelPrintSelectProduct,
+  ProductDetailsDialog,
+} from "@munim/ui"
 import { buildProductLabel, type ProductLabel } from "@munim/core"
 
 
@@ -26,7 +45,7 @@ import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { setPendingSellProduct } from "@/lib/pending-sell"
-import { useProducts, useBackfillBarcodes } from "@/hooks/use-products"
+import { useProducts, useBackfillBarcodes, useSyncProductPrices } from "@/hooks/use-products"
 import { useApiClient } from "@munim/query"
 import { useSettings } from "@/hooks/use-settings"
 import { useProductMeta } from "@/hooks/use-meta"
@@ -67,13 +86,36 @@ export function ProductsView() {
   const pageSize = 20
 
   // Sync local filter state from the store when external views (e.g. Catalog)
-  // write a filter value and navigate here. Without this, a pre-existing
-  // ProductsView instance keeps its stale local state.
-  React.useEffect(() => { setColor(productColorFilter) }, [productColorFilter])
-  React.useEffect(() => { setSize(productSizeFilter) }, [productSizeFilter])
-  React.useEffect(() => { setCategory(productCategoryFilter) }, [productCategoryFilter])
-  React.useEffect(() => { setStatus(productStatusFilter as StockStatus | "all") }, [productStatusFilter])
-  React.useEffect(() => { setType(productTypeFilter) }, [productTypeFilter])
+  // write a filter value and navigate here. Adjust-during-render (React's
+  // recommended alternative to a sync effect): when a store value changes
+  // under an already-mounted instance, mirror it before painting.
+  const [prevFilters, setPrevFilters] = React.useState({
+    color: productColorFilter,
+    size: productSizeFilter,
+    category: productCategoryFilter,
+    status: productStatusFilter,
+    type: productTypeFilter,
+  })
+  if (
+    prevFilters.color !== productColorFilter ||
+    prevFilters.size !== productSizeFilter ||
+    prevFilters.category !== productCategoryFilter ||
+    prevFilters.status !== productStatusFilter ||
+    prevFilters.type !== productTypeFilter
+  ) {
+    setPrevFilters({
+      color: productColorFilter,
+      size: productSizeFilter,
+      category: productCategoryFilter,
+      status: productStatusFilter,
+      type: productTypeFilter,
+    })
+    setColor(productColorFilter)
+    setSize(productSizeFilter)
+    setCategory(productCategoryFilter)
+    setStatus(productStatusFilter as StockStatus | "all")
+    setType(productTypeFilter)
+  }
 
   function setGlobalSearch(value: string) {
     setGlobalSearchStore(value)
@@ -113,6 +155,8 @@ export function ProductsView() {
   const [deleting, setDeleting] = React.useState<Product | null>(null)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [labelTarget, setLabelTarget] = React.useState<Product | null>(null)
+  const [labelTargets, setLabelTargets] = React.useState<Product[]>([])
+  const [labelSelectOpen, setLabelSelectOpen] = React.useState(false)
   const [labelOpen, setLabelOpen] = React.useState(false)
   const [labelCopies, setLabelCopies] = React.useState(1)
   const [detailsProduct, setDetailsProduct] = React.useState<Product | null>(null)
@@ -120,6 +164,7 @@ export function ProductsView() {
   const { data: meta } = useProductMeta()
   const { data: settings } = useSettings()
   const backfill = useBackfillBarcodes()
+  const syncPrices = useSyncProductPrices()
   const getClient = useApiClient()
 
   const filters = {
@@ -175,8 +220,19 @@ export function ProductsView() {
   }
 
   function openLabelDialog(p: Product) {
+    setLabelTargets([])
     setLabelTarget(p)
     setLabelCopies(1)
+    setLabelOpen(true)
+  }
+
+  function handleLabelSelect(selected: LabelPrintSelectProduct[]) {
+    // Items were built from this page's products, so the downcast is safe
+    // (same pattern as desktop's handleLabelSelect).
+    setLabelTargets(selected as Product[])
+    setLabelTarget(null)
+    setLabelCopies(1)
+    setLabelSelectOpen(false)
     setLabelOpen(true)
   }
 
@@ -205,36 +261,48 @@ export function ProductsView() {
     }
   }
 
-  const labelLabels = React.useMemo<ProductLabel[]>(
-    () =>
-      labelTarget
-        ? [
-            buildProductLabel(
-              {
-                id: labelTarget.id,
-                name: labelTarget.name,
-                sku: labelTarget.sku,
-                barcode: labelTarget.barcode,
-                type: labelTarget.type,
-                weight: labelTarget.weight,
-                weightUnit: labelTarget.weightUnit,
-                grossWeight: labelTarget.grossWeight ?? null,
-                nagLessWeight: labelTarget.nagLessWeight ?? null,
-                nagRate: labelTarget.nagRate ?? null,
-                chejatWeight: labelTarget.chejatWeight ?? null,
-                netWeight: labelTarget.netWeight ?? null,
-                purity: labelTarget.purity,
-                sellingPrice: labelTarget.sellingPrice,
-                colorName: labelTarget.color || null,
-                sizeName: labelTarget.size || null,
-                categoryName: labelTarget.category ?? null,
-              },
-              { name: settings?.shopName ?? "" },
-            ),
-          ]
-        : [],
-    [labelTarget, settings],
-  )
+  async function handleSyncPrices() {
+    try {
+      const r = await syncPrices.mutateAsync()
+      if (r.scanned === 0) {
+        toast.info("No auto-priced products yet — nothing to recalculate")
+      } else if (r.updated === 0) {
+        toast.info("Prices already match the current rates")
+      } else {
+        toast.success(`Re-priced ${r.updated} of ${r.scanned} auto-priced product${r.scanned !== 1 ? "s" : ""}`)
+      }
+    } catch (err) {
+      toast.error("Recalculation failed", { description: err instanceof Error ? err.message : undefined })
+    }
+  }
+
+  const labelLabels = React.useMemo<ProductLabel[]>(() => {
+    const labelSources = labelTargets.length > 0 ? labelTargets : labelTarget ? [labelTarget] : []
+    return labelSources.map((p) =>
+      buildProductLabel(
+        {
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          type: p.type,
+          weight: p.weight,
+          weightUnit: p.weightUnit,
+          grossWeight: p.grossWeight ?? null,
+          nagLessWeight: p.nagLessWeight ?? null,
+          nagRate: p.nagRate ?? null,
+          chejatWeight: p.chejatWeight ?? null,
+          netWeight: p.netWeight ?? null,
+          purity: p.purity,
+          sellingPrice: p.effectivePrice,
+          colorName: p.color || null,
+          sizeName: p.size || null,
+          categoryName: p.category ?? null,
+        },
+        { name: settings?.shopName ?? "" },
+      ),
+    )
+  }, [labelTarget, labelTargets, settings])
 
   function handleLabelPrint(html: string) {
     setLabelOpen(false)
@@ -369,11 +437,18 @@ export function ProductsView() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleSyncPrices} disabled={syncPrices.isPending} className="h-9 gap-1.5">
+            <RefreshCw className={syncPrices.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />{" "}
+            {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
+          </Button>
           {missingBarcodes && (
             <Button variant="outline" size="sm" onClick={handleBackfill} disabled={backfill.isPending} className="h-9 gap-1.5">
               <Barcode className="h-4 w-4" /> {backfill.isPending ? "Generating…" : "Generate barcodes"}
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setLabelSelectOpen(true)} className="h-9 gap-1.5">
+            <Printer className="h-4 w-4" /> Print Label
+          </Button>
           <Button variant="outline" size="sm" onClick={handleExportCsv} className="h-9 gap-1.5">
             <Download className="h-4 w-4" /> CSV
           </Button>
@@ -453,6 +528,22 @@ export function ProductsView() {
       <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} product={editing} />
       <StockAdjustmentDialog open={adjustOpen} onOpenChange={setAdjustOpen} product={adjusting} />
       <DeleteProductDialog open={deleteOpen} onOpenChange={setDeleteOpen} product={deleting} />
+      <LabelPrintSelectDialog
+        open={labelSelectOpen}
+        onOpenChange={setLabelSelectOpen}
+        products={(products ?? []).map((p) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          barcode: p.barcode,
+          sellingPrice: p.effectivePrice,
+          weight: p.weight,
+          color: p.color,
+          size: p.size,
+          category: p.category,
+        }))}
+        onSelect={handleLabelSelect}
+      />
       <LabelPrintDialog
         open={labelOpen}
         onOpenChange={setLabelOpen}

@@ -1,6 +1,7 @@
 import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
+import { isGoldKarat, round2 } from "../pricing/gold.js";
 import { generateSku } from "../utils/codes.js";
 import { generateEan13 } from "../utils/barcode.js";
 import { logActivity } from "./activity.js";
@@ -57,7 +58,7 @@ export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
       totalUnits: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`,
       totalWeightMg: sql<number>`coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
       stockValuationPurchase: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.purchasePrice}), 0)::double precision`,
-      stockValuationSelling: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)::double precision`,
+      stockValuationSelling: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`,
       inStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > ${schema.products.lowStockThreshold})::int`,
       lowStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > 0 and ${schema.products.stock} <= ${schema.products.lowStockThreshold})::int`,
       outOfStockCount: sql<number>`count(*) filter (where ${schema.products.stock} <= 0)::int`,
@@ -91,12 +92,12 @@ export async function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakd
       skuCount: sql<number>`count(${schema.products.id})::int`,
       units: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`,
       weightMg: sql<number>`coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
-      value: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)::double precision`,
+      value: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`,
     })
     .from(schema.products)
     .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
     .groupBy(schema.categories.name)
-    .orderBy(desc(sql`coalesce(sum(${schema.products.stock} * ${schema.products.sellingPrice}), 0)`));
+    .orderBy(desc(sql`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)`));
 
   return rows.map((r, i) => ({
     category: r.category ?? "Uncategorized",
@@ -182,6 +183,166 @@ export type ProductWithMeta = schema.Product & {
   colorName: string | null;
   sizeName: string | null;
   categoryName: string | null;
+} & ProductComputedPricing;
+
+/* ── Gold pricing (dynamic karat-wise prices) ─────────────────── */
+
+/**
+ * Dynamic gold pricing, expressed ONCE for SQL so every list, aggregate and
+ * report agrees with the form preview (which uses the same formula from
+ * `pricing/gold.ts`).
+ *
+ * The rate lookup is a correlated subquery (not a join) so the expression can
+ * be dropped into any query over `products` — including the aggregates below —
+ * without touching their joins. `gold_rates` holds at most 25 rows.
+ */
+
+/**
+ * Effective ₹/gram for a product's karat — the SQL twin of
+ * `resolveGoldRateTable` + `rateForKarat` (pricing/gold.ts):
+ *
+ *   1. quoted row: `gold_rates` where `is_custom` and rate > 0 for this karat
+ *   2. DERIVED: every un-quoted karat scales off the base (highest quoted
+ *      karat): `rate(k) = round2(baseRate × k ÷ baseKarat)`
+ *   3. nothing quoted yet → 0 (products fall back to their stored price)
+ */
+const quotedRateSql = sql<number>`(
+  select gr.rate_per_gram from gold_rates gr
+  where gr.karat = ${schema.products.goldKarat} and gr.is_custom and gr.rate_per_gram > 0
+  limit 1
+)`;
+const baseRateSql = sql<number>`(select b.rate_per_gram from gold_rates b where b.is_custom and b.rate_per_gram > 0 order by b.karat desc limit 1)`;
+const baseKaratSql = sql<number>`(select b.karat from gold_rates b where b.is_custom and b.rate_per_gram > 0 order by b.karat desc limit 1)`;
+
+export const goldRatePerGramSql = sql<number>`coalesce(
+  ${quotedRateSql},
+  case
+    when ${schema.products.goldKarat} is not null
+      and ${baseKaratSql} is not null and ${baseKaratSql} > 0
+      and ${baseRateSql} > 0
+    then round((${baseRateSql} * ${schema.products.goldKarat} / ${baseKaratSql})::numeric, 2)::double precision
+    else 0
+  end
+)`;
+
+/** Shop-wide silver ₹/gram (settings singleton; 0 → silver never auto-prices). */
+export const silverRatePerGramSql = sql<number>`coalesce((select s.silver_rate_per_gram from settings s limit 1), 0)`;
+
+/** Product weight in grams — `weight` is stored in `weightUnit` (mg or gm). */
+export const weightGmSql = sql<number>`(case when ${schema.products.weightUnit} = 'mg' then coalesce(${schema.products.weight}, 0) / 1000.0 else coalesce(${schema.products.weight}, 0) end)`;
+
+/** Silver purity %, clamped exactly like `priceProduct` (>0 → min(s,100), else 100). */
+const silverPercentSql = sql<number>`(case when coalesce(${schema.products.silverPercentage}, 100) > 0 then least(${schema.products.silverPercentage}, 100) else 100 end)`;
+
+/** Shop default labour for GOLD products (settings singleton). */
+const defaultLabourTypeSql = sql<string>`coalesce((select s.default_labour_type from settings s limit 1), 'PERCENT')`;
+const defaultLabourValueSql = sql<number>`coalesce((select s.default_labour_value from settings s limit 1), 0)`;
+
+/**
+ * Metal values (the labour PERCENT basis) — `priceProduct` rounds the metal
+ * value to paisa BEFORE applying labour, so the SQL twin rounds here too.
+ */
+const goldMetalSql = sql<number>`round((${weightGmSql} * ${goldRatePerGramSql})::numeric, 2)::double precision`;
+const silverMetalSql = sql<number>`round((${weightGmSql} * (${silverPercentSql} / 100.0) * ${silverRatePerGramSql})::numeric, 2)::double precision`;
+
+/** `round2` in SQL: `Math.round(x * 100) / 100` (pricing/gold.ts). */
+function round2Sql(expr: ReturnType<typeof sql<number>>) {
+  return sql<number>`round((${expr})::numeric, 2)::double precision`;
+}
+
+/** ₹/gram × weight, rounded to paisa — the PER_GRAM labour basis. */
+const goldPerGramLabourSql = round2Sql(sql<number>`${weightGmSql} * ${schema.products.labourValue}`);
+const silverPerGramLabourSql = round2Sql(sql<number>`${weightGmSql} * ${schema.products.labourValue}`);
+const defaultPerGramLabourSql = round2Sql(sql<number>`${weightGmSql} * ${defaultLabourValueSql}`);
+/** % of the (already rounded) metal value — the PERCENT labour basis. */
+const goldPercentLabourSql = round2Sql(sql<number>`${goldMetalSql} * ${schema.products.labourValue} / 100.0`);
+const silverPercentLabourSql = round2Sql(sql<number>`${silverMetalSql} * ${schema.products.labourValue} / 100.0`);
+const defaultPercentLabourSql = round2Sql(sql<number>`${goldMetalSql} * ${defaultLabourValueSql} / 100.0`);
+
+/**
+ * Labour amount for GOLD: the product's own config when `labour_value` is
+ * set, otherwise the shop default (`settings.default_labour_*`).
+ * Same three methods as `computeLabour` in pricing/labour.ts, including its
+ * `value <= 0 → ₹0` guard (never a negative labour, never a zero value that
+ * silently switches to the shop default).
+ */
+const goldLabourSql = sql<number>`(
+  case
+    when ${schema.products.labourValue} is not null then
+      case
+        when ${schema.products.labourValue} <= 0 then 0
+        when ${schema.products.labourType} = 'FIXED' then ${round2Sql(sql<number>`${schema.products.labourValue}`)}
+        when ${schema.products.labourType} = 'PER_GRAM' then ${goldPerGramLabourSql}
+        else ${goldPercentLabourSql}
+      end
+    else
+      case
+        when ${defaultLabourValueSql} <= 0 then 0
+        when ${defaultLabourTypeSql} = 'FIXED' then ${round2Sql(defaultLabourValueSql)}
+        when ${defaultLabourTypeSql} = 'PER_GRAM' then ${defaultPerGramLabourSql}
+        else ${defaultPercentLabourSql}
+      end
+  end
+)`;
+
+/**
+ * Labour amount for SILVER — strictly per product (no shop default): an unset
+ * `labour_value` means ₹0 labour, and `value <= 0` is ₹0 exactly like
+ * `computeLabour` guards it.
+ */
+const silverLabourSql = sql<number>`(
+  case
+    when ${schema.products.labourValue} is null then 0
+    when ${schema.products.labourValue} <= 0 then 0
+    when ${schema.products.labourType} = 'FIXED' then ${round2Sql(sql<number>`${schema.products.labourValue}`)}
+    when ${schema.products.labourType} = 'PER_GRAM' then ${silverPerGramLabourSql}
+    else ${silverPercentLabourSql}
+  end
+)`;
+
+/**
+ * Auto price — the SQL twin of `priceProduct` (pricing/product.ts):
+ *
+ *   Gold  (auto + karat + rate>0 + weight>0)  → round2(goldMetal  + goldLabour)
+ *   Silver(auto + shop rate>0 + weight>0)     → round2(silverMetal + silverLabour)
+ *   anything else → NULL (callers fall back to `sellingPrice`, never ₹0)
+ *
+ * Expressed ONCE so every list, aggregate and report agrees with the form
+ * preview; `scripts/verify-pricing.ts` proves the two implementations match.
+ * The rate lookups are correlated subqueries (not joins) so the expression
+ * can be dropped into any query over `products`. `gold_rates` ≤ 25 rows and
+ * `settings` is a single row — both cheap.
+ */
+export const autoPriceSql = sql<number | null>`(
+  case
+    when ${schema.products.type} = 'Gold'
+      and ${schema.products.priceMode} = 'auto'
+      and ${schema.products.goldKarat} is not null
+      and ${goldRatePerGramSql} > 0
+      and ${weightGmSql} > 0
+    then round((${goldMetalSql} + ${goldLabourSql})::numeric, 2)::double precision
+    when ${schema.products.type} = 'Silver'
+      and ${schema.products.priceMode} = 'auto'
+      and ${silverRatePerGramSql} > 0
+      and ${weightGmSql} > 0
+    then round((${silverMetalSql} + ${silverLabourSql})::numeric, 2)::double precision
+    else null
+  end
+)`;
+
+/** THE price: the computed auto price when available, else the stored one. */
+export const effectivePriceSql = sql<number>`coalesce(${autoPriceSql}, ${schema.products.sellingPrice})`;
+
+/** SQL-computed pricing columns — present on every product query row. */
+export type ProductComputedPricing = {
+  /** Effective ₹/gram for the product's karat (0 when not karat-priced). */
+  goldRatePerGram: number;
+  /** Shop-wide silver ₹/gram the silver branch used (0 → silver not priced). */
+  silverRatePerGram: number;
+  /** Computed auto price (null unless the product is auto-priced). */
+  autoPrice: number | null;
+  /** `autoPrice ?? sellingPrice`. */
+  effectivePrice: number;
 };
 
 const PRODUCT_SELECT = {
@@ -203,6 +364,10 @@ const PRODUCT_SELECT = {
   purchasePrice: schema.products.purchasePrice,
   sellingPrice: schema.products.sellingPrice,
   silverPercentage: schema.products.silverPercentage,
+  goldKarat: schema.products.goldKarat,
+  labourType: schema.products.labourType,
+  labourValue: schema.products.labourValue,
+  priceMode: schema.products.priceMode,
   notes: schema.products.notes,
   lowStockThreshold: schema.products.lowStockThreshold,
   colorId: schema.products.colorId,
@@ -210,6 +375,11 @@ const PRODUCT_SELECT = {
   categoryId: schema.products.categoryId,
   createdAt: schema.products.createdAt,
   updatedAt: schema.products.updatedAt,
+  // Dynamic gold pricing — computed, never stored.
+  goldRatePerGram: goldRatePerGramSql.as("gold_rate_per_gram"),
+  silverRatePerGram: silverRatePerGramSql.as("silver_rate_per_gram"),
+  autoPrice: autoPriceSql.as("auto_price"),
+  effectivePrice: effectivePriceSql.as("effective_price"),
 } as const;
 
 export async function listProducts(db: DbClient, filters: ProductFilters = {}) {
@@ -339,6 +509,15 @@ export type ProductInput = {
   sellingPrice?: number;
   /** Silver purity percentage — e.g. 90 means 90% silver content. */
   silverPercentage?: number;
+  /** Gold karat 0–24 (null → clear the karat / not karat-priced). */
+  goldKarat?: number | null;
+  /** Labour method: PERCENT (% of metal), FIXED (₹) or PER_GRAM (₹/g). */
+  labourType?: "PERCENT" | "FIXED" | "PER_GRAM";
+  /** Labour rate/amount (null → unset: gold falls back to shop default,
+   *  silver gets no labour; undefined → keep existing on edit). */
+  labourValue?: number | null;
+  /** "auto" opts this metal product into dynamic pricing; "manual" uses sellingPrice. */
+  priceMode?: "auto" | "manual";
   lowStockThreshold?: number;
   notes?: string;
 };
@@ -347,6 +526,23 @@ export class ProductError extends Error {
   constructor(message: string, public code: string, public status = 400) {
     super(message);
   }
+}
+
+/** Karat from an untrusted value (form/API/DB) — null when absent or out of range. */
+function normalizeGoldKarat(value: number | null | undefined): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return isGoldKarat(value) ? value : null;
+}
+
+/** Labour rate/amount — clamped to ≥ 0 (round2); null means "not configured". */
+function normalizeLabourValue(value: number | null | undefined): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return round2(value);
+}
+
+/** Labour method — anything untrusted becomes PERCENT (the schema default). */
+function normalizeLabourType(value: string | undefined): "PERCENT" | "FIXED" | "PER_GRAM" {
+  return value === "FIXED" || value === "PER_GRAM" ? value : "PERCENT";
 }
 
 export async function createProduct(db: DbClient, input: ProductInput) {
@@ -389,6 +585,10 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       purchasePrice: input.purchasePrice ?? 0,
       sellingPrice: input.sellingPrice ?? 0,
       silverPercentage: typeof input.silverPercentage === "number" && input.silverPercentage > 0 ? input.silverPercentage : 100,
+      goldKarat: normalizeGoldKarat(input.goldKarat),
+      labourType: normalizeLabourType(input.labourType),
+      labourValue: normalizeLabourValue(input.labourValue),
+      priceMode: input.priceMode === "auto" ? "auto" : "manual",
       lowStockThreshold: input.lowStockThreshold ?? 5,
       notes: input.notes?.trim() || null,
       colorId,
@@ -459,6 +659,20 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
         : typeof input.silverPercentage === "number" && input.silverPercentage > 0
           ? input.silverPercentage
           : 100,
+      // undefined → keep (mobile/legacy forms omit metal fields); null → clear.
+      goldKarat: input.goldKarat === undefined ? existing.goldKarat : normalizeGoldKarat(input.goldKarat),
+      labourType:
+        input.labourType === undefined ? existing.labourType : normalizeLabourType(input.labourType),
+      labourValue:
+        input.labourValue === undefined
+          ? existing.labourValue
+          : normalizeLabourValue(input.labourValue),
+      priceMode:
+        input.priceMode === undefined
+          ? existing.priceMode
+          : input.priceMode === "auto"
+            ? "auto"
+            : "manual",
       lowStockThreshold: input.lowStockThreshold ?? existing.lowStockThreshold,
       notes: input.notes?.trim() || null,
       colorId,
@@ -550,6 +764,73 @@ export async function findProductByBarcode(db: DbClient, barcode: string) {
     .limit(1);
   return row[0] ?? null;
 }
+
+/**
+ * Looks a product up by EITHER its barcode OR its SKU (case-insensitive) —
+ * the counter's fast-entry path on desktop/web billing: type/scan a code,
+ * press Enter, get the product. Barcode is matched exactly; SKU is matched
+ * trimmed + case-insensitively (`PRD-AB12CD` === `prd-ab12cd`).
+ */
+export async function findProductByCode(db: DbClient, code: string) {
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+  const row = await db
+    .select({
+      ...PRODUCT_SELECT,
+      colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
+      sizeName: sql<string | null>`${schema.sizes.name}`.as("size_name"),
+      categoryName: sql<string | null>`${schema.categories.name}`.as("category_name"),
+    })
+    .from(schema.products)
+    .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
+    .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId))
+    .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+    .where(
+      or(
+        eq(schema.products.barcode, trimmed),
+        sql`lower(${schema.products.sku}) = lower(${trimmed})`,
+      ),
+    )
+    .limit(1);
+  return row[0] ?? null;
+}
+
+/**
+ * "Update all prices" (Products page action): freezes the CURRENT dynamic
+ * price into `selling_price` for every auto-priced metal product.
+ *
+ * Auto prices are computed on read, so this is a deliberate snapshot — e.g.
+ * before quoting a customer from a printed list, or to keep exports and
+ * fallbacks on today's price. Rows whose computed price already equals the
+ * stored one are skipped (idempotent; safe to re-run).
+ */
+export async function syncProductPrices(db: DbClient): Promise<{ updated: number; scanned: number }> {
+  const [scannedRow] = await db
+    .select({ n: sql<number>`count(*)::int` })
+    .from(schema.products)
+    .where(eq(schema.products.priceMode, "auto"));
+
+  const updated = await db
+    .update(schema.products)
+    .set({ sellingPrice: effectivePriceSql, updatedAt: new Date() })
+    .where(
+      and(
+        eq(schema.products.priceMode, "auto"),
+        sql`${schema.products.sellingPrice} is distinct from ${effectivePriceSql}`,
+      ),
+    )
+    .returning({ id: schema.products.id });
+
+  if (updated.length > 0) {
+    await logActivity(
+      db,
+      "PRODUCT_PRICES_SYNCED",
+      `Re-priced ${updated.length} auto product(s) from current gold/silver rates`,
+    );
+  }
+  return { updated: updated.length, scanned: scannedRow?.n ?? 0 };
+}
+
 
 /**
  * Assigns a generated EAN-13 barcode to every product that doesn't have one.

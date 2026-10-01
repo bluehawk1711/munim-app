@@ -2,14 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Search, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2,
   Loader2, Clock, CheckCircle2,
-  ArrowUpRight,
+  ArrowUpRight, RefreshCw,
 } from "lucide-react";
-import { formatCurrency } from "@munim/core";
+import { classifyProduct, formatCurrency } from "@munim/core";
 import type { InvoiceDto } from "@munim/api-client";
 import {
   useProducts,
   useInvoices,
   useCreateSale,
+  useSyncProductPrices,
   useUndoSale,
   useQueryState,
 } from "@munim/query";
@@ -76,18 +77,46 @@ export function SalesPage() {
 
   const createSale = useCreateSale();
   const undoSale = useUndoSale();
+  const syncPrices = useSyncProductPrices();
+  /** Set after "Recalculate prices" so the picked price refreshes once the
+   *  invalidated product list lands (auto prices are computed on read). */
+  const [awaitingFreshPrice, setAwaitingFreshPrice] = useState(false);
 
   useEffect(() => {
     if (allProducts && allProducts.length > 0 && !productId) {
       setProductId(allProducts[0]!.id);
-      setPrice(String(allProducts[0]!.sellingPrice));
+      setPrice(String(allProducts[0]!.effectivePrice));
     }
   }, [allProducts, productId]);
+
+  async function handleRecalcPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        toast.info("No auto-priced products yet — nothing to recalculate");
+      } else if (r.updated === 0) {
+        toast.info("Prices already match the current rates");
+      } else {
+        toast.success(`Re-priced ${r.updated} of ${r.scanned} auto-priced product${r.scanned !== 1 ? "s" : ""}`);
+      }
+      setAwaitingFreshPrice(true);
+    } catch (err) {
+      toast.error("Recalculation failed", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
 
   const selected = useMemo(
     () => allProducts?.find((p) => p.id === productId) ?? null,
     [allProducts, productId],
   );
+
+  // "Recalculate prices" finished → re-pick the price from the refreshed row.
+  useEffect(() => {
+    if (awaitingFreshPrice && selected) {
+      setPrice(String(selected.effectivePrice));
+      setAwaitingFreshPrice(false);
+    }
+  }, [awaitingFreshPrice, selected]);
 
   const sales = recent?.invoices ?? [];
   const totalRevenue = sales.reduce((s, x) => s + x.total, 0);
@@ -241,7 +270,19 @@ export function SalesPage() {
           <CardContent className="space-y-4">
             {/* Product search */}
             <div className="space-y-1.5">
-              <Label className="text-xs">Select Product / Scan Barcode</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">Select Product / Scan Barcode</Label>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRecalcPrices}
+                  disabled={syncPrices.isPending}
+                  className="h-6 gap-1 px-2 text-[11px]"
+                >
+                  <RefreshCw className={syncPrices.isPending ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+                  {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
+                </Button>
+              </div>
               <ProductSearchSelect
                 products={allProducts}
                 disableOutOfStock
@@ -249,7 +290,7 @@ export function SalesPage() {
                 placeholder="Search by name, SKU, or scan barcode…"
                 onSelect={(p) => {
                   setProductId(p.id);
-                  setPrice(String(p.sellingPrice));
+                  setPrice(String(p.effectivePrice ?? p.sellingPrice));
                 }}
               />
               {selected && (
@@ -261,7 +302,13 @@ export function SalesPage() {
                     <p className="truncate text-sm font-medium">{selected.name}</p>
                     <p className="text-muted-foreground text-xs">
                       {selected.sku}
-                      {selected.category ? <>, {selected.category}</> : null}
+                      {" · "}
+                      {classifyProduct({
+                        type: selected.type,
+                        goldKarat: selected.goldKarat,
+                        purity: selected.purity,
+                        categoryName: selected.category,
+                      }).text}
                       {selected.color ? <>, {selected.color}</> : null}
                       {selected.size ? <> · {selected.size}</> : null}
                     </p>

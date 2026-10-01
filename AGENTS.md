@@ -131,6 +131,11 @@ Rules:
   (reads `DATABASE_URL` from the root `.env`). Generate SQL files with
   `drizzle-kit generate` for committing; never hand-edit migration SQL unless a
   comment explains why.
+- **Pricing changes** (anything in `pricing/*` or the SQL price columns in
+  `services/products.ts`) must stay in lockstep — change BOTH the TS engine and
+  its SQL twin, then run `pnpm db:verify-pricing` (add `-- --seed` for a temp
+  fixture covering every branch; it snapshots/restores `gold_rates` + `settings`
+  and deletes its own products). It exits non-zero on any mismatch.
 - **Data migration** between databases: use the root `db:backup` / `db:restore`
   commands (wraps `db-sync.mjs`). To transfer data from an old DB to a new one:
   ```bash

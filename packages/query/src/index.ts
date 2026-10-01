@@ -21,6 +21,7 @@ export {
   useDeleteProduct,
   useAdjustStock,
   useBackfillBarcodes,
+  useSyncProductPrices,
   useInventoryStats,
   useCategoryBreakdown,
 } from "./use-products.js";
@@ -60,5 +61,10 @@ export {
   useDeleteJobLetter,
 } from "./use-job-letters.js";
 export { useReport } from "./use-reports.js";
-export { useSettings, useUpdateSettings } from "./use-settings.js";
+export { useSettings, useUpdateSettings, useDebouncedSettingsUpdate } from "./use-settings.js";
+export {
+  useGoldRates,
+  useSaveGoldRates,
+  useBackfillGoldKarats,
+} from "./use-gold-rates.js";
 export { useUploadImage } from "./use-upload.js";

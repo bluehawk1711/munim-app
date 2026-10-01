@@ -17,6 +17,7 @@ import { AdvancesPage } from "@/pages/advances";
 import { JobLettersPage } from "@/pages/job-letters";
 import { ReportsPage } from "@/pages/reports";
 import { SettingsPage } from "@/pages/settings";
+import { HelpPage } from "@/pages/help";
 
 const ROUTES: { path: string; title: string; element: ReactNode }[] = [
   { path: "/", title: "Dashboard", element: <DashboardPage /> },
@@ -30,6 +31,7 @@ const ROUTES: { path: string; title: string; element: ReactNode }[] = [
   { path: "/job-letters", title: "Job Letters", element: <JobLettersPage /> },
   { path: "/reports", title: "Reports", element: <ReportsPage /> },
   { path: "/settings", title: "Settings", element: <SettingsPage /> },
+  { path: "/help", title: "Help", element: <HelpPage /> },
 ];
 
 const FALLBACK_ROUTE = ROUTES[0]!;

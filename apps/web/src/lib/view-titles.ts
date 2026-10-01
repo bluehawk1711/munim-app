@@ -14,4 +14,5 @@ export const VIEW_TITLES: Record<ViewKey, { title: string; subtitle: string }> =
   reports: { title: "Reports", subtitle: "Generate & export reports" },
   catalog: { title: "Catalog", subtitle: "Manage colors & sizes" },
   settings: { title: "Settings", subtitle: "Shop profile & shared database" },
+  help: { title: "Help", subtitle: "Pricing guide & how-to" },
 }

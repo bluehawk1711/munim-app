@@ -65,6 +65,38 @@ export type ProductWithMeta = schema.Product & {
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+} & ProductComputedPricing;
+export declare const goldRatePerGramSql: import("drizzle-orm").SQL<number>;
+/** Shop-wide silver ₹/gram (settings singleton; 0 → silver never auto-prices). */
+export declare const silverRatePerGramSql: import("drizzle-orm").SQL<number>;
+/** Product weight in grams — `weight` is stored in `weightUnit` (mg or gm). */
+export declare const weightGmSql: import("drizzle-orm").SQL<number>;
+/**
+ * Auto price — the SQL twin of `priceProduct` (pricing/product.ts):
+ *
+ *   Gold  (auto + karat + rate>0 + weight>0)  → round2(goldMetal  + goldLabour)
+ *   Silver(auto + shop rate>0 + weight>0)     → round2(silverMetal + silverLabour)
+ *   anything else → NULL (callers fall back to `sellingPrice`, never ₹0)
+ *
+ * Expressed ONCE so every list, aggregate and report agrees with the form
+ * preview; `scripts/verify-pricing.ts` proves the two implementations match.
+ * The rate lookups are correlated subqueries (not joins) so the expression
+ * can be dropped into any query over `products`. `gold_rates` ≤ 25 rows and
+ * `settings` is a single row — both cheap.
+ */
+export declare const autoPriceSql: import("drizzle-orm").SQL<number | null>;
+/** THE price: the computed auto price when available, else the stored one. */
+export declare const effectivePriceSql: import("drizzle-orm").SQL<number>;
+/** SQL-computed pricing columns — present on every product query row. */
+export type ProductComputedPricing = {
+    /** Effective ₹/gram for the product's karat (0 when not karat-priced). */
+    goldRatePerGram: number;
+    /** Shop-wide silver ₹/gram the silver branch used (0 → silver not priced). */
+    silverRatePerGram: number;
+    /** Computed auto price (null unless the product is auto-priced). */
+    autoPrice: number | null;
+    /** `autoPrice ?? sellingPrice`. */
+    effectivePrice: number;
 };
 export declare function listProducts(db: DbClient, filters?: ProductFilters): Promise<{
     products: {
@@ -89,6 +121,10 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         purchasePrice: number;
         sellingPrice: number;
         silverPercentage: number;
+        goldKarat: number | null;
+        labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+        labourValue: number | null;
+        priceMode: "auto" | "manual";
         notes: string | null;
         lowStockThreshold: number;
         colorId: string | null;
@@ -96,6 +132,10 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         categoryId: string | null;
         createdAt: Date;
         updatedAt: Date;
+        goldRatePerGram: number;
+        silverRatePerGram: number;
+        autoPrice: number | null;
+        effectivePrice: number;
     }[];
     pagination: {
         page: number;
@@ -126,6 +166,10 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    goldKarat: number | null;
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourValue: number | null;
+    priceMode: "auto" | "manual";
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -133,6 +177,10 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     categoryId: string | null;
     createdAt: Date;
     updatedAt: Date;
+    goldRatePerGram: number;
+    silverRatePerGram: number;
+    autoPrice: number | null;
+    effectivePrice: number;
 } | null>;
 export declare function listAllProducts(db: DbClient): Promise<ProductWithMeta[]>;
 export type ProductInput = {
@@ -164,6 +212,15 @@ export type ProductInput = {
     sellingPrice?: number;
     /** Silver purity percentage — e.g. 90 means 90% silver content. */
     silverPercentage?: number;
+    /** Gold karat 0–24 (null → clear the karat / not karat-priced). */
+    goldKarat?: number | null;
+    /** Labour method: PERCENT (% of metal), FIXED (₹) or PER_GRAM (₹/g). */
+    labourType?: "PERCENT" | "FIXED" | "PER_GRAM";
+    /** Labour rate/amount (null → unset: gold falls back to shop default,
+     *  silver gets no labour; undefined → keep existing on edit). */
+    labourValue?: number | null;
+    /** "auto" opts this metal product into dynamic pricing; "manual" uses sellingPrice. */
+    priceMode?: "auto" | "manual";
     lowStockThreshold?: number;
     notes?: string;
 };
@@ -194,6 +251,10 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    goldKarat: number | null;
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourValue: number | null;
+    priceMode: "auto" | "manual";
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -201,6 +262,10 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     categoryId: string | null;
     createdAt: Date;
     updatedAt: Date;
+    goldRatePerGram: number;
+    silverRatePerGram: number;
+    autoPrice: number | null;
+    effectivePrice: number;
 } | null>;
 export declare function updateProduct(db: DbClient, id: string, input: ProductInput): Promise<{
     colorName: string | null;
@@ -224,6 +289,10 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    goldKarat: number | null;
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourValue: number | null;
+    priceMode: "auto" | "manual";
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -231,6 +300,10 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     categoryId: string | null;
     createdAt: Date;
     updatedAt: Date;
+    goldRatePerGram: number;
+    silverRatePerGram: number;
+    autoPrice: number | null;
+    effectivePrice: number;
 } | null>;
 export declare function deleteProduct(db: DbClient, id: string): Promise<{
     success: boolean;
@@ -261,6 +334,10 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    goldKarat: number | null;
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourValue: number | null;
+    priceMode: "auto" | "manual";
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -268,6 +345,10 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     categoryId: string | null;
     createdAt: Date;
     updatedAt: Date;
+    goldRatePerGram: number;
+    silverRatePerGram: number;
+    autoPrice: number | null;
+    effectivePrice: number;
 } | null>;
 export declare function listStockMovements(db: DbClient, productId?: string, limit?: number): Promise<{
     id: string;
@@ -308,6 +389,10 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    goldKarat: number | null;
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourValue: number | null;
+    priceMode: "auto" | "manual";
     notes: string | null;
     lowStockThreshold: number;
     colorId: string | null;
@@ -315,7 +400,68 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     categoryId: string | null;
     createdAt: Date;
     updatedAt: Date;
+    goldRatePerGram: number;
+    silverRatePerGram: number;
+    autoPrice: number | null;
+    effectivePrice: number;
 } | null>;
+/**
+ * Looks a product up by EITHER its barcode OR its SKU (case-insensitive) —
+ * the counter's fast-entry path on desktop/web billing: type/scan a code,
+ * press Enter, get the product. Barcode is matched exactly; SKU is matched
+ * trimmed + case-insensitively (`PRD-AB12CD` === `prd-ab12cd`).
+ */
+export declare function findProductByCode(db: DbClient, code: string): Promise<{
+    colorName: string | null;
+    sizeName: string | null;
+    categoryName: string | null;
+    id: string;
+    sku: string;
+    name: string;
+    type: string;
+    barcode: string | null;
+    weight: number | null;
+    weightUnit: string;
+    grossWeight: string | null;
+    nagLessWeight: string | null;
+    nagRate: string | null;
+    chejatWeight: string | null;
+    netWeight: string | null;
+    purity: string | null;
+    imageUrl: string | null;
+    stock: number;
+    purchasePrice: number;
+    sellingPrice: number;
+    silverPercentage: number;
+    goldKarat: number | null;
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourValue: number | null;
+    priceMode: "auto" | "manual";
+    notes: string | null;
+    lowStockThreshold: number;
+    colorId: string | null;
+    sizeId: string | null;
+    categoryId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    goldRatePerGram: number;
+    silverRatePerGram: number;
+    autoPrice: number | null;
+    effectivePrice: number;
+} | null>;
+/**
+ * "Update all prices" (Products page action): freezes the CURRENT dynamic
+ * price into `selling_price` for every auto-priced metal product.
+ *
+ * Auto prices are computed on read, so this is a deliberate snapshot — e.g.
+ * before quoting a customer from a printed list, or to keep exports and
+ * fallbacks on today's price. Rows whose computed price already equals the
+ * stored one are skipped (idempotent; safe to re-run).
+ */
+export declare function syncProductPrices(db: DbClient): Promise<{
+    updated: number;
+    scanned: number;
+}>;
 /**
  * Assigns a generated EAN-13 barcode to every product that doesn't have one.
  * Safe backfill for existing data — never touches products that already have

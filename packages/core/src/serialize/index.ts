@@ -21,16 +21,22 @@ import type {
 } from "../db/schema.js";
 import type { DashboardStats, ReportRow, ReportType } from "../services/dashboard.js";
 import type { LedgerLine } from "../services/parties.js";
-import type { CategoryBreakdown, InventoryStats } from "../services/products.js";
+import type {
+  CategoryBreakdown,
+  InventoryStats,
+  ProductComputedPricing,
+} from "../services/products.js";
+import type { GoldRatesResult, KaratRate } from "../services/goldRates.js";
 
 /* ── Products ─────────────────────────────────────────────────── */
 
-/** Core product rows carry colorName/sizeName (from joins). */
+/** Core product rows carry colorName/sizeName (from joins) + the computed
+ *  pricing columns (see `ProductComputedPricing`). */
 export type ProductWithNames = Product & {
   colorName: string | null;
   sizeName: string | null;
   categoryName?: string | null;
-};
+} & ProductComputedPricing;
 
 export type ProductDto = {
   id: string;
@@ -60,6 +66,22 @@ export type ProductDto = {
   sellingPrice: number;
   /** Silver purity percentage — e.g. 90 means 90% silver content. */
   silverPercentage: number;
+  /** Gold karat 0–24 (null → not karat-priced). */
+  goldKarat: number | null;
+  /** Labour method: PERCENT (% of metal value), FIXED (₹) or PER_GRAM (₹/g). */
+  labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+  /** Labour rate/amount (null → gold falls back to the shop default; silver none). */
+  labourValue: number | null;
+  /** "auto" → dynamic metal pricing (gold + silver); "manual" → `sellingPrice`. */
+  priceMode: "auto" | "manual";
+  /** Effective ₹/gram for the product's karat (0 when not karat-priced). */
+  goldRatePerGram: number;
+  /** Shop-wide silver ₹/gram used by the silver branch (0 → silver not priced). */
+  silverRatePerGram: number;
+  /** Computed auto price (null unless dynamically priced). */
+  autoPrice: number | null;
+  /** THE price (autoPrice ?? sellingPrice) — what lists/billing/reports show. */
+  effectivePrice: number;
   lowStockThreshold: number;
   notes: string | null;
   createdAt: string;
@@ -89,6 +111,14 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     purchasePrice: p.purchasePrice,
     sellingPrice: p.sellingPrice,
     silverPercentage: p.silverPercentage ?? 100,
+    goldKarat: p.goldKarat,
+    labourType: p.labourType === "FIXED" || p.labourType === "PER_GRAM" ? p.labourType : "PERCENT",
+    labourValue: p.labourValue,
+    priceMode: p.priceMode === "auto" ? "auto" : "manual",
+    goldRatePerGram: p.goldRatePerGram,
+    silverRatePerGram: p.silverRatePerGram,
+    autoPrice: p.autoPrice,
+    effectivePrice: p.effectivePrice,
     notes: p.notes,
     lowStockThreshold: p.lowStockThreshold,
     createdAt: p.createdAt.toISOString(),
@@ -219,6 +249,14 @@ export type ActivityLogDto = Omit<ActivityLog, "createdAt"> & { createdAt: strin
 /* ── Settings ─────────────────────────────────────────────────── */
 
 export type SettingsDto = Omit<Settings, "updatedAt"> & { updatedAt: string };
+
+/* ── Gold rates (dynamic karat-wise pricing) ──────────────────── */
+
+/** Wire shape of GET /api/gold-rates (already Date-free in core). */
+export type GoldRateDto = KaratRate;
+
+/** Wire shape of GET/PUT /api/gold-rates — the full 0–24 table. */
+export type GoldRatesDto = GoldRatesResult;
 
 /* ── Dashboard & reports ──────────────────────────────────────── */
 

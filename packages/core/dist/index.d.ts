@@ -11,6 +11,10 @@ export type * from "./db/schema.js";
 export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 export * from "./billing/index.js";
 export * from "./security/index.js";
+export * from "./pricing/gold.js";
+export * from "./pricing/labour.js";
+export * from "./pricing/product.js";
+export * from "./pricing/labels.js";
 export { numberToWords, amountInWords } from "./utils/numberToWords.js";
 export { generateSku, generateInvoiceNumber } from "./utils/codes.js";
 export { normalizeBarcode, isEan13, ean13CheckDigit, generateEan13, barcodeSvg, ean13Svg, code39Svg, type BarcodeSvgOptions, } from "./utils/barcode.js";
@@ -27,6 +31,7 @@ export * from "./services/parties.js";
 export * from "./services/advances.js";
 export * from "./services/jobLetters.js";
 export * from "./services/settings.js";
+export * from "./services/goldRates.js";
 export * from "./services/dashboard.js";
 export { logActivity } from "./services/activity.js";
 //# sourceMappingURL=index.d.ts.map

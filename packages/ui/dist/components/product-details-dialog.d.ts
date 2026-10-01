@@ -25,6 +25,14 @@ export type ProductDetails = {
     weightUnit: string;
     /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
     purity?: string | null;
+    /** Gold karat 0–24 — powers the "Gold · 22K" classification. */
+    goldKarat?: number | null;
+    /** "auto" → dynamic metal pricing; "manual" → the stored price. */
+    priceMode?: "auto" | "manual";
+    /** Computed auto price (null unless dynamically priced). */
+    autoPrice?: number | null;
+    /** THE price (autoPrice ?? sellingPrice) — what lists/billing show. */
+    effectivePrice?: number | null;
     /** Gold-only weight fields */
     grossWeight?: string | null;
     nagLessWeight?: string | null;

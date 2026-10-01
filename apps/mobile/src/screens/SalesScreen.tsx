@@ -10,9 +10,9 @@
  */
 
 import React, {useRef, useState} from 'react';
-import {Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, KeyboardAvoidingView} from 'react-native';
+import {Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, KeyboardAvoidingView} from 'react-native';
 import * as Print from 'expo-print';
-import {Camera, Minus, Plus, ShoppingCart, Trash2, X} from 'lucide-react-native';
+import {Camera, Minus, Plus, ShoppingCart, Trash2} from 'lucide-react-native';
 import {
   buildBillDocument,
   renderBillHtml,
@@ -22,12 +22,13 @@ import {
   type BillMode,
   type BillTemplateSettings,
   type ProductDto,
-  type InvoiceDto,
 } from '@munim/core';
 import {
+  useApiClient,
   useCreateInvoice,
   useProductByBarcode,
   useSettings,
+  useSyncProductPrices,
 } from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
@@ -37,7 +38,6 @@ import {
   Card,
   Empty,
   Field,
-  Loading,
   ModalSheet,
   Screen,
   colors,
@@ -97,6 +97,43 @@ export function SalesScreen() {
 
   const scanQ = useProductByBarcode(scanCode);
 
+  const getClient = useApiClient();
+  const syncPrices = useSyncProductPrices();
+
+  async function handleSyncPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        successFeedback();
+        Alert.alert('Nothing to recalculate', 'No auto-priced products yet.');
+      } else if (r.updated === 0) {
+        successFeedback();
+        Alert.alert('Prices already match', 'Every auto-priced product already has today’s rate.');
+      } else {
+        successFeedback();
+        Alert.alert('Prices updated', `Re-priced ${r.updated} of ${r.scanned} auto-priced product(s).`);
+      }
+      // Refresh just the cart's products (auto prices are computed on read) —
+      // no full-catalog fetch on this screen. Server detail caches were
+      // invalidated by the sync-prices call above.
+      try {
+        const api = await getClient();
+        const rows = await Promise.all(items.map(i => api.products.get(i.product.id)));
+        setItems(prev =>
+          prev.map(item => {
+            const row = rows.find(fresh => fresh.id === item.product.id);
+            return row ? {...item, product: row, price: row.effectivePrice} : item;
+          }),
+        );
+      } catch {
+        // Best-effort: keep the current line prices if the refresh fails.
+      }
+    } catch (err) {
+      errorFeedback('Recalculation failed');
+      Alert.alert('Recalculation failed', err instanceof Error ? err.message : 'Try again.');
+    }
+  }
+
   // Handle barcode detected
   function handleScanDetected(code: string) {
     if (scanningRef.current) return;
@@ -118,7 +155,7 @@ export function SalesScreen() {
         setDupProduct(product);
         setDupQty(existing.quantity + 1);
       } else {
-        setItems(prev => [...prev, {product, quantity: 1, price: product.sellingPrice}]);
+        setItems(prev => [...prev, {product, quantity: 1, price: product.effectivePrice}]);
         successFeedback(`${product.name} added`);
       }
       setScanCode(null);
@@ -130,7 +167,7 @@ export function SalesScreen() {
       errorFeedback(msg);
       setScanCode(null);
     }
-  }, [scanCode, scanQ.data, scanQ.isError, scanQ.error]);
+  }, [scanCode, scanQ.data, scanQ.isError, scanQ.error, items]);
 
   // Add duplicate product with new qty
   function confirmDup() {
@@ -153,15 +190,6 @@ export function SalesScreen() {
             ? {...i, quantity: Math.max(1, i.quantity + delta)}
             : i,
         ),
-    );
-  }
-
-  // Update item price
-  function updatePrice(productId: string, price: number) {
-    setItems(prev =>
-      prev.map(i =>
-        i.product.id === productId ? {...i, price: Math.max(0, price)} : i,
-      ),
     );
   }
 
@@ -272,6 +300,13 @@ export function SalesScreen() {
             </View>
             <Text style={{color: colors.muted, fontSize: typography.h2}}>›</Text>
           </Pressable>
+          <View style={{height: spacing.sm}} />
+          <Button
+            variant="outline"
+            title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
+            onPress={handleSyncPrices}
+            disabled={syncPrices.isPending}
+          />
         </Card>
 
         {/* Template options — same model as web + desktop */}

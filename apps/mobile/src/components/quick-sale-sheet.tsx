@@ -46,7 +46,7 @@ export function QuickSaleSheet({
   useEffect(() => {
     if (product) {
       setQty('1');
-      setPrice(String(product.sellingPrice));
+      setPrice(String(product.effectivePrice));
       setCustomerName('');
       setCustomerPhone('');
       setPaid(false);

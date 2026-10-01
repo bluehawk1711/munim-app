@@ -10,6 +10,7 @@ import { ProductsController } from "./controllers/products.controller.js";
 import { DashboardController } from "./controllers/dashboard.controller.js";
 import { SettingsController } from "./controllers/settings.controller.js";
 import { CatalogController } from "./controllers/catalog.controller.js";
+import { GoldRatesController } from "./controllers/gold-rates.controller.js";
 import { InvoicesController } from "./controllers/invoices.controller.js";
 import { SalesController } from "./controllers/sales.controller.js";
 import { PartiesController } from "./controllers/parties.controller.js";
@@ -35,6 +36,7 @@ import { UploadController } from "./controllers/upload.controller.js";
     DashboardController,
     SettingsController,
     CatalogController,
+    GoldRatesController,
     InvoicesController,
     SalesController,
     PartiesController,

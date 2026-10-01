@@ -31,6 +31,9 @@ export async function updateSettings(db, input) {
         ...(input.theme !== undefined ? { theme: input.theme } : {}),
         ...(input.mode !== undefined ? { mode: input.mode } : {}),
         ...(input.allowZeroTotal !== undefined ? { allowZeroTotal: input.allowZeroTotal } : {}),
+        ...(input.defaultLabourType !== undefined ? { defaultLabourType: input.defaultLabourType } : {}),
+        ...(input.defaultLabourValue !== undefined ? { defaultLabourValue: input.defaultLabourValue } : {}),
+        ...(input.silverRatePerGram !== undefined ? { silverRatePerGram: input.silverRatePerGram } : {}),
         updatedAt: new Date(),
     })
         .where(eq(schema.settings.id, SETTINGS_ID))

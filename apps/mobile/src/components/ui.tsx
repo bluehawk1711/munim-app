@@ -36,6 +36,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {ChevronDown, ChevronRight, MoreVertical, X} from 'lucide-react-native';
+import type {LabourType} from '@munim/core';
 import {colors, useTheme, useThemeStyles} from '../theme';
 import {actionPress} from '../lib/haptics';
 import {
@@ -402,6 +403,110 @@ export function SelectField({label, value, placeholder = 'Select…', onPress, s
         </Text>
         <ChevronDown size={rs(16)} color={colors.muted} />
       </Pressable>
+    </View>
+  );
+}
+
+/* ─── LabourField ───────────────────────────────────────────────────── */
+
+type LabourFieldProps = {
+  /** Field label (default "Labour"). */
+  label?: string;
+  /** Selected labour method. */
+  type: LabourType;
+  /** Raw text — "" means "not configured". */
+  value: string;
+  onTypeChange: (type: LabourType) => void;
+  onValueChange: (value: string) => void;
+  /** Helper line under the input (e.g. the shop-default hint). */
+  hint?: string;
+  placeholder?: string;
+  editable?: boolean;
+  style?: StyleProp<ViewStyle>;
+};
+
+const LABOUR_METHODS: ReadonlyArray<{value: LabourType; label: string; title: string}> = [
+  {value: 'PERCENT', label: '%', title: '% of metal value'},
+  {value: 'FIXED', label: '₹', title: 'Fixed amount'},
+  {value: 'PER_GRAM', label: '₹/g', title: 'Rupees per gram'},
+];
+
+/**
+ * Labour method (PERCENT / FIXED / PER_GRAM) + its amount — the mobile twin
+ * of the shared `LabourInput` in `@munim/ui` (web + desktop).
+ */
+export function LabourField({
+  label = 'Labour',
+  type,
+  value,
+  onTypeChange,
+  onValueChange,
+  hint,
+  placeholder,
+  editable = true,
+  style,
+}: LabourFieldProps) {
+  const styles = useThemeStyles(makeStyles);
+  return (
+    <View style={[styles.field, style]}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={{flexDirection: 'row', gap: spacing.sm}}>
+        <View
+          style={{
+            flexDirection: 'row',
+            backgroundColor: colors.mutedSoft,
+            borderRadius: radii.md,
+            borderWidth: 1,
+            borderColor: colors.border,
+            padding: rs(3),
+            gap: rs(2),
+          }}>
+          {LABOUR_METHODS.map(method => {
+            const active = method.value === type;
+            return (
+              <Pressable
+                key={method.value}
+                disabled={!editable}
+                hitSlop={4}
+                accessibilityRole="button"
+                accessibilityLabel={`Labour method ${method.title}`}
+                onPress={() => onTypeChange(method.value)}
+                style={({pressed}) => [
+                  {
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: rs(7),
+                    borderRadius: radii.sm,
+                    backgroundColor: active ? colors.card : 'transparent',
+                    opacity: !editable ? 0.5 : pressed ? 0.7 : 1,
+                  },
+                ]}>
+                <Text
+                  style={{
+                    fontSize: typography.secondary,
+                    fontWeight: active ? '700' : '500',
+                    color: active ? colors.text : colors.muted,
+                  }}>
+                  {method.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={{flex: 1}}>
+          <TextInput
+            value={value}
+            onChangeText={onValueChange}
+            editable={editable}
+            keyboardType="numeric"
+            placeholder={placeholder}
+            placeholderTextColor={colors.inputPlaceholder}
+            style={[styles.input, !editable && {opacity: 0.6}]}
+          />
+        </View>
+      </View>
+      {hint ? (
+        <Text style={{fontSize: 12, color: colors.muted, marginTop: rs(4)}}>{hint}</Text>
+      ) : null}
     </View>
   );
 }

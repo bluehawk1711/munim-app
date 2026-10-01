@@ -1,12 +1,13 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, ProductSearchSelect, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
+import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt, RefreshCw } from "lucide-react"
+import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, ProductSearchSelect, BarcodeLookupInput, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
 import { useCreateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
-import { useProducts } from "@/hooks/use-products"
+import { useProducts, useSyncProductPrices } from "@/hooks/use-products"
+import { useApiClient } from "@munim/query"
 import { buildBillDocument, type BillDocument } from "@munim/core"
 import { generateBillPDF, type BillTemplateSettings } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
@@ -42,6 +43,8 @@ type PickableProduct = {
   type: string
   stock: number
   sellingPrice: number
+  /** SQL-computed current price (auto gold → weight×rate+making, else sellingPrice). */
+  effectivePrice: number
   silverPercentage?: number
 }
 
@@ -52,6 +55,7 @@ export function BillingView() {
   const { data: parties } = useParties()
   const { data: productData } = useProducts({ pageSize: 1000 })
   const products = productData?.products ?? []
+  const getClient = useApiClient()
 
   const shop = settings ?? {
     shopName: "JEWELLERY WALA",
@@ -89,6 +93,74 @@ export function BillingView() {
 
   const distinct = twoInOne && mode === "distinct"
 
+  // ── Recalculate prices: cart lines are refreshed inside handleRecalcPrices
+  //    with a per-product fetch (auto prices are computed on read). ─────────
+  const syncPrices = useSyncProductPrices()
+
+  async function handleRecalcPrices() {
+    try {
+      const r = await syncPrices.mutateAsync()
+      if (r.scanned === 0) {
+        toast.info("No auto-priced products yet — nothing to recalculate")
+      } else if (r.updated === 0) {
+        toast.info("Prices already match the current rates")
+      } else {
+        toast.success(`Re-priced ${r.updated} of ${r.scanned} auto-priced product${r.scanned !== 1 ? "s" : ""}`)
+      }
+      // Refresh just the products actually on the bills — no full-catalog
+      // scan. Detail caches were invalidated by the sync-prices call above.
+      try {
+        const api = await getClient()
+        const ids = [...new Set([...items, ...secondItems].map((i) => i.productId).filter((id): id is string => !!id))]
+        const rows = await Promise.all(ids.map((id) => api.products.get(id)))
+        const priceOf = (id: string): number | null => {
+          const row = rows.find((fresh) => fresh.id === id)
+          return row ? row.effectivePrice : null
+        }
+        const refresh = (prev: LineItem[]): LineItem[] =>
+          prev.map((it) => {
+            if (!it.productId) return it
+            const fresh = priceOf(it.productId)
+            return fresh === null ? it : { ...it, price: fresh }
+          })
+        setItems(refresh)
+        setSecondItems(refresh)
+      } catch {
+        // Best-effort: keep the current line prices if the refresh fails.
+      }
+    } catch (err) {
+      toast.error("Recalculation failed", { description: err instanceof Error ? err.message : undefined })
+    }
+  }
+
+  /**
+   * Fast entry: a USB scanner types the code + Enter → drop the product into
+   * the next empty line of the given bill (price = its current effective price).
+   */
+  function handleBarcodeLookup(setter: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+    return async (code: string): Promise<unknown> => {
+      const api = await getClient()
+      const p = await api.products.byBarcode(code)
+      const item: LineItem = {
+        productId: p.id,
+        productName: p.name,
+        sku: p.sku ?? undefined,
+        color: p.color ?? undefined,
+        size: p.size ?? undefined,
+        description: "",
+        quantity: 1,
+        price: p.effectivePrice,
+        silverPercentage: p.silverPercentage ?? 100,
+      }
+      setter((prev) => {
+        const idx = prev.findIndex((it) => !it.productName.trim())
+        return idx >= 0 ? prev.map((it, i) => (i === idx ? item : it)) : [...prev, item]
+      })
+      toast.success(`Added ${p.name}`)
+      return p
+    }
+  }
+
   const subtotal = items.reduce((s, it) => s + it.quantity * it.price, 0)
   const total = Math.max(0, subtotal + deliveryCharge - discount - materialReturnedValue)
   const paid = Math.min(amountPaid, total)
@@ -122,7 +194,7 @@ export function BillingView() {
       size: p.size ?? undefined,
       description: "",
       quantity: 1,
-      price: p.sellingPrice,
+      price: p.effectivePrice,
       silverPercentage: p.silverPercentage ?? 100,
     }
     if (idx >= 0) {
@@ -414,11 +486,24 @@ export function BillingView() {
       </Card>
 
       {/* Bill 1 line items */}
+      <div className="flex justify-end">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRecalcPrices}
+          disabled={syncPrices.isPending}
+          className="h-9 gap-1.5"
+        >
+          <RefreshCw className={syncPrices.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+          {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
+        </Button>
+      </div>
       <BillItemsCard
         title={distinct ? "Bill 1" : undefined}
         items={items}
         setItems={setItems}
         products={products}
+        onBarcodeLookup={handleBarcodeLookup(setItems)}
         charges={{
           delivery: deliveryCharge,
           discount,
@@ -511,6 +596,7 @@ export function BillingView() {
             items={secondItems}
             setItems={setSecondItems}
             products={products}
+            onBarcodeLookup={handleBarcodeLookup(setSecondItems)}
             charges={{
               delivery: secondDeliveryCharge,
               discount: secondDiscount,
@@ -612,11 +698,14 @@ function BillItemsCard({
   setItems,
   products,
   charges,
+  onBarcodeLookup,
 }: {
   title?: string
   items: LineItem[]
   setItems: React.Dispatch<React.SetStateAction<LineItem[]>>
   products: PickableProduct[]
+  /** Optional USB-scanner fast entry — resolves on a hit, throws on a miss. */
+  onBarcodeLookup?: (code: string) => Promise<unknown>
   /** Delivery + discount inputs and live totals — rendered below the rows. */
   charges?: {
     delivery: number
@@ -647,7 +736,7 @@ function BillItemsCard({
       size: p.size ?? undefined,
       description: "",
       quantity: 1,
-      price: p.sellingPrice,
+      price: p.effectivePrice,
       silverPercentage: p.silverPercentage ?? 100,
     }
     if (idx >= 0) {
@@ -675,6 +764,11 @@ function BillItemsCard({
               onSelect={(p) => pickProduct(p.id)}
             />
           </div>
+          {onBarcodeLookup ? (
+            <div className="mt-2">
+              <BarcodeLookupInput onLookup={onBarcodeLookup} placeholder="Or scan a barcode to add…" />
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 

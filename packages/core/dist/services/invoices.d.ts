@@ -84,6 +84,17 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
             size: string | null;
             description: string | null;
             price: number;
+            pricing: {
+                metal: "Gold" | "Silver";
+                ratePerGram: number;
+                karat?: number | null;
+                silverPercentage?: number | null;
+                weightGm?: number | null;
+                metalValue?: number | null;
+                labourType?: string | null;
+                labourValue?: number | null;
+                labourAmount?: number | null;
+            } | null;
         }[];
         id: string;
         invoiceNumber: string;

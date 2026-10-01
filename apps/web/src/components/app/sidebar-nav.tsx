@@ -12,6 +12,7 @@ import {
   Users,
   HandCoins,
   Settings,
+  CircleHelp,
 } from "lucide-react"
 import { useAppStore, type ViewKey } from "@/store/view-store"
 import { cn } from "@/lib/utils"
@@ -64,6 +65,7 @@ const NAV_SECTIONS: {
     label: "System",
     items: [
       { key: "settings", label: "Settings", icon: Settings, description: "Shop profile & database" },
+      { key: "help", label: "Help", icon: CircleHelp, description: "Pricing guide & how-to" },
     ],
   },
 ]

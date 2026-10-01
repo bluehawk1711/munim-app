@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw } from "lucide-react";
 import {
   buildBillDocument,
   type BillDocument,
@@ -12,6 +12,8 @@ import {
   useParties,
   useCreateInvoice,
   useRecordInvoicePayment,
+  useSyncProductPrices,
+  useApiClient,
   useQueryState,
 } from "@munim/query";
 import { money } from "@/lib/format";
@@ -39,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
   Checkbox,
+  BarcodeLookupInput,
   ProductSearchSelect,
   type ProductOption,
   BillTemplateOptions,
@@ -143,6 +146,78 @@ export function BillingPage() {
 
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  // ── Recalculate prices: refresh every product-backed line once the
+  //    invalidated product list lands (auto prices are computed on read). ──
+  const syncPrices = useSyncProductPrices();
+  const getClient = useApiClient();
+  const [awaitingFreshPrices, setAwaitingFreshPrices] = useState(false);
+
+  useEffect(() => {
+    if (!awaitingFreshPrices || !allProducts) return;
+    const priceOf = (id: string): string | null => {
+      const row = allProducts.find((p) => p.id === id);
+      return row ? String(row.effectivePrice) : null;
+    };
+    const refresh = (prev: LineState[]): LineState[] =>
+      prev.map((line) => {
+        if (!line.productId) return line;
+        const fresh = priceOf(line.productId);
+        return fresh === null ? line : { ...line, price: fresh };
+      });
+    setLines(refresh);
+    setSecondLines(refresh);
+    setAwaitingFreshPrices(false);
+  }, [awaitingFreshPrices, allProducts]);
+
+  async function handleRecalcPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        toast.info("No auto-priced products yet — nothing to recalculate");
+      } else if (r.updated === 0) {
+        toast.info("Prices already match the current rates");
+      } else {
+        toast.success(`Re-priced ${r.updated} of ${r.scanned} auto-priced product${r.scanned !== 1 ? "s" : ""}`);
+      }
+      setAwaitingFreshPrices(true);
+    } catch (err) {
+      toast.error("Recalculation failed", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  /**
+   * Fast entry: a USB scanner types the code + Enter, this drops the product
+   * into the next empty line (price = its current effective price). Local
+   * match first (instant, works from the already-fetched list), API lookup as
+   * a fallback for barcodes outside the loaded page.
+   */
+  async function handleBarcodeAdd(code: string, target: "first" | "second" = "first"): Promise<unknown> {
+    let row = allProducts?.find((p) => (p.barcode ?? "") === code) ?? null;
+    if (!row) {
+      const api = await getClient();
+      row = await api.products.byBarcode(code);
+    }
+    const found = row;
+    const apply = target === "second" ? setSecondLines : setLines;
+    apply((prev) => {
+      const line: LineState = {
+        ...emptyLine(),
+        productId: found.id,
+        productName: found.name,
+        sku: found.sku ?? "",
+        color: found.color ?? "",
+        size: found.size ?? "",
+        price: String(found.effectivePrice),
+        silverPercentage: String(found.silverPercentage ?? 100),
+      };
+      const idx = prev.findIndex((l) => !l.productId && !l.productName.trim());
+      return idx >= 0 ? prev.map((l, i) => (i === idx ? line : l)) : [...prev, line];
+    });
+    toast.success(`Added ${found.name}`);
+    return found;
+  }
+
   const [preview, setPreview] = useState<BillDocument | null>(null);
   const [secondPreview, setSecondPreview] = useState<BillDocument | null>(null);
 
@@ -187,7 +262,7 @@ export function BillingPage() {
       sku: p.sku ?? "",
       color: p.color ?? "",
       size: p.size ?? "",
-      price: String(p.sellingPrice),
+      price: String(p.effectivePrice ?? p.sellingPrice),
       silverPercentage: String(p.silverPercentage ?? 100),
     };
     if (target === "second") updateSecondLine(index, patch);
@@ -451,9 +526,29 @@ export function BillingPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-sm">Items</CardTitle>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className="text-sm">Items</CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRecalcPrices}
+                      disabled={syncPrices.isPending}
+                      className="h-7 gap-1 px-2 text-[11px]"
+                    >
+                      <RefreshCw className={syncPrices.isPending ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+                      {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Fast entry — scan a barcode</Label>
+                    <BarcodeLookupInput
+                      onLookup={handleBarcodeAdd}
+                      placeholder="Scan barcode to add an item…"
+                      className="sm:max-w-[320px]"
+                    />
+                  </div>
                   <LineItemsEditor
                     lines={lines}
                     allProducts={allProducts}
@@ -512,6 +607,14 @@ export function BillingPage() {
                       onParty={setSecondPartyId}
                       idPrefix="sb"
                     />
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Fast entry — scan a barcode</Label>
+                      <BarcodeLookupInput
+                        onLookup={(c) => handleBarcodeAdd(c, "second")}
+                        placeholder="Scan barcode to add an item…"
+                        className="sm:max-w-[320px]"
+                      />
+                    </div>
                     <LineItemsEditor
                       lines={secondLines}
                       allProducts={allProducts}

@@ -1,41 +1,11 @@
 // Shared types for the Munim web app.
-// These mirror the domain types from @munim/core, kept in a flattened shape
-// the existing UI components already expect.
+// Domain types are IMPORTED from the core wire contract — never redefined
+// here (AGENTS.md §2). Only app-specific view shapes live in this file.
 import type { BillTemplateSettings } from "@munim/core"
+import type { ProductDto } from "@munim/api-client"
 
-export type Product = {
-  id: string
-  sku: string
-  name: string
-  /** Product type: Gold, Silver, Diamond, Platinum, Other. */
-  type: string
-  color: string
-  size: string
-  category?: string
-  barcode: string | null
-  /** Weight value — unit determined by `weightUnit`. */
-  weight: number | null
-  /** Display & calculation unit: "mg" or "gm". */
-  weightUnit: string
-  /** Jewelry-specific weight fields (free text). */
-  grossWeight: string | null
-  nagLessWeight: string | null
-  /** Nag rate. */
-  nagRate: string | null
-  chejatWeight: string | null
-  netWeight: string | null
-  /** Metal purity, e.g. "22K" or "916". */
-  purity: string | null
-  imageUrl: string | null
-  stock: number
-  purchasePrice: number
-  sellingPrice: number
-  silverPercentage: number
-  lowStockThreshold: number
-  notes: string | null
-  createdAt: string
-  updatedAt: string
-}
+/** The product wire shape (`serializeProduct` in core) — single source of truth. */
+export type Product = ProductDto
 
 export type Sale = {
   id: string

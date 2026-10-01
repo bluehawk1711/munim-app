@@ -17,7 +17,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {Barcode as BarcodeIcon, Package, ShoppingCart, X} from 'lucide-react-native';
-import {formatWeight, type ProductDto} from '@munim/core';
+import {classifyProduct, formatWeight, type ProductDto} from '@munim/core';
 import {MunimBottomSheet, BottomSheetScrollView} from './BottomSheet';
 import {ImageFullScreen} from './ImageFullScreen';
 import type BottomSheet from '@gorhom/bottom-sheet';
@@ -73,8 +73,8 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
   }
 
   const margin =
-    product.sellingPrice > 0
-      ? Math.round(((product.sellingPrice - product.purchasePrice) / product.sellingPrice) * 100)
+    product.effectivePrice > 0
+      ? Math.round(((product.effectivePrice - product.purchasePrice) / product.effectivePrice) * 100)
       : 0;
   const subtitle = [product.color, product.size].filter(Boolean).join(' · ');
 
@@ -149,7 +149,7 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
           <View style={styles.tile}>
             <Text style={styles.tileLabel}>Sell Price</Text>
             <Text style={[styles.tileValue, styles.tileValuePrimary]}>
-              {money(product.sellingPrice)}
+              {money(product.effectivePrice)}
             </Text>
             <Text style={styles.tileCaption}>Retail Tag</Text>
           </View>
@@ -161,6 +161,17 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
         </View>
 
         {/* Detail rows */}
+        <View style={styles.detailRow}>
+          <Text style={styles.detailLabel}>Type</Text>
+          <Text style={styles.detailValue}>
+            {classifyProduct({
+              type: product.type,
+              goldKarat: product.goldKarat,
+              purity: product.purity,
+              categoryName: product.category,
+            }).text}
+          </Text>
+        </View>
         {product.category ? (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Category</Text>

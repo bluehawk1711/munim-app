@@ -18,8 +18,8 @@ export declare function createParty(db: DbClient, input: PartyInput): Promise<{
     id: string;
     name: string;
     createdAt: Date;
-    type: "CUSTOMER" | "SUPPLIER" | "WORKER" | "OTHER";
     updatedAt: Date;
+    type: "CUSTOMER" | "SUPPLIER" | "WORKER" | "OTHER";
     phone: string | null;
     email: string | null;
     address: string | null;

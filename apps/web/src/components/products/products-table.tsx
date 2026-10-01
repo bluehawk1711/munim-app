@@ -24,6 +24,7 @@ import {
   Eye,
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, BarcodeSvg } from "@munim/ui"
+import { classifyProduct } from "@munim/core"
 
 const PRODUCT_TYPE_COLORS: Record<string, string> = {
   Gold: "#D4AF37",
@@ -124,12 +125,18 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
         cell: ({ row }) => {
           const t = row.original.type || "Other"
           const bg = PRODUCT_TYPE_COLORS[t] ?? PRODUCT_TYPE_COLORS.Other
+          const label = classifyProduct({
+            type: row.original.type,
+            goldKarat: row.original.goldKarat,
+            purity: row.original.purity,
+            categoryName: row.original.category,
+          }).text
           return (
             <span
               className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold"
               style={{ backgroundColor: `${bg}22`, color: bg, border: `1px solid ${bg}44` }}
             >
-              {t}
+              {label}
             </span>
           )
         },
@@ -190,13 +197,13 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
         cell: ({ row }) => <span className="tabular-nums text-muted-foreground">{formatCurrency(row.original.purchasePrice)}</span>,
       },
       {
-        accessorKey: "sellingPrice",
+        accessorKey: "effectivePrice",
         header: ({ column }) => (
           <button type="button" className="flex items-center gap-1 font-medium hover:text-foreground" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
             Selling <ArrowUpDown className="h-3 w-3" />
           </button>
         ),
-        cell: ({ row }) => <span className="font-semibold tabular-nums">{formatCurrency(row.original.sellingPrice)}</span>,
+        cell: ({ row }) => <span className="font-semibold tabular-nums">{formatCurrency(row.original.effectivePrice)}</span>,
       },
       {
         accessorKey: "createdAt",

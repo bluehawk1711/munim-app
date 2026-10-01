@@ -17,6 +17,7 @@ import { JobLetterView } from "@/views/job-letter-view"
 import { PartiesView } from "@/views/parties-view"
 import { AdvancesView } from "@/views/advances-view"
 import { SettingsView } from "@/views/settings-view"
+import { HelpView } from "@/views/help-view"
 import { useAppStore, type ViewKey } from "@/store/view-store"
 import { VIEW_TITLES } from "@/lib/view-titles"
 
@@ -32,6 +33,7 @@ const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
   parties: PartiesView,
   advances: AdvancesView,
   settings: SettingsView,
+  help: HelpView,
 }
 
 function ActiveView() {

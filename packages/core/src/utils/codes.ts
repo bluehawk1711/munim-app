@@ -10,13 +10,18 @@ function randomCode(length: number): string {
   return out;
 }
 
-/** Format: PRD-XXXXXX */
+/**
+ * Format: 6 unambiguous characters (no `PRD-` prefix since 2026-09) — short
+ * enough to type at the counter, scan-safe, and unique via the caller's
+ * exists-predicate + the DB's unique constraint (32^6 ≈ 1.07B combinations).
+ * Existing `PRD-XXXXXX` SKUs stay valid forever (lookups accept any format).
+ */
 export async function generateSku(exists: (sku: string) => Promise<boolean>): Promise<string> {
   for (let attempt = 0; attempt < 10; attempt++) {
-    const code = `PRD-${randomCode(6)}`;
+    const code = randomCode(6);
     if (!(await exists(code))) return code;
   }
-  return `PRD-${randomCode(4)}${Date.now().toString(36).slice(-4).toUpperCase()}`;
+  return `${randomCode(5)}${Date.now().toString(36).slice(-3).toUpperCase()}`;
 }
 
 /** Format: INV-YYYYMMDD-XXXX */

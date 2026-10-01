@@ -61,6 +61,13 @@ export function products(http: HttpClient) {
     backfillBarcodes(): Promise<{ updated: number; total: number }> {
       return http.post("/api/products/backfill-barcodes");
     },
+    /**
+     * POST /api/products/sync-prices — freeze the current dynamic price of
+     * every auto-priced metal product into `selling_price`.
+     */
+    syncPrices(): Promise<{ updated: number; scanned: number }> {
+      return http.post("/api/products/sync-prices");
+    },
   };
 }
 

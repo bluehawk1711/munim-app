@@ -1,5 +1,5 @@
 import React, {useMemo, useState} from 'react';
-import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, StyleSheet, Switch, Text, TextInput, View} from 'react-native';
+import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, Switch, Text, TextInput, View} from 'react-native';
 import * as Print from 'expo-print';
 import {ChevronDown, Search} from 'lucide-react-native';
 import {
@@ -18,11 +18,13 @@ import {
   type ProductDto,
 } from '@munim/core';
 import {
+  useApiClient,
   useCreateInvoice,
   useParties,
   useProducts,
   useQueryState,
   useSettings,
+  useSyncProductPrices,
 } from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
@@ -32,16 +34,14 @@ import {
   Card,
   Empty,
   Field,
-  Loading,
   ModalSheet,
   Screen,
-  Section,
   colors,
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
-import {rw, rs, spacing, typography, radii} from '../lib/responsive';
+import {rs, spacing, typography, radii} from '../lib/responsive';
 import {StyleSheet as RNStyleSheet} from 'react-native';
 
 type LineState = {
@@ -86,17 +86,19 @@ function ProductPicker({
   const styles = useThemeStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const filtered = useMemo(
-    () =>
-      query
-        ? (products ?? []).filter(
-            p =>
-              p.name.toLowerCase().includes(query.toLowerCase()) ||
-              p.sku.toLowerCase().includes(query.toLowerCase()),
-          )
-        : products ?? [],
-    [products, query],
-  );
+  // Server-side search reaches the WHOLE catalog — the browse list passed in
+  // from the screen is capped at 500 rows. The local name/SKU filter is the
+  // instant fallback while the search page loads.
+  const search = query.trim();
+  const {data: searchPage} = useProducts({search, pageSize: 50}, {enabled: open && search.length > 0});
+  const filtered = useMemo(() => {
+    if (!search) return products ?? [];
+    if (searchPage?.products) return searchPage.products;
+    const q = search.toLowerCase();
+    return (products ?? []).filter(
+      p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q),
+    );
+  }, [products, search, searchPage]);
   return (
     <>
       <Pressable
@@ -149,7 +151,7 @@ function ProductPicker({
                 <Text style={{fontSize: 12, color: colors.muted}}>{item.sku}</Text>
               </View>
               <Text style={{fontSize: 14, color: colors.text, fontWeight: '700', marginLeft: spacing.sm}}>
-                ₹{Number(item.sellingPrice).toFixed(0)}
+                ₹{Number(item.effectivePrice).toFixed(0)}
               </Text>
             </Pressable>
           )}
@@ -409,6 +411,51 @@ export function BillingScreen() {
 
   const distinct = twoInOne && mode === 'distinct';
 
+  // ── Recalculate prices: cart lines are refreshed inside handleSyncPrices
+  //    with a per-product fetch (auto prices are computed on read). ─────────
+  const getClient = useApiClient();
+  const syncPrices = useSyncProductPrices();
+
+  async function handleSyncPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        successFeedback();
+        Alert.alert('Nothing to recalculate', 'No auto-priced products yet.');
+      } else if (r.updated === 0) {
+        successFeedback();
+        Alert.alert('Prices already match', 'Every auto-priced product already has today\u2019s rate.');
+      } else {
+        successFeedback();
+        Alert.alert('Prices updated', `Re-priced ${r.updated} of ${r.scanned} auto-priced product(s).`);
+      }
+      // Refresh just the products actually on the bills — no full-catalog
+      // scan. Detail caches were invalidated by the sync-prices call above.
+      try {
+        const api = await getClient();
+        const ids = [...new Set([...lines, ...secondLines].map(l => l.productId).filter(id => id !== ''))];
+        const rows = await Promise.all(ids.map(id => api.products.get(id)));
+        const priceOf = (id: string): string | null => {
+          const row = rows.find(fresh => fresh.id === id);
+          return row ? String(row.effectivePrice) : null;
+        };
+        const refresh = (prev: LineState[]): LineState[] =>
+          prev.map(line => {
+            if (!line.productId) return line;
+            const fresh = priceOf(line.productId);
+            return fresh === null ? line : {...line, price: fresh};
+          });
+        setLines(refresh);
+        setSecondLines(refresh);
+      } catch {
+        // Best-effort: keep the current line prices if the refresh fails.
+      }
+    } catch (err) {
+      errorFeedback('Recalculation failed');
+      Alert.alert('Recalculation failed', err instanceof Error ? err.message : 'Try again.');
+    }
+  }
+
   const subtotal = useMemo(
     () => lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [lines],
@@ -438,7 +485,7 @@ export function BillingScreen() {
       sku: product?.sku ?? '',
       color: product?.color ?? '',
       size: product?.size ?? '',
-      price: product ? String(product.sellingPrice) : '',
+      price: product ? String(product.effectivePrice) : '',
       silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
     });
   }
@@ -450,7 +497,7 @@ export function BillingScreen() {
       sku: product?.sku ?? '',
       color: product?.color ?? '',
       size: product?.size ?? '',
-      price: product ? String(product.sellingPrice) : '',
+      price: product ? String(product.effectivePrice) : '',
       silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
     });
   }
@@ -800,6 +847,12 @@ export function BillingScreen() {
             }}
           />
           <DateField label="Date" value={date} onChange={setDate} />
+          <Button
+            variant="outline"
+            title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
+            onPress={handleSyncPrices}
+            disabled={syncPrices.isPending}
+          />
           <LineItemsEditor
             lines={lines}
             onChange={updateLine}

@@ -26,6 +26,7 @@ import {
   productSchema,
   serializeProduct,
   stockAdjustmentSchema,
+  syncProductPrices,
   updateProduct,
   type DbClient,
   type ProductFilters,
@@ -163,6 +164,20 @@ export class ProductsController {
   @Post("backfill-barcodes")
   async backfill() {
     const result = await backfillBarcodes(this.db);
+    await invalidate(this.cache, ["products"]);
+    return result;
+  }
+
+  /**
+   * POST /api/products/sync-prices — "Recalculate prices" on every app.
+   *
+   * Auto-priced metal products compute their price on read; this freezes the
+   * CURRENT computed price into `selling_price` (idempotent, skips rows that
+   * already match) so lists, exports and fallbacks reflect today's rates.
+   */
+  @Post("sync-prices")
+  async syncPrices() {
+    const result = await syncProductPrices(this.db);
     await invalidate(this.cache, ["products"]);
     return result;
   }

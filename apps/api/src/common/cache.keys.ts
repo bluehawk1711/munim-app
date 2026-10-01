@@ -37,6 +37,7 @@ export const cacheKeys = {
   dashboard: "dashboard:get",
   catalogList: (kind: string) => `catalog:${kind}:list`,
   settings: "settings:get",
+  goldRates: "gold-rates:list",
   report: (q: Record<string, unknown>) => `reports:${hashFilters(q)}`,
   invoicesList: (f: Record<string, unknown>) => `invoices:list:${hashFilters(f)}`,
   invoice: (id: string) => `invoices:get:${id}`,
@@ -67,8 +68,16 @@ export const CACHE_GROUPS = {
   jobLetters: ["job-letters", "dashboard"] as const,
   /** Catalog names are embedded in product rows. */
   catalog: ["catalog", "products"] as const,
-  /** Settings — shop name/address render on dashboard + invoices. */
-  settings: ["settings", "dashboard", "invoices", "sales"] as const,
+  /**
+   * Settings — shop name/address render on dashboard + invoices, and the
+   * silver rate / default labour here feed BOTH `listGoldRates` (which embeds
+   * them) and every auto-priced product, so a settings write must clear the
+   * gold-rate table, product lists and reports too.
+   */
+  settings: ["settings", "gold-rates", "products", "dashboard", "invoices", "sales", "reports"] as const,
+  /** Gold rates — every auto-priced product's price is derived from them, so a
+   *  rate edit must clear product lists, the dashboard and every report. */
+  goldRates: ["gold-rates", "products", "dashboard", "reports"] as const,
 } as const;
 
 /** Invalidate all prefixes of the given groups (parallel, best-effort). */

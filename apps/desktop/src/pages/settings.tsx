@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw } from "lucide-react";
+import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw, BadgeIndianRupee } from "lucide-react";
 import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
 import {
@@ -14,8 +14,16 @@ import {
   saveLabelPrintSettings,
   saveLabelSize,
 } from "@/lib/printer";
-import { useSettings, useUpdateSettings, useQueryState } from "@munim/query";
-import { buildProductLabel, type LabelPrinterInfo } from "@munim/core";
+import {
+  useSettings,
+  useUpdateSettings,
+  useQueryState,
+  useGoldRates,
+  useSaveGoldRates,
+  useBackfillGoldKarats,
+  useSyncProductPrices,
+} from "@munim/query";
+import { buildProductLabel, formatDateTime, type LabelPrinterInfo, type LabourType } from "@munim/core";
 import { toast } from "@munim/ui";
 import {
   ThemeSelect,
@@ -44,6 +52,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  GoldRateEditor,
+  type GoldRateDraft,
 } from "@munim/ui";
 
 const MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
@@ -69,7 +79,18 @@ export function SettingsPage() {
   const pin = usePinLockContext();
   const forceTransition = useForceThemeTransition();
 
-  const [section, setSection] = useState<string>("shop");
+  // Deep link from Help ("Open Rates & labour" → /settings?section=gold);
+  // validated against the section ids below, defaults to the shop card.
+  const [section, setSection] = useState<string>(() => {
+    const param = new URLSearchParams(window.location.search).get("section");
+    return param === "gold" ||
+      param === "appearance" ||
+      param === "security" ||
+      param === "printing" ||
+      param === "server"
+      ? param
+      : "shop";
+  });
 
   const [shopName, setShopName] = useState("");
   const [shopAddress, setShopAddress] = useState("");
@@ -78,9 +99,18 @@ export function SettingsPage() {
   const [currency, setCurrency] = useState("INR");
   const [lowStockThreshold, setLowStockThreshold] = useState("5");
   const [allowZeroTotal, setAllowZeroTotal] = useState(true);
+  const [defaultLabourType, setDefaultLabourType] = useState<LabourType>("PERCENT");
+  const [defaultLabourValue, setDefaultLabourValue] = useState(0);
+  const [silverRatePerGram, setSilverRatePerGram] = useState(0);
   // Only guards one-time population of the form from settings — a ref avoids
   // a pointless re-render (its value is never read in JSX).
   const loadedRef = useRef(false);
+
+  // Gold rate table (dynamic karat pricing) + its save/backfill mutations.
+  const goldRates = useGoldRates();
+  const saveGoldRates = useSaveGoldRates();
+  const backfillKarats = useBackfillGoldKarats();
+  const syncPrices = useSyncProductPrices();
 
   const [apiUrl, setApiUrl] = useState(() => getSavedApiUrl() ?? "");
   const [apiKey, setApiKey] = useState(() => getSavedApiKey() ?? "");
@@ -116,6 +146,9 @@ export function SettingsPage() {
       setCurrency(settings.currency);
       setLowStockThreshold(String(settings.lowStockThreshold));
       setAllowZeroTotal(settings.allowZeroTotal ?? true);
+      setDefaultLabourType(settings.defaultLabourType ?? "PERCENT");
+      setDefaultLabourValue(settings.defaultLabourValue ?? 0);
+      setSilverRatePerGram(settings.silverRatePerGram ?? 0);
     }
   }, [settings]);
 
@@ -284,12 +317,77 @@ export function SettingsPage() {
     }
   }
 
+  /** Saves the whole karat table + the shop-wide pricing settings in one go. */
+  async function handleSaveGoldRates(rates: GoldRateDraft[]) {
+    try {
+      await saveGoldRates.mutateAsync({ rates });
+      await updateSettings.mutateAsync({
+        defaultLabourType,
+        defaultLabourValue,
+        silverRatePerGram,
+      });
+      toast.success("Rates saved", {
+        description: "Every auto-priced gold & silver product now uses the new rates.",
+      });
+    } catch (err) {
+      toast.error("Failed to save gold rates", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
+  /** Fills `goldKarat` on existing gold products from their purity stamp. */
+  async function handleBackfillKarats() {    try {
+      const result = await backfillKarats.mutateAsync();
+      toast.success(`Filled ${result.updated} gold product(s) from their purity stamp`, {
+        description:
+          result.skipped > 0
+            ? `${result.skipped} purity stamp(s) couldn't be read — set those karats by hand.`
+            : undefined,
+      });
+    } catch (err) {
+      toast.error("Backfill failed", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
+  /**
+   * "Recalculate prices" — after the rates above change, freeze the freshly
+   * computed price into every auto-priced product (same action the products
+   * page and billing/sale screens expose).
+   */
+  async function handleSyncPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        toast.info("No auto-priced products yet — nothing to recalculate");
+      } else if (r.updated === 0) {
+        toast.info("Prices already match the current rates");
+      } else {
+        toast.success(`Re-priced ${r.updated} of ${r.scanned} auto-priced product${r.scanned !== 1 ? "s" : ""}`);
+      }
+    } catch (err) {
+      toast.error("Recalculation failed", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
   const sections: SettingsSection[] = [
     {
       id: "shop",
       label: "Shop profile",
       description: "Name, address & billing details",
       icon: Store,
+    },
+    {
+      id: "gold",
+      label: "Rates & labour",
+      description: "Gold/silver rates & default labour",
+      icon: BadgeIndianRupee,
+      badge:
+        goldRates.data?.baseKarat !== null && goldRates.data?.baseKarat !== undefined
+          ? `${goldRates.data.baseKarat}K`
+          : undefined,
     },
     {
       id: "appearance",
@@ -377,6 +475,46 @@ export function SettingsPage() {
             <Button onClick={handleSaveShop} disabled={savingShop}>
               {savingShop ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : <><Save className="h-4 w-4" /> Save shop profile</>}
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {section === "gold" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <BadgeIndianRupee className="h-4 w-4" /> Rates &amp; labour
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <GoldRateEditor
+              rates={goldRates.data?.rates}
+              labourType={defaultLabourType}
+              labourValue={defaultLabourValue}
+              onLabourChange={(type, value) => {
+                setDefaultLabourType(type);
+                setDefaultLabourValue(value);
+              }}
+              silverRatePerGram={silverRatePerGram}
+              onSilverRateChange={setSilverRatePerGram}
+              onSave={handleSaveGoldRates}
+              saving={saveGoldRates.isPending || updateSettings.isPending}
+              onBackfillKarats={handleBackfillKarats}
+              backfilling={backfillKarats.isPending}
+              updatedLabel={goldRates.data?.updatedAt ? formatDateTime(goldRates.data.updatedAt) : null}
+            />
+            <div className="bg-muted/40 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Recalculate prices</p>
+                <p className="text-xs text-muted-foreground">
+                  Saves today's rate into every auto-priced product's stored price (manual prices are untouched).
+                </p>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleSyncPrices} disabled={syncPrices.isPending} className="gap-1.5">
+                <RefreshCw className={syncPrices.isPending ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />
+                {syncPrices.isPending ? "Recalculating…" : "Recalculate now"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}

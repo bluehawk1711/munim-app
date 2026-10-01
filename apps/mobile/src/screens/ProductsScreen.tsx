@@ -30,6 +30,7 @@ import * as Print from 'expo-print';
 import {
   barcodeSvg,
   buildProductLabel,
+  classifyProduct,
   renderLabelSheetHtml,
   formatWeight,
   type ProductDto,
@@ -42,6 +43,7 @@ import {
   useProducts,
   useQueryState,
   useSettings,
+  useSyncProductPrices,
 } from '@munim/query';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {rw, rh, rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
@@ -137,7 +139,14 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
         {variantBits || item.weight != null ? (
           <View style={styles.variantChip}>
             <View style={[styles.typeBadge, {backgroundColor: `${typeColor}22`, borderColor: `${typeColor}44`}]}>
-              <Text style={[styles.typeBadgeText, {color: typeColor}]}>{item.type ?? 'Other'}</Text>
+              <Text style={[styles.typeBadgeText, {color: typeColor}]}>
+                {classifyProduct({
+                  type: item.type,
+                  goldKarat: item.goldKarat,
+                  purity: item.purity,
+                  categoryName: item.category,
+                }).text}
+              </Text>
             </View>
             <Text style={styles.variantText} numberOfLines={1}>
               {[
@@ -150,7 +159,7 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
           </View>
         ) : null}
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{price(item.sellingPrice)}</Text>
+          <Text style={styles.price}>{price(item.effectivePrice)}</Text>
           {item.stock <= 0 ? (
             <Text style={styles.outText}>Out of stock</Text>
           ) : (
@@ -212,6 +221,7 @@ export function ProductsScreen() {
   // Mutations
   const deleteProduct = useDeleteProduct();
   const backfillBarcodes = useBackfillBarcodes();
+  const syncPrices = useSyncProductPrices();
 
   // UI state
   const [detailTarget, setDetailTarget] = useState<ProductDto | null>(null);
@@ -343,7 +353,7 @@ export function ProductsScreen() {
     setLabelBusy(true);
     try {
       const label = buildProductLabel(
-        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, sellingPrice: labelTarget.sellingPrice, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
+        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, sellingPrice: labelTarget.effectivePrice, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
         {name: settings?.shopName ?? ''},
       );
       const html = renderLabelSheetHtml([label], {copies: labelCopies});
@@ -366,6 +376,21 @@ export function ProductsScreen() {
       errorFeedback('Barcode generation failed');
     } finally {
       setBackfilling(false);
+    }
+  }
+
+  async function handleSyncPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        successFeedback('No auto-priced products yet');
+      } else if (r.updated === 0) {
+        successFeedback('Prices already up to date');
+      } else {
+        successFeedback(`Re-priced ${r.updated} of ${r.scanned} products`);
+      }
+    } catch {
+      errorFeedback('Recalculation failed');
     }
   }
 
@@ -476,6 +501,15 @@ export function ProductsScreen() {
             </Pressable>
           );
         })}
+      </View>
+
+      <View style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}}>
+        <Button
+          title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
+          variant="outline"
+          onPress={handleSyncPrices}
+          disabled={syncPrices.isPending}
+        />
       </View>
 
       {missingBarcodes ? (

@@ -5,6 +5,30 @@
  */
 import { z } from "zod";
 
+/* ── Shared field helpers ─────────────────────────────────────── */
+
+/**
+ * Karat 0–24 that also tolerates the ways a form/round-trip clears it
+ * (`""` or `null`) — both normalize to `null`, so the services can tell
+ * "clear this field" apart from "field absent" (`undefined`).
+ */
+const goldKaratField = z.union([
+  z.literal("").transform((): null => null),
+  z.null(),
+  z.coerce
+    .number()
+    .int("Karat must be a whole number")
+    .min(0, "Karat cannot be negative")
+    .max(24, "Karat cannot exceed 24"),
+]);
+
+/** Labour rate/amount — `""`/null → unset; ≥0 (₹ or ₹/g values can exceed 100). */
+const labourValueField = z.union([
+  z.literal("").transform((): null => null),
+  z.null(),
+  z.coerce.number().min(0, "Cannot be negative"),
+]);
+
 /* ── Products ─────────────────────────────────────────────────── */
 
 export const productSchema = z.object({
@@ -30,6 +54,14 @@ export const productSchema = z.object({
   purchasePrice: z.coerce.number().min(0).optional(),
   sellingPrice: z.coerce.number().min(0).optional(),
   silverPercentage: z.coerce.number().min(0).max(100).optional(),
+  /** Gold karat 0–24 — enables dynamic karat pricing for gold products. */
+  goldKarat: goldKaratField.optional(),
+  /** Labour method: PERCENT (% of metal value), FIXED (₹) or PER_GRAM (₹/g). */
+  labourType: z.enum(["PERCENT", "FIXED", "PER_GRAM"]).optional(),
+  /** Labour rate/amount (null/"" → unset: gold uses the shop default, silver none). */
+  labourValue: labourValueField.optional(),
+  /** "auto" → price from the rate tables; "manual" → `sellingPrice`. */
+  priceMode: z.enum(["auto", "manual"]).optional(),
   lowStockThreshold: z.coerce.number().min(0).optional(),
   notes: z.string().max(500).optional().or(z.literal("")),
 });
@@ -197,6 +229,32 @@ export const jobLetterSchema = z.object({
 
 export type JobLetterFormValues = z.infer<typeof jobLetterSchema>;
 
+/* ── Gold rates (dynamic karat-wise pricing) ──────────────────── */
+
+/** One karat row of a PUT /api/gold-rates body. */
+export const goldRateSaveSchema = z.object({
+  karat: z.coerce
+    .number()
+    .int("Karat must be a whole number")
+    .min(0, "Karat cannot be negative")
+    .max(24, "Karat cannot exceed 24"),
+  ratePerGram: z.coerce.number().min(0, "Rate cannot be negative").max(10_000_000, "Rate looks too large"),
+  /** false → reset this karat to its derived rate. */
+  isCustom: z.boolean().default(true),
+});
+
+export type GoldRateSaveValues = z.infer<typeof goldRateSaveSchema>;
+
+/** PUT /api/gold-rates — the whole 0–24 table in one save. */
+export const goldRatesSchema = z.object({
+  rates: z
+    .array(goldRateSaveSchema)
+    .min(1, "Send at least one karat")
+    .max(25, "Only karats 0–24 are supported"),
+});
+
+export type GoldRatesValues = z.infer<typeof goldRatesSchema>;
+
 /* ── Settings ─────────────────────────────────────────────────── */
 
 // Settings fields round-trip the raw DB row, where any of these can be NULL.
@@ -235,6 +293,20 @@ export const settingsSchema = z.object({
     .transform((v) => v ?? undefined)
     .optional(),
   allowZeroTotal: z.boolean().optional(),
+  /** Default labour method for auto-priced GOLD products (silver is per-product). */
+  defaultLabourType: z.enum(["PERCENT", "FIXED", "PER_GRAM"]).optional(),
+  /** Default labour rate/amount (meaning depends on the method). */
+  defaultLabourValue: labourValueField
+    .nullish()
+    .transform((v) => v ?? undefined)
+    .optional(),
+  /** Shop-wide silver ₹/gram (0 → silver never auto-prices). */
+  silverRatePerGram: z.coerce
+    .number()
+    .min(0)
+    .nullish()
+    .transform((v) => v ?? undefined)
+    .optional(),
 });
 
 export type SettingsFormValues = z.infer<typeof settingsSchema>;

@@ -1,6 +1,7 @@
 "use client";
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { Package, Ruler, Weight, Boxes, IndianRupee, FileText, CalendarDays, Tag, Layers, Scale } from "lucide-react";
+import { classifyProduct } from "@munim/core";
 import { BarcodeSvg } from "./barcode-svg";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -15,7 +16,16 @@ export function ProductDetailsDialog({ open, onOpenChange, product, formatCurren
             ? { label: "Low stock", variant: "warning" }
             : { label: "In stock", variant: "success" };
     const rows = [
-        { label: "Type", value: product.type || "—", icon: _jsx(Tag, { className: "h-3.5 w-3.5" }) },
+        {
+            label: "Type",
+            value: classifyProduct({
+                type: product.type,
+                goldKarat: product.goldKarat,
+                purity: product.purity,
+                categoryName: product.category,
+            }).text,
+            icon: _jsx(Tag, { className: "h-3.5 w-3.5" }),
+        },
         { label: "SKU", value: product.sku, icon: _jsx(Tag, { className: "h-3.5 w-3.5" }) },
         { label: "Color", value: product.color || "—", icon: _jsx(Layers, { className: "h-3.5 w-3.5" }) },
         { label: "Size", value: product.size || "—", icon: _jsx(Ruler, { className: "h-3.5 w-3.5" }) },
@@ -32,6 +42,24 @@ export function ProductDetailsDialog({ open, onOpenChange, product, formatCurren
         { label: "Stock", value: `${product.stock} unit${product.stock !== 1 ? "s" : ""}`, icon: _jsx(Package, { className: "h-3.5 w-3.5" }) },
         { label: "Buy price", value: formatCurrency(product.purchasePrice), icon: _jsx(IndianRupee, { className: "h-3.5 w-3.5" }) },
         { label: "Selling price", value: formatCurrency(product.sellingPrice), icon: _jsx(IndianRupee, { className: "h-3.5 w-3.5" }) },
+        ...(product.priceMode
+            ? [
+                {
+                    label: "Pricing",
+                    value: product.priceMode === "auto" ? "Auto — live metal rate" : "Manual",
+                    icon: _jsx(IndianRupee, { className: "h-3.5 w-3.5" }),
+                },
+            ]
+            : []),
+        ...(product.autoPrice != null
+            ? [
+                {
+                    label: "Effective price",
+                    value: formatCurrency(product.effectivePrice ?? product.autoPrice),
+                    icon: _jsx(IndianRupee, { className: "h-3.5 w-3.5" }),
+                },
+            ]
+            : []),
         { label: "Low stock alert", value: `${product.lowStockThreshold} unit${product.lowStockThreshold !== 1 ? "s" : ""}` },
         { label: "Added", value: formatDate(product.createdAt), icon: _jsx(CalendarDays, { className: "h-3.5 w-3.5" }) },
         { label: "Updated", value: formatDate(product.updatedAt), icon: _jsx(CalendarDays, { className: "h-3.5 w-3.5" }) },

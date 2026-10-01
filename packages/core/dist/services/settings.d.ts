@@ -15,13 +15,19 @@ export type ShopSettingsInput = {
     mode?: string;
     /** Allow creating invoices with a total of ₹0. */
     allowZeroTotal?: boolean;
+    /** Default labour METHOD for auto-priced GOLD products (silver is per-product). */
+    defaultLabourType?: "PERCENT" | "FIXED" | "PER_GRAM";
+    /** Default labour rate/amount (meaning depends on the method; 0 → none). */
+    defaultLabourValue?: number;
+    /** Shop-wide silver ₹/gram for auto-priced silver products (0 → off). */
+    silverRatePerGram?: number;
 };
 /** Fetches settings, creating the singleton row on first use. */
 export declare function getSettings(db: DbClient): Promise<{
     id: string;
     mode: string;
-    lowStockThreshold: number;
     updatedAt: Date;
+    lowStockThreshold: number;
     shopName: string;
     shopAddress: string | null;
     shopPhones: string[];
@@ -30,6 +36,9 @@ export declare function getSettings(db: DbClient): Promise<{
     defaultTemplate: Record<string, unknown>;
     theme: string;
     allowZeroTotal: boolean;
+    defaultLabourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    defaultLabourValue: number;
+    silverRatePerGram: number;
 }>;
 export declare function updateSettings(db: DbClient, input: ShopSettingsInput): Promise<{
     id: string;
@@ -43,6 +52,9 @@ export declare function updateSettings(db: DbClient, input: ShopSettingsInput): 
     theme: string;
     mode: string;
     allowZeroTotal: boolean;
+    defaultLabourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    defaultLabourValue: number;
+    silverRatePerGram: number;
     updatedAt: Date;
 }>;
 //# sourceMappingURL=settings.d.ts.map

@@ -71,6 +71,27 @@
       "when": 1789641841020,
       "tag": "0009_tricky_sandman",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789901221758,
+      "tag": "0010_colorful_blue_shield",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790761913164,
+      "tag": "0011_metal_pricing_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790761948838,
+      "tag": "0012_drop_legacy_gold_columns",
+      "breakpoints": true
     }
   ]
 }

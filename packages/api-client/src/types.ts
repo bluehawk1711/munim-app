@@ -22,6 +22,8 @@ import type {
   Pagination,
   InventoryStatsDto,
   CategoryBreakdownDto,
+  GoldRateDto,
+  GoldRatesDto,
   ProductFilters,
   InvoiceFilters,
   CatalogKind,
@@ -40,6 +42,8 @@ import type {
   JobLetterFormValues,
   SettingsFormValues,
   ReportQueryValues,
+  GoldRateSaveValues,
+  GoldRatesValues,
 } from "@munim/core";
 
 export type {
@@ -62,6 +66,8 @@ export type {
   Pagination,
   InventoryStatsDto,
   CategoryBreakdownDto,
+  GoldRateDto,
+  GoldRatesDto,
   /* Query/filter types (services) */
   ProductFilters,
   InvoiceFilters,
@@ -82,6 +88,8 @@ export type {
   JobLetterFormValues,
   SettingsFormValues,
   ReportQueryValues,
+  GoldRateSaveValues,
+  GoldRatesValues,
 };
 
 /** GET /api/parties?balances=true — the khata "who owes whom" shape. */

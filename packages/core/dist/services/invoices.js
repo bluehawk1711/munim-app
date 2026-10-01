@@ -1,7 +1,9 @@
 import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import * as schema from "../db/schema.js";
 import { generateInvoiceNumber } from "../utils/codes.js";
+import { priceProduct } from "../pricing/product.js";
 import { getProduct } from "./products.js";
+import { loadGoldPricing } from "./goldRates.js";
 import { logActivity } from "./activity.js";
 export class InvoiceError extends Error {
     code;
@@ -12,6 +14,43 @@ export class InvoiceError extends Error {
         this.status = status;
     }
 }
+/**
+ * Frozen pricing inputs for an auto-priced line (null for manual lines) —
+ * the rate table, silver rate and labour used to compute THIS line's price
+ * at save time. Later rate edits never touch a saved invoice.
+ */
+function pricingSnapshotFor(product, pricingContext) {
+    if (!pricingContext)
+        return null;
+    const breakdown = priceProduct({
+        type: product.type,
+        priceMode: product.priceMode === "auto" ? "auto" : "manual",
+        weight: product.weight,
+        weightUnit: product.weightUnit,
+        goldKarat: product.goldKarat,
+        silverPercentage: product.silverPercentage ?? 100,
+        labourType: product.labourType === "FIXED" || product.labourType === "PER_GRAM" ? product.labourType : "PERCENT",
+        labourValue: product.labourValue,
+        sellingPrice: product.sellingPrice,
+    }, {
+        goldRateTable: pricingContext.table,
+        silverRatePerGram: pricingContext.silverRatePerGram,
+        defaultLabour: pricingContext.defaultLabour,
+    });
+    if (breakdown.source !== "auto" || breakdown.metal === null)
+        return null;
+    return {
+        metal: breakdown.metal,
+        ratePerGram: breakdown.ratePerGram,
+        karat: breakdown.karat,
+        silverPercentage: breakdown.metal === "Silver" ? breakdown.purityPercent : null,
+        weightGm: breakdown.weightGm,
+        metalValue: breakdown.metalValue,
+        labourType: breakdown.labour.type,
+        labourValue: breakdown.labour.value,
+        labourAmount: breakdown.labour.amount,
+    };
+}
 /** Quick single-product sale (like the stockPilot "sell" flow). Decrements stock. */
 export async function createSale(db, input) {
     const product = await getProduct(db, input.productId);
@@ -19,11 +58,17 @@ export async function createSale(db, input) {
         throw new InvoiceError("Selected product no longer exists", "PRODUCT_NOT_FOUND", 404);
     if (input.quantity <= 0)
         throw new InvoiceError("Quantity must be greater than 0", "INVALID_QUANTITY");
-    const price = input.sellingPrice ?? product.sellingPrice;
+    // Auto-priced gold products sell at the dynamic price (weight * karat rate +
+    // labour - see pricing/gold.ts); manual/non-gold keep `sellingPrice`.
+    const price = input.sellingPrice ?? product.effectivePrice ?? product.sellingPrice;
     const total = price * input.quantity;
     const newStock = product.stock - input.quantity;
     if (newStock < 0)
         throw new InvoiceError("Not enough stock available for this sale", "INSUFFICIENT_STOCK", 409);
+    // Same frozen pricing snapshot createInvoice stores, so a quick sale is
+    // rendered/billed exactly like a full bill line.
+    const pricingContext = await loadGoldPricing(db);
+    const pricing = pricingSnapshotFor(product, pricingContext);
     const invoiceNumber = await generateInvoiceNumber(async (num) => {
         const r = await db.select({ id: schema.invoices.id }).from(schema.invoices).where(eq(schema.invoices.invoiceNumber, num));
         return r.length > 0;
@@ -55,6 +100,7 @@ export async function createSale(db, input) {
         quantity: input.quantity,
         price,
         total,
+        pricing,
     });
     await db
         .update(schema.products)
@@ -115,6 +161,11 @@ export async function createInvoice(db, input) {
         }
     }
     const status = input.status ?? (amountPaid >= total && total > 0 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID");
+    // Current shop pricing inputs (rate table + silver rate + gold default
+    // labour) — fetched ONCE so every auto-priced line can freeze its own
+    // pricing snapshot below. Rates at SAVE time; later rate edits never touch
+    // this invoice (price/total stay authoritative).
+    const pricingContext = input.items.some((it) => it.productId) ? await loadGoldPricing(db) : null;
     const [invoice] = await db
         .insert(schema.invoices)
         .values({
@@ -152,6 +203,7 @@ export async function createInvoice(db, input) {
             quantity: item.quantity,
             price: item.price,
             total: item.quantity * item.price,
+            pricing: product ? pricingSnapshotFor(product, pricingContext) : null,
         });
     }
     // Decrement stock for tracked products

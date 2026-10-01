@@ -12,6 +12,7 @@ import {
   Plus,
   PackageSearch,
   Receipt,
+  RefreshCw,
   Search,
   Package,
   X,
@@ -24,9 +25,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 
 
-import { useProducts } from "@/hooks/use-products"
+import { useProducts, useSyncProductPrices } from "@/hooks/use-products"
 import { useCreateSale } from "@/hooks/use-sales"
-import { saleSchema, type SaleFormValues } from "@munim/core"
+import { classifyProduct, saleSchema, type SaleFormValues } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
 import { consumePendingSellProduct } from "@/lib/pending-sell"
 import { formatCurrency } from "@/lib/format"
@@ -46,6 +47,26 @@ export function SellProductDialog() {
   const { data, isLoading } = useProducts({ pageSize: 1000 }, { enabled: open })
   const catalog = data?.products ?? []
   const createSale = useCreateSale()
+  const syncPrices = useSyncProductPrices()
+  /** Set after "Recalculate prices" so the picked price refreshes once the
+   *  invalidated product list lands (auto prices are computed on read). */
+  const [awaitingFreshPrice, setAwaitingFreshPrice] = React.useState(false)
+
+  async function handleRecalcPrices() {
+    try {
+      const r = await syncPrices.mutateAsync()
+      if (r.scanned === 0) {
+        toast.info("No auto-priced products yet — nothing to recalculate")
+      } else if (r.updated === 0) {
+        toast.info("Prices already match the current rates")
+      } else {
+        toast.success(`Re-priced ${r.updated} of ${r.scanned} auto-priced product${r.scanned !== 1 ? "s" : ""}`)
+      }
+      setAwaitingFreshPrice(true)
+    } catch (err) {
+      toast.error("Recalculation failed", { description: err instanceof Error ? err.message : undefined })
+    }
+  }
 
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null)
   // Selected product is kept in local state (not derived from the fetched
@@ -53,6 +74,14 @@ export function SellProductDialog() {
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null)
   const [search, setSearch] = React.useState("")
   const prevOpenRef = React.useRef(false)
+
+  // "Recalculate prices" finished → re-pick the price from the refreshed row.
+  React.useEffect(() => {
+    if (!awaitingFreshPrice || !selectedProduct) return
+    const fresh = catalog.find((p) => p.id === selectedProduct.id)
+    if (fresh) setSelectedProduct(fresh)
+    setAwaitingFreshPrice(false)
+  }, [awaitingFreshPrice, catalog, selectedProduct])
 
   const form = useForm<SaleFormValues>({
     // Sanctioned boundary cast: react-hook-form's Resolver<T> requires
@@ -86,7 +115,7 @@ export function SellProductDialog() {
   }, [open, form])
 
   const maxQty = selectedProduct?.stock ?? 0
-  const total = selectedProduct ? selectedProduct.sellingPrice * quantity : 0
+  const total = selectedProduct ? selectedProduct.effectivePrice * quantity : 0
 
   const query = search.trim().toLowerCase()
   const matches = query
@@ -165,7 +194,20 @@ export function SellProductDialog() {
 
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="product-search">Product *</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="product-search">Product *</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRecalcPrices}
+                    disabled={syncPrices.isPending}
+                    className="h-6 gap-1 px-2 text-[11px]"
+                  >
+                    <RefreshCw className={syncPrices.isPending ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+                    {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
+                  </Button>
+                </div>
 
                 {selectedProduct ? (
                   <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
@@ -183,13 +225,23 @@ export function SellProductDialog() {
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{selectedProduct.name}</p>
+                      <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                        <span className="truncate">{selectedProduct.name}</span>
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          {classifyProduct({
+                            type: selectedProduct.type,
+                            goldKarat: selectedProduct.goldKarat,
+                            purity: selectedProduct.purity,
+                            categoryName: selectedProduct.category,
+                          }).text}
+                        </span>
+                      </p>
                       <p className="truncate text-xs text-muted-foreground">
                         {selectedProduct.sku} · {selectedProduct.color} / {selectedProduct.size}
                       </p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-0.5">
-                      <span className="text-sm font-semibold tabular-nums">{formatCurrency(selectedProduct.sellingPrice)}</span>
+                      <span className="text-sm font-semibold tabular-nums">{formatCurrency(selectedProduct.effectivePrice)}</span>
                       <span className="text-xs text-muted-foreground">Available: {selectedProduct.stock}</span>
                     </div>
                     <Button
@@ -262,13 +314,23 @@ export function SellProductDialog() {
                                   </div>
                                 )}
                                 <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-medium">{p.name}</p>
+                                  <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                                    <span className="truncate">{p.name}</span>
+                                    <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                      {classifyProduct({
+                                        type: p.type,
+                                        goldKarat: p.goldKarat,
+                                        purity: p.purity,
+                                        categoryName: p.category,
+                                      }).text}
+                                    </span>
+                                  </p>
                                   <p className="truncate text-xs text-muted-foreground">
                                     {p.sku} · {p.color} / {p.size}
                                   </p>
                                 </div>
                                 <div className="shrink-0 text-right">
-                                  <p className="text-sm font-semibold tabular-nums">{formatCurrency(p.sellingPrice)}</p>
+                                  <p className="text-sm font-semibold tabular-nums">{formatCurrency(p.effectivePrice)}</p>
                                   <p className="text-xs text-muted-foreground">
                                     {p.stock > 0 ? `${p.stock} in stock` : "Out of stock"}
                                   </p>

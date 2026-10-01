@@ -12,6 +12,7 @@
  */
 import * as React from "react";
 import { Package, Ruler, Weight, Boxes, IndianRupee, FileText, CalendarDays, Tag, Layers, Scale } from "lucide-react";
+import { classifyProduct } from "@munim/core";
 import { BarcodeSvg } from "./barcode-svg";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -41,6 +42,14 @@ export type ProductDetails = {
   weightUnit: string;
   /** Metal purity stamp — e.g. "24K", "22K", "916", "925". */
   purity?: string | null;
+  /** Gold karat 0–24 — powers the "Gold · 22K" classification. */
+  goldKarat?: number | null;
+  /** "auto" → dynamic metal pricing; "manual" → the stored price. */
+  priceMode?: "auto" | "manual";
+  /** Computed auto price (null unless dynamically priced). */
+  autoPrice?: number | null;
+  /** THE price (autoPrice ?? sellingPrice) — what lists/billing show. */
+  effectivePrice?: number | null;
   /** Gold-only weight fields */
   grossWeight?: string | null;
   nagLessWeight?: string | null;
@@ -82,7 +91,16 @@ export function ProductDetailsDialog({
         : { label: "In stock", variant: "success" as const };
 
   const rows: { label: string; value: string; icon?: React.ReactNode }[] = [
-    { label: "Type", value: product.type || "—", icon: <Tag className="h-3.5 w-3.5" /> },
+    {
+      label: "Type",
+      value: classifyProduct({
+        type: product.type,
+        goldKarat: product.goldKarat,
+        purity: product.purity,
+        categoryName: product.category,
+      }).text,
+      icon: <Tag className="h-3.5 w-3.5" />,
+    },
     { label: "SKU", value: product.sku, icon: <Tag className="h-3.5 w-3.5" /> },
     { label: "Color", value: product.color || "—", icon: <Layers className="h-3.5 w-3.5" /> },
     { label: "Size", value: product.size || "—", icon: <Ruler className="h-3.5 w-3.5" /> },
@@ -99,6 +117,24 @@ export function ProductDetailsDialog({
     { label: "Stock", value: `${product.stock} unit${product.stock !== 1 ? "s" : ""}`, icon: <Package className="h-3.5 w-3.5" /> },
     { label: "Buy price", value: formatCurrency(product.purchasePrice), icon: <IndianRupee className="h-3.5 w-3.5" /> },
     { label: "Selling price", value: formatCurrency(product.sellingPrice), icon: <IndianRupee className="h-3.5 w-3.5" /> },
+    ...(product.priceMode
+      ? [
+          {
+            label: "Pricing",
+            value: product.priceMode === "auto" ? "Auto — live metal rate" : "Manual",
+            icon: <IndianRupee className="h-3.5 w-3.5" />,
+          },
+        ]
+      : []),
+    ...(product.autoPrice != null
+      ? [
+          {
+            label: "Effective price",
+            value: formatCurrency(product.effectivePrice ?? product.autoPrice),
+            icon: <IndianRupee className="h-3.5 w-3.5" />,
+          },
+        ]
+      : []),
     { label: "Low stock alert", value: `${product.lowStockThreshold} unit${product.lowStockThreshold !== 1 ? "s" : ""}` },
     { label: "Added", value: formatDate(product.createdAt), icon: <CalendarDays className="h-3.5 w-3.5" /> },
     { label: "Updated", value: formatDate(product.updatedAt), icon: <CalendarDays className="h-3.5 w-3.5" /> },

@@ -4,8 +4,6 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type {
-  CategoryBreakdownDto,
-  InventoryStatsDto,
   ProductDto,
   ProductFilters,
   ProductFormValues,
@@ -115,6 +113,7 @@ export function useCreateProduct() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.products.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
+      qc.invalidateQueries({ queryKey: qk.reports.all });
     },
   });
 }
@@ -137,6 +136,7 @@ export function useUpdateProduct() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.products.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
+      qc.invalidateQueries({ queryKey: qk.reports.all });
     },
   });
 }
@@ -153,6 +153,7 @@ export function useDeleteProduct() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.products.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
+      qc.invalidateQueries({ queryKey: qk.reports.all });
       qc.invalidateQueries({ queryKey: qk.sales.all });
     },
   });
@@ -176,6 +177,7 @@ export function useAdjustStock() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.products.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
+      qc.invalidateQueries({ queryKey: qk.reports.all });
     },
   });
 }
@@ -191,6 +193,36 @@ export function useBackfillBarcodes() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.dashboard });
+      qc.invalidateQueries({ queryKey: qk.reports.all });
+    },
+  });
+}
+
+/**
+ * POST /api/products/sync-prices — "Recalculate prices": freezes the current
+ * gold/silver price into every auto-priced product, then refreshes everything
+ * that reads prices (lists, billing/sale pickers, quick sale, dashboard).
+ *
+ * `onSuccess` AWAITS the invalidations so `mutateAsync()` only resolves once
+ * the refetched lists have landed — billing/sales set their
+ * `awaitingFreshPrices` flag afterwards and must see the new prices, not the
+ * stale cache. Invalidates the API's `products` group (products, dashboard,
+ * reports) plus `sales`, which renders product prices in the pickers.
+ */
+export function useSyncProductPrices() {
+  const getClient = useApiClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (): Promise<{ updated: number; scanned: number }> => {
+      const api = await getClient();
+      return api.products.syncPrices();
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: qk.products.all });
+      await qc.invalidateQueries({ queryKey: qk.sales.all });
+      await qc.invalidateQueries({ queryKey: qk.dashboard });
+      await qc.invalidateQueries({ queryKey: qk.reports.all });
     },
   });
 }

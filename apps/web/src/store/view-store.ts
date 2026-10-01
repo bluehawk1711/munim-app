@@ -14,6 +14,7 @@ export type ViewKey =
   | "reports"
   | "catalog"
   | "settings"
+  | "help"
 
 /** All valid view keys — used to validate the `?view=` URL param. */
 const VIEW_KEYS: ViewKey[] = [
@@ -28,6 +29,7 @@ const VIEW_KEYS: ViewKey[] = [
   "reports",
   "catalog",
   "settings",
+  "help",
 ]
 
 /** Read the active view from the URL (?view=...) so a refresh keeps the tab.

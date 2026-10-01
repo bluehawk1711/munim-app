@@ -9,8 +9,9 @@ import {
   saveApiKey,
   saveApiUrl,
 } from '../lib/api';
-import {useQueryState, useSettings, useUpdateSettings} from '@munim/query';
-import {Badge, Button, Card, Field, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
+import {useQueryState, useSettings, useUpdateSettings, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, useSyncProductPrices} from '@munim/query';
+import {resolveGoldRateTable, type LabourType} from '@munim/core';
+import {Badge, Button, Card, Field, LabourField, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {ThemeToggleButton} from '../components/theme-toggle';
 import {
@@ -53,6 +54,22 @@ export function SettingsScreen() {
   const [allowZeroTotal, setAllowZeroTotal] = useState(true);
   const [shopLoaded, setShopLoaded] = useState(false);
   const [savingShop, setSavingShop] = useState(false);
+
+  // ── Gold rate table (dynamic karat pricing, shared by all 3 apps) ──────
+  const goldRates = useGoldRates();
+  const saveGoldRates = useSaveGoldRates();
+  const backfillKarats = useBackfillGoldKarats();
+  const syncPrices = useSyncProductPrices();
+  /** Draft of the whole 0–24 table — seeded from the API, saved in one PUT. */
+  const [karatDraft, setKaratDraft] = useState<Record<number, {ratePerGram: number; isCustom: boolean}>>({});
+  // Raw text of each karat field while typing — the draft stores parsed
+  // numbers, so without this "95." would re-render as "95" and swallow the dot.
+  const [karatDraftText, setKaratDraftText] = useState<Record<number, string>>({});
+  const [defaultLabourType, setDefaultLabourType] = useState<LabourType>('PERCENT');
+  const [defaultLabourValue, setDefaultLabourValue] = useState('');
+  const [silverRate, setSilverRate] = useState('');
+  const [karatSheetOpen, setKaratSheetOpen] = useState(false);
+  const [savingRates, setSavingRates] = useState(false);
   // DB connection test modal: opens first, stays open (non-dismissible) while
   // the ping is in flight, then flips to ok / fail with the error message.
   const [testOpen, setTestOpen] = useState(false);
@@ -95,9 +112,125 @@ export function SettingsScreen() {
       setCurrency(settings.currency);
       setLowStockThreshold(String(settings.lowStockThreshold));
       setAllowZeroTotal(settings.allowZeroTotal ?? true);
+      setDefaultLabourType(settings.defaultLabourType ?? 'PERCENT');
+      setDefaultLabourValue(String(settings.defaultLabourValue ?? 0));
+      setSilverRate(String(settings.silverRatePerGram ?? 0));
       setShopLoaded(true);
     }
   }, [settings, shopLoaded]);
+
+  // Seed the karat draft from the API (a save re-seeds it with fresh rows).
+  useEffect(() => {
+    const rows = goldRates.data?.rates;
+    if (!rows) return;
+    const next: Record<number, {ratePerGram: number; isCustom: boolean}> = {};
+    for (const row of rows) next[row.karat] = {ratePerGram: row.ratePerGram, isCustom: row.isCustom};
+    setKaratDraft(next);
+    setKaratDraftText({});
+  }, [goldRates.data]);
+
+  /** Expanded 0–24 table — quoted rows plus every derived karat (core helper). */
+  const karatTable = React.useMemo(
+    () =>
+      resolveGoldRateTable(
+        Object.entries(karatDraft).map(([karat, value]) => ({
+          karat: Number(karat),
+          ratePerGram: value.ratePerGram,
+          isCustom: value.isCustom,
+        })),
+      ),
+    [karatDraft],
+  );
+  // Base karat = highest quoted karat (usually 24K); it scales derived rows.
+  const goldBase = [...karatTable].reverse().find((row) => row.isCustom && row.ratePerGram > 0);
+  const goldBaseKarat = goldBase?.karat ?? 24;
+  const goldBaseRate = goldBase?.ratePerGram ?? 0;
+  const quotedKarats = karatTable.filter((row) => row.isCustom && row.ratePerGram > 0).length;
+
+  /** Edits a karat's rate — marks it quoted (pinned). */
+  function setKaratRate(karat: number, text: string) {
+    setKaratDraftText(prev => ({...prev, [karat]: text}));
+    const parsed = Number.parseFloat(text);
+    const ratePerGram = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
+    setKaratDraft(prev => ({...prev, [karat]: {ratePerGram, isCustom: true}}));
+  }
+
+  /** Drops a quote so the karat follows the base rate again. */
+  function resetKarat(karat: number) {
+    setKaratDraftText(prev => {
+      const next = {...prev};
+      delete next[karat];
+      return next;
+    });
+    setKaratDraft(prev => ({...prev, [karat]: {ratePerGram: 0, isCustom: false}}));
+  }
+
+  /** Saves the whole table + the shop-wide labour + silver rate in one action. */
+  async function handleSaveGoldRates() {
+    setSavingRates(true);
+    try {
+      await saveGoldRates.mutateAsync({
+        rates: karatTable.map((row) => ({
+          karat: row.karat,
+          ratePerGram: row.ratePerGram,
+          isCustom: row.isCustom && row.ratePerGram > 0,
+        })),
+      });
+      await updateSettings.mutateAsync({
+        defaultLabourType,
+        defaultLabourValue: Math.max(0, Number(defaultLabourValue) || 0),
+        silverRatePerGram: Math.max(0, Number(silverRate) || 0),
+      });
+      successFeedback();
+      setKaratSheetOpen(false);
+      Alert.alert('Rates saved', 'Auto-priced gold & silver products now use the new rates.');
+    } catch (err) {
+      errorFeedback();
+      Alert.alert('Could not save rates', err instanceof Error ? err.message : 'Try again.');
+    } finally {
+      setSavingRates(false);
+    }
+  }
+
+  /** Fills `goldKarat` on existing gold products from their purity stamp. */
+  async function handleBackfillKarats() {
+    try {
+      const result = await backfillKarats.mutateAsync();
+      successFeedback();
+      Alert.alert(
+        'Karats filled',
+        `${result.updated} gold product(s) updated from their purity stamp` +
+          (result.skipped > 0 ? ` · ${result.skipped} couldn't be read` : ''),
+      );
+    } catch (err) {
+      errorFeedback();
+      Alert.alert('Backfill failed', err instanceof Error ? err.message : 'Try again.');
+    }
+  }
+
+  /**
+   * "Recalculate prices" — after the rates above change, freeze the freshly
+   * computed price into every auto-priced product (same action as the other
+   * two apps).
+   */
+  async function handleSyncPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        successFeedback();
+        Alert.alert('Nothing to recalculate', 'No auto-priced products yet.');
+      } else if (r.updated === 0) {
+        successFeedback();
+        Alert.alert('Prices already match', 'Every auto-priced product already has today\u2019s rate.');
+      } else {
+        successFeedback();
+        Alert.alert('Prices updated', `Re-priced ${r.updated} of ${r.scanned} auto-priced product(s).`);
+      }
+    } catch (err) {
+      errorFeedback();
+      Alert.alert('Recalculation failed', err instanceof Error ? err.message : 'Try again.');
+    }
+  }
 
   /** Runs the ping once, flipping the modal between loading → ok / fail. */
   async function runConnectionTest(connectionUrl: string, key?: string): Promise<boolean> {
@@ -332,6 +465,56 @@ export function SettingsScreen() {
           />
         </View>
         <Button title={savingShop ? 'Saving…' : 'Save shop profile'} onPress={handleSaveShop} loading={savingShop} />
+      </Card>
+      <Section title="Rates & labour" index={2} />
+      <Card index={1}>
+        <Text style={styles.switchLabel}>Dynamic pricing — gold &amp; silver</Text>
+        <Text style={{fontSize: 12, color: colors.muted, marginTop: 2, marginBottom: 10}}>
+          Gold: weight × karat rate + labour. Silver: weight × purity × silver rate + labour.
+          Un-quoted karats follow the base (highest quoted) karat.
+        </Text>
+        <Field
+          label={`Gold base rate — ${goldBaseKarat}K (₹ per gram)`}
+          value={goldBaseRate ? String(goldBaseRate) : ''}
+          onChangeText={text => setKaratRate(goldBaseKarat, text)}
+          keyboardType="numeric"
+          placeholder="e.g. 7200"
+        />
+        <Field
+          label="Silver rate (₹ per gram)"
+          value={silverRate === '0' ? '' : silverRate}
+          onChangeText={setSilverRate}
+          keyboardType="numeric"
+          placeholder="e.g. 95"
+        />
+        <LabourField
+          label="Default labour (gold)"
+          type={defaultLabourType}
+          value={defaultLabourValue === '0' ? '' : defaultLabourValue}
+          onTypeChange={setDefaultLabourType}
+          onValueChange={setDefaultLabourValue}
+          placeholder="e.g. 12"
+          hint="Used by gold products that have no labour of their own. Silver labour is always per product."
+        />
+        <Button
+          variant="outline"
+          title={`All karats (0–24) · ${quotedKarats} quoted`}
+          onPress={() => setKaratSheetOpen(true)}
+        />
+        <View style={{height: 8}} />
+        <Button title={savingRates ? 'Saving…' : 'Save rates & labour'} onPress={handleSaveGoldRates} loading={savingRates} />
+        <View style={{height: 8}} />
+        <Button
+          variant="outline"
+          title={backfillKarats.isPending ? 'Filling…' : 'Fill karats from purity'}
+          onPress={handleBackfillKarats}
+        />
+        <View style={{height: 8}} />
+        <Button
+          variant="outline"
+          title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
+          onPress={handleSyncPrices}
+        />
       </Card>
       <Section title="Appearance" index={1} />
       <Card index={1}>
@@ -676,6 +859,34 @@ export function SettingsScreen() {
             </View>
           </>
         )}
+      </ModalSheet>
+
+      <ModalSheet visible={karatSheetOpen} title="Karats 0–24" onClose={() => setKaratSheetOpen(false)} centered scrollable>
+        <Text style={{fontSize: 12, color: colors.muted, marginBottom: 10}}>
+          Type a rate to quote (pin) a karat; "derive" follows the {goldBaseKarat}K base rate.
+        </Text>
+        {karatTable.map(row => (
+          <View key={row.karat} style={{flexDirection: 'row', alignItems: 'flex-end', gap: 8}}>
+            <View style={{flex: 1}}>
+              <Field
+                label={`${row.karat}K · ${row.purityPercent}%${row.isCustom ? ' · quoted' : ''}`}
+                value={karatDraftText[row.karat] ?? (row.ratePerGram ? String(row.ratePerGram) : '')}
+                onChangeText={text => setKaratRate(row.karat, text)}
+                keyboardType="numeric"
+                placeholder="—"
+              />
+            </View>
+            {row.isCustom ? (
+              <Pressable
+                onPress={() => resetKarat(row.karat)}
+                accessibilityRole="button"
+                style={({pressed}) => [styles.swatchOption, {width: undefined, maxWidth: undefined, paddingBottom: 20, paddingHorizontal: 10}, pressed && {opacity: 0.7}]}>
+                <Text style={{fontSize: 12, fontWeight: '600', color: colors.primary}}>Derive</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ))}
+        <Button title={savingRates ? 'Saving…' : 'Save rates & labour'} onPress={handleSaveGoldRates} loading={savingRates} />
       </ModalSheet>
     </Screen>
   );

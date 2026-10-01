@@ -65,7 +65,7 @@ export async function exportProductsToExcel(products: Product[]) {
       size: p.size,
       stock: p.stock,
       purchasePrice: p.purchasePrice,
-      sellingPrice: p.sellingPrice,
+      sellingPrice: p.effectivePrice,
       notes: p.notes ?? "",
       createdAt: new Date(p.createdAt).toLocaleString(),
     })
@@ -100,7 +100,7 @@ export function exportProductsToCsv(products: Product[]) {
       p.size,
       p.stock,
       p.purchasePrice,
-      p.sellingPrice,
+      p.effectivePrice,
       p.notes ?? "",
       new Date(p.createdAt).toISOString(),
     ]

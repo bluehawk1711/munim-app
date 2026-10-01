@@ -15,6 +15,14 @@ export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 /* Billing — shared bill/invoice generation (all 3 apps) */
 export * from "./billing/index.js";
 export * from "./security/index.js";
+/* Pricing — dynamic metal pricing (gold karats + silver + labour), shared by
+ * every app + the API: `priceProduct` is THE formula; gold.ts holds the rate
+ * table utilities; labour.ts the Fixed/Per-Gram/Percent methods; labels.ts the
+ * Gold/Silver classification shown in every UI. */
+export * from "./pricing/gold.js";
+export * from "./pricing/labour.js";
+export * from "./pricing/product.js";
+export * from "./pricing/labels.js";
 /* Utils */
 export { numberToWords, amountInWords } from "./utils/numberToWords.js";
 export { generateSku, generateInvoiceNumber } from "./utils/codes.js";
@@ -35,6 +43,7 @@ export * from "./services/parties.js";
 export * from "./services/advances.js";
 export * from "./services/jobLetters.js";
 export * from "./services/settings.js";
+export * from "./services/goldRates.js";
 export * from "./services/dashboard.js";
 export { logActivity } from "./services/activity.js";
 //# sourceMappingURL=index.js.map

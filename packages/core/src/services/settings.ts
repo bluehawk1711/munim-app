@@ -20,6 +20,12 @@ export type ShopSettingsInput = {
   mode?: string;
   /** Allow creating invoices with a total of ₹0. */
   allowZeroTotal?: boolean;
+  /** Default labour METHOD for auto-priced GOLD products (silver is per-product). */
+  defaultLabourType?: "PERCENT" | "FIXED" | "PER_GRAM";
+  /** Default labour rate/amount (meaning depends on the method; 0 → none). */
+  defaultLabourValue?: number;
+  /** Shop-wide silver ₹/gram for auto-priced silver products (0 → off). */
+  silverRatePerGram?: number;
 };
 
 /** Fetches settings, creating the singleton row on first use. */
@@ -52,6 +58,9 @@ export async function updateSettings(db: DbClient, input: ShopSettingsInput) {
       ...(input.theme !== undefined ? { theme: input.theme } : {}),
       ...(input.mode !== undefined ? { mode: input.mode } : {}),
       ...(input.allowZeroTotal !== undefined ? { allowZeroTotal: input.allowZeroTotal } : {}),
+      ...(input.defaultLabourType !== undefined ? { defaultLabourType: input.defaultLabourType } : {}),
+      ...(input.defaultLabourValue !== undefined ? { defaultLabourValue: input.defaultLabourValue } : {}),
+      ...(input.silverRatePerGram !== undefined ? { silverRatePerGram: input.silverRatePerGram } : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.settings.id, SETTINGS_ID))

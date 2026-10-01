@@ -71,4 +71,9 @@ export const qk = {
   },
 
   settings: ["settings"] as const,
+
+  goldRates: {
+    all: ["gold-rates"] as const,
+    list: ["gold-rates", "list"] as const,
+  },
 };

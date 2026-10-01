@@ -4,6 +4,7 @@ import {
   timestamp,
   doublePrecision,
   boolean,
+  integer,
   json,
   index,
   uniqueIndex,
@@ -48,6 +49,37 @@ export const categories = pgTable(
 );
 
 /* ────────────────────────────────────────────────────────────────
+ * GOLD RATES (dynamic karat-wise pricing)
+ * ──────────────────────────────────────────────────────────────── */
+
+/**
+ * The shop's own gold rate table — one row per karat the shop explicitly
+ * quotes (see `packages/core/src/pricing/gold.ts`).
+ *
+ * - `karat` is 0–24 (integer). A karat WITHOUT a row is DERIVED from the
+ *   highest quoted karat: `rate(k) = baseRate × k / baseKarat`.
+ * - `ratePerGram` is the shop's retail rate for that karat (not scaled again
+ *   by purity — Indian jewellers quote a 22K rate directly).
+ * - A rate edit re-prices every auto-priced gold product on read (the price is
+ *   never materialised on the product row), so old invoices keep their totals.
+ */
+export const goldRates = pgTable(
+  "gold_rates",
+  {
+    id: id(),
+    /** Karat 0–24. */
+    karat: integer("karat").notNull(),
+    /** Shop's ₹ per gram rate for this karat. */
+    ratePerGram: doublePrecision("rate_per_gram").notNull().default(0),
+    /** true → quoted by the shop; false → derived from the base karat. */
+    isCustom: boolean("is_custom").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("gold_rates_karat_idx").on(t.karat)],
+);
+
+/* ────────────────────────────────────────────────────────────────
  * PRODUCTS & STOCK
  * ──────────────────────────────────────────────────────────────── */
 
@@ -80,6 +112,23 @@ export const products = pgTable(
     /** Silver purity percentage — e.g. 90 means 90% silver content. Used to
      *  compute effective weight for pricing (weight × silverPercentage / 100). */
     silverPercentage: doublePrecision("silver_percentage").notNull().default(100),
+    /** Gold karat 0–24 for dynamic pricing (null → not karat-priced).
+     *  Only meaningful when `type` is "Gold". */
+    goldKarat: integer("gold_karat"),
+    /** Labour-cost METHOD for this product: PERCENT (% of metal value),
+     *  FIXED (flat ₹) or PER_GRAM (₹/g × weight). Applies whenever
+     *  `labourValue` is set; renamed from the old percent-only column. */
+    labourType: text("labour_type", { enum: ["PERCENT", "FIXED", "PER_GRAM"] })
+      .notNull()
+      .default("PERCENT"),
+    /** Labour rate/amount. NULL → Gold falls back to the shop default
+     *  (`settings.default_labour_*`); Silver has NO shop default (per-product
+     *  only) → unset means no labour. */
+    labourValue: doublePrecision("labour_value"),
+    /** "auto" → price = metal value (weight × karat/silver rate) + labour;
+     *  "manual" → price = `sellingPrice` (default keeps legacy behaviour).
+     *  Applies to Gold AND Silver (renamed from `gold_price_mode`). */
+    priceMode: text("price_mode", { enum: ["auto", "manual"] }).notNull().default("manual"),
     notes: text("notes"),
     lowStockThreshold: doublePrecision("low_stock_threshold").notNull().default(5),
     colorId: text("color_id").references(() => colors.id, { onDelete: "set null" }),
@@ -217,6 +266,20 @@ export const invoiceItems = pgTable(
     quantity: doublePrecision("quantity").notNull().default(1),
     price: doublePrecision("price").notNull().default(0),
     total: doublePrecision("total").notNull().default(0),
+    /** Frozen pricing inputs at sale time (rate used, labour method + amount,
+     *  metal value) so a reprint can explain the number even after gold/silver
+     *  rates change. NULL for legacy/manual lines — `price` stays authoritative. */
+    pricing: json("pricing").$type<{
+      metal: "Gold" | "Silver";
+      ratePerGram: number;
+      karat?: number | null;
+      silverPercentage?: number | null;
+      weightGm?: number | null;
+      metalValue?: number | null;
+      labourType?: string | null;
+      labourValue?: number | null;
+      labourAmount?: number | null;
+    } | null>(),
   },
   (t) => [index("invoice_items_invoice_idx").on(t.invoiceId)],
 );
@@ -284,6 +347,17 @@ export const settings = pgTable(
     mode: text("mode").notNull().default("system"),
     /** Allow creating invoices with a total of ₹0 (default: true). */
     allowZeroTotal: boolean("allow_zero_total").notNull().default(true),
+    /** Default labour METHOD for auto-priced GOLD products whose own
+     *  `labourValue` is null. Silver never reads this (per-product only). */
+    defaultLabourType: text("default_labour_type", { enum: ["PERCENT", "FIXED", "PER_GRAM"] })
+      .notNull()
+      .default("PERCENT"),
+    /** Default labour rate/amount (meaning depends on `defaultLabourType`).
+     *  0 → no default labour (renamed from `gold_making_charge_percent`). */
+    defaultLabourValue: doublePrecision("default_labour_value").notNull().default(0),
+    /** Shop-wide silver ₹ per gram for auto-priced silver products
+     *  (0 → silver never auto-prices and falls back to sellingPrice). */
+    silverRatePerGram: doublePrecision("silver_rate_per_gram").notNull().default(0),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
 );
@@ -301,6 +375,8 @@ export const activityLogs = pgTable(
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
+export type GoldRate = typeof goldRates.$inferSelect;
+export type NewGoldRate = typeof goldRates.$inferInsert;
 export type StockMovement = typeof stockMovements.$inferSelect;
 export type Party = typeof parties.$inferSelect;
 export type Advance = typeof advances.$inferSelect;

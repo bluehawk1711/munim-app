@@ -30,7 +30,8 @@
     "db:backup": "node scripts/db-sync.mjs backup",
     "db:restore": "node scripts/db-sync.mjs restore",
     "db:transfer": "node scripts/db-sync.mjs migrate",
-    "smoke": "esbuild scripts/smoke-test.mjs --bundle --platform=node --format=esm --outfile=scripts/.smoke-bundle.mjs && node scripts/.smoke-bundle.mjs"
+    "smoke": "esbuild scripts/smoke-test.mjs --bundle --platform=node --format=esm --outfile=scripts/.smoke-bundle.mjs && node scripts/.smoke-bundle.mjs",
+    "verify:pricing": "esbuild scripts/verify-pricing.ts --bundle --platform=node --format=esm --outfile=scripts/.verify-pricing-bundle.mjs && node scripts/.verify-pricing-bundle.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.44.2",

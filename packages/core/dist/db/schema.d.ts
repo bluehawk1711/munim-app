@@ -173,6 +173,126 @@ export declare const categories: import("drizzle-orm/pg-core").PgTableWithColumn
     };
     dialect: "pg";
 }>;
+/**
+ * The shop's own gold rate table — one row per karat the shop explicitly
+ * quotes (see `packages/core/src/pricing/gold.ts`).
+ *
+ * - `karat` is 0–24 (integer). A karat WITHOUT a row is DERIVED from the
+ *   highest quoted karat: `rate(k) = baseRate × k / baseKarat`.
+ * - `ratePerGram` is the shop's retail rate for that karat (not scaled again
+ *   by purity — Indian jewellers quote a 22K rate directly).
+ * - A rate edit re-prices every auto-priced gold product on read (the price is
+ *   never materialised on the product row), so old invoices keep their totals.
+ */
+export declare const goldRates: import("drizzle-orm/pg-core").PgTableWithColumns<{
+    name: "gold_rates";
+    schema: undefined;
+    columns: {
+        id: import("drizzle-orm/pg-core").PgColumn<{
+            name: "id";
+            tableName: "gold_rates";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: true;
+            isAutoincrement: false;
+            hasRuntimeDefault: true;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        karat: import("drizzle-orm/pg-core").PgColumn<{
+            name: "karat";
+            tableName: "gold_rates";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        ratePerGram: import("drizzle-orm/pg-core").PgColumn<{
+            name: "rate_per_gram";
+            tableName: "gold_rates";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        isCustom: import("drizzle-orm/pg-core").PgColumn<{
+            name: "is_custom";
+            tableName: "gold_rates";
+            dataType: "boolean";
+            columnType: "PgBoolean";
+            data: boolean;
+            driverParam: boolean;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        createdAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "created_at";
+            tableName: "gold_rates";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        updatedAt: import("drizzle-orm/pg-core").PgColumn<{
+            name: "updated_at";
+            tableName: "gold_rates";
+            dataType: "date";
+            columnType: "PgTimestamp";
+            data: Date;
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+    };
+    dialect: "pg";
+}>;
 export declare const products: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "products";
     schema: undefined;
@@ -479,6 +599,74 @@ export declare const products: import("drizzle-orm/pg-core").PgTableWithColumns<
             isAutoincrement: false;
             hasRuntimeDefault: false;
             enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        goldKarat: import("drizzle-orm/pg-core").PgColumn<{
+            name: "gold_karat";
+            tableName: "products";
+            dataType: "number";
+            columnType: "PgInteger";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        labourType: import("drizzle-orm/pg-core").PgColumn<{
+            name: "labour_type";
+            tableName: "products";
+            dataType: "string";
+            columnType: "PgText";
+            data: "PERCENT" | "FIXED" | "PER_GRAM";
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: ["PERCENT", "FIXED", "PER_GRAM"];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        labourValue: import("drizzle-orm/pg-core").PgColumn<{
+            name: "labour_value";
+            tableName: "products";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        priceMode: import("drizzle-orm/pg-core").PgColumn<{
+            name: "price_mode";
+            tableName: "products";
+            dataType: "string";
+            columnType: "PgText";
+            data: "auto" | "manual";
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: ["auto", "manual"];
             baseColumn: never;
             identity: undefined;
             generated: undefined;
@@ -1626,6 +1814,45 @@ export declare const invoiceItems: import("drizzle-orm/pg-core").PgTableWithColu
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        pricing: import("drizzle-orm/pg-core").PgColumn<{
+            name: "pricing";
+            tableName: "invoice_items";
+            dataType: "json";
+            columnType: "PgJson";
+            data: {
+                metal: "Gold" | "Silver";
+                ratePerGram: number;
+                karat?: number | null;
+                silverPercentage?: number | null;
+                weightGm?: number | null;
+                metalValue?: number | null;
+                labourType?: string | null;
+                labourValue?: number | null;
+                labourAmount?: number | null;
+            } | null;
+            driverParam: unknown;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {
+            $type: {
+                metal: "Gold" | "Silver";
+                ratePerGram: number;
+                karat?: number | null;
+                silverPercentage?: number | null;
+                weightGm?: number | null;
+                metalValue?: number | null;
+                labourType?: string | null;
+                labourValue?: number | null;
+                labourAmount?: number | null;
+            } | null;
+        }>;
     };
     dialect: "pg";
 }>;
@@ -2113,6 +2340,57 @@ export declare const settings: import("drizzle-orm/pg-core").PgTableWithColumns<
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        defaultLabourType: import("drizzle-orm/pg-core").PgColumn<{
+            name: "default_labour_type";
+            tableName: "settings";
+            dataType: "string";
+            columnType: "PgText";
+            data: "PERCENT" | "FIXED" | "PER_GRAM";
+            driverParam: string;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: ["PERCENT", "FIXED", "PER_GRAM"];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        defaultLabourValue: import("drizzle-orm/pg-core").PgColumn<{
+            name: "default_labour_value";
+            tableName: "settings";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        silverRatePerGram: import("drizzle-orm/pg-core").PgColumn<{
+            name: "silver_rate_per_gram";
+            tableName: "settings";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         updatedAt: import("drizzle-orm/pg-core").PgColumn<{
             name: "updated_at";
             tableName: "settings";
@@ -2210,6 +2488,8 @@ export declare const activityLogs: import("drizzle-orm/pg-core").PgTableWithColu
 }>;
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
+export type GoldRate = typeof goldRates.$inferSelect;
+export type NewGoldRate = typeof goldRates.$inferInsert;
 export type StockMovement = typeof stockMovements.$inferSelect;
 export type Party = typeof parties.$inferSelect;
 export type Advance = typeof advances.$inferSelect;

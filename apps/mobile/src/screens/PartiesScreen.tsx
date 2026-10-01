@@ -8,28 +8,32 @@
  * - Keyboard-aware forms
  */
 
-import React, {useState} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {useMemo, useState} from 'react';
+import {Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {FlashList} from '@shopify/flash-list';
 import {formatDate} from '@munim/core';
-import {X} from 'lucide-react-native';
+import type {PartyUpdateValues} from '@munim/core';
+import {Search, X} from 'lucide-react-native';
 import {
   useAdvances,
   useCreateAdvance,
   useCreateParty,
+  useDeleteParty,
   useParty,
   usePartyBalances,
   useQueryState,
   useRecordPartyPayment,
   useSettleAdvance,
+  useUpdateParty,
 } from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback} from '../lib/haptics';
-import {rw, rh, rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
+import {rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
 import {
   Badge,
   Button,
   Card,
+  ConfirmDialog,
   Empty,
   Field,
   Loading,
@@ -39,6 +43,23 @@ import {
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
+
+type PartyType = 'CUSTOMER' | 'SUPPLIER' | 'WORKER' | 'OTHER';
+
+const TYPE_LABELS: Record<PartyType, string> = {
+  CUSTOMER: 'Customer',
+  SUPPLIER: 'Supplier',
+  WORKER: 'Worker',
+  OTHER: 'Other',
+};
+
+const TYPE_FILTERS: ReadonlyArray<{key: PartyType | 'ALL'; label: string}> = [
+  {key: 'ALL', label: 'All'},
+  {key: 'CUSTOMER', label: 'Customers'},
+  {key: 'SUPPLIER', label: 'Suppliers'},
+  {key: 'WORKER', label: 'Workers'},
+  {key: 'OTHER', label: 'Other'},
+];
 
 export function PartiesScreen() {
   const styles = useThemeStyles(makeStyles);
@@ -57,6 +78,13 @@ export function PartiesScreen() {
   // Sheets
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newType, setNewType] = useState<PartyType>('CUSTOMER');
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editType, setEditType] = useState<PartyType>('CUSTOMER');
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [advanceOpen, setAdvanceOpen] = useState(false);
   const [direction, setDirection] = useState<'GIVEN' | 'TAKEN'>('GIVEN');
   const [amount, setAmount] = useState('');
@@ -65,23 +93,87 @@ export function PartiesScreen() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [saving, setSaving] = useState(false);
 
+  // Directory search + type filter (parity with web/desktop parties).
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<PartyType | 'ALL'>('ALL');
+
   // Mutations
   const settleAdvance = useSettleAdvance();
   const createParty = useCreateParty();
+  const updateParty = useUpdateParty();
+  const deleteParty = useDeleteParty();
   const createAdvance = useCreateAdvance();
   const recordPartyPayment = useRecordPartyPayment();
+
+  const filteredParties = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (parties ?? []).filter(p => {
+      const matchesSearch =
+        !q || p.name.toLowerCase().includes(q) || (p.phone ?? '').toLowerCase().includes(q);
+      const matchesType = typeFilter === 'ALL' || p.type === typeFilter;
+      return matchesSearch && matchesType;
+    });
+  }, [parties, search, typeFilter]);
 
   async function handleAddParty() {
     if (!newName.trim()) return;
     setSaving(true);
     try {
-      const party = await createParty.mutateAsync({name: newName.trim(), type: 'CUSTOMER'});
+      const party = await createParty.mutateAsync({
+        name: newName.trim(),
+        phone: newPhone.trim() || undefined,
+        type: newType,
+      });
       successFeedback(`${newName} added to khata`);
       setAddOpen(false);
       setNewName('');
+      setNewPhone('');
+      setNewType('CUSTOMER');
       setSelectedId(party.id);
     } catch {
       errorFeedback('Failed to add party');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openEditParty() {
+    if (!selected) return;
+    setEditName(selected.name);
+    setEditPhone(selected.phone ?? '');
+    setEditType(selected.type as PartyType);
+    setEditOpen(true);
+  }
+
+  async function handleEditParty() {
+    if (!selectedId || !editName.trim()) return;
+    const values: PartyUpdateValues = {
+      name: editName.trim(),
+      phone: editPhone.trim(),
+      type: editType,
+    };
+    setSaving(true);
+    try {
+      await updateParty.mutateAsync({id: selectedId, values});
+      successFeedback('Party updated');
+      setEditOpen(false);
+    } catch {
+      errorFeedback('Failed to update party');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteParty() {
+    if (!selectedId) return;
+    setSaving(true);
+    try {
+      await deleteParty.mutateAsync(selectedId);
+      successFeedback('Party deleted');
+      setDeleteOpen(false);
+      setSelectedId(null);
+    } catch {
+      errorFeedback('Failed to delete party');
     } finally {
       setSaving(false);
     }
@@ -138,9 +230,12 @@ export function PartiesScreen() {
             <Text style={styles.avatarText}>{item.name.charAt(0).toUpperCase()}</Text>
           </View>
           <View style={{flex: 1, minWidth: 0}}>
-            <Text style={styles.partyName} numberOfLines={1}>
-              {item.name}
-            </Text>
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: spacing.xs}}>
+              <Text style={styles.partyName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Badge text={TYPE_LABELS[item.type as PartyType] ?? item.type} tone="muted" />
+            </View>
             {item.phone ? (
               <Text style={[styles.partyPhone, {color: colors.muted}]} numberOfLines={1}>
                 {item.phone}
@@ -175,6 +270,10 @@ export function PartiesScreen() {
             <Button title="Money in" variant="outline" size="small" style={{flex: 1}} onPress={() => { setPaymentDirection('IN'); setPaymentAmount(''); setPaymentOpen(true); }} />
             <Button title="Money out" variant="outline" size="small" style={{flex: 1}} onPress={() => { setPaymentDirection('OUT'); setPaymentAmount(''); setPaymentOpen(true); }} />
           </View>
+          <View style={styles.actionRow}>
+            <Button title="Edit details" variant="outline" size="small" style={{flex: 1}} onPress={openEditParty} />
+            <Button title="Delete" variant="danger" size="small" style={{flex: 1}} onPress={() => setDeleteOpen(true)} />
+          </View>
           {openAdvances.length > 0 ? (
             <View style={{marginTop: spacing.sm}}>
               <Text style={styles.openLabel}>Open advances</Text>
@@ -203,11 +302,44 @@ export function PartiesScreen() {
     <Screen>
       <HomeHeader title="Khata" />
 
+      {/* Search + type filter (parity with web/desktop) */}
+      <View style={styles.searchWrap}>
+        <Search size={rs(16)} color={colors.muted} style={styles.searchIcon} />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search name or phone…"
+          placeholderTextColor={colors.inputPlaceholder}
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {search ? (
+          <Pressable onPress={() => setSearch('')} style={styles.searchClear} accessibilityLabel="Clear search">
+            <X size={rs(16)} color={colors.muted} />
+          </Pressable>
+        ) : null}
+      </View>
+      <View style={styles.chipRow}>
+        {TYPE_FILTERS.map(f => {
+          const active = typeFilter === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              onPress={() => setTypeFilter(f.key)}
+              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       {loading || !parties ? (
         <Loading />
       ) : (
         <FlashList
-          data={parties}
+          data={filteredParties}
           renderItem={renderParty}
           keyExtractor={item => item.id}
           {...headerScrollHandlers}
@@ -216,7 +348,9 @@ export function PartiesScreen() {
               <Button title="+ Add party" onPress={() => setAddOpen(true)} />
             </View>
           }
-          ListEmptyComponent={<Empty text="No parties yet" />}
+          ListEmptyComponent={
+            <Empty text={search.trim() || typeFilter !== 'ALL' ? 'No parties match your search' : 'No parties yet'} />
+          }
           contentContainerStyle={{paddingBottom: spacing.xxxl}}
         />
       )}
@@ -254,8 +388,29 @@ export function PartiesScreen() {
       {/* Add party — centered modal */}
       <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)} dismissable={!saving} centered>
         <Field label="Name" value={newName} onChangeText={setNewName} placeholder="e.g. Ramesh" />
+        <Field label="Phone" value={newPhone} onChangeText={setNewPhone} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
+        <TypeSelector value={newType} onChange={setNewType} />
         <Button title={saving ? 'Adding…' : 'Add party'} onPress={handleAddParty} loading={saving} />
       </ModalSheet>
+
+      {/* Edit party — centered modal */}
+      <ModalSheet visible={editOpen} title="Edit party" onClose={() => setEditOpen(false)} dismissable={!saving} centered>
+        <Field label="Name" value={editName} onChangeText={setEditName} placeholder="e.g. Ramesh" />
+        <Field label="Phone" value={editPhone} onChangeText={setEditPhone} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
+        <TypeSelector value={editType} onChange={setEditType} />
+        <Button title={saving ? 'Saving…' : 'Save changes'} onPress={handleEditParty} loading={saving} disabled={!editName.trim()} />
+      </ModalSheet>
+
+      {/* Delete party — confirm */}
+      <ConfirmDialog
+        visible={deleteOpen}
+        title="Delete party?"
+        message={`${selected?.name ?? 'This party'} — their advances and ledger history will be removed.`}
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={() => void handleDeleteParty()}
+      />
 
       {/* Advance — centered modal */}
       <ModalSheet visible={advanceOpen} title={direction === 'GIVEN' ? 'Advance given' : 'Advance taken'} onClose={() => setAdvanceOpen(false)} dismissable={!saving} centered>
@@ -269,6 +424,29 @@ export function PartiesScreen() {
         <Button title={saving ? 'Recording…' : 'Record payment'} onPress={handlePayment} loading={saving} />
       </ModalSheet>
     </Screen>
+  );
+}
+
+/** Party-type picker used by the Add / Edit party sheets (parity with web's select). */
+function TypeSelector({value, onChange}: {value: PartyType; onChange: (t: PartyType) => void}) {
+  const styles = useThemeStyles(makeStyles);
+  return (
+    <View>
+      <Text style={[styles.openLabel, {marginBottom: spacing.xs}]}>Type</Text>
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs}}>
+        {(Object.keys(TYPE_LABELS) as PartyType[]).map(t => {
+          const active = value === t;
+          return (
+            <Pressable
+              key={t}
+              onPress={() => onChange(t)}
+              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{TYPE_LABELS[t]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
   );
 }
 
@@ -308,4 +486,38 @@ const makeStyles = () =>
       borderBottomWidth: StyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
+    searchWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: spacing.sm,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.full,
+      backgroundColor: colors.card,
+      paddingLeft: spacing.md,
+      paddingRight: rs(4),
+      height: TOUCH_TARGET,
+    },
+    searchIcon: {marginRight: spacing.sm},
+    searchInput: {flex: 1, fontSize: typography.secondary, color: colors.text, paddingVertical: 0},
+    searchClear: {padding: rs(4)},
+    chipRow: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm},
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(5),
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      paddingHorizontal: rs(11),
+      paddingVertical: rs(6),
+    },
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipText: {fontSize: rs(11.5), fontWeight: '600', color: colors.muted},
+    chipTextActive: {color: colors.onPrimary},
   });

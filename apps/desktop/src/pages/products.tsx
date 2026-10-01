@@ -15,6 +15,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  RefreshCw,
   Scale,
   Search,
   ShoppingCart,
@@ -26,10 +27,19 @@ import {
 } from "lucide-react";
 import {
   buildProductLabel,
+  classifyProduct,
   formatNumber,
   formatWeight,
+  isLabourType,
+  karatPurityPercent,
+  resolveGoldRateTable,
+  priceWithTable,
+  toGoldKarat,
+  type GoldRateSaveInput,
   type LabelPrinterInfo,
   type LabelPrintSettings,
+  type LabourType,
+  type PriceBreakdown,
   type ProductLabel,
 } from "@munim/core";
 import type { ProductDto } from "@munim/api-client";
@@ -37,18 +47,25 @@ import {
   useAdjustStock,
   useApiClient,
   useBackfillBarcodes,
+  useBackfillGoldKarats,
   useCategoryBreakdown,
   useCreateProduct,
   useCreateSale,
+  useDebouncedSettingsUpdate,
   useDeleteProduct,
+  useGoldRates,
   useInventoryStats,
   useProductMeta,
   useProducts,
   useQueryState,
+  useSaveGoldRates,
+  useSettings,
+  useSyncProductPrices,
   useUpdateProduct,
   useUploadImage,
 } from "@munim/query";
 import { money } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
 import {
   getSavedLabelPrinter,
@@ -99,10 +116,21 @@ import {
   TableRow,
   BarcodeLookupInput,
   BarcodeSvg,
+  CategoryChips,
+  GoldRateEditor,
+  LabourInput,
   LabelPrintDialog,
   LabelPrintSelectDialog,
   ProductDetailsDialog,
 } from "@munim/ui";
+
+const KARAT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
+  { value: "0", label: "No karat — manual pricing" },
+  ...Array.from({ length: 24 }, (_, i) => i + 1).map((karat) => ({
+    value: String(karat),
+    label: `${karat}K (${karatPurityPercent(karat)}% pure)`,
+  })),
+];
 
 const PRODUCT_TYPE_COLORS: Record<string, string> = {
   Gold: "#D4AF37",
@@ -136,6 +164,10 @@ type FormState = {
   silverPercentage: string;
   lowStockThreshold: string;
   notes: string;
+  goldKarat: string;
+  labourType: LabourType;
+  labourValue: string;
+  priceMode: "auto" | "manual";
 };
 
 const EMPTY_FORM: FormState = {
@@ -160,6 +192,10 @@ const EMPTY_FORM: FormState = {
   silverPercentage: "100",
   lowStockThreshold: "5",
   notes: "",
+  goldKarat: "0",
+  labourType: "PERCENT",
+  labourValue: "",
+  priceMode: "auto",
 };
 
 function stockVariant(p: ProductDto): "success" | "warning" | "destructive" | "secondary" {
@@ -209,6 +245,7 @@ export function ProductsPage() {
   const deleteProduct = useDeleteProduct();
   const adjustStock = useAdjustStock();
   const backfillBarcodes = useBackfillBarcodes();
+  const syncPrices = useSyncProductPrices();
   const uploadImage = useUploadImage();
   const getClient = useApiClient();
 
@@ -229,6 +266,106 @@ export function ProductsPage() {
 
   const [labelTarget, setLabelTarget] = useState<ProductDto | null>(null);
   const [labelTargets, setLabelTargets] = useState<ProductDto[]>([]);
+
+  // ── Dynamic metal pricing (gold + silver) — mirrors web/mobile ──
+  const goldRatesQuery = useGoldRates();
+  const saveGoldRates = useSaveGoldRates();
+  const backfillKarats = useBackfillGoldKarats();
+  const settingsQuery = useQueryState(useSettings());
+  // Labour/silver editors fire per keystroke — one debounced PUT, not one per key.
+  const updateSettings = useDebouncedSettingsUpdate();
+  const [defaultLabourType, setDefaultLabourType] = useState<LabourType>("PERCENT");
+  const [defaultLabourValue, setDefaultLabourValue] = useState(0);
+  const [silverRatePerGram, setSilverRatePerGram] = useState(0);
+  // Raw text of the silver-rate field while typing (keeps "95." from being
+  // clobbered back to "95" by the number-derived controlled value).
+  const [silverInputText, setSilverInputText] = useState<string | null>(null);
+  useEffect(() => {
+    const s = settingsQuery.data;
+    if (!s) return;
+    setDefaultLabourType(s.defaultLabourType ?? "PERCENT");
+    setDefaultLabourValue(s.defaultLabourValue ?? 0);
+    setSilverRatePerGram(s.silverRatePerGram ?? 0);
+  }, [settingsQuery.data]);
+  const karatTable = useMemo(
+    () => resolveGoldRateTable(goldRatesQuery.data?.rates ?? []),
+    [goldRatesQuery.data],
+  );
+  /** Shop default labour for gold products (null → none). */
+  const defaultLabour = useMemo(
+    () => (defaultLabourValue > 0 ? { type: defaultLabourType, value: defaultLabourValue } : null),
+    [defaultLabourType, defaultLabourValue],
+  );
+  const goldKarat = toGoldKarat(Number(form.goldKarat) || 0);
+  const metalPreview = useMemo<PriceBreakdown | null>(() => {
+    if (form.type !== "Gold" && form.type !== "Silver") return null;
+    return priceWithTable(
+      {
+        type: form.type,
+        priceMode: form.priceMode,
+        weight: form.weight.trim() ? Number(form.weight) || 0 : null,
+        weightUnit: form.weightUnit,
+        goldKarat,
+        silverPercentage: Number(form.silverPercentage) || 100,
+        labourType: form.labourType,
+        labourValue: form.labourValue.trim() === "" ? null : Number(form.labourValue) || 0,
+        sellingPrice: Number(form.sellingPrice) || 0,
+      },
+      karatTable,
+      silverRatePerGram,
+      defaultLabour,
+    );
+  }, [
+    form.type,
+    form.priceMode,
+    form.weight,
+    form.weightUnit,
+    form.silverPercentage,
+    form.labourType,
+    form.labourValue,
+    form.sellingPrice,
+    goldKarat,
+    karatTable,
+    silverRatePerGram,
+    defaultLabour,
+  ]);
+
+  async function handleSaveInlineRates(rates: GoldRateSaveInput[]) {
+    // Any labour/silver edit still inside its debounce window rides along.
+    updateSettings.flush();
+    try {
+      await saveGoldRates.mutateAsync({ rates });
+      toast.success("Rates updated", { description: "Auto-priced products now use the new rates." });
+    } catch (err) {
+      toast.error("Could not save rates", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
+
+  /** Shop default labour — local state now, settings write debounced. */
+  function handleSaveDefaultLabour(type: LabourType, value: number) {
+    setDefaultLabourType(type);
+    setDefaultLabourValue(value);
+    updateSettings.update({ defaultLabourType: type, defaultLabourValue: value }, (err) => {
+      toast.error("Could not save default labour", { description: err.message });
+    });
+  }
+
+  /** Shop-wide silver ₹/g — local state now, settings write debounced. */
+  function handleSaveSilverRate(value: number) {
+    setSilverRatePerGram(value);
+    updateSettings.update({ silverRatePerGram: value }, (err) => {
+      toast.error("Could not save silver rate", { description: err.message });
+    });
+  }
+
+  async function handleBackfillKarats() {
+    try {
+      const result = await backfillKarats.mutateAsync();
+      toast.success(`Filled ${result.updated} gold product(s) from their purity stamp`);
+    } catch (err) {
+      toast.error("Backfill failed", { description: err instanceof Error ? err.message : undefined });
+    }
+  }
   const [labelOpen, setLabelOpen] = useState(false);
   const [labelCopies, setLabelCopies] = useState(1);
   const [labelSelectOpen, setLabelSelectOpen] = useState(false);
@@ -418,6 +555,10 @@ export function ProductsPage() {
       silverPercentage: String(p.silverPercentage ?? 100),
       lowStockThreshold: String(p.lowStockThreshold),
       notes: p.notes ?? "",
+      goldKarat: String(p.goldKarat ?? 0),
+      labourType: isLabourType(p.labourType) ? p.labourType : "PERCENT",
+      labourValue: p.labourValue != null ? String(p.labourValue) : "",
+      priceMode: p.priceMode,
     });
     setFormOpen(true);
   }
@@ -470,7 +611,7 @@ export function ProductsPage() {
   function openQuickSale(p: ProductDto) {
     setSaleTarget(p);
     setSaleQty("1");
-    setSalePrice(String(p.sellingPrice));
+    setSalePrice(String(p.effectivePrice));
     setSaleCustomerName("");
     setSaleCustomerPhone("");
     setSaleIsPaid(true);
@@ -558,6 +699,11 @@ export function ProductsPage() {
         silverPercentage: Number(form.silverPercentage) || 100,
         lowStockThreshold: Math.max(0, Number(form.lowStockThreshold) || 0),
         notes: form.notes.trim() || undefined,
+        goldKarat: form.goldKarat === "" ? null : Number(form.goldKarat) || 0,
+        labourType: form.labourType,
+        labourValue:
+          form.labourValue.trim() === "" ? null : Math.max(0, Number(form.labourValue) || 0),
+        priceMode: form.priceMode,
       };
       if (editing) {
         await updateProduct.mutateAsync({ id: editing.id, values: input });
@@ -600,18 +746,14 @@ export function ProductsPage() {
     setLabelOpen(true);
   }
 
-  /** Shop-counter path: exact barcode lookup → open the product. */
+  /** Shop-counter path: exact barcode lookup → open the product.
+   *  Errors REACH the BarcodeLookupInput (its contract: resolve on hit,
+   *  throw on miss) — catching here would flash "success" on a miss. */
   async function handleBarcodeLookup(code: string) {
-    try {
-      const api = await getClient();
-      const product = await api.products.byBarcode(code);
-      openEdit(product);
-      toast.success(`Found ${product.name}`);
-    } catch (err) {
-      toast.error("Barcode lookup failed", {
-        description: err instanceof Error ? err.message : undefined,
-      });
-    }
+    const api = await getClient();
+    const product = await api.products.byBarcode(code);
+    openEdit(product);
+    toast.success(`Found ${product.name}`);
   }
 
   async function handleBackfill() {
@@ -627,6 +769,21 @@ export function ProductsPage() {
       toast.error("Backfill failed", { description: err instanceof Error ? err.message : undefined });
     } finally {
       setBackfilling(false);
+    }
+  }
+
+  async function handleSyncPrices() {
+    try {
+      const r = await syncPrices.mutateAsync();
+      if (r.scanned === 0) {
+        toast.info("No auto-priced products yet — nothing to recalculate");
+      } else if (r.updated === 0) {
+        toast.info("Prices already match the current rates");
+      } else {
+        toast.success(`Re-priced ${r.updated} of ${r.scanned} auto-priced product${r.scanned !== 1 ? "s" : ""}`);
+      }
+    } catch (err) {
+      toast.error("Recalculation failed", { description: err instanceof Error ? err.message : undefined });
     }
   }
 
@@ -662,7 +819,7 @@ export function ProductsPage() {
           p.stock,
           p.weight ?? "",
           p.purchasePrice,
-          p.sellingPrice,
+          p.effectivePrice,
           p.stock <= 0 ? "Out" : p.stock <= p.lowStockThreshold ? "Low" : "In",
         ].join(","),
       ),
@@ -696,7 +853,7 @@ export function ProductsPage() {
         chejatWeight: p.chejatWeight ?? null,
         netWeight: p.netWeight ?? null,
         purity: p.purity,
-        sellingPrice: p.sellingPrice,
+        sellingPrice: p.effectivePrice,
         colorName: p.color || null,
         sizeName: p.size || null,
         categoryName: p.category || null,
@@ -824,6 +981,10 @@ export function ProductsPage() {
             <Barcode className="h-3.5 w-3.5" /> {backfilling ? "Generating…" : "Generate barcodes"}
           </Button>
         )}
+        <Button variant="outline" size="sm" onClick={handleSyncPrices} disabled={syncPrices.isPending} className="gap-1.5">
+          <RefreshCw className={syncPrices.isPending ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />{" "}
+          {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
+        </Button>
         <Button variant="outline" size="sm" onClick={() => setLabelSelectOpen(true)} className="gap-1.5">
           <Printer className="h-3.5 w-3.5" /> Print Label
         </Button>
@@ -1004,7 +1165,12 @@ export function ProductsPage() {
                           border: `1px solid ${PRODUCT_TYPE_COLORS[p.type ?? "Other"]}44`,
                         }}
                       >
-                        {p.type ?? "Other"}
+                        {classifyProduct({
+                          type: p.type,
+                          goldKarat: p.goldKarat,
+                          purity: p.purity,
+                          categoryName: p.category,
+                        }).text}
                       </span>
                     </TableCell>
                     <TableCell>
@@ -1191,6 +1357,18 @@ export function ProductsPage() {
                 {categoryIsCustom && (
                   <Input placeholder="Type new category…" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9" />
                 )}
+                {form.type === "Silver" && (
+                  <CategoryChips
+                    label="Silver sub-category"
+                    hint="Shown as “Silver · <name>” on pickers, labels and the products table."
+                    categories={categories}
+                    value={form.category}
+                    onSelect={(c) => {
+                      setCustomCategory(false);
+                      setForm((f) => ({ ...f, category: c }));
+                    }}
+                  />
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-barcode">Barcode</Label>
@@ -1219,11 +1397,210 @@ export function ProductsPage() {
               </div>
             </div>
 
-            {form.type === "Silver" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="p-silver-pct">Silver %</Label>
-                <Input id="p-silver-pct" type="number" min={0} max={100} value={form.silverPercentage} onChange={(e) => setForm({ ...form, silverPercentage: e.target.value })} placeholder="e.g. 90" />
-                <p className="text-[11px] text-muted-foreground">Silver purity percentage — e.g. 90 means 90% silver content</p>
+            {(form.type === "Gold" || form.type === "Silver") && (
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold">
+                    {form.type} pricing
+                    {form.priceMode === "auto" ? (
+                      <Badge className="ml-2 bg-primary/15 text-primary" variant="secondary">
+                        Auto — live rate
+                      </Badge>
+                    ) : (
+                      <Badge className="ml-2" variant="outline">
+                        Manual
+                      </Badge>
+                    )}
+                  </p>
+                </div>
+
+                {form.type === "Gold" && (
+                  <>
+                    {/* Karat presets — one tap for the common karats. */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {[24, 22, 18, 14].map((k) => (
+                        <button
+                          key={k}
+                          type="button"
+                          onClick={() => setForm({ ...form, goldKarat: String(k) })}
+                          className={cn(
+                            "rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                            Number(form.goldKarat) === k
+                              ? "border-primary bg-primary/15 text-primary"
+                              : "bg-background/60 text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {k}K
+                        </button>
+                      ))}
+                      <Select
+                        value={String(Number(form.goldKarat) || 0)}
+                        onValueChange={(v) => setForm({ ...form, goldKarat: v })}
+                      >
+                        <SelectTrigger
+                          className="h-8 w-[210px] text-xs"
+                          aria-label="Gold karat"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {KARAT_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Pricing</Label>
+                      <Select
+                        value={form.priceMode}
+                        onValueChange={(v) =>
+                          setForm({ ...form, priceMode: v === "auto" ? "auto" : "manual" })
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-full" aria-label="Price mode">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto" disabled={!goldKarat}>
+                            Auto — weight × karat rate
+                          </SelectItem>
+                          <SelectItem value="manual">Manual price</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+
+                {form.type === "Silver" && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="p-silver-pct">Silver %</Label>
+                      <Input
+                        id="p-silver-pct"
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={form.silverPercentage}
+                        onChange={(e) => setForm({ ...form, silverPercentage: e.target.value })}
+                        placeholder="e.g. 90"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Pricing</Label>
+                      <Select
+                        value={form.priceMode}
+                        onValueChange={(v) =>
+                          setForm({ ...form, priceMode: v === "auto" ? "auto" : "manual" })
+                        }
+                      >
+                        <SelectTrigger className="h-9 w-full" aria-label="Price mode">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">
+                            Auto — weight × silver rate
+                          </SelectItem>
+                          <SelectItem value="manual">Manual price</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                <LabourInput
+                  type={form.labourType}
+                  value={form.labourValue}
+                  onTypeChange={(type) => setForm({ ...form, labourType: type })}
+                  onValueChange={(value) => setForm({ ...form, labourValue: value })}
+                  label="Labour"
+                  hint={
+                    form.type === "Gold"
+                      ? "Leave empty to use the shop default labour."
+                      : "Silver labour is per product — empty means none."
+                  }
+                />
+
+                {metalPreview ? (
+                  <p className="text-xs text-muted-foreground">
+                    {metalPreview.source === "auto" ? (
+                      <>
+                        Auto price now:{" "}
+                        <span className="font-medium text-foreground">
+                          ₹{metalPreview.price.toFixed(2)}
+                        </span>{" "}
+                        ({metalPreview.weightGm.toFixed(3)}g × ₹
+                        {metalPreview.ratePerGram.toFixed(2)}/g
+                        {metalPreview.labour.amount > 0
+                          ? ` + labour ₹${metalPreview.labour.amount.toFixed(2)}`
+                          : ""}
+                        )
+                      </>
+                    ) : (
+                      <>
+                        Falls back to the stored price ({metalPreview.fallback}) — set a{" "}
+                        {form.type === "Gold" ? "karat" : "silver rate"} and weight to
+                        auto-price.
+                      </>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Pick a karat to enable auto pricing by weight.
+                  </p>
+                )}
+
+                {form.type === "Gold" ? (
+                  <div className="border-t pt-2">
+                    <GoldRateEditor
+                      compact
+                      rates={goldRatesQuery.data?.rates}
+                      labourType={defaultLabourType}
+                      labourValue={defaultLabourValue}
+                      onLabourChange={handleSaveDefaultLabour}
+                      silverRatePerGram={silverRatePerGram}
+                      onSilverRateChange={handleSaveSilverRate}
+                      onSave={handleSaveInlineRates}
+                      saving={saveGoldRates.isPending || updateSettings.isPending}
+                      onBackfillKarats={handleBackfillKarats}
+                      backfilling={backfillKarats.isPending}
+                      updatedLabel={
+                        goldRatesQuery.data?.updatedAt
+                          ? new Date(goldRatesQuery.data.updatedAt).toLocaleString()
+                          : null
+                      }
+                    />
+                  </div>
+                ) : (
+                  <div className="border-t pt-2">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="p-silver-rate">Silver rate (₹ per gram)</Label>
+                        <Input
+                          id="p-silver-rate"
+                          type="text"
+                          inputMode="decimal"
+                          className="h-9 tabular-nums"
+                          placeholder="e.g. 95"
+                          value={silverInputText ?? (silverRatePerGram ? String(silverRatePerGram) : "")}
+                          onChange={(e) => {
+                            setSilverInputText(e.target.value);
+                            const parsed = Number.parseFloat(e.target.value);
+                            handleSaveSilverRate(
+                              Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
+                            );
+                          }}
+                          onBlur={() => setSilverInputText(null)}
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Shop-wide rate — auto-priced silver products re-price instantly.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1275,7 +1652,33 @@ export function ProductsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="p-sell">Sell price</Label>
-                <Input id="p-sell" type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} />
+                {form.priceMode === "auto" &&
+                (form.type === "Gold" || form.type === "Silver") ? (
+                  <>
+                    <Input
+                      id="p-sell"
+                      type="number"
+                      disabled
+                      className="tabular-nums"
+                      value={
+                        metalPreview?.source === "auto"
+                          ? String(metalPreview.price)
+                          : form.sellingPrice
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Calculated — weight × rate + labour.
+                    </p>
+                  </>
+                ) : (
+                  <Input
+                    id="p-sell"
+                    type="number"
+                    min={0}
+                    value={form.sellingPrice}
+                    onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })}
+                  />
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-threshold">Low stock alert</Label>
@@ -1323,6 +1726,9 @@ export function ProductsPage() {
                 weight: detailsProduct.weight,
                 weightUnit: detailsProduct.weightUnit ?? "gm",
                 purity: detailsProduct.purity,
+                goldKarat: detailsProduct.goldKarat,
+                priceMode: detailsProduct.priceMode,
+                autoPrice: detailsProduct.autoPrice,
                 grossWeight: detailsProduct.grossWeight,
                 nagLessWeight: detailsProduct.nagLessWeight,
                 nagRate: detailsProduct.nagRate,
@@ -1333,6 +1739,7 @@ export function ProductsPage() {
                 lowStockThreshold: detailsProduct.lowStockThreshold,
                 purchasePrice: detailsProduct.purchasePrice,
                 sellingPrice: detailsProduct.sellingPrice,
+                effectivePrice: detailsProduct.effectivePrice,
                 notes: detailsProduct.notes,
                 createdAt: detailsProduct.createdAt,
                 updatedAt: detailsProduct.updatedAt,
@@ -1354,7 +1761,7 @@ export function ProductsPage() {
           name: p.name,
           sku: p.sku,
           barcode: p.barcode,
-          sellingPrice: p.sellingPrice,
+          sellingPrice: p.effectivePrice,
           weight: p.weight,
           color: p.color,
           size: p.size,
