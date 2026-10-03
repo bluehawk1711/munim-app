@@ -27,9 +27,7 @@ import {
  * `<BarChart status="loading">`.
  */
 
-// CurveFactory type - simplified version compatible with visx
-// biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
-type CurveFactory = any;
+import type { CurveFactory } from "d3-shape";
 
 /** One shimmer sweep, in seconds. */
 const DEFAULT_SWEEP_DURATION_S = 2;

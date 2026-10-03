@@ -55,8 +55,8 @@ export function renderLabelMarkup(label, opts) {
     // Silver labels: name font fits cleanly above weight line
     const nameLen = nameWithPurity.length;
     const nameFontSize = isGold
-        ? (nameLen <= 8 ? 8 : nameLen <= 12 ? 7 : nameLen <= 16 ? 6.5 : 6)
-        : (nameLen <= 10 ? 10 : nameLen <= 14 ? 9 : nameLen <= 18 ? 8 : 7);
+        ? (nameLen <= 8 ? 7 : nameLen <= 12 ? 6.5 : nameLen <= 16 ? 6 : 5.5)
+        : (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6);
     // Build weight details for Gold
     const weightFields = [];
     if (weight)

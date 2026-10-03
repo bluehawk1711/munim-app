@@ -6,7 +6,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import {type ProductDto, karatPurityPercent, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
+import {type ProductDto, karatPurityPercent, priceFallbackMessage, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
 import {
   useCatalog,
   useCreateProduct,
@@ -138,13 +138,14 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
         silverPercentage: Number(silverPercentage) || 100,
         labourType,
         labourValue: labourValue.trim() === '' ? null : Number(labourValue) || 0,
+        netWeight,
         sellingPrice: Number(sell) || 0,
       },
       karatTable,
       silverRatePerGram,
       defaultLabour,
     );
-  }, [type, priceMode, weight, weightUnit, selectedKarat, silverPercentage, labourType, labourValue, sell, karatTable, silverRatePerGram, defaultLabour]);
+  }, [type, priceMode, weight, weightUnit, selectedKarat, silverPercentage, labourType, labourValue, netWeight, sell, karatTable, silverRatePerGram, defaultLabour]);
 
   const catalogColors = useMemo(() => (colorsCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [colorsCatalog]);
   const catalogSizes = useMemo(() => (sizesCatalog ?? []).map((s: {name: string}) => ({label: s.name, value: s.name})), [sizesCatalog]);
@@ -359,7 +360,7 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
               value={
                 priceMode === 'auto'
                   ? type === 'Gold'
-                    ? 'Auto — weight × karat rate'
+                    ? 'Auto — net weight × karat rate'
                     : 'Auto — weight × silver rate'
                   : 'Manual price'
               }
@@ -383,11 +384,11 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
               <Text style={styles.goldPreview}>
                 {metalPreview.source === 'auto'
                   ? `Auto price now: ₹${metalPreview.price.toFixed(2)} (${metalPreview.weightGm.toFixed(3)}g × ₹${metalPreview.ratePerGram.toFixed(2)}/g${metalPreview.labour.amount > 0 ? ` + labour ₹${metalPreview.labour.amount.toFixed(2)}` : ''})`
-                  : `Stored price used (${metalPreview.fallback}) — set a ${type === 'Gold' ? 'karat' : 'shop silver rate'} and weight to auto-price.`}
+                  : `Stored price used — ${priceFallbackMessage(metalPreview.fallback) ?? `(${metalPreview.fallback})`}`}
               </Text>
             ) : (
               <Text style={styles.goldPreview}>
-                {type === 'Gold' ? 'Pick a karat to enable auto pricing by weight.' : 'Enter weight to enable auto pricing.'}
+                {type === 'Gold' ? 'Pick a karat to enable auto pricing by net weight.' : 'Enter weight to enable auto pricing.'}
               </Text>
             )}
             {type === 'Silver' && (
@@ -489,14 +490,14 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
           onPress={() => { setPriceMode('auto'); setGoldModePickerOpen(false); }}
           style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, type === 'Gold' && selectedKarat === null && {opacity: 0.4}, pressed && {backgroundColor: colors.mutedSoft}]}>
           <Text style={{fontSize: typography.body, color: priceMode === 'auto' ? colors.primary : colors.text, fontWeight: priceMode === 'auto' ? '700' : '400'}}>
-            {type === 'Silver' ? 'Auto — weight × silver rate' : 'Auto — weight × karat rate'}
+            {type === 'Silver' ? 'Auto — weight × silver rate' : 'Auto — net weight × karat rate'}
           </Text>
           <Text style={{fontSize: 12, color: colors.muted, marginTop: 2}}>
             {type === 'Gold' && selectedKarat === null
               ? 'Pick a karat first to enable'
               : type === 'Silver'
                 ? 'Prices = weight × purity × shop silver rate + labour'
-                : `Prices = weight × ${goldKarat}K rate + labour`}
+                : `Prices = net weight × ${goldKarat}K rate + labour`}
           </Text>
         </Pressable>
       </ModalSheet>

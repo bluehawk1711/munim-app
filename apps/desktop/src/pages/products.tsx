@@ -33,6 +33,7 @@ import {
   isLabourType,
   karatPurityPercent,
   resolveGoldRateTable,
+  priceFallbackMessage,
   priceWithTable,
   toGoldKarat,
   type GoldRateSaveInput,
@@ -216,20 +217,24 @@ type FilterChip =
 
 /* ─── Page ─────────────────────────────────────────────────────── */
 
+const DEFAULT_COLORS = ["Black", "White", "Navy", "Blue", "Red", "Green", "Grey", "Brown", "Olive", "Silver", "Teal", "Amber"];
+const DEFAULT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standard", "30", "32", "34", "36", "8", "9", "10", "11"];
+
 export function ProductsPage() {
   const [search, setSearch] = useState("");
   const [tablePage, setTablePage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [priceFilter, setPriceFilter] = useState<"all" | "auto" | "manual">("all");
   const TABLE_PAGE_SIZE = 40;
-  const { data, error, loading, refetching, reload } = useQueryState(useProducts({ search, type: typeFilter, page: tablePage, pageSize: TABLE_PAGE_SIZE }));
-  const products = data?.products ?? [];
+  const { data, error, loading, refetching, reload } = useQueryState(
+    useProducts({ search, type: typeFilter, priceMode: priceFilter, page: tablePage, pageSize: TABLE_PAGE_SIZE }),
+  );
+  const products = useMemo(() => data?.products ?? [], [data]);
   const pagination = data?.pagination;
 
   const metaQ = useProductMeta();
   const meta = metaQ.data;
 
-  const DEFAULT_COLORS = ["Black", "White", "Navy", "Blue", "Red", "Green", "Grey", "Brown", "Olive", "Silver", "Teal", "Amber"];
-  const DEFAULT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standard", "30", "32", "34", "36", "8", "9", "10", "11"];
   const colors = useMemo(() => Array.from(new Set([...DEFAULT_COLORS, ...(meta?.colors ?? [])])), [meta?.colors]);
   const sizes = useMemo(() => Array.from(new Set([...DEFAULT_SIZES, ...(meta?.sizes ?? [])])), [meta?.sizes]);
   const categories = useMemo(() => Array.from(new Set(meta?.categories ?? [])), [meta?.categories]);
@@ -238,7 +243,7 @@ export function ProductsPage() {
   const stats = statsQ.data;
 
   const categoryQ = useCategoryBreakdown();
-  const categoryRows = categoryQ.data ?? [];
+  const categoryRows = useMemo(() => categoryQ.data ?? [], [categoryQ.data]);
 
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -309,6 +314,7 @@ export function ProductsPage() {
         silverPercentage: Number(form.silverPercentage) || 100,
         labourType: form.labourType,
         labourValue: form.labourValue.trim() === "" ? null : Number(form.labourValue) || 0,
+        netWeight: form.netWeight,
         sellingPrice: Number(form.sellingPrice) || 0,
       },
       karatTable,
@@ -323,6 +329,7 @@ export function ProductsPage() {
     form.silverPercentage,
     form.labourType,
     form.labourValue,
+    form.netWeight,
     form.sellingPrice,
     goldKarat,
     karatTable,
@@ -935,6 +942,19 @@ export function ProductsPage() {
               className="h-9 pl-9 text-sm"
             />
           </div>
+          <Select
+            value={priceFilter}
+            onValueChange={(v) => { setPriceFilter(v === "auto" || v === "manual" ? v : "all"); setTablePage(1); }}
+          >
+            <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by price mode">
+              <SelectValue placeholder="Pricing" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All pricing</SelectItem>
+              <SelectItem value="auto">Auto-priced</SelectItem>
+              <SelectItem value="manual">Manual price</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="flex flex-wrap items-center gap-1.5">
             {chips.map((chip) => {
               const active = chip.kind === activeCategory.kind;
@@ -1465,7 +1485,7 @@ export function ProductsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="auto" disabled={!goldKarat}>
-                            Auto — weight × karat rate
+                            Auto — net weight × karat rate
                           </SelectItem>
                           <SelectItem value="manual">Manual price</SelectItem>
                         </SelectContent>
@@ -1540,15 +1560,15 @@ export function ProductsPage() {
                       </>
                     ) : (
                       <>
-                        Falls back to the stored price ({metalPreview.fallback}) — set a{" "}
-                        {form.type === "Gold" ? "karat" : "silver rate"} and weight to
-                        auto-price.
+                        Falls back to the stored price —{" "}
+                        {priceFallbackMessage(metalPreview.fallback) ??
+                          `(${metalPreview.fallback}).`}
                       </>
                     )}
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Pick a karat to enable auto pricing by weight.
+                    Pick a karat to enable auto pricing by net weight.
                   </p>
                 )}
 

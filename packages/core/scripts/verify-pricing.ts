@@ -19,7 +19,10 @@
  *                                     gold_rates emptied and silver at ₹0 for
  *                                     the no-rate fallbacks — snapshot/restore
  *                                     of gold_rates & settings, deleted at the
- *                                     end (restored even if a pass fails)
+ *                                     end (restored even if a pass fails).
+ *                                     Guarded: requires MUNIM_ALLOW_PRICING_SEED=1
+ *                                     AND a scratch DATABASE_URL — never run the
+ *                                     seeded pass against production (AGENTS.md §7).
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -77,6 +80,7 @@ type Row = {
   priceMode: string | null;
   weight: number | null;
   weightUnit: string | null;
+  netWeight: string | null;
   goldKarat: number | null;
   silverPercentage: number | null;
   labourType: string | null;
@@ -101,14 +105,22 @@ type Cleanup = () => Promise<void>;
 
 /** One product per branch of `priceProduct` (and of the SQL twin). */
 const FIXTURES: ProductInput[] = [
-  { name: "ZZZ-Pricing-Verify gold 22K quoted + shop-default labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 10, weightUnit: "gm", sellingPrice: 1, stock: 1 },
-  { name: "ZZZ-Pricing-Verify gold 18K derived + per-gram labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 18, weight: 5.5, weightUnit: "gm", labourType: "PER_GRAM", labourValue: 180, sellingPrice: 1, stock: 1 },
-  { name: "ZZZ-Pricing-Verify gold 24K quoted + fixed labour + mg weight", type: "Gold", size: "V", priceMode: "auto", goldKarat: 24, weight: 3500, weightUnit: "mg", labourType: "FIXED", labourValue: 250, sellingPrice: 1, stock: 1 },
-  { name: "ZZZ-Pricing-Verify gold 14K derived + zero weight fallback", type: "Gold", size: "V", priceMode: "auto", goldKarat: 14, weight: 0, weightUnit: "gm", sellingPrice: 999, stock: 1 },
-  { name: "ZZZ-Pricing-Verify gold auto without karat fallback", type: "Gold", size: "V", priceMode: "auto", goldKarat: null, weight: 10, weightUnit: "gm", sellingPrice: 888, stock: 1 },
-  { name: "ZZZ-Pricing-Verify gold 22K manual mode", type: "Gold", size: "V", priceMode: "manual", goldKarat: 22, weight: 10, weightUnit: "gm", sellingPrice: 777, stock: 1 },
-  { name: "ZZZ-Pricing-Verify gold 22K explicit zero labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 8, weightUnit: "gm", labourType: "PERCENT", labourValue: 0, sellingPrice: 1, stock: 1 },
-  { name: "ZZZ-Pricing-Verify gold 16K derived fractional + percent labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 16, weight: 4444, weightUnit: "mg", labourType: "PERCENT", labourValue: 7.5, sellingPrice: 1, stock: 1 },
+  // Gold auto-prices from the NET weight (free text) — every fixture carries a
+  // net_weight unless the branch is specifically about a missing/invalid one.
+  { name: "ZZZ-Pricing-Verify gold 22K quoted + shop-default labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 10, weightUnit: "gm", netWeight: "9.850 gm", sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 18K derived + per-gram labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 18, weight: 5.5, weightUnit: "gm", netWeight: "5.5", labourType: "PER_GRAM", labourValue: 180, sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 24K quoted + fixed labour + mg weight", type: "Gold", size: "V", priceMode: "auto", goldKarat: 24, weight: 3500, weightUnit: "mg", netWeight: "3500", labourType: "FIXED", labourValue: 250, sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 14K derived + zero net weight fallback", type: "Gold", size: "V", priceMode: "auto", goldKarat: 14, weight: 10, weightUnit: "gm", netWeight: "0", sellingPrice: 999, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 14K missing net weight fallback", type: "Gold", size: "V", priceMode: "auto", goldKarat: 14, weight: 10, weightUnit: "gm", sellingPrice: 998, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 22K junk net weight fallback", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 10, weightUnit: "gm", netWeight: "abc", sellingPrice: 997, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 22K multi-dot net weight fallback", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 10, weightUnit: "gm", netWeight: "9.8.5", sellingPrice: 996, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 22K leading-dot net weight", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 1, weightUnit: "gm", netWeight: ".100", sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 22K trailing-dot net weight", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 12, weightUnit: "gm", netWeight: "12.", sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold auto without karat fallback", type: "Gold", size: "V", priceMode: "auto", goldKarat: null, weight: 10, weightUnit: "gm", netWeight: "9.5", sellingPrice: 888, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 22K manual mode", type: "Gold", size: "V", priceMode: "manual", goldKarat: 22, weight: 10, weightUnit: "gm", netWeight: "9.5", sellingPrice: 777, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 22K explicit zero labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 8, weightUnit: "gm", netWeight: "7.75", labourType: "PERCENT", labourValue: 0, sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 16K derived fractional + percent labour", type: "Gold", size: "V", priceMode: "auto", goldKarat: 16, weight: 4444, weightUnit: "mg", netWeight: "4444", labourType: "PERCENT", labourValue: 7.5, sellingPrice: 1, stock: 1 },
+  // Silver proves the net weight column is IGNORED for its basis (gross weight).
   { name: "ZZZ-Pricing-Verify silver 92.5 + percent labour", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 92.5, weight: 20, weightUnit: "gm", labourType: "PERCENT", labourValue: 10, sellingPrice: 1, stock: 1 },
   { name: "ZZZ-Pricing-Verify silver no labour + fractional weight", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 90, weight: 12.345, weightUnit: "gm", labourValue: null, sellingPrice: 1, stock: 1 },
   { name: "ZZZ-Pricing-Verify silver fixed labour + fractional weight", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 92.5, weight: 7.7777, weightUnit: "gm", labourType: "FIXED", labourValue: 300, sellingPrice: 1, stock: 1 },
@@ -201,6 +213,7 @@ async function runPass(db: DbClient, label: string): Promise<PassResult> {
       priceMode: schema.products.priceMode,
       weight: schema.products.weight,
       weightUnit: schema.products.weightUnit,
+      netWeight: schema.products.netWeight,
       goldKarat: schema.products.goldKarat,
       silverPercentage: schema.products.silverPercentage,
       labourType: schema.products.labourType,
@@ -227,6 +240,7 @@ async function runPass(db: DbClient, label: string): Promise<PassResult> {
         labourType:
           row.labourType === "FIXED" || row.labourType === "PER_GRAM" ? row.labourType : "PERCENT",
         labourValue: row.labourValue,
+        netWeight: row.netWeight,
         sellingPrice: row.sellingPrice,
       },
       {
@@ -271,8 +285,21 @@ async function runPass(db: DbClient, label: string): Promise<PassResult> {
 
 async function main() {
   loadEnv();
-  const db = getDb();
   const withSeed = process.argv.includes("--seed");
+  if (withSeed && process.env.MUNIM_ALLOW_PRICING_SEED !== "1") {
+    console.error(
+      [
+        "Refusing to run --seed: the fixture WRITES to the connected database",
+        "(temp products + gold_rates/settings) and must never touch production.",
+        "Point DATABASE_URL at a scratch database and opt in explicitly:",
+        "  MUNIM_ALLOW_PRICING_SEED=1 DATABASE_URL=<scratch> pnpm verify:pricing --seed",
+        "See AGENTS.md §7 — never seed the production database.",
+      ].join("\n"),
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const db = getDb();
   const cleanup = withSeed ? await seedFixture(db) : null;
 
   try {

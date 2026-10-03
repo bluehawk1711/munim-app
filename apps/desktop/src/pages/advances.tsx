@@ -74,8 +74,8 @@ export function AdvancesPage() {
   const [deleteTarget, setDeleteTarget] = useState<AdvanceDto | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  const receivables = balances.data?.receivables ?? [];
-  const payables = balances.data?.payables ?? [];
+  const receivables = useMemo(() => balances.data?.receivables ?? [], [balances.data]);
+  const payables = useMemo(() => balances.data?.payables ?? [], [balances.data]);
   const totalReceivable = receivables.reduce((s, p) => s + p.balance, 0);
   const totalPayable = payables.reduce((s, p) => s + Math.abs(p.balance), 0);
   const net = totalReceivable - totalPayable;

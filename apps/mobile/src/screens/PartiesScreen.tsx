@@ -300,7 +300,16 @@ export function PartiesScreen() {
 
   return (
     <Screen>
-      <HomeHeader title="Khata" />
+      <HomeHeader
+        title="Khata"
+        addLabel="Add party"
+        onAddPress={() => {
+          setNewName('');
+          setNewPhone('');
+          setNewType('CUSTOMER');
+          setAddOpen(true);
+        }}
+      />
 
       {/* Search + type filter (parity with web/desktop) */}
       <View style={styles.searchWrap}>
@@ -343,11 +352,6 @@ export function PartiesScreen() {
           renderItem={renderParty}
           keyExtractor={item => item.id}
           {...headerScrollHandlers}
-          ListHeaderComponent={
-            <View style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}}>
-              <Button title="+ Add party" onPress={() => setAddOpen(true)} />
-            </View>
-          }
           ListEmptyComponent={
             <Empty text={search.trim() || typeFilter !== 'ALL' ? 'No parties match your search' : 'No parties yet'} />
           }

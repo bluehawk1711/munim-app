@@ -178,8 +178,8 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // Font sizes — 15mm tall = 120 dots at 203 DPI
   // Gold labels need smaller fonts to fit name + 6 weight lines in 15mm.
   // Silver labels (name + weight): name is prominent, weight is secondary.
-  const maxNameSize = toPt(Math.round(h * 0.30));   // Gold name: ~24 dots = 8.5pt
-  const minNameSize = toPt(Math.round(h * 0.17));   // Gold name min: ~20 dots = 7pt
+  const maxNameSize = toPt(Math.round(h * 0.26));   // Gold name max: ~31 dots = 11pt
+  const minNameSize = toPt(Math.round(h * 0.15));   // Name floor: ~18 dots = 6pt
   const weightSize = toPt(Math.round(h * 0.20));     // Silver weight: ~22 dots = 8pt
   const smallSize = toPt(Math.round(h * 0.16));      // Gold weight fields: ~19 dots = 6.8pt
 
@@ -219,7 +219,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       availableNameWidth / (Math.max(1, nameWithPurity.length) * nameCharWidthAtOnePoint),
     );
     // Silver label name is the dominant text — use the full available height.
-    const silverMaxNameSize = toPt(Math.round(h * 0.26));
+    const silverMaxNameSize = toPt(Math.round(h * 0.22));
     const effectiveMaxNameSize = isGold ? maxNameSize : silverMaxNameSize;
     const nameSize = Math.max(minNameSize, Math.min(effectiveMaxNameSize, fittingNameSize));
     const name = truncateToWidth(

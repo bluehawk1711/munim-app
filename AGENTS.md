@@ -136,6 +136,12 @@ Rules:
   its SQL twin, then run `pnpm db:verify-pricing` (add `-- --seed` for a temp
   fixture covering every branch; it snapshots/restores `gold_rates` + `settings`
   and deletes its own products). It exits non-zero on any mismatch.
+- **NEVER seed data in the production database.** Any script run that WRITES
+  fixtures (`pnpm db:verify-pricing -- --seed`, or a `--seed`/fixture flag on
+  any other script) must target a SCRATCH database — set
+  `DATABASE_URL=<scratch>` for that invocation. The seeded pricing run is
+  hard-guarded: it refuses to start without `MUNIM_ALLOW_PRICING_SEED=1`.
+  Read-only verification (no `--seed`) against production is allowed.
 - **Data migration** between databases: use the root `db:backup` / `db:restore`
   commands (wraps `db-sync.mjs`). To transfer data from an old DB to a new one:
   ```bash

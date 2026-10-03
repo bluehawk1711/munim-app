@@ -39,7 +39,12 @@ export function useChartPhaseOrchestrator({
   const [isLoaded, setIsLoaded] = useState(() => chartStatus === "ready");
   const prevStatusRef = useRef(chartStatus);
   const phaseRef = useRef(chartPhase);
-  phaseRef.current = chartPhase;
+  // Mirror the latest phase for the callbacks/effects below (they must not
+  // take `chartPhase` as a dep). Sync in an effect — refs are never touched
+  // during render (react-hooks/refs).
+  useEffect(() => {
+    phaseRef.current = chartPhase;
+  });
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: status transition branches for animation durations
   useEffect(() => {

@@ -91,12 +91,11 @@ function TooltipBoxInner({
   const effectiveSpring = springConfig ?? tooltipBoxSpring;
 
   const tooltipRef = useRef<HTMLDivElement>(null);
-  const tooltipWidthRef = useRef(180);
-  const tooltipHeightRef = useRef(80);
+  const [tooltipSize, setTooltipSize] = useState({ w: 180, h: 80 });
   const [staticPosition, setStaticPosition] = useState({ left: x, top: y });
 
-  const tw = tooltipWidthRef.current;
-  const th = tooltipHeightRef.current;
+  const tw = tooltipSize.w;
+  const th = tooltipSize.h;
   const shouldFlipX = x + tw + offset > containerWidth;
   const targetX = shouldFlipX ? x - offset - tw : x + offset;
   const targetY = Math.max(
@@ -119,21 +118,18 @@ function TooltipBoxInner({
       return;
     }
     const el = tooltipRef.current;
-    const w = el.offsetWidth;
-    const h = el.offsetHeight;
-    if (w > 0) {
-      tooltipWidthRef.current = w;
-    }
-    if (h > 0) {
-      tooltipHeightRef.current = h;
-    }
-    const w2 = tooltipWidthRef.current;
-    const h2 = tooltipHeightRef.current;
-    const flip = x + w2 + offset > containerWidth;
-    const tx = flip ? x - offset - w2 : x + offset;
+    const measuredW = el.offsetWidth;
+    const measuredH = el.offsetHeight;
+    const w = measuredW > 0 ? measuredW : tooltipSize.w;
+    const h = measuredH > 0 ? measuredH : tooltipSize.h;
+    setTooltipSize((prev) =>
+      prev.w === w && prev.h === h ? prev : { w, h }
+    );
+    const flip = x + w + offset > containerWidth;
+    const tx = flip ? x - offset - w : x + offset;
     const ty = Math.max(
       offset,
-      Math.min(y - h2 / 2, containerHeight - h2 - offset)
+      Math.min(y - h / 2, containerHeight - h - offset)
     );
     if (!animate) {
       setStaticPosition({ left: tx, top: ty });
@@ -156,6 +152,7 @@ function TooltipBoxInner({
     animate,
     animatedLeft,
     animatedTop,
+    tooltipSize,
   ]);
 
   const prevFlipRef = useRef(shouldFlipX);

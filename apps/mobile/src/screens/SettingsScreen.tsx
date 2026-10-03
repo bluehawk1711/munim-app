@@ -470,7 +470,7 @@ export function SettingsScreen() {
       <Card index={1}>
         <Text style={styles.switchLabel}>Dynamic pricing — gold &amp; silver</Text>
         <Text style={{fontSize: 12, color: colors.muted, marginTop: 2, marginBottom: 10}}>
-          Gold: weight × karat rate + labour. Silver: weight × purity × silver rate + labour.
+          Gold: net weight × karat rate + labour. Silver: weight × purity × silver rate + labour.
           Un-quoted karats follow the base (highest quoted) karat.
         </Text>
         <Field

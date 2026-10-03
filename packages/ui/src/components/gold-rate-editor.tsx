@@ -232,7 +232,7 @@ export function GoldRateEditor({
               <BadgeIndianRupee className="h-4 w-4" /> Metal rates &amp; default labour
             </h3>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Gold prices are always <span className="font-medium">weight × karat rate + labour</span>,
+              Gold prices are always <span className="font-medium">net weight × karat rate + labour</span>,
               silver <span className="font-medium">weight × purity × silver rate + labour</span> —
               editing a rate re-prices every auto-priced product instantly.
             </p>

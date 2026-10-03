@@ -115,6 +115,22 @@ export function weightToGrams(
   return weightUnit === "mg" ? weight / 1000 : weight;
 }
 
+/**
+ * Parses the free-text NET WEIGHT column ("9.850 gm", "−.100", "1,015 g")
+ * into a number: strips every character that isn't a digit or a dot, then
+ * converts. Returns `null` when no number can be found (empty, missing, or
+ * unparseable like "9.8.5") — callers surface a user-facing message instead
+ * of guessing. The SQL twin of this rule lives in `services/products.ts`
+ * (`netWeightGmSql`) and must be kept in lockstep.
+ */
+export function parseNetWeight(text: string | null | undefined): number | null {
+  if (!text) return null;
+  const cleaned = text.replace(/[^0-9.]/g, "");
+  if (cleaned === "") return null;
+  const value = Number(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
 /* ── Rate table resolution (custom rows + derived karats) ─────── */
 
 /** One entry of the effective 0–24 rate table (always all 25 karats). */

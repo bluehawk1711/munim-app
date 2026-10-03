@@ -853,8 +853,8 @@ export function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrint
   // Gold labels: smaller name font to fit weight fields below
   const nameLen = nameWithPurity.length;
   const nameFontSize = isGold
-    ? (nameLen <= 8 ? 6 : nameLen <= 12 ? 5.5 : nameLen <= 16 ? 5 : 4.5)
-    : (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6);
+    ? (nameLen <= 8 ? 5.5 : nameLen <= 12 ? 5 : nameLen <= 16 ? 4.5 : 4)
+    : (nameLen <= 10 ? 8 : nameLen <= 14 ? 7 : nameLen <= 18 ? 6 : 5.5);
 
   // Build weight details for Gold — respect each field's toggle + prefix text
   const weightFields: string[] = [];

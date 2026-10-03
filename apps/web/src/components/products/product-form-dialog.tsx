@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useUploadImage, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, useSettings, useDebouncedSettingsUpdate, useQueryState } from "@munim/query"
 import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
-import { productSchema, isLabourType, karatPurityPercent, resolveGoldRateTable, priceWithTable, toGoldKarat, type GoldRateSaveInput, type GoldRateTableEntry, type LabourType, type PriceBreakdown, type ProductFormValues } from "@munim/core"
+import { productSchema, isLabourType, karatPurityPercent, resolveGoldRateTable, priceFallbackMessage, priceWithTable, toGoldKarat, type GoldRateSaveInput, type GoldRateTableEntry, type LabourType, type PriceBreakdown, type ProductFormValues } from "@munim/core"
 import type { Product } from "@/lib/types"
 import { toast } from "@munim/ui"
 
@@ -191,13 +191,14 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
         silverPercentage: watched.silverPercentage ?? 100,
         labourType: watched.labourType ?? "PERCENT",
         labourValue: typeof watched.labourValue === "number" ? watched.labourValue : null,
+        netWeight: watched.netWeight ?? null,
         sellingPrice: watched.sellingPrice ?? 0,
       },
       karatTable,
       silverRatePerGram,
       defaultLabour,
     )
-  }, [productType, priceMode, goldKarat, watched.sellingPrice, watched.weight, watched.weightUnit, watched.silverPercentage, watched.labourType, watched.labourValue, karatTable, silverRatePerGram, defaultLabour])
+  }, [productType, priceMode, goldKarat, watched.sellingPrice, watched.weight, watched.weightUnit, watched.silverPercentage, watched.labourType, watched.labourValue, watched.netWeight, karatTable, silverRatePerGram, defaultLabour])
 
   /** Saves an edited rate row (from the inline editor) then refreshes the draft. */
   async function handleSaveInlineRates(rates: GoldRateSaveInput[]) {
@@ -551,7 +552,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="auto" disabled={!goldKarat}>Auto — weight × karat rate</SelectItem>
+                        <SelectItem value="auto" disabled={!goldKarat}>Auto — net weight × karat rate</SelectItem>
                         <SelectItem value="manual">Manual price</SelectItem>
                       </SelectContent>
                     </Select>
@@ -618,12 +619,15 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
                       )
                     </>
                   ) : (
-                    <>Falls back to the stored price ({metalPreview.fallback}).</>
+                    <>
+                      Falls back to the stored price —{" "}
+                      {priceFallbackMessage(metalPreview.fallback) ?? `(${metalPreview.fallback}).`}
+                    </>
                   )}
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  {productType === "Gold" ? "Pick a karat to enable auto pricing by weight." : "Enter weight to enable auto pricing."}
+                  {productType === "Gold" ? "Pick a karat to enable auto pricing by net weight." : "Enter weight to enable auto pricing."}
                 </p>
               )}
 

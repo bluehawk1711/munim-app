@@ -137,17 +137,24 @@ export function useAnimatedYDomains({
     targetByAxis
   );
   const destinationRef = useRef(destinationByAxis);
-  destinationRef.current = destinationByAxis;
   const skeletonRef = useRef(skeletonByAxis);
-  skeletonRef.current = skeletonByAxis;
   const targetRef = useRef(targetByAxis);
-  targetRef.current = targetByAxis;
 
   const [animatedByAxis, setAnimatedByAxis] = useState(destinationByAxis);
   const animatedRef = useRef(animatedByAxis);
   const prevPhaseRef = useRef(chartPhase);
   const onSettledRef = useRef(onSettled);
-  onSettledRef.current = onSettled;
+
+  // Mirror the latest props/values for the effects and animation callbacks
+  // below — they deliberately don't take these as deps. Refs are never
+  // touched during render (react-hooks/refs); effects run in declaration
+  // order, so this sync lands before any reader effect in the same commit.
+  useEffect(() => {
+    destinationRef.current = destinationByAxis;
+    skeletonRef.current = skeletonByAxis;
+    targetRef.current = targetByAxis;
+    onSettledRef.current = onSettled;
+  });
 
   useEffect(() => {
     animatedRef.current = animatedByAxis;

@@ -125,7 +125,8 @@ export const products = pgTable(
      *  (`settings.default_labour_*`); Silver has NO shop default (per-product
      *  only) → unset means no labour. */
     labourValue: doublePrecision("labour_value"),
-    /** "auto" → price = metal value (weight × karat/silver rate) + labour;
+    /** "auto" → price = metal value (GOLD: net weight × karat rate;
+     *  SILVER: weight × purity × silver rate) + labour;
      *  "manual" → price = `sellingPrice` (default keeps legacy behaviour).
      *  Applies to Gold AND Silver (renamed from `gold_price_mode`). */
     priceMode: text("price_mode", { enum: ["auto", "manual"] }).notNull().default("manual"),

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw } from "lucide-react";
 import {
   buildBillDocument,
+  productMatchesCode,
   type BillDocument,
   type BillShopDetails,
 } from "@munim/core";
@@ -187,13 +188,15 @@ export function BillingPage() {
   }
 
   /**
-   * Fast entry: a USB scanner types the code + Enter, this drops the product
-   * into the next empty line (price = its current effective price). Local
-   * match first (instant, works from the already-fetched list), API lookup as
-   * a fallback for barcodes outside the loaded page.
+   * Fast entry: a USB scanner types the code (or the user types an SKU) +
+   * Enter, this drops the product into the next empty line (price = its
+   * current effective price). Local match first (instant, works from the
+   * already-fetched list, same barcode-or-SKU rule as core
+   * `findProductByCode`), API lookup as a fallback for codes outside the
+   * loaded page.
    */
   async function handleBarcodeAdd(code: string, target: "first" | "second" = "first"): Promise<unknown> {
-    let row = allProducts?.find((p) => (p.barcode ?? "") === code) ?? null;
+    let row = allProducts?.find((p) => productMatchesCode(p, code)) ?? null;
     if (!row) {
       const api = await getClient();
       row = await api.products.byBarcode(code);
@@ -542,10 +545,10 @@ export function BillingPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Fast entry — scan a barcode</Label>
+                    <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
                     <BarcodeLookupInput
                       onLookup={handleBarcodeAdd}
-                      placeholder="Scan barcode to add an item…"
+                      placeholder="Scan barcode or type SKU…"
                       className="sm:max-w-[320px]"
                     />
                   </div>
@@ -608,10 +611,10 @@ export function BillingPage() {
                       idPrefix="sb"
                     />
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Fast entry — scan a barcode</Label>
+                      <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
                       <BarcodeLookupInput
                         onLookup={(c) => handleBarcodeAdd(c, "second")}
-                        placeholder="Scan barcode to add an item…"
+                        placeholder="Scan barcode or type SKU…"
                         className="sm:max-w-[320px]"
                       />
                     </div>

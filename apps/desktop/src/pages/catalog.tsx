@@ -196,12 +196,12 @@ export function CatalogPage() {
 
   const colorItems = colors.data ?? [];
   const sizeItems = sizes.data ?? [];
-  const categoryItems = categories.data ?? [];
+  const categoryItems = useMemo(() => categories.data ?? [], [categories.data]);
 
   // Cheap cached call — the pagination header carries the real product count.
   const productsQ = useQueryState(useProducts({ pageSize: 1000 }));
   const totalProducts = productsQ.data?.pagination.totalCount ?? 0;
-  const allProducts = productsQ.data?.products ?? [];
+  const allProducts = useMemo(() => productsQ.data?.products ?? [], [productsQ.data]);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");

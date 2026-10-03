@@ -10,8 +10,7 @@ import {
   type ProjectionPoint,
 } from "./projection-utils";
 
-// biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
-type CurveFactory = any;
+import type { CurveFactory } from "d3-shape";
 
 export type ProjectionStrokeStyle = "solid" | "gradient";
 

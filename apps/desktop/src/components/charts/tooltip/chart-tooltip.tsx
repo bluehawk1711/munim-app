@@ -368,15 +368,14 @@ const ChartTooltipInner = memo(function ChartTooltipInner({
 
 export function ChartTooltip(props: ChartTooltipProps) {
   const { containerRef } = useChartStable();
-  const [mounted, setMounted] = useState(false);
+  const [container, setContainer] = useState<HTMLDivElement | null>(null);
 
   // Only render portals on client side after mount
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    setContainer(containerRef.current);
+  }, [containerRef]);
 
-  const container = containerRef.current;
-  if (!(mounted && container)) {
+  if (!container) {
     return null;
   }
 
@@ -423,6 +422,7 @@ function DatePillTrackerInner({
   // biome-ignore lint/correctness/useExhaustiveDependencies: we need to jump the animatedX when the visible prop changes
   useEffect(() => {
     animatedX.set(xWithMargin);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- jump only when `visible` changes; x follows the pointer via the render-phase set above
   }, [animatedX, visible]);
 
   return (

@@ -175,6 +175,8 @@ export type ProductFilters = {
   size?: string;
   category?: string;
   status?: "in_stock" | "low_stock" | "out_of_stock" | "all";
+  /** Price-mode filter — "auto"/"manual" narrows, "all"/undefined matches everything. */
+  priceMode?: "auto" | "manual" | "all";
   page?: number;
   pageSize?: number;
 };
@@ -231,6 +233,25 @@ export const silverRatePerGramSql = sql<number>`coalesce((select s.silver_rate_p
 /** Product weight in grams — `weight` is stored in `weightUnit` (mg or gm). */
 export const weightGmSql = sql<number>`(case when ${schema.products.weightUnit} = 'mg' then coalesce(${schema.products.weight}, 0) / 1000.0 else coalesce(${schema.products.weight}, 0) end)`;
 
+/**
+ * NET weight in grams — the gold auto-price basis, the SQL twin of
+ * `parseNetWeight` + `weightToGrams` (pricing/gold.ts). `net_weight` is free
+ * text ("9.850 gm"), so: strip every non-digit/dot char, then reject
+ * exactly the inputs TS `Number()` can't parse — empty, more than one dot,
+ * or no digit at all — before casting. Kept in lockstep with the TS engine
+ * and proven by `scripts/verify-pricing.ts`.
+ */
+const netWeightCleanSql = sql<string>`nullif(regexp_replace(coalesce(${schema.products.netWeight}, ''), '[^0-9.]', '', 'g'), '')`;
+const netWeightParsedSql = sql<number | null>`(
+  case
+    when ${netWeightCleanSql} is null then null
+    when length(${netWeightCleanSql}) - length(replace(${netWeightCleanSql}, '.', '')) > 1 then null
+    when ${netWeightCleanSql} !~ '[0-9]' then null
+    else ${netWeightCleanSql}::double precision
+  end
+)`;
+const netWeightGmSql = sql<number | null>`(case when ${schema.products.weightUnit} = 'mg' then ${netWeightParsedSql} / 1000.0 else ${netWeightParsedSql} end)`;
+
 /** Silver purity %, clamped exactly like `priceProduct` (>0 → min(s,100), else 100). */
 const silverPercentSql = sql<number>`(case when coalesce(${schema.products.silverPercentage}, 100) > 0 then least(${schema.products.silverPercentage}, 100) else 100 end)`;
 
@@ -241,8 +262,9 @@ const defaultLabourValueSql = sql<number>`coalesce((select s.default_labour_valu
 /**
  * Metal values (the labour PERCENT basis) — `priceProduct` rounds the metal
  * value to paisa BEFORE applying labour, so the SQL twin rounds here too.
+ * Gold uses the NET weight basis; silver keeps the gross weight.
  */
-const goldMetalSql = sql<number>`round((${weightGmSql} * ${goldRatePerGramSql})::numeric, 2)::double precision`;
+const goldMetalSql = sql<number>`round((${netWeightGmSql} * ${goldRatePerGramSql})::numeric, 2)::double precision`;
 const silverMetalSql = sql<number>`round((${weightGmSql} * (${silverPercentSql} / 100.0) * ${silverRatePerGramSql})::numeric, 2)::double precision`;
 
 /** `round2` in SQL: `Math.round(x * 100) / 100` (pricing/gold.ts). */
@@ -250,10 +272,10 @@ function round2Sql(expr: ReturnType<typeof sql<number>>) {
   return sql<number>`round((${expr})::numeric, 2)::double precision`;
 }
 
-/** ₹/gram × weight, rounded to paisa — the PER_GRAM labour basis. */
-const goldPerGramLabourSql = round2Sql(sql<number>`${weightGmSql} * ${schema.products.labourValue}`);
+/** ₹/gram × NET weight (gold) or gross weight (silver), the PER_GRAM labour basis. */
+const goldPerGramLabourSql = round2Sql(sql<number>`${netWeightGmSql} * ${schema.products.labourValue}`);
 const silverPerGramLabourSql = round2Sql(sql<number>`${weightGmSql} * ${schema.products.labourValue}`);
-const defaultPerGramLabourSql = round2Sql(sql<number>`${weightGmSql} * ${defaultLabourValueSql}`);
+const defaultPerGramLabourSql = round2Sql(sql<number>`${netWeightGmSql} * ${defaultLabourValueSql}`);
 /** % of the (already rounded) metal value — the PERCENT labour basis. */
 const goldPercentLabourSql = round2Sql(sql<number>`${goldMetalSql} * ${schema.products.labourValue} / 100.0`);
 const silverPercentLabourSql = round2Sql(sql<number>`${silverMetalSql} * ${schema.products.labourValue} / 100.0`);
@@ -303,8 +325,8 @@ const silverLabourSql = sql<number>`(
 /**
  * Auto price — the SQL twin of `priceProduct` (pricing/product.ts):
  *
- *   Gold  (auto + karat + rate>0 + weight>0)  → round2(goldMetal  + goldLabour)
- *   Silver(auto + shop rate>0 + weight>0)     → round2(silverMetal + silverLabour)
+ *   Gold  (auto + karat + rate>0 + NET weight parsed>0) → round2(goldMetal + goldLabour)
+ *   Silver(auto + shop rate>0 + weight>0)              → round2(silverMetal + silverLabour)
  *   anything else → NULL (callers fall back to `sellingPrice`, never ₹0)
  *
  * Expressed ONCE so every list, aggregate and report agrees with the form
@@ -319,7 +341,7 @@ export const autoPriceSql = sql<number | null>`(
       and ${schema.products.priceMode} = 'auto'
       and ${schema.products.goldKarat} is not null
       and ${goldRatePerGramSql} > 0
-      and ${weightGmSql} > 0
+      and ${netWeightGmSql} > 0
     then round((${goldMetalSql} + ${goldLabourSql})::numeric, 2)::double precision
     when ${schema.products.type} = 'Silver'
       and ${schema.products.priceMode} = 'auto'
@@ -389,6 +411,7 @@ export async function listProducts(db: DbClient, filters: ProductFilters = {}) {
   const size = filters.size && filters.size !== "all" ? filters.size : undefined;
   const category = filters.category && filters.category !== "all" ? filters.category : undefined;
   const status = filters.status && filters.status !== "all" ? filters.status : undefined;
+  const priceMode = filters.priceMode && filters.priceMode !== "all" ? filters.priceMode : undefined;
   const page = Math.max(1, filters.page || 1);
   const pageSize = Math.max(1, Math.min(1000, filters.pageSize || 20));
 
@@ -409,6 +432,7 @@ export async function listProducts(db: DbClient, filters: ProductFilters = {}) {
   if (size) conditions.push(sql`exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name = ${size})`);
   if (category) conditions.push(sql`exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name = ${category})`);
   if (type) conditions.push(eq(schema.products.type, type));
+  if (priceMode) conditions.push(eq(schema.products.priceMode, priceMode));
 
   const threshold = sql`${schema.products.lowStockThreshold}`;
   if (status === "in_stock") conditions.push(sql`${schema.products.stock} > ${threshold}`);
@@ -768,12 +792,16 @@ export async function findProductByBarcode(db: DbClient, barcode: string) {
 /**
  * Looks a product up by EITHER its barcode OR its SKU (case-insensitive) —
  * the counter's fast-entry path on desktop/web billing: type/scan a code,
- * press Enter, get the product. Barcode is matched exactly; SKU is matched
- * trimmed + case-insensitively (`PRD-AB12CD` === `prd-ab12cd`).
+ * press Enter, get the product. Barcode is matched against both the raw
+ * trimmed input and its alphanumeric-only form (so `4006-3813` and
+ * `40063813` both hit); SKU is matched trimmed + case-insensitively
+ * (`PRD-AB12CD` === `prd-ab12cd`). Keep in lockstep with
+ * {@link productMatchesCode}, the in-memory twin used before this fallback.
  */
 export async function findProductByCode(db: DbClient, code: string) {
   const trimmed = code.trim();
   if (!trimmed) return null;
+  const stripped = trimmed.replace(/[^0-9A-Za-z]/g, "");
   const row = await db
     .select({
       ...PRODUCT_SELECT,
@@ -787,12 +815,31 @@ export async function findProductByCode(db: DbClient, code: string) {
     .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
     .where(
       or(
+        eq(schema.products.barcode, stripped),
         eq(schema.products.barcode, trimmed),
-        sql`lower(${schema.products.sku}) = lower(${trimmed})`,
+        sql`lower(trim(${schema.products.sku})) = lower(${trimmed})`,
       ),
     )
     .limit(1);
   return row[0] ?? null;
+}
+
+/**
+ * In-memory twin of the barcode/SKU match in {@link findProductByCode} —
+ * search an ALREADY-FETCHED product list with the exact same rule the API
+ * fallback applies (barcode: raw + alphanumeric-stripped equality; SKU:
+ * trimmed + case-insensitive). Keep the two in lockstep.
+ */
+export function productMatchesCode(
+  product: { barcode?: string | null; sku?: string | null },
+  code: string,
+): boolean {
+  const trimmed = code.trim();
+  if (!trimmed) return false;
+  const stripped = trimmed.replace(/[^0-9A-Za-z]/g, "");
+  const barcode = product.barcode ?? "";
+  if (barcode && (barcode === trimmed || barcode === stripped)) return true;
+  return (product.sku ?? "").trim().toLowerCase() === trimmed.toLowerCase();
 }
 
 /**

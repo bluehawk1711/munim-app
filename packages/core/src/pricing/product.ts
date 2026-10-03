@@ -8,10 +8,12 @@
  *
  * Branches (first match wins):
  *
- *   1. Gold  + priceMode "auto" + karat + karat rate>0 + weight>0
- *          metalValue = weightGm × rate(karat)
+ *   1. Gold  + priceMode "auto" + karat + karat rate>0 + NET weight parsed>0
+ *          metalValue = netWeightGm × rate(karat)
  *          labour     = product labour, else SHOP DEFAULT (settings)
  *          price      = round2(metalValue + labour)
+ *          (net weight is free text — `parseNetWeight` strips non-numeric
+ *           chars; no number found → the "invalid-net-weight" fallback.)
  *
  *   2. Silver + priceMode "auto" + shop silver rate>0 + weight>0
  *          metalValue = weightGm × silverPercentage/100 × silverRate
@@ -32,6 +34,7 @@
  */
 import {
   karatPurityPercent,
+  parseNetWeight,
   rateForKarat,
   toGoldKarat,
   weightToGrams,
@@ -49,8 +52,33 @@ export type PriceFallback =
   | "no-karat"
   | "no-rate"
   | "zero-weight"
+  | "invalid-net-weight"
   | "no-silver-rate"
   | null;
+
+/**
+ * User-facing explanation for a fallback reason — shared by the web, desktop
+ * and mobile product forms so the message reads the same everywhere (§3:
+ * shared logic lives in core). Returns `null` for `null` (auto-priced).
+ */
+export function priceFallbackMessage(fallback: PriceFallback): string | null {
+  switch (fallback) {
+    case "manual-mode":
+      return "Price mode is Manual — switch to Auto to compute from rates.";
+    case "no-karat":
+      return "No karat selected — pick one so a gold rate applies.";
+    case "no-rate":
+      return "No gold rate for this karat yet — set one in Settings → Rates & labour.";
+    case "zero-weight":
+      return "Weight is 0 — enter a positive weight to auto-price.";
+    case "invalid-net-weight":
+      return "Net weight is missing or not a number — enter a number like 9.85 so this gold product can auto-price.";
+    case "no-silver-rate":
+      return "Shop silver rate is 0 — set it in Settings → Rates & labour.";
+    default:
+      return null;
+  }
+}
 
 /** The labour slice of the breakdown (what the operator sees). */
 export type PriceLabour = {
@@ -98,6 +126,8 @@ export type PriceableProduct = {
   labourType: LabourType;
   /** null → Gold uses the shop default; Silver uses no labour. */
   labourValue: number | null;
+  /** Free-text net weight (gold auto-price basis) — parsed by `parseNetWeight`. */
+  netWeight?: string | null;
   /** Stored price — the manual price and every fallback. */
   sellingPrice: number;
 };
@@ -157,14 +187,21 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
     if (karat === null) return manual("no-karat");
     const rate = rateForKarat(context.goldRateTable, karat);
     if (!Number.isFinite(rate) || rate <= 0) return manual("no-rate", { ratePerGram: 0 });
-    if (weightGm <= 0) {
+    // Gold prices from the NET weight (free text) — strict: no number found
+    // means no auto-price; the form shows `priceFallbackMessage` instead.
+    const netWeight = parseNetWeight(product.netWeight);
+    if (netWeight === null) {
+      return manual("invalid-net-weight", { ratePerGram: rate, purityPercent: karatPurityPercent(karat) });
+    }
+    const netWeightGm = weightToGrams(netWeight, product.weightUnit);
+    if (netWeightGm <= 0) {
       return manual("zero-weight", { ratePerGram: rate, purityPercent: karatPurityPercent(karat) });
     }
 
-    const metalValue = r2(weightGm * rate);
+    const metalValue = r2(netWeightGm * rate);
     // Gold: product labour wins; unset falls back to the shop default.
     const labourConfig = productLabour(product) ?? context.defaultLabour;
-    const labourAmount = computeLabour(labourConfig, { metalValue, weightGm });
+    const labourAmount = computeLabour(labourConfig, { metalValue, weightGm: netWeightGm });
     return {
       source: "auto",
       fallback: null,
@@ -172,7 +209,7 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
       karat,
       purityPercent: karatPurityPercent(karat),
       ratePerGram: rate,
-      weightGm,
+      weightGm: netWeightGm,
       metalValue,
       labour: {
         type: labourConfig?.type ?? null,

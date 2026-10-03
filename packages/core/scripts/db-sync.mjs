@@ -26,6 +26,7 @@ const TABLES = [
   "colors",
   "sizes",
   "categories",
+  "gold_rates",
   "products",
   "stock_movements",
   "parties",

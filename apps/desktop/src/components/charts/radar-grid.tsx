@@ -39,9 +39,12 @@ export function RadarGrid({
 
   // Generate angles for the radial lines (one per metric)
   const degrees = 360;
-  const angles = [...new Array(metrics.length + 1)].map((_, i) => ({
-    angle: i * (degrees / metrics.length) + degrees / metrics.length / 2,
-  }));
+  const angles = Array.from(
+    { length: metrics.length + 1 },
+    (_, i) => ({
+      angle: i * (degrees / metrics.length) + degrees / metrics.length / 2,
+    })
+  );
 
   // Radial scale for converting degrees to radians
   const radialScale = scaleLinear<number>({
@@ -54,7 +57,7 @@ export function RadarGrid({
   return (
     <g className={className}>
       {/* Concentric grid circles */}
-      {[...new Array(levels)].map((_, i) => {
+      {Array.from({ length: levels }, (_, i) => {
         const targetRadius = ((i + 1) * radius) / levels;
         return (
           <motion.g
@@ -92,7 +95,7 @@ export function RadarGrid({
 
       {/* Grid level labels */}
       {showLabels &&
-        [...new Array(levels)].map((_, i) => (
+        Array.from({ length: levels }, (_, i) => (
           <motion.g
             animate={{ opacity: 1 }}
             initial={animate ? { opacity: 0 } : { opacity: 1 }}

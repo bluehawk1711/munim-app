@@ -58,6 +58,8 @@ export type ProductFilters = {
     size?: string;
     category?: string;
     status?: "in_stock" | "low_stock" | "out_of_stock" | "all";
+    /** Price-mode filter — "auto"/"manual" narrows, "all"/undefined matches everything. */
+    priceMode?: "auto" | "manual" | "all";
     page?: number;
     pageSize?: number;
 };
@@ -74,8 +76,8 @@ export declare const weightGmSql: import("drizzle-orm").SQL<number>;
 /**
  * Auto price — the SQL twin of `priceProduct` (pricing/product.ts):
  *
- *   Gold  (auto + karat + rate>0 + weight>0)  → round2(goldMetal  + goldLabour)
- *   Silver(auto + shop rate>0 + weight>0)     → round2(silverMetal + silverLabour)
+ *   Gold  (auto + karat + rate>0 + NET weight parsed>0) → round2(goldMetal + goldLabour)
+ *   Silver(auto + shop rate>0 + weight>0)              → round2(silverMetal + silverLabour)
  *   anything else → NULL (callers fall back to `sellingPrice`, never ₹0)
  *
  * Expressed ONCE so every list, aggregate and report agrees with the form
@@ -408,8 +410,11 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
 /**
  * Looks a product up by EITHER its barcode OR its SKU (case-insensitive) —
  * the counter's fast-entry path on desktop/web billing: type/scan a code,
- * press Enter, get the product. Barcode is matched exactly; SKU is matched
- * trimmed + case-insensitively (`PRD-AB12CD` === `prd-ab12cd`).
+ * press Enter, get the product. Barcode is matched against both the raw
+ * trimmed input and its alphanumeric-only form (so `4006-3813` and
+ * `40063813` both hit); SKU is matched trimmed + case-insensitively
+ * (`PRD-AB12CD` === `prd-ab12cd`). Keep in lockstep with
+ * {@link productMatchesCode}, the in-memory twin used before this fallback.
  */
 export declare function findProductByCode(db: DbClient, code: string): Promise<{
     colorName: string | null;
@@ -449,6 +454,16 @@ export declare function findProductByCode(db: DbClient, code: string): Promise<{
     autoPrice: number | null;
     effectivePrice: number;
 } | null>;
+/**
+ * In-memory twin of the barcode/SKU match in {@link findProductByCode} —
+ * search an ALREADY-FETCHED product list with the exact same rule the API
+ * fallback applies (barcode: raw + alphanumeric-stripped equality; SKU:
+ * trimmed + case-insensitive). Keep the two in lockstep.
+ */
+export declare function productMatchesCode(product: {
+    barcode?: string | null;
+    sku?: string | null;
+}, code: string): boolean;
 /**
  * "Update all prices" (Products page action): freezes the CURRENT dynamic
  * price into `selling_price` for every auto-priced metal product.

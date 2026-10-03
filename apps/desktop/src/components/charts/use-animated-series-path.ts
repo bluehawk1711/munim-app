@@ -11,8 +11,7 @@ import {
   seriesPathTransitionSignature,
 } from "./series-path-utils";
 
-// biome-ignore lint/suspicious/noExplicitAny: d3 curve factory type
-type CurveFactory = any;
+import type { CurveFactory } from "d3-shape";
 
 export interface UseAnimatedSeriesPathOptions {
   renderData: Record<string, unknown>[];

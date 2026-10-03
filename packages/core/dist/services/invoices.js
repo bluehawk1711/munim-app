@@ -31,6 +31,7 @@ function pricingSnapshotFor(product, pricingContext) {
         silverPercentage: product.silverPercentage ?? 100,
         labourType: product.labourType === "FIXED" || product.labourType === "PER_GRAM" ? product.labourType : "PERCENT",
         labourValue: product.labourValue,
+        netWeight: product.netWeight,
         sellingPrice: product.sellingPrice,
     }, {
         goldRateTable: pricingContext.table,
@@ -58,8 +59,8 @@ export async function createSale(db, input) {
         throw new InvoiceError("Selected product no longer exists", "PRODUCT_NOT_FOUND", 404);
     if (input.quantity <= 0)
         throw new InvoiceError("Quantity must be greater than 0", "INVALID_QUANTITY");
-    // Auto-priced gold products sell at the dynamic price (weight * karat rate +
-    // labour - see pricing/gold.ts); manual/non-gold keep `sellingPrice`.
+    // Auto-priced gold products sell at the dynamic price (NET weight × karat
+    // rate + labour — see pricing/product.ts); manual/non-gold keep `sellingPrice`.
     const price = input.sellingPrice ?? product.effectivePrice ?? product.sellingPrice;
     const total = price * input.quantity;
     const newStock = product.stock - input.quantity;

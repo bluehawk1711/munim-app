@@ -82,6 +82,7 @@ export function ProductsView() {
   const [category, setCategory] = React.useState<string>(productCategoryFilter)
   const [status, setStatus] = React.useState<StockStatus | "all">(productStatusFilter as StockStatus | "all")
   const [type, setType] = React.useState<string>(productTypeFilter)
+  const [priceMode, setPriceMode] = React.useState<"all" | "auto" | "manual">("all")
   const [page, setPage] = React.useState(1)
   const pageSize = 20
 
@@ -147,6 +148,10 @@ export function ProductsView() {
     setProductTypeFilter(value)
     setPage(1)
   }
+  function changePriceMode(value: "all" | "auto" | "manual") {
+    setPriceMode(value)
+    setPage(1)
+  }
 
   const [formOpen, setFormOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<Product | null>(null)
@@ -174,6 +179,7 @@ export function ProductsView() {
     category,
     status,
     type,
+    priceMode,
     page,
     pageSize,
   }
@@ -181,7 +187,8 @@ export function ProductsView() {
   const products = data?.products ?? []
   const pagination = data?.pagination
 
-  const hasActiveFilters = color !== "all" || size !== "all" || category !== "all" || status !== "all" || type !== "all" || !!globalSearch
+  const hasActiveFilters =
+    color !== "all" || size !== "all" || category !== "all" || status !== "all" || type !== "all" || priceMode !== "all" || !!globalSearch
 
   function clearFilters() {
     setGlobalSearch("")
@@ -190,6 +197,7 @@ export function ProductsView() {
     changeCategory("all")
     changeStatus("all")
     changeType("all")
+    changePriceMode("all")
     setPage(1)
   }
 
@@ -426,6 +434,16 @@ export function ProductsView() {
                 <SelectItem value="in_stock">In Stock</SelectItem>
                 <SelectItem value="low_stock">Low Stock</SelectItem>
                 <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={priceMode} onValueChange={(v) => changePriceMode(v as "all" | "auto" | "manual")}>
+              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by price mode">
+                <SelectValue placeholder="Pricing" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All pricing</SelectItem>
+                <SelectItem value="auto">Auto-priced</SelectItem>
+                <SelectItem value="manual">Manual price</SelectItem>
               </SelectContent>
             </Select>
             {hasActiveFilters && (

@@ -16,7 +16,7 @@ import {
   backfillBarcodes,
   createProduct,
   deleteProduct,
-  findProductByBarcode,
+  findProductByCode,
   getCategoryBreakdown,
   getInventoryStats,
   getProduct,
@@ -53,6 +53,7 @@ export class ProductsController {
     @Query("size") size?: string,
     @Query("category") category?: string,
     @Query("status") status?: string,
+    @Query("priceMode") priceMode?: string,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
   ) {
@@ -63,6 +64,7 @@ export class ProductsController {
       size,
       category,
       status: (status ?? undefined) as ProductFilters["status"],
+      priceMode: priceMode === "auto" || priceMode === "manual" ? priceMode : undefined,
       page: page ? Math.max(1, parseInt(page, 10) || 1) : undefined,
       pageSize: pageSize ? Math.max(1, Math.min(1000, parseInt(pageSize, 10) || 20)) : undefined,
     };
@@ -95,14 +97,14 @@ export class ProductsController {
   @Get("lookup")
   async lookup(@Query("barcode") barcode?: string) {
     if (!barcode?.trim()) {
-      throw new NotFoundException("Missing barcode");
+      throw new NotFoundException("Missing barcode or SKU");
     }
     const product = await this.cache.cacheAside(
       cacheKeys.productLookup(barcode),
       CACHE_TTL.detail,
-      () => findProductByBarcode(this.db, barcode),
+      () => findProductByCode(this.db, barcode),
     );
-    if (!product) throw new NotFoundException("No product with that barcode");
+    if (!product) throw new NotFoundException("No product with that barcode or SKU");
     return serializeProduct(product);
   }
 

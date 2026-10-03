@@ -78,7 +78,7 @@ function initials(name: string): string {
 
 export function PartiesPage() {
   const balancesQ = useQueryState(usePartyBalances());
-  const allBalances = balancesQ.data?.balances ?? [];
+  const allBalances = useMemo(() => balancesQ.data?.balances ?? [], [balancesQ.data]);
   const loading = balancesQ.loading;
 
   const [search, setSearch] = useState("");

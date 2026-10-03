@@ -389,6 +389,7 @@ const ChartCore = memo(function ChartCore({
       setIsLoaded(true);
     }, animationDuration + staggerMs);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reveal replays on status/signature only; data.length shapes the stagger at effect start and must not retrigger it
   }, [animationDuration, revealSignature, status]);
 
   useEffect(() => {

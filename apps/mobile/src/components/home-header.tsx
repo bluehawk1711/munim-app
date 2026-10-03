@@ -17,7 +17,7 @@
 
 import React, {useEffect} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
-import {ScanLine, Search, Store} from 'lucide-react-native';
+import {Plus, ScanLine, Search, Store} from 'lucide-react-native';
 import {colors, useThemeStyles} from '../theme';
 import {useQueryState, useSettings} from '@munim/query';
 import {useAppStore} from '../lib/store';
@@ -71,11 +71,17 @@ export function resetHeaderScroll() {
 
 export function HomeHeader({
   title = 'Home',
+  /** When provided, an accent "+" action renders FIRST in the header actions
+   * (e.g. Parties → Add party). Screens that omit it are unchanged. */
+  onAddPress,
+  addLabel = 'Add',
   /** When provided, a barcode-scan button renders in the header actions.
    * Only the Home screen passes it — other screens keep Search/Profile. */
   onScanPress,
 }: {
   title?: string;
+  onAddPress?: () => void;
+  addLabel?: string;
   onScanPress?: () => void;
 }) {
   const styles = useThemeStyles(makeStyles);
@@ -124,6 +130,18 @@ export function HomeHeader({
           </Text>
         </View>
         <View style={styles.actions}>
+          {onAddPress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={addLabel}
+              onPress={() => {
+                selectionTick();
+                onAddPress();
+              }}
+              style={({pressed}) => [styles.iconBtn, styles.iconBtnAccent, pressed && styles.iconBtnPressed]}>
+              <Plus size={rs(18)} color={colors.primary} strokeWidth={2.6} />
+            </Pressable>
+          ) : null}
           {onScanPress ? (
             <Pressable
               accessibilityRole="button"

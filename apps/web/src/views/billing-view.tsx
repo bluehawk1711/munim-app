@@ -134,8 +134,10 @@ export function BillingView() {
   }
 
   /**
-   * Fast entry: a USB scanner types the code + Enter → drop the product into
-   * the next empty line of the given bill (price = its current effective price).
+   * Fast entry: a USB scanner types the code (or the user types an SKU) +
+   * Enter → drop the product into the next empty line of the given bill
+   * (price = its current effective price). Resolved by the API lookup, which
+   * matches barcode OR SKU.
    */
   function handleBarcodeLookup(setter: React.Dispatch<React.SetStateAction<LineItem[]>>) {
     return async (code: string): Promise<unknown> => {
@@ -766,7 +768,7 @@ function BillItemsCard({
           </div>
           {onBarcodeLookup ? (
             <div className="mt-2">
-              <BarcodeLookupInput onLookup={onBarcodeLookup} placeholder="Or scan a barcode to add…" />
+              <BarcodeLookupInput onLookup={onBarcodeLookup} placeholder="Or scan barcode / type SKU to add…" />
             </div>
           ) : null}
         </CardContent>

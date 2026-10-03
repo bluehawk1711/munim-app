@@ -78,6 +78,7 @@ const PRODUCT_TYPE_COLORS: Record<string, string> = {
 
 type StockFilter = 'all' | 'in' | 'low' | 'out';
 type TypeFilter = 'all' | 'Gold' | 'Silver';
+type PriceFilter = 'all' | 'auto' | 'manual';
 
 function inStock(p: ProductDto): boolean {
   return p.stock > p.lowStockThreshold;
@@ -197,9 +198,10 @@ export function ProductsScreen() {
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState<StockFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [priceFilter, setPriceFilter] = useState<PriceFilter>('all');
 
   // Data
-  const {data: listData, error, loading, reload} = useQueryState(useProducts({page, pageSize: PAGE_SIZE, type: typeFilter}));
+  const {data: listData, error, loading, reload} = useQueryState(useProducts({page, pageSize: PAGE_SIZE, type: typeFilter, priceMode: priceFilter}));
   const data = listData?.products ?? [];
   const totalCount = listData?.pagination.totalCount ?? 0;
   const totalPages = listData?.pagination.totalPages ?? 1;
@@ -428,6 +430,12 @@ export function ProductsScreen() {
     {key: 'Silver', label: 'Silver'},
   ];
 
+  const PRICE_FILTERS: {key: PriceFilter; label: string}[] = [
+    {key: 'all', label: 'All pricing'},
+    {key: 'auto', label: 'Auto'},
+    {key: 'manual', label: 'Manual'},
+  ];
+
   return (
     <Screen>
       <HomeHeader title="Stock" />
@@ -491,6 +499,26 @@ export function ProductsScreen() {
               onPress={() => {
                 selectionTick();
                 setTypeFilter(f.key);
+                setPage(1);
+                setAllProducts([]);
+              }}
+              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                {f.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <View style={styles.chipRow}>
+        {PRICE_FILTERS.map(f => {
+          const active = priceFilter === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              onPress={() => {
+                selectionTick();
+                setPriceFilter(f.key);
                 setPage(1);
                 setAllProducts([]);
               }}

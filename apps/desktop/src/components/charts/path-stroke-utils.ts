@@ -58,6 +58,7 @@ export function usePathStrokeMetrics(
         ? prev
         : { pathD: d, pathLength: len }
     );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `deps` is caller-provided by design (see doc comment); pathRef identity is stable and read at effect start
   }, deps);
 
   return metrics;
