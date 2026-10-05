@@ -718,7 +718,7 @@ export function PartiesPage() {
 
       {/* Advance given/taken — shared khata action dialog (web-identical) */}
       <KhataActionDialog
-        key={advanceOpen ? `advance-${advanceDirection}` : "closed"}
+        key={advanceOpen ? `advance-${advanceDirection}` : "advance-closed"}
         open={advanceOpen}
         onOpenChange={setAdvanceOpen}
         title={advanceDirection === "GIVEN" ? "Advance given" : "Advance taken"}
@@ -731,7 +731,7 @@ export function PartiesPage() {
 
       {/* Money in/out — shared khata action dialog */}
       <KhataActionDialog
-        key={paymentOpen ? `payment-${paymentDirection}` : "closed"}
+        key={paymentOpen ? `payment-${paymentDirection}` : "payment-closed"}
         open={paymentOpen}
         onOpenChange={setPaymentOpen}
         title={paymentDirection === "IN" ? "Money in (received)" : "Money out (paid)"}

@@ -283,10 +283,22 @@ function chargeSql(raw: SQLWrapper) {
 }
 /** Flat ₹ nag charge (gold only) — free-text column parsed like a number. */
 const nagChargeSql = chargeSql(schema.products.nagRate);
+/** Flat ₹ charge from a NUMERIC column — no free-text parsing (the `''`
+ *  literal the text parser coalesces would 22P02 on double precision). */
+function numericChargeSql(raw: SQLWrapper) {
+  return sql<number>`coalesce(
+    case
+      when ${raw} is null then null
+      when ${raw} <= 0 then null
+      else round((${raw})::numeric, 2)::double precision
+    end,
+    0
+  )`;
+}
 /** Flat ₹ povayi charge (gold + silver). */
-const povayiChargeSql = chargeSql(schema.products.povayiRate);
+const povayiChargeSql = numericChargeSql(schema.products.povayiRate);
 /** Flat ₹ other charges (gold + silver). */
-const otherChargeSql = chargeSql(schema.products.otherCharges);
+const otherChargeSql = numericChargeSql(schema.products.otherCharges);
 
 /** Shop default labour for GOLD products (settings singleton). */
 const defaultLabourTypeSql = sql<string>`coalesce((select s.default_labour_type from settings s limit 1), 'PERCENT')`;
