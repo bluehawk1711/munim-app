@@ -86,6 +86,10 @@ type Row = {
   labourType: string | null;
   labourValue: number | null;
   sellingPrice: number;
+  nagRate: string | null;
+  povayiRate: number | null;
+  otherCharges: number | null;
+  productSilverRate: number | null;
   sqlRate: number;
   sqlAuto: number | null;
   sqlEffective: number;
@@ -126,6 +130,16 @@ const FIXTURES: ProductInput[] = [
   { name: "ZZZ-Pricing-Verify silver fixed labour + fractional weight", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 92.5, weight: 7.7777, weightUnit: "gm", labourType: "FIXED", labourValue: 300, sellingPrice: 1, stock: 1 },
   { name: "ZZZ-Pricing-Verify silver purity 0 (→100%) + per-gram labour", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 0, weight: 3, weightUnit: "gm", labourType: "PER_GRAM", labourValue: 50, sellingPrice: 1, stock: 1 },
   { name: "ZZZ-Pricing-Verify silver zero weight fallback", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 92.5, weight: 0, weightUnit: "gm", sellingPrice: 666, stock: 1 },
+  // ── Flat ₹ charges: nag (gold-only) + povayi + other ──────────────
+  // The counter's real-world case: 6.890 gross − 0.800mg nag + 0.200mg
+  // chejat → net 6.8894 gm, labour ₹1500/gram, plus flat charges.
+  { name: "ZZZ-Pricing-Verify gold 22K charges + 1500/gram labour (counter case)", type: "Gold", size: "V", priceMode: "auto", goldKarat: 22, weight: 6.89, weightUnit: "gm", netWeight: "6.8894 gm", labourType: "PER_GRAM", labourValue: 1500, nagRate: "5", povayiRate: 100, otherCharges: 25, sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 18K junk nag text + zero/negative charges", type: "Gold", size: "V", priceMode: "auto", goldKarat: 18, weight: 5, weightUnit: "gm", netWeight: "5", labourType: "PERCENT", labourValue: 8, nagRate: "abc", povayiRate: 0, otherCharges: -3, sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify gold 22K manual mode ignores charges", type: "Gold", size: "V", priceMode: "manual", goldKarat: 22, weight: 5, weightUnit: "gm", netWeight: "5", nagRate: "50", povayiRate: 500, otherCharges: 500, sellingPrice: 444, stock: 1 },
+  // ── Per-product silver rate (custom wins; blank/0 → shop rate) ────
+  { name: "ZZZ-Pricing-Verify silver custom rate wins over shop ₹95", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 92.5, weight: 10, weightUnit: "gm", silverRatePerGram: 110, labourType: "FIXED", labourValue: 50, sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify silver zero custom rate falls back to shop", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 92.5, weight: 6, weightUnit: "gm", silverRatePerGram: 0, sellingPrice: 1, stock: 1 },
+  { name: "ZZZ-Pricing-Verify silver shop rate + povayi + other charges", type: "Silver", size: "V", priceMode: "auto", silverPercentage: 92.5, weight: 8, weightUnit: "gm", povayiRate: 30, otherCharges: 15, sellingPrice: 1, stock: 1 },
   { name: "ZZZ-Pricing-Verify non-metal type never auto-prices", type: "Other", size: "V", priceMode: "auto", weight: 10, weightUnit: "gm", sellingPrice: 555, stock: 1 },
 ];
 
@@ -219,6 +233,10 @@ async function runPass(db: DbClient, label: string): Promise<PassResult> {
       labourType: schema.products.labourType,
       labourValue: schema.products.labourValue,
       sellingPrice: schema.products.sellingPrice,
+      nagRate: schema.products.nagRate,
+      povayiRate: schema.products.povayiRate,
+      otherCharges: schema.products.otherCharges,
+      productSilverRate: schema.products.silverRatePerGram,
       sqlRate: goldRatePerGramSql.as("sql_rate"),
       sqlAuto: autoPriceSql.as("sql_auto"),
       sqlEffective: effectivePriceSql.as("sql_effective"),
@@ -241,6 +259,10 @@ async function runPass(db: DbClient, label: string): Promise<PassResult> {
           row.labourType === "FIXED" || row.labourType === "PER_GRAM" ? row.labourType : "PERCENT",
         labourValue: row.labourValue,
         netWeight: row.netWeight,
+        nagRate: row.nagRate,
+        povayiRate: row.povayiRate,
+        otherCharges: row.otherCharges,
+        silverRatePerGram: row.productSilverRate,
         sellingPrice: row.sellingPrice,
       },
       {

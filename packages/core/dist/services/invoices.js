@@ -98,6 +98,8 @@ export async function createSale(db, input) {
         sku: product.sku,
         color: product.colorName,
         size: product.sizeName,
+        weight: product.weight,
+        weightUnit: product.weightUnit,
         quantity: input.quantity,
         price,
         total,
@@ -166,7 +168,9 @@ export async function createInvoice(db, input) {
     // labour) — fetched ONCE so every auto-priced line can freeze its own
     // pricing snapshot below. Rates at SAVE time; later rate edits never touch
     // this invoice (price/total stay authoritative).
-    const pricingContext = input.items.some((it) => it.productId) ? await loadGoldPricing(db) : null;
+    const pricingContext = input.items.some((it) => it.productId)
+        ? await loadGoldPricing(db, { goldBaseRate: input.goldRate })
+        : null;
     const [invoice] = await db
         .insert(schema.invoices)
         .values({
@@ -187,6 +191,7 @@ export async function createInvoice(db, input) {
         notes: input.notes?.trim() || null,
         shopDetails: input.shopDetails ?? null,
         templateSettings: input.templateSettings ?? null,
+        goldRate: input.goldRate && input.goldRate > 0 ? input.goldRate : null,
     })
         .returning();
     if (!invoice)
@@ -201,6 +206,8 @@ export async function createInvoice(db, input) {
             color: item.color || product?.colorName || null,
             size: item.size || product?.sizeName || null,
             description: item.description?.trim() || null,
+            weight: item.weight ?? product?.weight ?? null,
+            weightUnit: item.weightUnit ?? product?.weightUnit ?? null,
             quantity: item.quantity,
             price: item.price,
             total: item.quantity * item.price,

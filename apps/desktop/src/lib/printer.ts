@@ -122,6 +122,10 @@ export function getSavedLabelPrintSettings(): LabelPrintSettings {
         chejatWeightPrefix: typeof s.chejatWeightPrefix === "string" ? s.chejatWeightPrefix : "C",
         netWeightPrefix: typeof s.netWeightPrefix === "string" ? s.netWeightPrefix : "Net",
         pricePrefix: typeof s.pricePrefix === "string" ? s.pricePrefix : "p",
+        showPrice: s.showPrice !== false,
+        showLabour: s.showLabour !== false,
+        labourPrefix: typeof s.labourPrefix === "string" ? s.labourPrefix : "L",
+        priceY: typeof s.priceY === "number" && s.priceY >= 0 && s.priceY <= 120 ? s.priceY : 0,
         useDefaults: !!s.useDefaults,
       };
     }
@@ -191,6 +195,10 @@ export async function printLabelsToThermal(
     chejatWeightPrefix: ps.chejatWeightPrefix,
     netWeightPrefix: ps.netWeightPrefix,
     pricePrefix: ps.pricePrefix,
+    showPrice: ps.showPrice,
+    showLabour: ps.showLabour,
+    labourPrefix: ps.labourPrefix,
+    priceY: ps.priceY,
   });
   const data = Array.from(new TextEncoder().encode(tspl));
   console.info("[Munim label print]", {

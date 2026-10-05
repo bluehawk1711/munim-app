@@ -29,6 +29,10 @@ const labourValueField = z.union([
   z.coerce.number().min(0, "Cannot be negative"),
 ]);
 
+/** Flat ₹ charge (nag/povayi/other) — same round-trip shape as labour:
+ *  `""`/null → unset (₹0 / shop rate), number → set. */
+const chargeField = labourValueField;
+
 /* ── Products ─────────────────────────────────────────────────── */
 
 export const productSchema = z.object({
@@ -43,7 +47,10 @@ export const productSchema = z.object({
   weightUnit: z.enum(["mg", "gm"]).default("gm"),
   /** Jewelry-specific weight fields (free text for formulas). */
   grossWeight: z.string().max(40).optional().or(z.literal("")),
+  /** Unit of the nag-less + chejat pair — their own toggle beside the fields. */
+  nagUnit: z.enum(["mg", "gm"]).default("gm"),
   nagLessWeight: z.string().max(40).optional().or(z.literal("")),
+  /** Flat ₹ nag charge (gold price) — a price field, never unit-converted. */
   nagRate: z.string().max(40).optional().or(z.literal("")),
   chejatWeight: z.string().max(40).optional().or(z.literal("")),
   netWeight: z.string().max(40).optional().or(z.literal("")),
@@ -54,6 +61,13 @@ export const productSchema = z.object({
   purchasePrice: z.coerce.number().min(0).optional(),
   sellingPrice: z.coerce.number().min(0).optional(),
   silverPercentage: z.coerce.number().min(0).max(100).optional(),
+  /** Per-product silver ₹/gram (write key; the READ key on ProductDto is
+   *  `productSilverRatePerGram`). ""/null → clear → follow the shop rate. */
+  silverRatePerGram: chargeField.optional(),
+  /** Flat ₹ povayi charge added to the auto price. */
+  povayiRate: chargeField.optional(),
+  /** Flat ₹ other charges added to the auto price. */
+  otherCharges: chargeField.optional(),
   /** Gold karat 0–24 — enables dynamic karat pricing for gold products. */
   goldKarat: goldKaratField.optional(),
   /** Labour method: PERCENT (% of metal value), FIXED (₹) or PER_GRAM (₹/g). */
@@ -104,6 +118,8 @@ export const invoiceItemSchema = z.object({
   color: z.string().optional(),
   size: z.string().optional(),
   description: z.string().optional(),
+  weight: z.coerce.number().min(0).nullish(),
+  weightUnit: z.enum(["gm", "mg"]).nullish(),
   quantity: z.coerce.number().positive("Quantity must be positive"),
   price: z.coerce.number().min(0),
 });
@@ -138,10 +154,17 @@ export const invoiceSchema = z.object({
       classicColor: z.enum(["red", "yellow"]),
       twoInOne: z.boolean(),
       mode: z.enum(["duplicate", "distinct"]),
+      // Per-bill display toggles — default ON (older snapshots omit them).
+      weightAfterName: z.boolean().default(true),
+      goldRateLine: z.boolean().default(true),
+      silverRateLine: z.boolean().default(true),
     })
     .optional(),
   amountPaid: z.coerce.number().min(0).optional(),
   paymentMethod: z.string().optional(),
+  // Gold base ₹/gram this bill was created at — reprints must show THIS rate,
+  // not whatever today's shop rate happens to be. Optional (older bills: null).
+  goldRate: z.coerce.number().min(0).optional(),
 });
 
 export type InvoiceFormValues = z.infer<typeof invoiceSchema>;
@@ -165,6 +188,48 @@ export const invoicePaymentSchema = z.object({
 });
 
 export type InvoicePaymentValues = z.infer<typeof invoicePaymentSchema>;
+
+/* ── Orders (quote now, bill later) ──────────────────────────── */
+
+/** Order line — same shape as an invoice line, but `price` is the QUOTED
+ *  price carried into the bill as-is (no re-pricing at bill time). */
+export const orderItemSchema = z.object({
+  productId: z.string().optional(),
+  productName: z.string().min(1, "Item name is required"),
+  sku: z.string().optional(),
+  color: z.string().optional(),
+  size: z.string().optional(),
+  description: z.string().optional(),
+  weight: z.coerce.number().min(0).nullish(),
+  weightUnit: z.enum(["gm", "mg"]).nullish(),
+  quantity: z.coerce.number().positive("Quantity must be positive"),
+  price: z.coerce.number().min(0),
+});
+
+export type OrderItemValues = z.infer<typeof orderItemSchema>;
+
+export const orderSchema = z.object({
+  customerName: z.string().optional(),
+  customerPhone: z.string().optional(),
+  customerAddress: z.string().optional(),
+  partyId: z.string().optional(),
+  date: z.string().optional(),
+  items: z.array(orderItemSchema).min(1, "At least one line item is required"),
+  deliveryCharge: z.coerce.number().min(0).optional(),
+  discount: z.coerce.number().min(0).optional(),
+  notes: z.string().optional(),
+});
+
+export type OrderFormValues = z.infer<typeof orderSchema>;
+
+export const orderUpdateSchema = orderSchema
+  .partial()
+  .extend({
+    items: z.array(orderItemSchema).min(1, "At least one line item is required").optional(),
+    status: z.enum(["OPEN", "COMPLETED", "CANCELLED"]).optional(),
+  });
+
+export type OrderUpdateValues = z.infer<typeof orderUpdateSchema>;
 
 /* ── Parties (khata) ──────────────────────────────────────────── */
 
@@ -307,6 +372,8 @@ export const settingsSchema = z.object({
     .nullish()
     .transform((v) => v ?? undefined)
     .optional(),
+  /** Rates-editor display/entry unit — storage stays per-gram. */
+  rateDisplayUnit: z.enum(["gm", "10gm"]).optional(),
 });
 
 export type SettingsFormValues = z.infer<typeof settingsSchema>;

@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, sql, type SQLWrapper } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { isGoldKarat, round2 } from "../pricing/gold.js";
@@ -227,8 +227,15 @@ export const goldRatePerGramSql = sql<number>`coalesce(
   end
 )`;
 
-/** Shop-wide silver ₹/gram (settings singleton; 0 → silver never auto-prices). */
-export const silverRatePerGramSql = sql<number>`coalesce((select s.silver_rate_per_gram from settings s limit 1), 0)`;
+/** Effective silver ₹/gram — the product's OWN `silver_rate_per_gram` when
+ *  set, else the shop-wide settings value. SQL twin of the silver branch's
+ *  rate lookup in `priceProduct` (a global silver change recalculates every
+ *  product without a custom rate on the very next read). 0 → never prices. */
+export const silverRatePerGramSql = sql<number>`coalesce(
+  ${schema.products.silverRatePerGram},
+  (select s.silver_rate_per_gram from settings s limit 1),
+  0
+)`;
 
 /** Product weight in grams — `weight` is stored in `weightUnit` (mg or gm). */
 export const weightGmSql = sql<number>`(case when ${schema.products.weightUnit} = 'mg' then coalesce(${schema.products.weight}, 0) / 1000.0 else coalesce(${schema.products.weight}, 0) end)`;
@@ -254,6 +261,32 @@ const netWeightGmSql = sql<number | null>`(case when ${schema.products.weightUni
 
 /** Silver purity %, clamped exactly like `priceProduct` (>0 → min(s,100), else 100). */
 const silverPercentSql = sql<number>`(case when coalesce(${schema.products.silverPercentage}, 100) > 0 then least(${schema.products.silverPercentage}, 100) else 100 end)`;
+
+/**
+ * Flat ₹ charge columns — SQL twin of `parseCharge` (pricing/product.ts):
+ * strip everything but digits/dots, reject what `Number()` can't parse
+ * (empty, multiple dots, no digit), then 0 when ≤ 0. Kept in lockstep with
+ * the TS engine and proven by `scripts/verify-pricing.ts`.
+ */
+function chargeSql(raw: SQLWrapper) {
+  const cleaned = sql<string | null>`nullif(regexp_replace(coalesce(${raw}, ''), '[^0-9.]', '', 'g'), '')`;
+  return sql<number>`coalesce(
+    case
+      when ${cleaned} is null then null
+      when length(${cleaned}) - length(replace(${cleaned}, '.', '')) > 1 then null
+      when ${cleaned} !~ '[0-9]' then null
+      when ${cleaned}::double precision <= 0 then null
+      else round(${cleaned}::double precision, 2)
+    end,
+    0
+  )`;
+}
+/** Flat ₹ nag charge (gold only) — free-text column parsed like a number. */
+const nagChargeSql = chargeSql(schema.products.nagRate);
+/** Flat ₹ povayi charge (gold + silver). */
+const povayiChargeSql = chargeSql(schema.products.povayiRate);
+/** Flat ₹ other charges (gold + silver). */
+const otherChargeSql = chargeSql(schema.products.otherCharges);
 
 /** Shop default labour for GOLD products (settings singleton). */
 const defaultLabourTypeSql = sql<string>`coalesce((select s.default_labour_type from settings s limit 1), 'PERCENT')`;
@@ -325,8 +358,11 @@ const silverLabourSql = sql<number>`(
 /**
  * Auto price — the SQL twin of `priceProduct` (pricing/product.ts):
  *
- *   Gold  (auto + karat + rate>0 + NET weight parsed>0) → round2(goldMetal + goldLabour)
- *   Silver(auto + shop rate>0 + weight>0)              → round2(silverMetal + silverLabour)
+ *   Gold  (auto + karat + rate>0 + NET weight parsed>0)
+ *     → round2(goldMetal + goldLabour + nag + povayi + other)
+ *   Silver(auto + effective silver rate>0 + weight>0)
+ *     → round2(silverMetal + silverLabour + povayi + other)
+ *     (nag is gold-only; the rate is product-silver ?? shop-silver)
  *   anything else → NULL (callers fall back to `sellingPrice`, never ₹0)
  *
  * Expressed ONCE so every list, aggregate and report agrees with the form
@@ -342,12 +378,12 @@ export const autoPriceSql = sql<number | null>`(
       and ${schema.products.goldKarat} is not null
       and ${goldRatePerGramSql} > 0
       and ${netWeightGmSql} > 0
-    then round((${goldMetalSql} + ${goldLabourSql})::numeric, 2)::double precision
+    then round((${goldMetalSql} + ${goldLabourSql} + ${nagChargeSql} + ${povayiChargeSql} + ${otherChargeSql})::numeric, 2)::double precision
     when ${schema.products.type} = 'Silver'
       and ${schema.products.priceMode} = 'auto'
       and ${silverRatePerGramSql} > 0
       and ${weightGmSql} > 0
-    then round((${silverMetalSql} + ${silverLabourSql})::numeric, 2)::double precision
+    then round((${silverMetalSql} + ${silverLabourSql} + ${povayiChargeSql} + ${otherChargeSql})::numeric, 2)::double precision
     else null
   end
 )`;
@@ -359,9 +395,13 @@ export const effectivePriceSql = sql<number>`coalesce(${autoPriceSql}, ${schema.
 export type ProductComputedPricing = {
   /** Effective ₹/gram for the product's karat (0 when not karat-priced). */
   goldRatePerGram: number;
-  /** Shop-wide silver ₹/gram the silver branch used (0 → silver not priced). */
+  /** Effective silver ₹/gram the silver branch used — product override ?? shop
+   *  rate (0 → silver not priced). The RAW per-product rate rides along as
+   *  `productSilverRatePerGram` for form round-trips. */
   silverRatePerGram: number;
-  /** Computed auto price (null unless the product is auto-priced). */
+  /** RAW per-product silver ₹/gram column (null → follow the shop rate). */
+  productSilverRatePerGram: number | null;
+  /** Computed auto price (null when not auto-priced). */
   autoPrice: number | null;
   /** `autoPrice ?? sellingPrice`. */
   effectivePrice: number;
@@ -376,6 +416,7 @@ const PRODUCT_SELECT = {
   weight: schema.products.weight,
   weightUnit: schema.products.weightUnit,
   grossWeight: schema.products.grossWeight,
+  nagUnit: schema.products.nagUnit,
   nagLessWeight: schema.products.nagLessWeight,
   nagRate: schema.products.nagRate,
   chejatWeight: schema.products.chejatWeight,
@@ -386,6 +427,10 @@ const PRODUCT_SELECT = {
   purchasePrice: schema.products.purchasePrice,
   sellingPrice: schema.products.sellingPrice,
   silverPercentage: schema.products.silverPercentage,
+  /** RAW per-product silver rate (null → follow the shop rate). */
+  productSilverRatePerGram: schema.products.silverRatePerGram,
+  povayiRate: schema.products.povayiRate,
+  otherCharges: schema.products.otherCharges,
   goldKarat: schema.products.goldKarat,
   labourType: schema.products.labourType,
   labourValue: schema.products.labourValue,
@@ -399,7 +444,7 @@ const PRODUCT_SELECT = {
   updatedAt: schema.products.updatedAt,
   // Dynamic gold pricing — computed, never stored.
   goldRatePerGram: goldRatePerGramSql.as("gold_rate_per_gram"),
-  silverRatePerGram: silverRatePerGramSql.as("silver_rate_per_gram"),
+  silverRatePerGram: silverRatePerGramSql.as("effective_silver_rate_per_gram"),
   autoPrice: autoPriceSql.as("auto_price"),
   effectivePrice: effectivePriceSql.as("effective_price"),
 } as const;
@@ -520,6 +565,8 @@ export type ProductInput = {
   weightUnit?: string;
   /** Jewelry-specific weight fields (free text for formulas). */
   grossWeight?: string;
+  /** Unit for the nag-less + chejat pair (own toggle). */
+  nagUnit?: "mg" | "gm";
   nagLessWeight?: string;
   nagRate?: string;
   chejatWeight?: string;
@@ -533,6 +580,12 @@ export type ProductInput = {
   sellingPrice?: number;
   /** Silver purity percentage — e.g. 90 means 90% silver content. */
   silverPercentage?: number;
+  /** Per-product silver ₹/gram (undefined → keep; null → clear → shop rate). */
+  silverRatePerGram?: number | null;
+  /** Flat ₹ povayi charge added to the auto price (undefined → keep; null → clear). */
+  povayiRate?: number | null;
+  /** Flat ₹ other charges added to the auto price (undefined → keep; null → clear). */
+  otherCharges?: number | null;
   /** Gold karat 0–24 (null → clear the karat / not karat-priced). */
   goldKarat?: number | null;
   /** Labour method: PERCENT (% of metal), FIXED (₹) or PER_GRAM (₹/g). */
@@ -560,6 +613,13 @@ function normalizeGoldKarat(value: number | null | undefined): number | null {
 
 /** Labour rate/amount — clamped to ≥ 0 (round2); null means "not configured". */
 function normalizeLabourValue(value: number | null | undefined): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
+  return round2(value);
+}
+
+/** Flat ₹ charge / per-product silver rate — ≥ 0 (round2); null → cleared. */
+function normalizeChargeValue(value: number | null | undefined): number | null {
+  if (value === null) return null;
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return null;
   return round2(value);
 }
@@ -599,6 +659,7 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       weight: typeof input.weight === "number" && Number.isFinite(input.weight) ? input.weight : null,
       weightUnit: input.weightUnit === "mg" || input.weightUnit === "gm" ? input.weightUnit : "gm",
       grossWeight: input.grossWeight?.trim() || null,
+      nagUnit: input.nagUnit === "mg" || input.nagUnit === "gm" ? input.nagUnit : "gm",
       nagLessWeight: input.nagLessWeight?.trim() || null,
       nagRate: input.nagRate?.trim() || null,
       chejatWeight: input.chejatWeight?.trim() || null,
@@ -609,6 +670,9 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       purchasePrice: input.purchasePrice ?? 0,
       sellingPrice: input.sellingPrice ?? 0,
       silverPercentage: typeof input.silverPercentage === "number" && input.silverPercentage > 0 ? input.silverPercentage : 100,
+      silverRatePerGram: normalizeChargeValue(input.silverRatePerGram),
+      povayiRate: normalizeChargeValue(input.povayiRate),
+      otherCharges: normalizeChargeValue(input.otherCharges),
       goldKarat: normalizeGoldKarat(input.goldKarat),
       labourType: normalizeLabourType(input.labourType),
       labourValue: normalizeLabourValue(input.labourValue),
@@ -669,6 +733,11 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
         ? input.weightUnit
         : existing.weightUnit ?? "gm",
       grossWeight: input.grossWeight === undefined ? existing.grossWeight : input.grossWeight?.trim() || null,
+      nagUnit: input.nagUnit === undefined
+        ? existing.nagUnit ?? "gm"
+        : input.nagUnit === "mg" || input.nagUnit === "gm"
+          ? input.nagUnit
+          : "gm",
       nagLessWeight: input.nagLessWeight === undefined ? existing.nagLessWeight : input.nagLessWeight?.trim() || null,
       nagRate: input.nagRate === undefined ? existing.nagRate : input.nagRate?.trim() || null,
       chejatWeight: input.chejatWeight === undefined ? existing.chejatWeight : input.chejatWeight?.trim() || null,
@@ -683,6 +752,13 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
         : typeof input.silverPercentage === "number" && input.silverPercentage > 0
           ? input.silverPercentage
           : 100,
+      // undefined → keep (legacy forms omit these); null → clear (shop rate
+      // / no charge); number → set.
+      silverRatePerGram: input.silverRatePerGram === undefined
+        ? existing.productSilverRatePerGram
+        : normalizeChargeValue(input.silverRatePerGram),
+      povayiRate: input.povayiRate === undefined ? existing.povayiRate : normalizeChargeValue(input.povayiRate),
+      otherCharges: input.otherCharges === undefined ? existing.otherCharges : normalizeChargeValue(input.otherCharges),
       // undefined → keep (mobile/legacy forms omit metal fields); null → clear.
       goldKarat: input.goldKarat === undefined ? existing.goldKarat : normalizeGoldKarat(input.goldKarat),
       labourType:

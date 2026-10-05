@@ -8,6 +8,7 @@ import {
   Boxes,
   Palette,
   Receipt,
+  ClipboardList,
   FileText,
   Users,
   HandCoins,
@@ -44,6 +45,7 @@ const NAV_SECTIONS: {
     label: "Billing & Docs",
     items: [
       { key: "invoices", label: "Invoices", icon: Receipt, description: "All bills & statuses" },
+      { key: "orders", label: "Orders", icon: ClipboardList, description: "Quotes — bill later" },
       { key: "billing", label: "New Bill", icon: Boxes, description: "Create a bill / invoice" },
       { key: "job-letter", label: "Job Letters", icon: FileText, description: "Offer letters" },
     ],

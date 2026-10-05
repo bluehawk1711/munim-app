@@ -1,4 +1,22 @@
 import { amountInWords } from "../utils/numberToWords.js";
+/** Defaults for the per-bill display toggles — all ON. */
+export const DEFAULT_BILL_TEMPLATE_SETTINGS = {
+    template: "jewellery",
+    classicColor: "red",
+    twoInOne: false,
+    mode: "duplicate",
+    weightAfterName: true,
+    goldRateLine: true,
+    silverRateLine: true,
+};
+/**
+ * Normalize a possibly-partial settings object (e.g. settings snapshots saved
+ * before the display toggles existed) into a complete BillTemplateSettings.
+ * Missing toggles default ON, matching DEFAULT_BILL_TEMPLATE_SETTINGS.
+ */
+export function mergeBillTemplateSettings(partial) {
+    return { ...DEFAULT_BILL_TEMPLATE_SETTINGS, ...partial };
+}
 function round2(value) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -38,6 +56,8 @@ export function buildBillDocument(input) {
         dueAmount,
         status,
         currency: input.currency ?? "INR",
+        goldRate: input.goldRate ?? null,
+        silverRate: input.silverRate ?? null,
     };
 }
 /**
@@ -55,11 +75,16 @@ export function renderBillText(bill) {
         `BILL NO: ${bill.billNo}        DATE: ${bill.date}`,
         `Customer: ${bill.customerName ?? ""}${bill.customerPhone ? ` (${bill.customerPhone})` : ""}`,
         "",
-        ...bill.lines.flatMap((l) => [
-            `${l.quantity} × ${l.productName} @ ${currency}${l.price.toFixed(2)}`,
-            `    ${currency}${l.total.toFixed(2)}`,
-        ]),
+        ...bill.lines.flatMap((l) => {
+            const weight = l.weight != null ? `${l.weight}${l.weightUnit === "mg" ? "mg" : "g"}` : null;
+            return [
+                `${l.quantity} × ${l.productName}${weight ? ` [${weight}]` : ""} @ ${currency}${l.price.toFixed(2)}`,
+                `    ${currency}${l.total.toFixed(2)}`,
+            ];
+        }),
         "",
+        bill.goldRate != null && bill.goldRate > 0 ? `Gold rate:   ${currency}${bill.goldRate.toFixed(2)}/g` : "",
+        bill.silverRate != null && bill.silverRate > 0 ? `Silver rate: ${currency}${bill.silverRate.toFixed(2)}/g` : "",
         `Subtotal:      ${currency}${bill.subtotal.toFixed(2)}`,
         bill.discount > 0 ? `Discount:      -${currency}${bill.discount.toFixed(2)}` : "",
         bill.materialReturnedValue > 0 ? `Material Retd:  -${currency}${bill.materialReturnedValue.toFixed(2)}${bill.materialReturnedWeight ? ` (${bill.materialReturnedWeight})` : ""}` : "",
@@ -83,24 +108,39 @@ const esc = (s) => (s ?? "")
  * HTML render of a bill — the shared, print-friendly markup used by the
  * mobile app (expo-print) and available to any platform that prints HTML.
  * Same numbers as `renderBillText` / jsPDF — one model, any renderer.
+ * `settings` gates the per-bill display toggles (WEIGHT column, rate rows);
+ * omitted → defaults (all ON).
  */
-export function renderBillHtml(bill) {
+export function renderBillHtml(bill, settings) {
+    const s = settings ?? DEFAULT_BILL_TEMPLATE_SETTINGS;
     const symbol = bill.currency === "INR" ? "₹" : `${esc(bill.currency)} `;
     const money = (n) => `${symbol}${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const showWeight = s.weightAfterName;
+    const weightCell = (l) => `<td class="num">${l.weight != null ? `${l.weight}${l.weightUnit === "mg" ? "mg" : "g"}` : "-"}</td>`;
     const itemRows = bill.lines
         .map((l, i) => `<tr>
         <td>${i + 1}</td>
         <td>${esc(l.productName)}${l.color ? `<br/><small>${esc(l.color)}${l.size ? ` / ${esc(l.size)}` : ""}</small>` : l.size ? `<br/><small>${esc(l.size)}</small>` : ""}</td>
+        ${showWeight ? weightCell(l) : ""}
         <td>${esc(l.sku ?? "")}</td>
         <td class="num">${l.quantity}</td>
         <td class="num">${money(l.price)}</td>
         <td class="num">${money(l.total)}</td>
       </tr>`)
         .join("");
+    const totalSpan = (showWeight ? 6 : 5) + "";
+    const rateRows = [
+        ...(s.goldRateLine && bill.goldRate != null && bill.goldRate > 0
+            ? [`<tr><td colspan="${totalSpan}">Gold rate</td><td class="num">${money(bill.goldRate)}/g</td></tr>`]
+            : []),
+        ...(s.silverRateLine && bill.silverRate != null && bill.silverRate > 0
+            ? [`<tr><td colspan="${totalSpan}">Silver rate</td><td class="num">${money(bill.silverRate)}/g</td></tr>`]
+            : []),
+    ].join("");
     const extraRows = [
-        ...(bill.discount > 0 ? [`<tr><td colspan="5">Discount</td><td class="num">− ${money(bill.discount)}</td></tr>`] : []),
-        ...(bill.materialReturnedValue > 0 ? [`<tr><td colspan="5">Material Returned${bill.materialReturnedWeight ? ` (${esc(bill.materialReturnedWeight)})` : ""}</td><td class="num">− ${money(bill.materialReturnedValue)}</td></tr>`] : []),
-        ...(bill.deliveryCharge > 0 ? [`<tr><td colspan="5">Delivery</td><td class="num">+ ${money(bill.deliveryCharge)}</td></tr>`] : []),
+        ...(bill.discount > 0 ? [`<tr><td colspan="${totalSpan}">Discount</td><td class="num">− ${money(bill.discount)}</td></tr>`] : []),
+        ...(bill.materialReturnedValue > 0 ? [`<tr><td colspan="${totalSpan}">Material Returned${bill.materialReturnedWeight ? ` (${esc(bill.materialReturnedWeight)})` : ""}</td><td class="num">− ${money(bill.materialReturnedValue)}</td></tr>`] : []),
+        ...(bill.deliveryCharge > 0 ? [`<tr><td colspan="${totalSpan}">Delivery</td><td class="num">+ ${money(bill.deliveryCharge)}</td></tr>`] : []),
     ].join("");
     return `<!DOCTYPE html>
 <html>
@@ -152,12 +192,13 @@ export function renderBillHtml(bill) {
 
   <table>
     <thead>
-      <tr><th>#</th><th>Item</th><th>SKU</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr>
+      <tr><th>#</th><th>Item</th>${showWeight ? `<th class="num">Weight</th>` : ""}<th>SKU</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr>
     </thead>
     <tbody>${itemRows}</tbody>
   </table>
 
   <table class="totals">
+    ${rateRows}
     <tr><td>Subtotal</td><td class="num">${money(bill.subtotal)}</td></tr>
     ${extraRows}
     <tr class="grand"><td>TOTAL</td><td class="num">${money(bill.total)}</td></tr>

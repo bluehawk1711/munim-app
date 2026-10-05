@@ -25,20 +25,32 @@ export function BillTemplateOptions({
   classicColor,
   twoInOne,
   mode,
+  weightAfterName,
+  goldRateLine,
+  silverRateLine,
   onTemplate,
   onClassicColor,
   onTwoInOne,
   onMode,
+  onWeightAfterName,
+  onGoldRateLine,
+  onSilverRateLine,
   className,
 }: {
   template: BillTemplate;
   classicColor: BillClassicColor;
   twoInOne: boolean;
   mode: BillMode;
+  weightAfterName: boolean;
+  goldRateLine: boolean;
+  silverRateLine: boolean;
   onTemplate: (t: BillTemplate) => void;
   onClassicColor: (c: BillClassicColor) => void;
   onTwoInOne: (on: boolean) => void;
   onMode: (m: BillMode) => void;
+  onWeightAfterName: (on: boolean) => void;
+  onGoldRateLine: (on: boolean) => void;
+  onSilverRateLine: (on: boolean) => void;
   className?: string;
 }) {
   return (
@@ -99,6 +111,36 @@ export function BillTemplateOptions({
           </SelectContent>
         </Select>
       )}
+
+      <div className="flex items-center gap-2">
+        <Switch checked={weightAfterName} onCheckedChange={onWeightAfterName} aria-label="Weight column" />
+        <label
+          className="cursor-pointer text-xs font-medium text-muted-foreground select-none"
+          onClick={() => onWeightAfterName(!weightAfterName)}
+        >
+          Weight column
+        </label>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Switch checked={goldRateLine} onCheckedChange={onGoldRateLine} aria-label="Gold rate line" />
+        <label
+          className="cursor-pointer text-xs font-medium text-muted-foreground select-none"
+          onClick={() => onGoldRateLine(!goldRateLine)}
+        >
+          Gold rate line
+        </label>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Switch checked={silverRateLine} onCheckedChange={onSilverRateLine} aria-label="Silver rate line" />
+        <label
+          className="cursor-pointer text-xs font-medium text-muted-foreground select-none"
+          onClick={() => onSilverRateLine(!silverRateLine)}
+        >
+          Silver rate line
+        </label>
+      </div>
     </div>
   );
 }

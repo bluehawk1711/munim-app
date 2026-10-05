@@ -2,6 +2,8 @@ export {
   buildBillDocument,
   renderBillText,
   renderBillHtml,
+  DEFAULT_BILL_TEMPLATE_SETTINGS,
+  mergeBillTemplateSettings,
   type BillDocument,
   type BillLine,
   type BillLineInput,
@@ -30,6 +32,8 @@ export {
 
 export {
   buildProductLabel,
+  buildSilverPriceLine,
+  formatLabelLabour,
   renderLabelMarkup,
   renderLabelSheetHtml,
   renderLabelText,
@@ -38,6 +42,7 @@ export {
   type ProductLabel,
   type LabelShop,
   type LabelSheetOptions,
+  type SilverPriceLineOptions,
 } from "./labelDocument.js";
 
 export {

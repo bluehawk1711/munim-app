@@ -8,6 +8,7 @@
 import type {
   ProductFilters,
   InvoiceFilters,
+  OrderFilters,
   CatalogKind,
   ReportQueryValues,
 } from "@munim/core";
@@ -30,6 +31,12 @@ export const qk = {
     list: (filters: InvoiceFilters) =>
       ["invoices", "list", filters] as const,
     detail: (id: string) => ["invoices", "detail", id] as const,
+  },
+
+  orders: {
+    all: ["orders"] as const,
+    list: (filters: OrderFilters) => ["orders", "list", filters] as const,
+    detail: (id: string) => ["orders", "detail", id] as const,
   },
 
   sales: {

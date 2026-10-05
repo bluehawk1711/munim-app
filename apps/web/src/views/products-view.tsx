@@ -303,6 +303,8 @@ export function ProductsView() {
           netWeight: p.netWeight ?? null,
           purity: p.purity,
           sellingPrice: p.effectivePrice,
+          labourType: p.labourType,
+          labourValue: p.labourValue,
           colorName: p.color || null,
           sizeName: p.size || null,
           categoryName: p.category ?? null,
@@ -543,7 +545,7 @@ export function ProductsView() {
         formatWeight={formatWeight}
         formatDate={formatDate}
       />
-      <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} product={editing} />
+      <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} product={editing} defaultType={type} />
       <StockAdjustmentDialog open={adjustOpen} onOpenChange={setAdjustOpen} product={adjusting} />
       <DeleteProductDialog open={deleteOpen} onOpenChange={setDeleteOpen} product={deleting} />
       <LabelPrintSelectDialog

@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy } from "lucide-react";
 import {
+  applyGoldBaseRate,
   buildBillDocument,
+  priceProductRow,
   productMatchesCode,
+  resolveGoldRateTable,
   type BillDocument,
   type BillShopDetails,
 } from "@munim/core";
@@ -16,6 +19,7 @@ import {
   useSyncProductPrices,
   useApiClient,
   useQueryState,
+  useGoldRates,
 } from "@munim/query";
 import { money } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
@@ -58,13 +62,15 @@ type LineState = {
   color: string;
   size: string;
   description: string;
+  weight: string;
+  weightUnit: "gm" | "mg";
   quantity: string;
   price: string;
   silverPercentage: string;
 };
 
 function emptyLine(): LineState {
-  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", quantity: "1", price: "0", silverPercentage: "100" };
+  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", weight: "", weightUnit: "gm", quantity: "1", price: "0", silverPercentage: "100" };
 }
 
 function settingsToShop(s: SettingsDto): BillShopDetails {
@@ -80,7 +86,12 @@ function toInvoiceShop(s: BillShopDetails): { name: string; address: string; pho
   return { name: s.name, address: s.address ?? "", phones: s.phones, email: s.email ?? "" };
 }
 
-function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency: string): BillDocument {
+function invoiceToBillDocument(
+  inv: InvoiceDto,
+  shop: BillShopDetails,
+  currency: string,
+  rates?: { gold?: number | null; silver?: number | null },
+): BillDocument {
   return buildBillDocument({
     billNo: inv.invoiceNumber,
     date: inv.date,
@@ -94,6 +105,8 @@ function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency:
       sku: it.sku,
       color: it.color,
       size: it.size,
+      weight: it.weight,
+      weightUnit: it.weightUnit,
       quantity: it.quantity,
       price: it.price,
     })),
@@ -104,11 +117,15 @@ function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency:
     amountPaid: inv.amountPaid,
     status: inv.status,
     currency,
+    goldRate: inv.goldRate ?? rates?.gold ?? null,
+    silverRate: rates?.silver ?? null,
   });
 }
 
 export function BillingPage() {
   const { data: settings } = useQueryState(useSettings());
+  const { data: goldRates } = useQueryState(useGoldRates());
+  const billRates = { gold: goldRates?.baseRatePerGram ?? null, silver: settings?.silverRatePerGram ?? null };
   const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
   const allProducts = allProductsData?.products;
   const { data: parties } = useQueryState(useParties());
@@ -134,6 +151,25 @@ export function BillingPage() {
   const [classicColor, setClassicColor] = useState<BillClassicColor>("red");
   const [twoInOne, setTwoInOne] = useState(false);
   const [mode, setMode] = useState<BillMode>("duplicate");
+  const [weightAfterName, setWeightAfterName] = useState(true);
+  const [goldRateLine, setGoldRateLine] = useState(true);
+  const [silverRateLine, setSilverRateLine] = useState(true);
+
+  // Per-bill gold base ₹/g — prefilled with the shop's rate; editing it
+  // re-prices every auto-priced gold line as you type (Phase 4b).
+  const [goldRateInput, setGoldRateInput] = useState("");
+  const goldRateTouched = useRef(false);
+  useEffect(() => {
+    if (goldRates?.baseRatePerGram != null && !goldRateTouched.current) {
+      setGoldRateInput(String(goldRates.baseRatePerGram));
+    }
+  }, [goldRates?.baseRatePerGram]);
+  const parsedGoldRate = Number(goldRateInput);
+  const goldBaseRate = goldRates?.baseRatePerGram ?? null;
+  const billGoldRate =
+    goldRateInput.trim() && Number.isFinite(parsedGoldRate) && parsedGoldRate > 0
+      ? parsedGoldRate
+      : goldBaseRate;
 
   // ── Second bill — only used in 2-in-1 "Separate" mode ─────────────────
   const [secondCustomerName, setSecondCustomerName] = useState("");
@@ -154,6 +190,41 @@ export function BillingPage() {
   const getClient = useApiClient();
   const [awaitingFreshPrices, setAwaitingFreshPrices] = useState(false);
 
+  /** Pricing inputs for the bill — the gold table re-based on `billGoldRate`. */
+  const billPricingContext = useMemo(() => {
+    const table = resolveGoldRateTable(goldRates?.rates ?? []);
+    const overridden =
+      billGoldRate != null ? applyGoldBaseRate(table, billGoldRate, goldRates?.baseKarat ?? null) : table;
+    const defaultLabour =
+      (settings?.defaultLabourValue ?? 0) > 0
+        ? { type: settings?.defaultLabourType ?? "PERCENT", value: settings?.defaultLabourValue ?? 0 }
+        : null;
+    return {
+      goldRateTable: overridden,
+      silverRatePerGram: settings?.silverRatePerGram ?? 0,
+      defaultLabour,
+    };
+  }, [goldRates, billGoldRate, settings]);
+
+  /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
+  const repriceGoldLines = useCallback(
+    (prev: LineState[]): LineState[] =>
+      prev.map((line) => {
+        if (!line.productId) return line;
+        const p = allProducts?.find((x) => x.id === line.productId);
+        if (!p || p.type !== "Gold" || p.priceMode !== "auto") return line;
+        return { ...line, price: String(priceProductRow(p, billPricingContext).price) };
+      }),
+    [allProducts, billPricingContext],
+  );
+
+  function handleGoldRateChange(value: string) {
+    goldRateTouched.current = true;
+    setGoldRateInput(value);
+    setLines((prev) => repriceGoldLines(prev));
+    setSecondLines((prev) => repriceGoldLines(prev));
+  }
+
   useEffect(() => {
     if (!awaitingFreshPrices || !allProducts) return;
     const priceOf = (id: string): string | null => {
@@ -166,10 +237,12 @@ export function BillingPage() {
         const fresh = priceOf(line.productId);
         return fresh === null ? line : { ...line, price: fresh };
       });
-    setLines(refresh);
-    setSecondLines(refresh);
+    // Server rates land first, then the bill's own gold rate (if any)
+    // re-applies on top so an edited rate is never clobbered.
+    setLines((prev) => repriceGoldLines(refresh(prev)));
+    setSecondLines((prev) => repriceGoldLines(refresh(prev)));
     setAwaitingFreshPrices(false);
-  }, [awaitingFreshPrices, allProducts]);
+  }, [awaitingFreshPrices, allProducts, repriceGoldLines]);
 
   async function handleRecalcPrices() {
     try {
@@ -202,6 +275,10 @@ export function BillingPage() {
       row = await api.products.byBarcode(code);
     }
     const found = row;
+    if (found.stock <= 0) {
+      toast.error(`${found.name} is out of stock`, { description: "Fix its stock in Products before billing it." });
+      return null;
+    }
     const apply = target === "second" ? setSecondLines : setLines;
     apply((prev) => {
       const line: LineState = {
@@ -211,6 +288,8 @@ export function BillingPage() {
         sku: found.sku ?? "",
         color: found.color ?? "",
         size: found.size ?? "",
+        weight: found.weight != null ? String(found.weight) : "",
+        weightUnit: found.weightUnit === "mg" ? ("mg" as const) : ("gm" as const),
         price: String(found.effectivePrice),
         silverPercentage: String(found.silverPercentage ?? 100),
       };
@@ -265,6 +344,8 @@ export function BillingPage() {
       sku: p.sku ?? "",
       color: p.color ?? "",
       size: p.size ?? "",
+      weight: p.weight != null ? String(p.weight) : "",
+      weightUnit: p.weightUnit === "mg" ? ("mg" as const) : ("gm" as const),
       price: String(p.effectivePrice ?? p.sellingPrice),
       silverPercentage: String(p.silverPercentage ?? 100),
     };
@@ -281,6 +362,8 @@ export function BillingPage() {
         color: l.color.trim() || undefined,
         size: l.size.trim() || undefined,
         description: l.description.trim() || undefined,
+        weight: l.weight.trim() ? Number(l.weight) : undefined,
+        weightUnit: l.weight.trim() ? l.weightUnit : undefined,
         quantity: Number(l.quantity) || 0,
         price: Number(l.price) || 0,
       }))
@@ -308,6 +391,8 @@ export function BillingPage() {
     setSecondLines([emptyLine()]);
     setPreview(null);
     setSecondPreview(null);
+    goldRateTouched.current = false;
+    setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : "");
   }
 
   async function handleCreate() {
@@ -343,6 +428,8 @@ export function BillingPage() {
         notes: notes.trim() || undefined,
         paymentMethod: "cash" as const,
         shopDetails: shop ? toInvoiceShop(shop) : undefined,
+        templateSettings: { template, classicColor, twoInOne, mode, weightAfterName, goldRateLine, silverRateLine },
+        goldRate: billGoldRate ?? undefined,
       };
       const invoice = await createInvoice.mutateAsync({
         ...base,
@@ -363,7 +450,7 @@ export function BillingPage() {
       const shopForPreview: BillShopDetails = invoice.shopDetails
         ? { name: invoice.shopDetails.name, address: invoice.shopDetails.address, phones: invoice.shopDetails.phones, email: invoice.shopDetails.email }
         : shop ?? { name: "My Shop", address: null, phones: [], email: null };
-      const doc = invoiceToBillDocument(invoice, shopForPreview, settings?.currency ?? "INR");
+      const doc = invoiceToBillDocument(invoice, shopForPreview, settings?.currency ?? "INR", billRates);
       setPreview(doc);
 
       let secondInvoice: InvoiceDto | null = null;
@@ -383,7 +470,7 @@ export function BillingPage() {
             amountPaid: markPaid ? secondTotal : Number(secondAmountPaid) || 0,
           });
           if (secondInvoice) {
-            setSecondPreview(invoiceToBillDocument(secondInvoice, shopForPreview, settings?.currency ?? "INR"));
+            setSecondPreview(invoiceToBillDocument(secondInvoice, shopForPreview, settings?.currency ?? "INR", billRates));
           }
         } catch (err) {
           // First bill was already saved — surface the partial result clearly.
@@ -405,10 +492,14 @@ export function BillingPage() {
       if (autoSavePdf) {
         try {
           await downloadBillPdf(doc, {
+            template,
             twoInOne,
             mode,
             secondBill: distinct ? secondPreview ?? undefined : undefined,
             classicColor,
+            weightAfterName,
+            goldRateLine,
+            silverRateLine,
           });
         } catch (err) {
           toast.error("Bill saved, but the PDF could not be generated", {
@@ -429,10 +520,14 @@ export function BillingPage() {
     setExporting(true);
     try {
       await downloadBillPdf(doc, {
+        template,
         twoInOne,
         mode,
         secondBill: secondPreview ?? undefined,
         classicColor,
+        weightAfterName,
+        goldRateLine,
+        silverRateLine,
       });
       toast.success("PDF downloaded");
     } catch (err) {
@@ -481,6 +576,21 @@ export function BillingPage() {
                     classicColor={classicColor}
                     twoInOne={twoInOne}
                     mode={mode}
+                    weightAfterName={weightAfterName}
+                    goldRateLine={goldRateLine}
+                    silverRateLine={silverRateLine}
+                    onWeightAfterName={(next) => {
+                      setWeightAfterName(next);
+                      toast.success(next ? "Weight column shown" : "Weight column hidden");
+                    }}
+                    onGoldRateLine={(next) => {
+                      setGoldRateLine(next);
+                      toast.success(next ? "Gold rate line shown" : "Gold rate line hidden");
+                    }}
+                    onSilverRateLine={(next) => {
+                      setSilverRateLine(next);
+                      toast.success(next ? "Silver rate line shown" : "Silver rate line hidden");
+                    }}
                     onTemplate={(next) => {
                       setTemplate(next);
                       toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template");
@@ -514,10 +624,23 @@ export function BillingPage() {
                     idPrefix="b"
                   />
 
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <div className="space-y-1.5">
                       <Label htmlFor="b-date">Date</Label>
                       <Input id="b-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="b-gold-rate">Gold rate (₹/g)</Label>
+                      <Input
+                        id="b-gold-rate"
+                        type="number"
+                        min={0}
+                        step="any"
+                        value={goldRateInput}
+                        onChange={(e) => handleGoldRateChange(e.target.value)}
+                        placeholder={goldBaseRate != null ? String(goldBaseRate) : "—"}
+                      />
+                      <p className="text-muted-foreground text-[11px]">Editing re-prices gold lines on this bill.</p>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="b-notes">Notes / terms</Label>
@@ -908,10 +1031,25 @@ function LineItemsEditor({
       {lines.map((line, index) => (
         <div key={index} className="bg-muted/50 flex flex-wrap items-end gap-2 rounded-lg border p-3">
           <div className="min-w-56 flex-1 space-y-1.5">
-            <Label>Item {index + 1}</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Item {index + 1}</Label>
+              {line.sku && (
+                <span className="inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                  {line.sku}
+                  <button
+                    type="button"
+                    aria-label="Copy SKU"
+                    onClick={() => void navigator.clipboard.writeText(line.sku)}
+                    className="text-muted-foreground transition-colors hover:text-foreground">
+                    <Copy className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+            </div>
             <ProductSearchSelect
               products={allProducts}
               onSelect={(p) => pick(index, p)}
+              disableOutOfStock
               placeholder={line.productId ? "Swap product…" : "Search from stock…"}
             />
           </div>

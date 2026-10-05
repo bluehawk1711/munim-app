@@ -35,6 +35,9 @@ export type ProductLabel = {
   size: string | null;
   category: string | null;
   sellingPrice: number;
+  /** Labour (making) charge — printed on the silver label's price line. */
+  labourType: string | null;
+  labourValue: number | null;
   shopName: string;
 };
 
@@ -59,6 +62,8 @@ export function buildProductLabel(
     netWeight?: string | null;
     purity?: string | null;
     sellingPrice: number;
+    labourType?: string | null;
+    labourValue?: number | null;
     colorName?: string | null;
     sizeName?: string | null;
     categoryName?: string | null;
@@ -83,8 +88,51 @@ export function buildProductLabel(
     size: product.sizeName ?? null,
     category: product.categoryName ?? null,
     sellingPrice: product.sellingPrice,
+    labourType: product.labourType ?? null,
+    labourValue: product.labourValue ?? null,
     shopName: shop?.name ?? "",
   };
+}
+
+/** Formats the labour (making) charge for a label — "₹500" (FIXED),
+ *  "₹50/g" (PER_GRAM), "10%" (PERCENT). "" when absent/zero. */
+export function formatLabelLabour(label: {
+  labourType: string | null;
+  labourValue: number | null;
+}): string {
+  const v = label.labourValue;
+  if (v == null || !Number.isFinite(v) || v <= 0) return "";
+  if (label.labourType === "PER_GRAM") return `₹${v.toLocaleString("en-IN")}/g`;
+  if (label.labourType === "PERCENT") return `${v.toLocaleString("en-IN")}%`;
+  return `₹${v.toLocaleString("en-IN")}`;
+}
+
+export type SilverPriceLineOptions = {
+  /** Print the selling price. Default true. */
+  showPrice?: boolean;
+  /** Print the labour (making) charge beside the price. Default true. */
+  showLabour?: boolean;
+  /** Prefix before the ₹ price (e.g. "p"). Default "p". */
+  pricePrefix?: string;
+  /** Prefix before the labour value (e.g. "L"). Default "L". */
+  labourPrefix?: string;
+};
+
+/** The silver label's price line — price and labour on ONE line, each
+ *  toggleable (TSPL, the dialog preview and the A4 sheet share this). */
+export function buildSilverPriceLine(
+  label: Pick<ProductLabel, "sellingPrice" | "labourType" | "labourValue">,
+  opts: SilverPriceLineOptions = {},
+): string {
+  const parts: string[] = [];
+  if (opts.showPrice !== false && label.sellingPrice > 0) {
+    parts.push(`${opts.pricePrefix ?? "p"}: ₹${label.sellingPrice.toLocaleString("en-IN")}`);
+  }
+  if (opts.showLabour !== false) {
+    const labour = formatLabelLabour(label);
+    if (labour) parts.push(`${opts.labourPrefix ?? "L"}: ${labour}`);
+  }
+  return parts.join(" ");
 }
 
 const esc = (s: string | null | undefined): string =>
@@ -99,14 +147,23 @@ export const LABEL_WIDTH_MM = 63.5;
 export const LABEL_HEIGHT_MM = 33.9;
 
 /** Renders ONE label's inner markup (shared by the sheet + previews).
- * Silver: LEFT = name + " - sil" + purity + weight + size, RIGHT = barcode (+ SKU)
+ * Silver: LEFT = name + " - sil" + purity + weight + size, then the price
+ *         line (price + labour), RIGHT = barcode (+ SKU)
  * Gold:   LEFT = name + weight + 4 weight fields, RIGHT = barcode (+ SKU)
  * The SKU is a small line directly below the barcode (opts.showSku, default on).
  * The size is concatenated after the silver weight (opts.showSize + opts.sizePrefix).
  */
 export function renderLabelMarkup(
   label: ProductLabel,
-  opts?: { showSku?: boolean; showSize?: boolean; sizePrefix?: string },
+  opts?: {
+    showSku?: boolean;
+    showSize?: boolean;
+    sizePrefix?: string;
+    showPrice?: boolean;
+    showLabour?: boolean;
+    pricePrefix?: string;
+    labourPrefix?: string;
+  },
 ): string {
   const barcode = label.barcode ? barcodeSvg(label.barcode, { height: 50, scale: 2, fontSize: 8 }) : "";
   const weight = label.weightMg != null && label.weightMg > 0
@@ -128,7 +185,7 @@ export function renderLabelMarkup(
   // Silver labels: name font fits cleanly above weight line
   const nameLen = nameWithPurity.length;
   const nameFontSize = isGold
-    ? (nameLen <= 8 ? 7 : nameLen <= 12 ? 6.5 : nameLen <= 16 ? 6 : 5.5)
+    ? (nameLen <= 8 ? 6 : nameLen <= 12 ? 5.5 : nameLen <= 16 ? 5 : 4.5)
     : (nameLen <= 10 ? 9 : nameLen <= 14 ? 8 : nameLen <= 18 ? 7 : 6);
 
   // Build weight details for Gold
@@ -147,6 +204,9 @@ export function renderLabelMarkup(
     : "";
   const silverLine = [weight, sizeText].filter((part) => part.length > 0).join(" ");
 
+  // Silver price line — price + labour share one line below the weight.
+  const priceLine = isGold ? "" : buildSilverPriceLine(label, opts ?? {});
+
   const skuLine =
     opts?.showSku !== false && label.sku.trim()
       ? `<div class="l-sku">${esc(label.sku.trim())}</div>`
@@ -157,7 +217,7 @@ export function renderLabelMarkup(
       <div class="l-name" style="font-size:${nameFontSize}px">${esc(nameWithPurity)}</div>
       ${isGold
         ? `<div class="l-weight l-weight-gold-grid">${weightFields.map(wf => `<div>${esc(wf)}</div>`).join("")}</div>`
-        : `<div class="l-weight" style="margin-top:auto">${silverLine ? esc(silverLine) : "&nbsp;"}</div>`
+        : `<div class="l-bottom"><div class="l-weight">${silverLine ? esc(silverLine) : "&nbsp;"}</div>${priceLine ? `<div class="l-price">${esc(priceLine)}</div>` : ""}</div>`
       }
     </div>
     <div class="l-right">${barcode || `<span class="l-nocode">NO BARCODE</span>`}${skuLine}</div>
@@ -179,6 +239,14 @@ export type LabelSheetOptions = {
   showSize?: boolean;
   /** Silver size prefix shown before the size value. Default "S:". */
   sizePrefix?: string;
+  /** Silver price line: print the selling price. Default true. */
+  showPrice?: boolean;
+  /** Silver price line: print the labour (making) charge. Default true. */
+  showLabour?: boolean;
+  /** Silver price prefix (shown before ₹ value). Default "p". */
+  pricePrefix?: string;
+  /** Silver labour prefix (shown before the labour value). Default "L". */
+  labourPrefix?: string;
 };
 
 /**
@@ -205,7 +273,15 @@ export function renderLabelSheetHtml(
   for (let i = 0; i < all.length; i += perPage) {
     const slice = all.slice(i, i + perPage);
     const cells = slice
-      .map((l) => renderLabelMarkup(l, { showSku: opts.showSku, showSize: opts.showSize, sizePrefix: opts.sizePrefix }))
+      .map((l) => renderLabelMarkup(l, {
+        showSku: opts.showSku,
+        showSize: opts.showSize,
+        sizePrefix: opts.sizePrefix,
+        showPrice: opts.showPrice,
+        showLabour: opts.showLabour,
+        pricePrefix: opts.pricePrefix,
+        labourPrefix: opts.labourPrefix,
+      }))
       .join("");
     // Pad the final page so the grid keeps its shape (print doesn't reflow).
     const pad = Math.max(0, perPage - slice.length);
@@ -243,6 +319,8 @@ export function renderLabelSheetHtml(
   .l-name { font-size: 11px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
   .l-nocode { font-size: 8px; color: #999; }
   .l-weight { font-size: 9px; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .l-bottom { display: flex; flex-direction: column; justify-content: flex-end; flex: 1; min-width: 0; }
+  .l-price { font-size: 7px; font-weight: 700; color: #111; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
   .l-weight-gold { font-size: 7px; line-height: 1.3; margin-top: 4px; }
   .l-weight-gold-grid { display: flex; flex-wrap: wrap; gap: 1px 2mm; margin-top: 4px; }
   .l-weight-gold-grid > div { flex: 0 0 48%; font-size: 7px; line-height: 1.3; }
@@ -279,6 +357,8 @@ export function renderLabelText(label: ProductLabel): string {
   } else {
     if (weight) lines.push(weight);
     if (label.size?.trim()) lines.push(`S: ${label.size.trim()}`);
+    const priceLine = buildSilverPriceLine(label);
+    if (priceLine) lines.push(priceLine);
   }
 
   if (label.barcode) lines.push(`Barcode: ${label.barcode}`);

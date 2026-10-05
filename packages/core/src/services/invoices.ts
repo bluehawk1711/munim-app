@@ -119,6 +119,8 @@ export async function createSale(db: DbClient, input: SaleInput) {
     sku: product.sku,
     color: product.colorName,
     size: product.sizeName,
+    weight: product.weight,
+    weightUnit: product.weightUnit,
     quantity: input.quantity,
     price,
     total,
@@ -166,6 +168,9 @@ export type InvoiceItemInput = {
   color?: string;
   size?: string;
   description?: string;
+  /** Product weight + unit snapshot — bill WEIGHT column display only. */
+  weight?: number | null;
+  weightUnit?: string | null;
   quantity: number;
   price: number;
 };
@@ -187,6 +192,8 @@ export type InvoiceInput = {
   shopDetails?: { name: string; address: string; phones: string[]; email: string };
   /** Snapshot of the bill template settings (template / classic color / 2-in-1). */
   templateSettings?: BillTemplateSettings;
+  /** Gold base ₹/gram used for THIS bill (reprint keeps it; null → current shop rate). */
+  goldRate?: number;
   /** initial payment received */
   amountPaid?: number;
   paymentMethod?: string;
@@ -233,7 +240,9 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
   // labour) — fetched ONCE so every auto-priced line can freeze its own
   // pricing snapshot below. Rates at SAVE time; later rate edits never touch
   // this invoice (price/total stay authoritative).
-  const pricingContext = input.items.some((it) => it.productId) ? await loadGoldPricing(db) : null;
+  const pricingContext = input.items.some((it) => it.productId)
+    ? await loadGoldPricing(db, { goldBaseRate: input.goldRate })
+    : null;
 
   const [invoice] = await db
     .insert(schema.invoices)
@@ -255,6 +264,7 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       notes: input.notes?.trim() || null,
       shopDetails: input.shopDetails ?? null,
       templateSettings: input.templateSettings ?? null,
+      goldRate: input.goldRate && input.goldRate > 0 ? input.goldRate : null,
     })
     .returning();
   if (!invoice) throw new InvoiceError("Failed to create invoice", "CREATE_FAILED", 500);
@@ -269,6 +279,8 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       color: item.color || product?.colorName || null,
       size: item.size || product?.sizeName || null,
       description: item.description?.trim() || null,
+      weight: item.weight ?? product?.weight ?? null,
+      weightUnit: item.weightUnit ?? product?.weightUnit ?? null,
       quantity: item.quantity,
       price: item.price,
       total: item.quantity * item.price,

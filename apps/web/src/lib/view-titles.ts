@@ -7,6 +7,7 @@ export const VIEW_TITLES: Record<ViewKey, { title: string; subtitle: string }> =
   products: { title: "Products", subtitle: "Manage your inventory" },
   sales: { title: "Sales", subtitle: "Record sales & view history" },
   invoices: { title: "Invoices", subtitle: "All bills & payment statuses" },
+  orders: { title: "Orders", subtitle: "Quotes locked in — bill them later" },
   billing: { title: "New Bill", subtitle: "Create a bill / invoice" },
   "job-letter": { title: "Job Letters", subtitle: "Offer & joining letters" },
   parties: { title: "Parties", subtitle: "Khata — customers, suppliers, workers" },

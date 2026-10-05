@@ -34,6 +34,9 @@ export async function updateSettings(db, input) {
         ...(input.defaultLabourType !== undefined ? { defaultLabourType: input.defaultLabourType } : {}),
         ...(input.defaultLabourValue !== undefined ? { defaultLabourValue: input.defaultLabourValue } : {}),
         ...(input.silverRatePerGram !== undefined ? { silverRatePerGram: input.silverRatePerGram } : {}),
+        ...(input.rateDisplayUnit !== undefined
+            ? { rateDisplayUnit: input.rateDisplayUnit === "10gm" ? "10gm" : "gm" }
+            : {}),
         updatedAt: new Date(),
     })
         .where(eq(schema.settings.id, SETTINGS_ID))

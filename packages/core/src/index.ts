@@ -31,7 +31,7 @@ export * from "./pricing/labels.js";
 
 /* Utils */
 export { numberToWords, amountInWords } from "./utils/numberToWords.js";
-export { generateSku, generateInvoiceNumber } from "./utils/codes.js";
+export { generateSku, generateInvoiceNumber, generateOrderNumber, stripCodePrefix, codeMatches } from "./utils/codes.js";
 export {
   normalizeBarcode,
   isEan13,
@@ -62,6 +62,7 @@ export * from "./serialize/index.js";
 export * from "./services/catalog.js";
 export * from "./services/products.js";
 export * from "./services/invoices.js";
+export * from "./services/orders.js";
 export * from "./services/parties.js";
 export * from "./services/advances.js";
 export * from "./services/jobLetters.js";

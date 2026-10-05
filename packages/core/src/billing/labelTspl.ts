@@ -1,5 +1,5 @@
 import { formatWeight } from "../utils/format.js";
-import { type ProductLabel } from "./labelDocument.js";
+import { buildSilverPriceLine, type ProductLabel } from "./labelDocument.js";
 import { type LabelPrintSettings, DEFAULT_LABEL_PRINT_SETTINGS } from "./labelDefaults.js";
 
 export type { LabelPrintSettings };
@@ -72,6 +72,14 @@ export type TsplLabelOptions = Partial<LabelSizeSettings> & {
   showSize?: boolean;
   /** Silver size prefix shown before the size value. Default "S:". */
   sizePrefix?: string;
+  /** Silver price line: print the selling price. Default true. */
+  showPrice?: boolean;
+  /** Silver price line: print the labour (making) charge beside it. Default true. */
+  showLabour?: boolean;
+  /** Silver labour prefix (shown before the labour value). Default "L". */
+  labourPrefix?: string;
+  /** Silver price line Y position (dots). 0 = auto (below the weight line). */
+  priceY?: number;
   /** Gold label weight field visibility toggles. */
   showGrossWeight?: boolean;
   showNagLessWeight?: boolean;
@@ -178,7 +186,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
   // Font sizes — 15mm tall = 120 dots at 203 DPI
   // Gold labels need smaller fonts to fit name + 6 weight lines in 15mm.
   // Silver labels (name + weight): name is prominent, weight is secondary.
-  const maxNameSize = toPt(Math.round(h * 0.26));   // Gold name max: ~31 dots = 11pt
+  const maxNameSize = toPt(Math.round(h * 0.19));   // Gold name max: ~23 dots = 8pt
   const minNameSize = toPt(Math.round(h * 0.15));   // Name floor: ~18 dots = 6pt
   const weightSize = toPt(Math.round(h * 0.20));     // Silver weight: ~22 dots = 8pt
   const smallSize = toPt(Math.round(h * 0.16));      // Gold weight fields: ~19 dots = 6.8pt
@@ -232,10 +240,9 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
       ? `${label.weightMg} ${label.weightUnit}`
       : "";
 
-    // Build price line — Indian comma formatting with configurable prefix
-    const priceText = label.sellingPrice > 0
-      ? `${o.pricePrefix ?? "p"}: \u20B9${label.sellingPrice.toLocaleString("en-IN")}`
-      : "";
+    // Silver price line — price + labour share one line (each toggleable,
+    // prefixes configurable). Silver labels only — gold never prints it.
+    const priceText = isGold ? "" : buildSilverPriceLine(label, o);
 
     lines.push("CLS");
 
@@ -300,7 +307,7 @@ export function buildLabelTspl2(labels: ProductLabel[], opts: TsplLabelOptions =
         lines.push(`TEXT ${leftMargin},${weightY},"0",0,${weightSize},${weightSize},"${tsplText(weightLine)}"`);
       }
       if (priceText) {
-        const priceY = weightY + Math.round(weightSize * 3.2);
+        const priceY = o.priceY && o.priceY > 0 ? o.priceY : weightY + Math.round(weightSize * 3.2);
         lines.push(`TEXT ${leftMargin},${priceY},"0",0,${weightSize},${weightSize},"${tsplText(priceText)}"`);
       }
     }

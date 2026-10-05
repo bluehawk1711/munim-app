@@ -11,6 +11,8 @@ import type {
   Product,
   Invoice,
   InvoiceItem,
+  Order,
+  OrderItem,
   Party,
   Advance,
   Payment,
@@ -54,7 +56,10 @@ export type ProductDto = {
   weightUnit: string;
   /** Jewelry-specific weight fields (free text). */
   grossWeight: string | null;
+  /** Unit of the nag-less + chejat pair ("mg" | "gm"). */
+  nagUnit: string;
   nagLessWeight: string | null;
+  /** Flat ₹ nag charge (gold auto price) — free text, parsed by core. */
   nagRate: string | null;
   chejatWeight: string | null;
   netWeight: string | null;
@@ -66,6 +71,12 @@ export type ProductDto = {
   sellingPrice: number;
   /** Silver purity percentage — e.g. 90 means 90% silver content. */
   silverPercentage: number;
+  /** RAW per-product silver ₹/gram (null → follow the shop rate). */
+  productSilverRatePerGram: number | null;
+  /** Flat ₹ povayi charge added to the auto price (null → none). */
+  povayiRate: number | null;
+  /** Flat ₹ other charges added to the auto price (null → none). */
+  otherCharges: number | null;
   /** Gold karat 0–24 (null → not karat-priced). */
   goldKarat: number | null;
   /** Labour method: PERCENT (% of metal value), FIXED (₹) or PER_GRAM (₹/g). */
@@ -76,7 +87,7 @@ export type ProductDto = {
   priceMode: "auto" | "manual";
   /** Effective ₹/gram for the product's karat (0 when not karat-priced). */
   goldRatePerGram: number;
-  /** Shop-wide silver ₹/gram used by the silver branch (0 → silver not priced). */
+  /** Effective silver ₹/gram used (product override ?? shop rate; 0 → not priced). */
   silverRatePerGram: number;
   /** Computed auto price (null unless dynamically priced). */
   autoPrice: number | null;
@@ -101,6 +112,7 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     weight: p.weight,
     weightUnit: p.weightUnit ?? "gm",
     grossWeight: p.grossWeight,
+    nagUnit: p.nagUnit === "mg" ? "mg" : "gm",
     nagLessWeight: p.nagLessWeight,
     nagRate: p.nagRate,
     chejatWeight: p.chejatWeight,
@@ -111,6 +123,9 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     purchasePrice: p.purchasePrice,
     sellingPrice: p.sellingPrice,
     silverPercentage: p.silverPercentage ?? 100,
+    productSilverRatePerGram: p.productSilverRatePerGram,
+    povayiRate: p.povayiRate,
+    otherCharges: p.otherCharges,
     goldKarat: p.goldKarat,
     labourType: p.labourType === "FIXED" || p.labourType === "PER_GRAM" ? p.labourType : "PERCENT",
     labourValue: p.labourValue,
@@ -153,6 +168,34 @@ export function serializeInvoice(inv: Invoice & { items: InvoiceItem[] }): Invoi
     items: (inv.items ?? []).map((i) => ({ ...i })),
   };
 }
+
+/* ── Orders (quote now, bill later) ──────────────────────────── */
+
+/** Order lines carry no Date fields — the schema row IS the DTO. */
+export type OrderItemDto = OrderItem;
+
+export type OrderDto = Omit<Order, "date" | "createdAt" | "updatedAt"> & {
+  date: string;
+  createdAt: string;
+  updatedAt: string;
+  items: OrderItemDto[];
+};
+
+export function serializeOrder(order: Order & { items: OrderItem[] }): OrderDto {
+  return {
+    ...order,
+    date: order.date.toISOString(),
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+    items: (order.items ?? []).map((i) => ({ ...i })),
+  };
+}
+
+/** POST /api/orders/:id/bill response — the fresh invoice + the linked order. */
+export type BillFromOrderResult = {
+  invoice: InvoiceDto;
+  order: OrderDto;
+};
 
 /* ── Sales (flattened sale rows for quick-sale lists) ─────────── */
 

@@ -9,7 +9,7 @@
  */
 import {create} from 'zustand';
 
-export type MoreSection = 'letters' | 'reports' | 'catalog' | 'invoices' | 'settings' | 'billing';
+export type MoreSection = 'letters' | 'reports' | 'catalog' | 'invoices' | 'orders' | 'settings' | 'billing';
 export type InvoiceStatusFilter = 'all' | 'PAID' | 'PARTIAL' | 'UNPAID' | 'DRAFT';
 
 type NavState = {

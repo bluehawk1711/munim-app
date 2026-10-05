@@ -21,7 +21,21 @@ export interface BillTemplateSettings {
     twoInOne: boolean;
     /** duplicate = same bill twice; distinct = a second, separate bill. */
     mode: BillMode;
+    /** Show the WEIGHT column (product weight + unit) after the name column. */
+    weightAfterName: boolean;
+    /** Show the shop's gold rate row (₹/g) on the bill. */
+    goldRateLine: boolean;
+    /** Show the shop's silver rate row (₹/g) on the bill. */
+    silverRateLine: boolean;
 }
+/** Defaults for the per-bill display toggles — all ON. */
+export declare const DEFAULT_BILL_TEMPLATE_SETTINGS: BillTemplateSettings;
+/**
+ * Normalize a possibly-partial settings object (e.g. settings snapshots saved
+ * before the display toggles existed) into a complete BillTemplateSettings.
+ * Missing toggles default ON, matching DEFAULT_BILL_TEMPLATE_SETTINGS.
+ */
+export declare function mergeBillTemplateSettings(partial?: Partial<BillTemplateSettings> | null): BillTemplateSettings;
 export interface BillShopDetails {
     name: string;
     address: string | null;
@@ -34,6 +48,9 @@ export interface BillLineInput {
     sku?: string | null;
     color?: string | null;
     size?: string | null;
+    /** Product weight + unit snapshot — display for the WEIGHT column only. */
+    weight?: number | null;
+    weightUnit?: string | null;
     quantity: number;
     price: number;
 }
@@ -63,6 +80,10 @@ export interface BillDocument {
     dueAmount: number;
     status: BillStatus;
     currency: string;
+    /** Shop's gold rate (₹/g) at build time — drives the gold rate row. */
+    goldRate: number | null;
+    /** Shop's silver rate (₹/g) at build time — drives the silver rate row. */
+    silverRate: number | null;
 }
 export interface BuildBillInput {
     billNo: string;
@@ -79,6 +100,9 @@ export interface BuildBillInput {
     amountPaid?: number;
     status?: BillStatus;
     currency?: string;
+    /** Shop rates (₹/g) to print as rate rows; omitted → rows hidden. */
+    goldRate?: number | null;
+    silverRate?: number | null;
 }
 /** Builds a normalized bill document from raw inputs. Pure + shared. */
 export declare function buildBillDocument(input: BuildBillInput): BillDocument;
@@ -92,6 +116,8 @@ export declare function renderBillText(bill: BillDocument): string;
  * HTML render of a bill — the shared, print-friendly markup used by the
  * mobile app (expo-print) and available to any platform that prints HTML.
  * Same numbers as `renderBillText` / jsPDF — one model, any renderer.
+ * `settings` gates the per-bill display toggles (WEIGHT column, rate rows);
+ * omitted → defaults (all ON).
  */
-export declare function renderBillHtml(bill: BillDocument): string;
+export declare function renderBillHtml(bill: BillDocument, settings?: BillTemplateSettings): string;
 //# sourceMappingURL=billDocument.d.ts.map

@@ -12,6 +12,7 @@ import { SalesView } from "@/views/sales-view"
 import { ReportsView } from "@/views/reports-view"
 import { CatalogView } from "@/views/catalog-view"
 import { InvoicesView } from "@/views/invoices-view"
+import { OrdersView } from "@/views/orders-view"
 import { BillingView } from "@/views/billing-view"
 import { JobLetterView } from "@/views/job-letter-view"
 import { PartiesView } from "@/views/parties-view"
@@ -28,6 +29,7 @@ const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
   reports: ReportsView,
   catalog: CatalogView,
   invoices: InvoicesView,
+  orders: OrdersView,
   billing: BillingView,
   "job-letter": JobLetterView,
   parties: PartiesView,

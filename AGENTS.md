@@ -57,8 +57,8 @@ exists on web must exist on desktop and vice versa — they are the same product
 on two window sizes. Mobile is tracked separately (see `docs/features.md`).
 - **Shared UI components live in `@munim/ui` (`packages/ui/src/components/`).**
   Presentational building blocks used by more than one screen (stat tiles,
-  status badges, khata cards, bill options, PIN gate, …) must be extracted
-there and consumed by BOTH apps. NEVER fork a shared component into an app.
+  invoice/order status badges, khata cards, bill options, PIN gate, …) must be extracted
+  there and consumed by BOTH apps. NEVER fork a shared component into an app.
 - **Before building any web or desktop screen**, check `docs/features.md`
   matrix + the other app's screen for the same module. Missing features are
   bugs; add them to both apps in the same change.

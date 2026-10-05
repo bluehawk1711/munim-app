@@ -12,6 +12,7 @@ import { CatalogPage } from "@/pages/catalog";
 import { SalesPage } from "@/pages/sales";
 import { BillingPage } from "@/pages/billing";
 import { InvoicesPage } from "@/pages/invoices";
+import { OrdersPage } from "@/pages/orders";
 import { PartiesPage } from "@/pages/parties";
 import { AdvancesPage } from "@/pages/advances";
 import { JobLettersPage } from "@/pages/job-letters";
@@ -26,6 +27,7 @@ const ROUTES: { path: string; title: string; element: ReactNode }[] = [
   { path: "/sales", title: "Sales", element: <SalesPage /> },
   { path: "/billing", title: "New Bill", element: <BillingPage /> },
   { path: "/invoices", title: "Invoices", element: <InvoicesPage /> },
+  { path: "/orders", title: "Orders", element: <OrdersPage /> },
   { path: "/parties", title: "Parties & Khata", element: <PartiesPage /> },
   { path: "/advances", title: "Advances", element: <AdvancesPage /> },
   { path: "/job-letters", title: "Job Letters", element: <JobLettersPage /> },

@@ -3,13 +3,13 @@
 import * as React from "react"
 import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { Loader2, Package, UploadCloud, Image as ImageIcon, X, Plus, BadgeIndianRupee } from "lucide-react"
+import { Loader2, Package, UploadCloud, Image as ImageIcon, X, Plus, Copy, BadgeIndianRupee } from "lucide-react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, GoldRateEditor, LabourInput, CategoryChips } from "@munim/ui"
 import { useUploadImage, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, useSettings, useDebouncedSettingsUpdate, useQueryState } from "@munim/query"
 import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
-import { productSchema, isLabourType, karatPurityPercent, resolveGoldRateTable, priceFallbackMessage, priceWithTable, toGoldKarat, type GoldRateSaveInput, type GoldRateTableEntry, type LabourType, type PriceBreakdown, type ProductFormValues } from "@munim/core"
+import { productSchema, calcNetWeight, isLabourType, karatPurityPercent, resolveGoldRateTable, priceFallbackMessage, priceWithTable, toGoldKarat, type GoldRateSaveInput, type GoldRateTableEntry, type LabourType, type PriceBreakdown, type ProductFormValues } from "@munim/core"
 import type { Product } from "@/lib/types"
 import { toast } from "@munim/ui"
 
@@ -24,13 +24,46 @@ const KARAT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
 const DEFAULT_COLORS = ["Black", "White", "Navy", "Blue", "Red", "Green", "Grey", "Brown", "Olive", "Silver", "Teal", "Amber"]
 const DEFAULT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standard", "30", "32", "34", "36", "8", "9", "10", "11"]
 
+/** mg/gm segmented toggle — sits beside the nag-less + chejat weight fields. */
+function UnitToggle({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: "mg" | "gm"
+  onChange: (unit: "mg" | "gm") => void
+  ariaLabel: string
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-md border" role="group" aria-label={ariaLabel}>
+      {(["mg", "gm"] as const).map((u) => (
+        <button
+          key={u}
+          type="button"
+          aria-pressed={value === u}
+          onClick={() => onChange(u)}
+          className={
+            value === u
+              ? "bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
+              : "bg-background/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:text-foreground"
+          }
+        >
+          {u}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   product?: Product | null
+  /** Type to preselect when ADDING (e.g. from the page's type filter). */
+  defaultType?: string
 }
 
-export function ProductFormDialog({ open, onOpenChange, product }: Props) {
+export function ProductFormDialog({ open, onOpenChange, product, defaultType }: Props) {
   const isEdit = !!product
   const create = useCreateProduct()
   const update = useUpdateProduct()
@@ -93,12 +126,16 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       barcode: "",
       weight: undefined,
       weightUnit: "gm",
+      nagUnit: "gm",
       purity: "",
       imageUrl: "",
-      stock: 0,
+      stock: 1,
       purchasePrice: 0,
       sellingPrice: 0,
       silverPercentage: 100,
+      povayiRate: null,
+      otherCharges: null,
+      silverRatePerGram: null,
       labourType: "PERCENT",
       labourValue: null,
       priceMode: "auto",
@@ -121,12 +158,16 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           weight: product.weight ?? undefined,
           weightUnit: product.weightUnit === "mg" || product.weightUnit === "gm" ? product.weightUnit : "gm",
           nagRate: product.nagRate ?? "",
+          nagUnit: product.nagUnit === "mg" ? "mg" : "gm",
           purity: product.purity ?? "",
           imageUrl: product.imageUrl ?? "",
           stock: product.stock,
           purchasePrice: product.purchasePrice,
           sellingPrice: product.sellingPrice,
           silverPercentage: product.silverPercentage ?? 100,
+          povayiRate: product.povayiRate ?? null,
+          otherCharges: product.otherCharges ?? null,
+          silverRatePerGram: product.productSilverRatePerGram ?? null,
           goldKarat: product.goldKarat ?? 0,
           labourType: isLabourType(product.labourType) ? product.labourType : "PERCENT",
           labourValue: product.labourValue,
@@ -136,19 +177,25 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
       } else {
         form.reset({
           name: "",
-          type: "Gold",
+          // Seed the type from the page's type filter — adding from a
+          // filtered view creates the matching product.
+          type: defaultType === "Gold" || defaultType === "Silver" ? defaultType : "Gold",
           color: "Black",
           size: "Standard",
           category: "",
           barcode: "",
           weight: undefined,
           weightUnit: "gm",
+          nagUnit: "gm",
           purity: "",
           imageUrl: "",
-          stock: 0,
+          stock: 1,
           purchasePrice: 0,
           sellingPrice: 0,
           silverPercentage: 100,
+          povayiRate: null,
+          otherCharges: null,
+          silverRatePerGram: null,
           goldKarat: 0,
           labourType: "PERCENT",
           labourValue: null,
@@ -157,7 +204,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
         })
       }
     }
-  }, [open, product, form])
+  }, [open, product, form, defaultType])
 
   const watched = form.watch()
   const imageUrl = watched.imageUrl
@@ -192,13 +239,17 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
         labourType: watched.labourType ?? "PERCENT",
         labourValue: typeof watched.labourValue === "number" ? watched.labourValue : null,
         netWeight: watched.netWeight ?? null,
+        nagRate: watched.nagRate ?? null,
+        povayiRate: typeof watched.povayiRate === "number" ? watched.povayiRate : null,
+        otherCharges: typeof watched.otherCharges === "number" ? watched.otherCharges : null,
+        silverRatePerGram: typeof watched.silverRatePerGram === "number" ? watched.silverRatePerGram : null,
         sellingPrice: watched.sellingPrice ?? 0,
       },
       karatTable,
       silverRatePerGram,
       defaultLabour,
     )
-  }, [productType, priceMode, goldKarat, watched.sellingPrice, watched.weight, watched.weightUnit, watched.silverPercentage, watched.labourType, watched.labourValue, watched.netWeight, karatTable, silverRatePerGram, defaultLabour])
+  }, [productType, priceMode, goldKarat, watched.sellingPrice, watched.weight, watched.weightUnit, watched.silverPercentage, watched.labourType, watched.labourValue, watched.netWeight, watched.nagRate, watched.povayiRate, watched.otherCharges, watched.silverRatePerGram, karatTable, silverRatePerGram, defaultLabour])
 
   /** Saves an edited rate row (from the inline editor) then refreshes the draft. */
   async function handleSaveInlineRates(rates: GoldRateSaveInput[]) {
@@ -298,6 +349,24 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
     }
   }
 
+  /**
+   * Re-derives net = gross − nag + chejat via the ONE core helper whenever a
+   * weight input changes, so the stored value always matches the price. Net
+   * stays manual-editable; it only re-fills on those edits (never on open,
+   * so an existing product's stored net survives). Unparseable gross → no-op.
+   */
+  function syncNetWeight() {
+    const v = form.getValues()
+    const derived = calcNetWeight({
+      grossWeight: v.grossWeight,
+      nagLessWeight: v.nagLessWeight,
+      chejatWeight: v.chejatWeight,
+      weightUnit: v.weightUnit,
+      nagUnit: v.nagUnit,
+    })
+    if (derived) form.setValue("netWeight", derived.text, { shouldValidate: false })
+  }
+
   async function onSubmit(values: ProductFormValues) {
     try {
       // Ensure price fields are always numbers (form allows empty/0)
@@ -324,7 +393,7 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] overflow-y-auto scrollbar-thin sm:max-w-[560px]">
+      <DialogContent className="max-h-[92vh] overflow-y-auto scrollbar-thin sm:max-w-[80vw]">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -428,13 +497,33 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="sku">SKU</Label>
-              <Input
-                id="sku"
-                value={isEdit && product ? product.sku : "Auto-generated on save"}
-                readOnly
-                disabled
-                className="h-9 text-muted-foreground"
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="sku"
+                  value={isEdit && product ? product.sku : "Auto-generated on save"}
+                  readOnly
+                  disabled
+                  className="h-9 text-muted-foreground"
+                />
+                {isEdit && product && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 shrink-0 gap-1.5"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(product.sku)
+                      toast.success("SKU copied", { description: product.sku })
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy
+                  </Button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Paste it in the New Bill fast-entry box to add this product instantly.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="barcode">Barcode</Label>
@@ -468,25 +557,79 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="grossWeight">Gross weight</Label>
-                  <Input id="grossWeight" placeholder="e.g. 10+5 or 24.5" {...form.register("grossWeight")} />
+                  <Input
+                    id="grossWeight"
+                    placeholder="e.g. 10+5 or 24.5"
+                    {...((reg) => ({
+                      ...reg,
+                      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                        reg.onChange(e)
+                        syncNetWeight()
+                      },
+                    }))(form.register("grossWeight"))}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nagLessWeight">Nag less weight</Label>
-                  <Input id="nagLessWeight" placeholder="e.g. 2.5" {...form.register("nagLessWeight")} />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="nagLessWeight">Nag less weight</Label>
+                    <UnitToggle
+                      value={form.watch("nagUnit") ?? "gm"}
+                      onChange={(nagUnit) => {
+                        form.setValue("nagUnit", nagUnit, { shouldValidate: true })
+                        syncNetWeight()
+                      }}
+                      ariaLabel="Nag/chejat weight unit"
+                    />
+                  </div>
+                  <Input
+                    id="nagLessWeight"
+                    placeholder="e.g. 2.5"
+                    {...((reg) => ({
+                      ...reg,
+                      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                        reg.onChange(e)
+                        syncNetWeight()
+                      },
+                    }))(form.register("nagLessWeight"))}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nagRate">Nag rate</Label>
-                  <Input id="nagRate" placeholder="e.g. 5" {...form.register("nagRate")} />
+                  <Label htmlFor="nagRate">Nag rate (₹)</Label>
+                  <Input id="nagRate" inputMode="decimal" placeholder="e.g. 5" {...form.register("nagRate")} />
+                  <p className="text-[11px] text-muted-foreground">Flat ₹ added to the gold auto price.</p>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="chejatWeight">Chejat weight</Label>
-                  <Input id="chejatWeight" placeholder="e.g. 3" {...form.register("chejatWeight")} />
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="chejatWeight">Chejat weight</Label>
+                    <UnitToggle
+                      value={form.watch("nagUnit") ?? "gm"}
+                      onChange={(nagUnit) => {
+                        form.setValue("nagUnit", nagUnit, { shouldValidate: true })
+                        syncNetWeight()
+                      }}
+                      ariaLabel="Nag/chejat weight unit"
+                    />
+                  </div>
+                  <Input
+                    id="chejatWeight"
+                    placeholder="e.g. 3"
+                    {...((reg) => ({
+                      ...reg,
+                      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
+                        reg.onChange(e)
+                        syncNetWeight()
+                      },
+                    }))(form.register("chejatWeight"))}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="netWeight">Net weight</Label>
                   <Input id="netWeight" placeholder="e.g. 19" {...form.register("netWeight")} />
+                  <p className="text-[11px] text-muted-foreground">
+                    Auto = gross − nag + chejat. Edit freely — it re-fills when the weights above change.
+                  </p>
                 </div>
               </div>
             </>
@@ -584,6 +727,28 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="silverRatePerGram">Product silver rate (₹ per gram)</Label>
+                    <Input
+                      id="silverRatePerGram"
+                      type="text"
+                      inputMode="decimal"
+                      className="h-9 tabular-nums"
+                      placeholder={silverRatePerGram ? `e.g. ${silverRatePerGram}` : "e.g. 95"}
+                      value={watched.silverRatePerGram != null ? String(watched.silverRatePerGram) : ""}
+                      onChange={(e) =>
+                        form.setValue(
+                          "silverRatePerGram",
+                          e.target.value.trim() === "" ? null : Math.max(0, Number(e.target.value) || 0),
+                          { shouldValidate: true },
+                        )
+                      }
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Custom rate — wins over the shop rate. Blank follows the shop rate, and a
+                      shop-rate change re-prices only products without a custom rate here.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -603,6 +768,49 @@ export function ProductFormDialog({ open, onOpenChange, product }: Props) {
                     : "Silver labour is per product — empty means none."
                 }
               />
+
+              {/* Flat ₹ charges — added to the auto price (with the gold-only
+                  nag rate above) for both metals. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="povayiRate">Povayi rate (₹)</Label>
+                  <Input
+                    id="povayiRate"
+                    inputMode="decimal"
+                    className="h-9 tabular-nums"
+                    placeholder="e.g. 100"
+                    value={watched.povayiRate != null ? String(watched.povayiRate) : ""}
+                    onChange={(e) =>
+                      form.setValue(
+                        "povayiRate",
+                        e.target.value.trim() === "" ? null : Math.max(0, Number(e.target.value) || 0),
+                        { shouldValidate: true },
+                      )
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="otherCharges">Other charges (₹)</Label>
+                  <Input
+                    id="otherCharges"
+                    inputMode="decimal"
+                    className="h-9 tabular-nums"
+                    placeholder="e.g. 25"
+                    value={watched.otherCharges != null ? String(watched.otherCharges) : ""}
+                    onChange={(e) =>
+                      form.setValue(
+                        "otherCharges",
+                        e.target.value.trim() === "" ? null : Math.max(0, Number(e.target.value) || 0),
+                        { shouldValidate: true },
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Flat amounts added to the auto price (povayi + other; gold also gets the nag rate).
+                Empty means none.
+              </p>
 
               {metalPreview ? (
                 <p className="text-xs text-muted-foreground">

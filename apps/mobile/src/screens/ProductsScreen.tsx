@@ -355,7 +355,7 @@ export function ProductsScreen() {
     setLabelBusy(true);
     try {
       const label = buildProductLabel(
-        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, sellingPrice: labelTarget.effectivePrice, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
+        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, sellingPrice: labelTarget.effectivePrice, labourType: labelTarget.labourType, labourValue: labelTarget.labourValue, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
         {name: settings?.shopName ?? ''},
       );
       const html = renderLabelSheetHtml([label], {copies: labelCopies});

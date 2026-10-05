@@ -1,5 +1,5 @@
 import * as m from "motion/react-m";
-import { LayoutDashboard, Package, Palette, ShoppingCart, FileText, Receipt, Users, HandCoins, ScrollText, BarChart3, Settings, CircleHelp } from "lucide-react";
+import { LayoutDashboard, Package, Palette, ShoppingCart, FileText, Receipt, ClipboardList, Users, HandCoins, ScrollText, BarChart3, Settings, CircleHelp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigate } from "@/lib/navigation";
 
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/sales", label: "Sales", icon: ShoppingCart },
   { href: "/billing", label: "New Bill", icon: FileText },
   { href: "/invoices", label: "Invoices", icon: Receipt },
+  { href: "/orders", label: "Orders", icon: ClipboardList },
   { href: "/parties", label: "Parties & Khata", icon: Users },
   { href: "/advances", label: "Advances", icon: HandCoins },
   { href: "/job-letters", label: "Job Letters", icon: ScrollText },

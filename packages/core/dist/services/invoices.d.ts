@@ -26,6 +26,9 @@ export type InvoiceItemInput = {
     color?: string;
     size?: string;
     description?: string;
+    /** Product weight + unit snapshot — bill WEIGHT column display only. */
+    weight?: number | null;
+    weightUnit?: string | null;
     quantity: number;
     price: number;
 };
@@ -51,6 +54,8 @@ export type InvoiceInput = {
     };
     /** Snapshot of the bill template settings (template / classic color / 2-in-1). */
     templateSettings?: BillTemplateSettings;
+    /** Gold base ₹/gram used for THIS bill (reprint keeps it; null → current shop rate). */
+    goldRate?: number;
     /** initial payment received */
     amountPaid?: number;
     paymentMethod?: string;
@@ -73,15 +78,17 @@ export type InvoiceFilters = {
 export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Promise<{
     invoices: {
         items: {
-            id: string;
-            sku: string | null;
             productId: string | null;
+            productName: string;
+            sku: string | null;
+            weightUnit: string | null;
+            color: string | null;
+            size: string | null;
+            id: string;
+            weight: number | null;
             quantity: number;
             total: number;
             invoiceId: string;
-            productName: string;
-            color: string | null;
-            size: string | null;
             description: string | null;
             price: number;
             pricing: {
@@ -119,6 +126,7 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
             email: string;
         } | null;
         templateSettings: BillTemplateSettings | null;
+        goldRate: number | null;
         createdAt: Date;
         updatedAt: Date;
     }[];

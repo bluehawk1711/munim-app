@@ -259,7 +259,7 @@ Product row → buildProductLabel(product, shop) [core] → ProductLabel
 
 ### Web (`apps/web`)
 - **Stack:** Next.js 16 (Turbopack), React 19, Tailwind v4
-- **Views:** dashboard, products, sales, catalog, invoices, billing, job-letter, parties, advances, reports, settings
+- **Views:** dashboard, products, sales, catalog, invoices, orders, billing, job-letter, parties, advances, reports, settings
 - **Auth:** PIN gate (30-day session cookie), login page
 - **Exports:** Excel + PDF (reports), jsPDF bill templates, job-letter PDF
 - **Settings:** `SettingsShell` sectioned layout (Shop profile / Appearance / Security / Server)
@@ -270,7 +270,7 @@ Product row → buildProductLabel(product, shop) [core] → ProductLabel
 
 ### Desktop (`apps/desktop`)
 - **Stack:** Tauri v2 + Vite + React 19 + Tailwind v4
-- **Pages:** dashboard, products, catalog, sales, billing, invoices, parties, advances, job-letters, reports, settings
+- **Pages:** dashboard, products, catalog, sales, billing, invoices, orders, parties, advances, job-letters, reports, settings
 - **API:** `@tauri-apps/plugin-http` (Rust fetch, no CORS)
 - **Settings:** same `SettingsShell` + Printing section (thermal printer selection)
 - **Thermal printing:** Rust `printer.rs` spools TSPL2 commands raw to Windows print queue
@@ -279,7 +279,7 @@ Product row → buildProductLabel(product, shop) [core] → ProductLabel
 
 ### Mobile (`apps/mobile`)
 - **Stack:** React Native 0.86 + Expo SDK 57 dev client
-- **Screens:** home, products, sales, billing, parties, letters, catalog, reports, invoices, advances, settings
+- **Screens:** home, products, sales, billing, parties, letters, catalog, reports, invoices, orders, advances, settings
 - **API:** global fetch (native, no CORS)
 - **Native modules:** `expo-image-picker`, `@react-native-community/datetimepicker`, `expo-camera` — require dev build rebuild
 - **PDF:** `expo-print` + `renderBillHtml` / `renderJobLetterHtml` / `renderLabelSheetHtml`

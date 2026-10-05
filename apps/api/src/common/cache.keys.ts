@@ -41,6 +41,8 @@ export const cacheKeys = {
   report: (q: Record<string, unknown>) => `reports:${hashFilters(q)}`,
   invoicesList: (f: Record<string, unknown>) => `invoices:list:${hashFilters(f)}`,
   invoice: (id: string) => `invoices:get:${id}`,
+  ordersList: (f: Record<string, unknown>) => `orders:list:${hashFilters(f)}`,
+  order: (id: string) => `orders:get:${id}`,
   salesList: (f: Record<string, unknown>) => `sales:list:${hashFilters(f)}`,
   partiesList: (f: Record<string, unknown>) => `parties:list:${hashFilters(f)}`,
   partiesBalances: "parties:balances",
@@ -58,8 +60,13 @@ export const cacheKeys = {
 export const CACHE_GROUPS = {
   /** Product row / stock / barcode changes. */
   products: ["products", "dashboard", "reports"] as const,
-  /** Invoice + payment writes (sales are invoices). */
-  invoices: ["invoices", "sales", "parties", "advances", "payments", "dashboard", "reports"] as const,
+  /** Invoice + payment writes (sales are invoices). Products are in this
+   *  group because every sale DECREMENTS stock — without it, product lists
+   *  and stats served stale stock for up to `detail` seconds (the C1 bug:
+   *  pickers showed in-stock items that had already sold out). */
+  invoices: ["invoices", "sales", "parties", "advances", "payments", "products", "dashboard", "reports"] as const,
+  /** Order writes (order rows only — bill generation invalidates invoices too). */
+  orders: ["orders"] as const,
   /** Party / ledger writes. */
   parties: ["parties", "advances", "payments", "dashboard", "reports"] as const,
   /** Advance + payment (money in/out) writes. */

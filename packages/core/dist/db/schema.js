@@ -60,7 +60,12 @@ export const products = pgTable("products", {
     weightUnit: text("weight_unit").notNull().default("gm"),
     /** Jewelry-specific weight fields (free text for formulas like "10+5"). */
     grossWeight: text("gross_weight"),
+    /** Unit for the nag-less + chejat pair (own toggle — independent of
+     *  `weightUnit`, which covers weight/net weight). */
+    nagUnit: text("nag_unit", { enum: ["mg", "gm"] }).notNull().default("gm"),
     nagLessWeight: text("nag_less_weight"),
+    /** Flat ₹ nag charge added to the GOLD auto price (a price field, not a
+     *  weight — parsed like a number, never part of the weight-unit toggle). */
     nagRate: text("nag_rate"),
     chejatWeight: text("chejat_weight"),
     netWeight: text("net_weight"),
@@ -74,6 +79,14 @@ export const products = pgTable("products", {
     /** Silver purity percentage — e.g. 90 means 90% silver content. Used to
      *  compute effective weight for pricing (weight × silverPercentage / 100). */
     silverPercentage: doublePrecision("silver_percentage").notNull().default(100),
+    /** Per-product silver ₹/gram — takes precedence over the shop-wide
+     *  `settings.silver_rate_per_gram`. NULL → follow the shop rate (so a
+     *  global silver change recalculates every non-custom product live). */
+    silverRatePerGram: doublePrecision("silver_rate_per_gram"),
+    /** Flat ₹ povayi charge added to the auto price (gold + silver). */
+    povayiRate: doublePrecision("povayi_rate"),
+    /** Flat ₹ other charges added to the auto price (gold + silver). */
+    otherCharges: doublePrecision("other_charges"),
     /** Gold karat 0–24 for dynamic pricing (null → not karat-priced).
      *  Only meaningful when `type` is "Gold". */
     goldKarat: integer("gold_karat"),
@@ -177,6 +190,8 @@ export const invoices = pgTable("invoices", {
     shopDetails: json("shop_details").$type(),
     /** Snapshot of the bill template settings (template, mode, classicColor, twoInOne…). */
     templateSettings: json("template_settings").$type(),
+    /** Gold base ₹/gram used for THIS bill (null → the shop's current rate). */
+    goldRate: doublePrecision("gold_rate"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
@@ -194,6 +209,9 @@ export const invoiceItems = pgTable("invoice_items", {
     color: text("color"),
     size: text("size"),
     description: text("description"),
+    /** Product weight + unit snapshot — drives the bill's WEIGHT column. */
+    weight: doublePrecision("weight"),
+    weightUnit: text("weight_unit"),
     quantity: doublePrecision("quantity").notNull().default(1),
     price: doublePrecision("price").notNull().default(0),
     total: doublePrecision("total").notNull().default(0),
@@ -202,6 +220,60 @@ export const invoiceItems = pgTable("invoice_items", {
      *  rates change. NULL for legacy/manual lines — `price` stays authoritative. */
     pricing: json("pricing").$type(),
 }, (t) => [index("invoice_items_invoice_idx").on(t.invoiceId)]);
+/* ────────────────────────────────────────────────────────────────
+ * ORDERS (write down an order now → generate the bill later)
+ * ──────────────────────────────────────────────────────────────── */
+/**
+ * A customer order recorded at the counter. Numbers are a short 4-char code
+ * (e.g. "7K2M", shown as ORD-7K2M in UIs); generating a bill maps the lines
+ * into an invoice and links it via `invoiceId`.
+ */
+export const orders = pgTable("orders", {
+    id: id(),
+    /** Short 4-char code, unique — `generateOrderNumber` (codes.ts). */
+    orderNumber: text("order_number").notNull().unique(),
+    partyId: text("party_id").references(() => parties.id, { onDelete: "set null" }),
+    customerName: text("customer_name"),
+    customerPhone: text("customer_phone"),
+    customerAddress: text("customer_address"),
+    status: text("status", { enum: ["OPEN", "COMPLETED", "CANCELLED"] })
+        .notNull()
+        .default("OPEN"),
+    /** When the order was placed (business date). */
+    date: timestamp("date", { withTimezone: true }).defaultNow().notNull(),
+    subtotal: doublePrecision("subtotal").notNull().default(0),
+    deliveryCharge: doublePrecision("delivery_charge").notNull().default(0),
+    discount: doublePrecision("discount").notNull().default(0),
+    total: doublePrecision("total").notNull().default(0),
+    notes: text("notes"),
+    /** Set once a bill has been generated from this order. */
+    invoiceId: text("invoice_id").references(() => invoices.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+    index("orders_party_idx").on(t.partyId),
+    index("orders_status_idx").on(t.status),
+    index("orders_date_idx").on(t.date),
+    uniqueIndex("orders_number_idx").on(t.orderNumber),
+]);
+/** Order lines — same snapshot style as `invoice_items` (no pricing freeze:
+ *  an order's price is re-derived at bill time from the current rate). */
+export const orderItems = pgTable("order_items", {
+    id: id(),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "cascade" }).notNull(),
+    productId: text("product_id").references(() => products.id, { onDelete: "set null" }),
+    productName: text("product_name").notNull(),
+    sku: text("sku"),
+    color: text("color"),
+    size: text("size"),
+    description: text("description"),
+    /** Product weight + unit snapshot — same as `invoice_items` (WEIGHT column). */
+    weight: doublePrecision("weight"),
+    weightUnit: text("weight_unit"),
+    quantity: doublePrecision("quantity").notNull().default(1),
+    price: doublePrecision("price").notNull().default(0),
+    total: doublePrecision("total").notNull().default(0),
+}, (t) => [index("order_items_order_idx").on(t.orderId)]);
 /** Money moving in or out — against a party and/or an invoice. */
 export const payments = pgTable("payments", {
     id: id(),
@@ -260,8 +332,14 @@ export const settings = pgTable("settings", {
      *  0 → no default labour (renamed from `gold_making_charge_percent`). */
     defaultLabourValue: doublePrecision("default_labour_value").notNull().default(0),
     /** Shop-wide silver ₹ per gram for auto-priced silver products
-     *  (0 → silver never auto-prices and falls back to sellingPrice). */
+     *  (0 → silver never auto-prices and falls back to sellingPrice).
+     *  Products with their own `silver_rate_per_gram` ignore this. */
     silverRatePerGram: doublePrecision("silver_rate_per_gram").notNull().default(0),
+    /** Rates-editor display/entry unit: "gm" (₹/gram) or "10gm" (₹/10 grams).
+     *  Storage always stays per-gram — the toggle converts on the way in/out. */
+    rateDisplayUnit: text("rate_display_unit", { enum: ["gm", "10gm"] })
+        .notNull()
+        .default("gm"),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 export const activityLogs = pgTable("activity_logs", {

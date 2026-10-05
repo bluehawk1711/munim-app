@@ -13,7 +13,7 @@ import {
   TrendingUp,
   Eye,
 } from "lucide-react";
-import { buildBillDocument, formatDate, formatCurrency, type BillShopDetails } from "@munim/core";
+import { buildBillDocument, formatDate, formatCurrency, mergeBillTemplateSettings, type BillShopDetails } from "@munim/core";
 import type { InvoiceDto, InvoiceFilters, SettingsDto } from "@munim/api-client";
 import {
   useInvoices,
@@ -21,6 +21,7 @@ import {
   useRecordInvoicePayment,
   useSettings,
   useQueryState,
+  useGoldRates,
 } from "@munim/query";
 import { toast } from "@munim/ui";
 import { downloadBillPdf } from "@/lib/billPdf";
@@ -87,6 +88,7 @@ export function InvoicesPage() {
   const deleteInvoice = useDeleteInvoice();
   const recordPayment = useRecordInvoicePayment(paying?.id ?? "");
   const { data: settings } = useQueryState(useSettings());
+  const { data: goldRates } = useQueryState(useGoldRates());
 
   function openPayment(inv: InvoiceRow) {
     setPaying(inv);
@@ -147,6 +149,8 @@ export function InvoicesPage() {
           sku: it.sku,
           color: it.color,
           size: it.size,
+          weight: it.weight,
+          weightUnit: it.weightUnit,
           quantity: it.quantity,
           price: it.price,
         })),
@@ -155,8 +159,10 @@ export function InvoicesPage() {
         amountPaid: inv.amountPaid,
         status: inv.status,
         currency: settings?.currency ?? "INR",
+        goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        silverRate: settings?.silverRatePerGram ?? null,
       });
-      await downloadBillPdf(bill);
+      await downloadBillPdf(bill, mergeBillTemplateSettings(inv.templateSettings));
       toast.success("PDF downloaded", { description: inv.invoiceNumber });
     } catch (err) {
       toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : undefined });

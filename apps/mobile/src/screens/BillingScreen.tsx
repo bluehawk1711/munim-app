@@ -3,9 +3,12 @@ import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pre
 import * as Print from 'expo-print';
 import {ChevronDown, Search} from 'lucide-react-native';
 import {
+  applyGoldBaseRate,
   buildBillDocument,
+  priceProductRow,
   renderBillText,
   renderBillHtml,
+  resolveGoldRateTable,
   formatDate,
   swatchColor,
   type BillDocument,
@@ -20,6 +23,7 @@ import {
 import {
   useApiClient,
   useCreateInvoice,
+  useGoldRates,
   useParties,
   useProducts,
   useQueryState,
@@ -50,6 +54,8 @@ type LineState = {
   sku: string;
   color: string;
   size: string;
+  weight: string;
+  weightUnit: 'gm' | 'mg';
   quantity: string;
   price: string;
   silverPercentage: string;
@@ -61,6 +67,8 @@ const emptyLine = (): LineState => ({
   sku: '',
   color: '',
   size: '',
+  weight: '',
+  weightUnit: 'gm',
   quantity: '1',
   price: '0',
   silverPercentage: '100',
@@ -131,30 +139,37 @@ function ProductPicker({
           keyExtractor={item => item.id}
           style={{maxHeight: 340}}
           ListEmptyComponent={<Empty text="No products found" />}
-          renderItem={({item}: ListRenderItemInfo<ProductDto>) => (
-            <Pressable
-              onPress={() => {
-                selectionTick();
-                onSelect(item.id, item);
-                setOpen(false);
-                setQuery('');
-              }}
-              style={({pressed}) => [
-                styles.pickRow,
-                productId === item.id && {backgroundColor: colors.mutedBg},
-                pressed && {backgroundColor: colors.mutedBg},
-              ]}>
-              <View style={{flex: 1}}>
-                <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}} numberOfLines={1}>
-                  {item.name}
+          renderItem={({item}: ListRenderItemInfo<ProductDto>) => {
+            const out = item.stock <= 0;
+            return (
+              <Pressable
+                disabled={out}
+                onPress={() => {
+                  selectionTick();
+                  onSelect(item.id, item);
+                  setOpen(false);
+                  setQuery('');
+                }}
+                style={({pressed}) => [
+                  styles.pickRow,
+                  productId === item.id && {backgroundColor: colors.mutedBg},
+                  pressed && {backgroundColor: colors.mutedBg},
+                  out && {opacity: 0.5},
+                ]}>
+                <View style={{flex: 1}}>
+                  <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  <Text style={{fontSize: 12, color: out ? colors.danger : colors.muted}}>
+                    {item.sku}{out ? ' · Out of stock' : ''}
+                  </Text>
+                </View>
+                <Text style={{fontSize: 14, color: colors.text, fontWeight: '700', marginLeft: spacing.sm}}>
+                  ₹{Number(item.effectivePrice).toFixed(0)}
                 </Text>
-                <Text style={{fontSize: 12, color: colors.muted}}>{item.sku}</Text>
-              </View>
-              <Text style={{fontSize: 14, color: colors.text, fontWeight: '700', marginLeft: spacing.sm}}>
-                ₹{Number(item.effectivePrice).toFixed(0)}
-              </Text>
-            </Pressable>
-          )}
+              </Pressable>
+            );
+          }}
         />
       </ModalSheet>
     </>
@@ -243,7 +258,6 @@ function LineItemsEditor({
   onRemove,
   onAdd,
   products,
-  productIds,
   onSelectProduct,
 }: {
   lines: LineState[];
@@ -251,7 +265,6 @@ function LineItemsEditor({
   onRemove: (index: number) => void;
   onAdd: () => void;
   products: ProductDto[] | null | undefined;
-  productIds: string[];
   onSelectProduct: (lineIndex: number, productId: string, product?: ProductDto) => void;
 }) {
   const styles = useThemeStyles(makeStyles);
@@ -369,7 +382,7 @@ export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: settings} = useQueryState(useSettings());
   const {data: parties} = useQueryState(useParties());
-  const {data: productsData, loading: productsLoading} = useQueryState(useProducts({pageSize: 500}));
+  const {data: productsData} = useQueryState(useProducts({pageSize: 500}));
   const products = productsData?.products;
   const createInvoice = useCreateInvoice();
 
@@ -392,6 +405,36 @@ export function BillingScreen() {
   const [classicColor, setClassicColor] = useState<BillClassicColor>('red');
   const [twoInOne, setTwoInOne] = useState(false);
   const [mode, setMode] = useState<BillMode>('duplicate');
+  const [weightAfterName, setWeightAfterName] = useState(true);
+  const [goldRateLine, setGoldRateLine] = useState(true);
+  const [silverRateLine, setSilverRateLine] = useState(true);
+
+  const {data: goldRates} = useGoldRates();
+  const goldBaseRate = goldRates?.baseRatePerGram ?? null;
+
+  // Per-bill gold base ₹/g — prefilled with the shop's rate; editing it
+  // re-prices every auto-priced gold line as you type (Phase 4b).
+  const [goldRateInput, setGoldRateInput] = useState('');
+  const goldRateTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (goldBaseRate != null && !goldRateTouched.current) setGoldRateInput(String(goldBaseRate));
+  }, [goldBaseRate]);
+  const parsedGoldRate = Number(goldRateInput);
+  const billGoldRate =
+    goldRateInput.trim() && Number.isFinite(parsedGoldRate) && parsedGoldRate > 0
+      ? parsedGoldRate
+      : goldBaseRate;
+
+  /** Same snapshot web + desktop save — options follow each invoice + render. */
+  const billTemplateSettings: BillTemplateSettings = {
+    template,
+    classicColor,
+    twoInOne,
+    mode,
+    weightAfterName,
+    goldRateLine,
+    silverRateLine,
+  };
 
   // ── Bill 2 — only used in 2-in-1 "Separate" mode ───────────────────────
   const [secondCustomer, setSecondCustomer] = useState('');
@@ -415,6 +458,39 @@ export function BillingScreen() {
   //    with a per-product fetch (auto prices are computed on read). ─────────
   const getClient = useApiClient();
   const syncPrices = useSyncProductPrices();
+
+  /** Pricing inputs for the bill — the gold table re-based on `billGoldRate`. */
+  const billPricingContext = useMemo(() => {
+    const table = resolveGoldRateTable(goldRates?.rates ?? []);
+    const overridden =
+      billGoldRate != null ? applyGoldBaseRate(table, billGoldRate, goldRates?.baseKarat ?? null) : table;
+    const defaultLabour =
+      (settings?.defaultLabourValue ?? 0) > 0
+        ? {type: settings?.defaultLabourType ?? 'PERCENT', value: settings?.defaultLabourValue ?? 0}
+        : null;
+    return {
+      goldRateTable: overridden,
+      silverRatePerGram: settings?.silverRatePerGram ?? 0,
+      defaultLabour,
+    };
+  }, [goldRates, billGoldRate, settings]);
+
+  /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
+  function repriceGoldLines(prev: LineState[]): LineState[] {
+    return prev.map(line => {
+      if (!line.productId) return line;
+      const p = productsData?.products.find(x => x.id === line.productId);
+      if (!p || p.type !== 'Gold' || p.priceMode !== 'auto') return line;
+      return {...line, price: String(priceProductRow(p, billPricingContext).price)};
+    });
+  }
+
+  function handleGoldRateChange(value: string) {
+    goldRateTouched.current = true;
+    setGoldRateInput(value);
+    setLines(prev => repriceGoldLines(prev));
+    setSecondLines(prev => repriceGoldLines(prev));
+  }
 
   async function handleSyncPrices() {
     try {
@@ -445,8 +521,10 @@ export function BillingScreen() {
             const fresh = priceOf(line.productId);
             return fresh === null ? line : {...line, price: fresh};
           });
-        setLines(refresh);
-        setSecondLines(refresh);
+        // Server rates land first, then the bill's own gold rate (if any)
+        // re-applies on top so an edited rate is never clobbered.
+        setLines(prev => repriceGoldLines(refresh(prev)));
+        setSecondLines(prev => repriceGoldLines(refresh(prev)));
       } catch {
         // Best-effort: keep the current line prices if the refresh fails.
       }
@@ -468,8 +546,6 @@ export function BillingScreen() {
   );
   const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0) - (Number(secondMaterialReturnedValue) || 0) + (Number(secondDelivery) || 0));
 
-  const productIds = useMemo(() => lines.map(l => l.productId), [lines]);
-
   function updateLine(index: number, patch: Partial<LineState>) {
     setLines(prev => prev.map((l, i) => (i === index ? {...l, ...patch} : l)));
   }
@@ -485,6 +561,8 @@ export function BillingScreen() {
       sku: product?.sku ?? '',
       color: product?.color ?? '',
       size: product?.size ?? '',
+      weight: product?.weight != null ? String(product.weight) : '',
+      weightUnit: product?.weightUnit === 'mg' ? 'mg' : 'gm',
       price: product ? String(product.effectivePrice) : '',
       silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
     });
@@ -497,6 +575,8 @@ export function BillingScreen() {
       sku: product?.sku ?? '',
       color: product?.color ?? '',
       size: product?.size ?? '',
+      weight: product?.weight != null ? String(product.weight) : '',
+      weightUnit: product?.weightUnit === 'mg' ? 'mg' : 'gm',
       price: product ? String(product.effectivePrice) : '',
       silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
     });
@@ -510,6 +590,8 @@ export function BillingScreen() {
         sku: l.sku.trim() || undefined,
         color: l.color.trim() || undefined,
         size: l.size.trim() || undefined,
+        weight: l.weight.trim() ? Number(l.weight) : undefined,
+        weightUnit: l.weight.trim() ? l.weightUnit : undefined,
         quantity: Number(l.quantity) || 0,
         price: Number(l.price) || 0,
       }))
@@ -534,6 +616,8 @@ export function BillingScreen() {
         sku: it.sku,
         color: it.color,
         size: it.size,
+        weight: it.weight,
+        weightUnit: it.weightUnit,
         quantity: it.quantity,
         price: it.price,
       })),
@@ -544,6 +628,8 @@ export function BillingScreen() {
       amountPaid: invoice.amountPaid,
       status: invoice.status,
       currency: settings?.currency ?? 'INR',
+      goldRate: invoice.goldRate ?? goldBaseRate,
+      silverRate: settings?.silverRatePerGram ?? null,
     });
   }
 
@@ -572,6 +658,8 @@ export function BillingScreen() {
     setSecondMaterialReturnedValue('');
     setSecondPaid('0');
     setSecondLines([emptyLine()]);
+    goldRateTouched.current = false;
+    setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : '');
   }
 
   async function handleCreate() {
@@ -596,10 +684,11 @@ export function BillingScreen() {
         ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail ?? ''}
         : undefined;
       // Same template snapshot web saves — the options follow each invoice.
-      const templateSettings: BillTemplateSettings = {template, classicColor, twoInOne, mode};
+      const templateSettings = billTemplateSettings;
       const shared = {
         date: date || undefined,
         notes: notes.trim() || undefined,
+        goldRate: billGoldRate ?? undefined,
       };
       const invoice = await createInvoice.mutateAsync({
         customerName: customer.trim() || undefined,
@@ -691,9 +780,9 @@ export function BillingScreen() {
       return;
     }
     try {
-      let html = renderBillHtml(preview);
+      let html = renderBillHtml(preview, billTemplateSettings);
       if (twoInOne) {
-        const second = secondPreview ? renderBillHtml(secondPreview) : html;
+        const second = secondPreview ? renderBillHtml(secondPreview, billTemplateSettings) : html;
         html = `${html}<div style="page-break-after: always"></div>${second}`;
       }
       const {uri} = await Print.printToFileAsync({
@@ -709,9 +798,9 @@ export function BillingScreen() {
   /** Auto-generate PDF after invoice creation — same flow as web's handleSaveAndPrint. */
   async function generateAndSharePdf(doc: BillDocument, secondDoc?: BillDocument | null) {
     try {
-      let html = renderBillHtml(doc);
+      let html = renderBillHtml(doc, billTemplateSettings);
       if (secondDoc) {
-        html = `${html}<div style="page-break-after: always"></div>${renderBillHtml(secondDoc)}`;
+        html = `${html}<div style="page-break-after: always"></div>${renderBillHtml(secondDoc, billTemplateSettings)}`;
       }
       const {uri} = await Print.printToFileAsync({html, base64: false});
       await Share.share({url: uri, message: `Bill ${doc.billNo} — ${doc.shop.name}`});
@@ -801,6 +890,54 @@ export function BillingScreen() {
             />
           </View>
 
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Weight column</Text>
+              <Text style={styles.switchSub}>Show item weight after the name</Text>
+            </View>
+            <Switch
+              value={weightAfterName}
+              onValueChange={value => {
+                selectionTick();
+                setWeightAfterName(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
+
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Gold rate line</Text>
+              <Text style={styles.switchSub}>Today's gold rate row on the bill</Text>
+            </View>
+            <Switch
+              value={goldRateLine}
+              onValueChange={value => {
+                selectionTick();
+                setGoldRateLine(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
+
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Silver rate line</Text>
+              <Text style={styles.switchSub}>Today's silver rate row on the bill</Text>
+            </View>
+            <Switch
+              value={silverRateLine}
+              onValueChange={value => {
+                selectionTick();
+                setSilverRateLine(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
+
           {twoInOne ? (
             <>
               <Text style={styles.optLabel}>Mode</Text>
@@ -847,6 +984,13 @@ export function BillingScreen() {
             }}
           />
           <DateField label="Date" value={date} onChange={setDate} />
+          <Field
+            label="Gold rate (₹/g) — editing re-prices gold lines"
+            value={goldRateInput}
+            onChangeText={handleGoldRateChange}
+            keyboardType="numeric"
+            placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
+          />
           <Button
             variant="outline"
             title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
@@ -859,7 +1003,6 @@ export function BillingScreen() {
             onRemove={index => setLines(prev => prev.filter((_, i) => i !== index))}
             onAdd={() => setLines(prev => [...prev, emptyLine()])}
             products={products}
-            productIds={productIds}
             onSelectProduct={onSelectProduct}
           />
           <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
@@ -908,7 +1051,6 @@ export function BillingScreen() {
               onRemove={index => setSecondLines(prev => prev.filter((_, i) => i !== index))}
               onAdd={() => setSecondLines(prev => [...prev, emptyLine()])}
               products={products}
-              productIds={productIds}
               onSelectProduct={onSecondSelectProduct}
             />
             <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="numeric" />

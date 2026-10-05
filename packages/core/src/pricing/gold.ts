@@ -207,3 +207,23 @@ export function rateForKarat(table: readonly GoldRateTableEntry[], karat: GoldKa
   if (karat === null) return 0;
   return table.find((entry) => entry.karat === karat)?.ratePerGram ?? 0;
 }
+
+/**
+ * Bill-level rate edit: replaces the BASE (highest quoted) karat's rate and
+ * re-derives every non-quoted karat from it. Other explicitly quoted karats
+ * stay exactly as the shop wrote them.
+ * Returns the table unchanged when the override/base karat is missing or non-positive.
+ */
+export function applyGoldBaseRate(
+  table: readonly GoldRateTableEntry[],
+  baseRatePerGram: number,
+  baseKarat: number | null,
+): GoldRateTableEntry[] {
+  if (!Number.isFinite(baseRatePerGram) || baseRatePerGram <= 0) return [...table];
+  if (baseKarat === null || !Number.isFinite(baseKarat) || baseKarat <= 0) return [...table];
+  return table.map((entry) => {
+    if (entry.karat === baseKarat) return { ...entry, ratePerGram: baseRatePerGram };
+    if (entry.isCustom) return entry;
+    return { ...entry, ratePerGram: deriveRateFromBase(baseRatePerGram, baseKarat, entry.karat) };
+  });
+}

@@ -19,8 +19,8 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { buildBillDocument, formatDate, type BillShopDetails, type InvoiceDto } from "@munim/core";
-import { useDashboard, useInvoices, useProducts, useQueryState, useSettings } from "@munim/query";
+import { buildBillDocument, formatDate, mergeBillTemplateSettings, type BillShopDetails, type InvoiceDto } from "@munim/core";
+import { useDashboard, useInvoices, useProducts, useQueryState, useSettings, useGoldRates } from "@munim/query";
 import { money, monthLabelToDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { navigate } from "@/lib/navigation";
@@ -116,7 +116,12 @@ function BarRow({
 
 /* ─── PDF export for the settlements table ───────────────────────────── */
 
-function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency: string) {
+function invoiceToBillDocument(
+  inv: InvoiceDto,
+  shop: BillShopDetails,
+  currency: string,
+  rates?: { gold?: number | null; silver?: number | null },
+) {
   return buildBillDocument({
     billNo: inv.invoiceNumber,
     date: inv.date,
@@ -130,6 +135,8 @@ function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency:
       sku: it.sku,
       color: it.color,
       size: it.size,
+      weight: it.weight,
+      weightUnit: it.weightUnit,
       quantity: it.quantity,
       price: it.price,
     })),
@@ -138,6 +145,8 @@ function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency:
     amountPaid: inv.amountPaid,
     status: inv.status,
     currency,
+    goldRate: inv.goldRate ?? rates?.gold ?? null,
+    silverRate: rates?.silver ?? null,
   });
 }
 
@@ -146,6 +155,7 @@ function invoiceToBillDocument(inv: InvoiceDto, shop: BillShopDetails, currency:
 export function DashboardPage() {
   const { data, error, loading, reload } = useQueryState(useDashboard());
   const { data: settings } = useQueryState(useSettings());
+  const { data: goldRates } = useQueryState(useGoldRates());
   const [trajMode, setTrajMode] = useState<"revenue" | "orders">("revenue");
   const [radarHovered, setRadarHovered] = useState<number | null>(null);
 
@@ -170,7 +180,13 @@ export function DashboardPage() {
   async function handlePdf(inv: InvoiceDto) {
     if (!shop) return;
     try {
-      await downloadBillPdf(invoiceToBillDocument(inv, shop, settings?.currency ?? "INR"));
+      await downloadBillPdf(
+        invoiceToBillDocument(inv, shop, settings?.currency ?? "INR", {
+          gold: goldRates?.baseRatePerGram ?? null,
+          silver: settings?.silverRatePerGram ?? null,
+        }),
+        mergeBillTemplateSettings(inv.templateSettings),
+      );
       toast.success("PDF downloaded", { description: inv.invoiceNumber });
     } catch {
       /* surfaced by the Toaster in billPdf/generateBillPDF failures */

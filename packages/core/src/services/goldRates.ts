@@ -2,6 +2,7 @@ import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import {
+  applyGoldBaseRate,
   isGoldKarat,
   karatFromPurity,
   resolveGoldRateTable,
@@ -79,16 +80,30 @@ export type GoldPricingContext = {
 };
 
 /** The effective 0–24 table + shop pricing defaults, in one round trip. */
-export async function loadGoldPricing(db: DbClient): Promise<GoldPricingContext> {
+export async function loadGoldPricing(
+  db: DbClient,
+  opts?: { goldBaseRate?: number },
+): Promise<GoldPricingContext> {
   const [rows, settingsRow] = await Promise.all([
     db.select().from(schema.goldRates),
     db.query.settings.findFirst(),
   ]);
   const defaultLabourValue = settingsRow?.defaultLabourValue ?? 0;
+  const table = resolveGoldRateTable(
+    rows.map((r) => ({ karat: r.karat, ratePerGram: r.ratePerGram, isCustom: r.isCustom })),
+  );
+  // Bill-level gold rate edit: the bill's rate replaces the BASE row and is
+  // re-derived across every non-quoted karat (other quotes stay as saved).
+  // (No override → today's table.)
+  const override = opts?.goldBaseRate;
+  let baseKarat: number | null = null;
+  for (const r of rows) {
+    if (r.isCustom && r.ratePerGram > 0 && (baseKarat === null || r.karat > baseKarat)) baseKarat = r.karat;
+  }
+  const effectiveTable =
+    override !== undefined && override > 0 ? applyGoldBaseRate(table, override, baseKarat) : table;
   return {
-    table: resolveGoldRateTable(
-      rows.map((r) => ({ karat: r.karat, ratePerGram: r.ratePerGram, isCustom: r.isCustom })),
-    ),
+    table: effectiveTable,
     defaultLabour:
       defaultLabourValue > 0
         ? { type: settingsRow?.defaultLabourType ?? "PERCENT", value: defaultLabourValue }

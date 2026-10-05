@@ -13,12 +13,14 @@ import {Search, Trash2, Share2} from 'lucide-react-native';
 import {
   buildBillDocument,
   formatDate,
+  mergeBillTemplateSettings,
   renderBillHtml,
   type InvoiceFilters,
   type InvoiceDto,
 } from '@munim/core';
 import {
   useDeleteInvoice,
+  useGoldRates,
   useInvoices,
   useQueryState,
   useRecordInvoicePayment,
@@ -94,6 +96,7 @@ export function InvoicesScreen() {
   const recordPayment = useRecordInvoicePayment(paying?.id ?? '');
   const deleteInvoice = useDeleteInvoice();
   const {data: settings} = useQueryState(useSettings());
+  const {data: goldRates} = useGoldRates();
 
   const summary = invoices.reduce(
     (acc, inv) => ({
@@ -162,6 +165,8 @@ export function InvoicesScreen() {
           sku: it.sku ?? '',
           color: it.color ?? '',
           size: it.size ?? '',
+          weight: it.weight,
+          weightUnit: it.weightUnit,
           quantity: it.quantity,
           price: it.price,
         })),
@@ -170,8 +175,10 @@ export function InvoicesScreen() {
         amountPaid: inv.amountPaid,
         status: inv.status,
         currency: settings.currency ?? 'INR',
+        goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        silverRate: settings.silverRatePerGram ?? null,
       });
-      const html = renderBillHtml(doc);
+      const html = renderBillHtml(doc, mergeBillTemplateSettings(inv.templateSettings));
       const {uri} = await Print.printToFileAsync({html, base64: false});
 
       // Save to Downloads (Android) or share (iOS)

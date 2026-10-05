@@ -11,6 +11,7 @@ import { createHttpClient } from "./http.js";
 import { products } from "./endpoints/products.js";
 import { dashboard } from "./endpoints/dashboard.js";
 import { invoices } from "./endpoints/invoices.js";
+import { orders } from "./endpoints/orders.js";
 import { sales } from "./endpoints/sales.js";
 import { parties } from "./endpoints/parties.js";
 import { advances } from "./endpoints/advances.js";
@@ -42,6 +43,7 @@ export type ApiClient = {
   products: ReturnType<typeof products>;
   dashboard: ReturnType<typeof dashboard>;
   invoices: ReturnType<typeof invoices>;
+  orders: ReturnType<typeof orders>;
   sales: ReturnType<typeof sales>;
   parties: ReturnType<typeof parties>;
   advances: ReturnType<typeof advances>;
@@ -67,6 +69,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     products: products(http),
     dashboard: dashboard(http),
     invoices: invoices(http),
+    orders: orders(http),
     sales: sales(http),
     parties: parties(http),
     advances: advances(http),

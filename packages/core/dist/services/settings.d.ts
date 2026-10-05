@@ -21,14 +21,17 @@ export type ShopSettingsInput = {
     defaultLabourValue?: number;
     /** Shop-wide silver ₹/gram for auto-priced silver products (0 → off). */
     silverRatePerGram?: number;
+    /** Rates-editor display/entry unit ("gm" | "10gm") — storage stays per-gram. */
+    rateDisplayUnit?: "gm" | "10gm";
 };
 /** Fetches settings, creating the singleton row on first use. */
 export declare function getSettings(db: DbClient): Promise<{
-    id: string;
     mode: string;
-    updatedAt: Date;
-    lowStockThreshold: number;
     shopName: string;
+    id: string;
+    updatedAt: Date;
+    silverRatePerGram: number;
+    lowStockThreshold: number;
     shopAddress: string | null;
     shopPhones: string[];
     shopEmail: string | null;
@@ -36,9 +39,9 @@ export declare function getSettings(db: DbClient): Promise<{
     defaultTemplate: Record<string, unknown>;
     theme: string;
     allowZeroTotal: boolean;
-    defaultLabourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    defaultLabourType: "PER_GRAM" | "PERCENT" | "FIXED";
     defaultLabourValue: number;
-    silverRatePerGram: number;
+    rateDisplayUnit: "gm" | "10gm";
 }>;
 export declare function updateSettings(db: DbClient, input: ShopSettingsInput): Promise<{
     id: string;
@@ -52,9 +55,10 @@ export declare function updateSettings(db: DbClient, input: ShopSettingsInput): 
     theme: string;
     mode: string;
     allowZeroTotal: boolean;
-    defaultLabourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    defaultLabourType: "PER_GRAM" | "PERCENT" | "FIXED";
     defaultLabourValue: number;
     silverRatePerGram: number;
+    rateDisplayUnit: "gm" | "10gm";
     updatedAt: Date;
 }>;
 //# sourceMappingURL=settings.d.ts.map

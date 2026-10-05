@@ -26,6 +26,9 @@ export type ProductOption = {
   barcode?: string | null;
   color?: string | null;
   size?: string | null;
+  /** Product weight + unit — copied onto bill lines for the WEIGHT column. */
+  weight?: number | null;
+  weightUnit?: string | null;
   sellingPrice: number;
   /** SQL-computed current price (auto gold); falls back to sellingPrice. */
   effectivePrice?: number | null;

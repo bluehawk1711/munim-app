@@ -4,6 +4,7 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  ClipboardList,
   FileText,
   Palette,
   Receipt,
@@ -17,6 +18,7 @@ import {sectionPress} from '../lib/haptics';
 import {BillingScreen} from './BillingScreen';
 import {CatalogScreen} from './CatalogScreen';
 import {InvoicesScreen} from './InvoicesScreen';
+import {OrdersScreen} from './OrdersScreen';
 import {JobLettersScreen} from './JobLettersScreen';
 import {ReportsScreen} from './ReportsScreen';
 import {SettingsScreen} from './SettingsScreen';
@@ -30,6 +32,7 @@ const SECTIONS: {
 }[] = [
   {key: 'billing', label: 'Bills', subtitle: 'Create & manage invoices', icon: FileText},
   {key: 'invoices', label: 'Invoices', subtitle: 'All bills & statuses', icon: Receipt},
+  {key: 'orders', label: 'Orders', subtitle: 'Quotes — bill them later', icon: ClipboardList},
   {key: 'letters', label: 'Job Letters', subtitle: 'Offer letters for staff', icon: ScrollText},
   {key: 'reports', label: 'Reports', subtitle: 'Sales, stock & profit', icon: BarChart3},
   {key: 'catalog', label: 'Catalog', subtitle: 'Colors & sizes for products', icon: Palette},
@@ -91,6 +94,13 @@ export function MoreScreen() {
     return (
       <SectionView onBack={closeMore}>
         <InvoicesScreen />
+      </SectionView>
+    );
+  }
+  if (section === 'orders') {
+    return (
+      <SectionView onBack={closeMore}>
+        <OrdersScreen />
       </SectionView>
     );
   }

@@ -21,6 +21,7 @@ import { Printer, FileDown, Minus, Plus, Tag, RefreshCw, Usb, ChevronDown, Chevr
 import {
   renderLabelSheetHtml,
   formatWeight,
+  buildSilverPriceLine,
   DEFAULT_LABEL_PRINT_SETTINGS,
   type LabelPrinterInfo,
   type LabelPrintSettings,
@@ -425,6 +426,62 @@ export function LabelPrintDialog({
                       </div>
                     </div>
 
+                    {/* Silver price line — price + labour share one line */}
+                    <div className="space-y-2 rounded-md border bg-background/60 p-2.5 text-xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <label className="flex cursor-pointer items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={printSettings.showPrice}
+                            onChange={(e) => updateSetting("showPrice", e.target.checked)}
+                            disabled={printSettings.useDefaults}
+                            className="mt-0.5 h-3.5 w-3.5 accent-primary disabled:opacity-40"
+                          />
+                          <span>
+                            <span className="block font-medium">Print price (silver)</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              Price line below the weight on silver labels.
+                            </span>
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          aria-label="Price prefix"
+                          maxLength={6}
+                          value={printSettings.pricePrefix}
+                          onChange={(e) => updateSetting("pricePrefix", e.target.value || "p")}
+                          disabled={printSettings.useDefaults || !printSettings.showPrice}
+                          className="flex h-7 w-16 shrink-0 rounded border bg-background px-1.5 text-[11px] disabled:opacity-40"
+                        />
+                      </div>
+                      <div className="flex items-start justify-between gap-3">
+                        <label className="flex cursor-pointer items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={printSettings.showLabour}
+                            onChange={(e) => updateSetting("showLabour", e.target.checked)}
+                            disabled={printSettings.useDefaults}
+                            className="mt-0.5 h-3.5 w-3.5 accent-primary disabled:opacity-40"
+                          />
+                          <span>
+                            <span className="block font-medium">Print labour (silver)</span>
+                            <span className="text-[10px] text-muted-foreground">
+                              Making charge on the same line as the price (e.g. L: ₹50/g).
+                            </span>
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          aria-label="Labour prefix"
+                          maxLength={6}
+                          value={printSettings.labourPrefix}
+                          onChange={(e) => updateSetting("labourPrefix", e.target.value || "L")}
+                          disabled={printSettings.useDefaults || !printSettings.showLabour}
+                          className="flex h-7 w-16 shrink-0 rounded border bg-background px-1.5 text-[11px] disabled:opacity-40"
+                        />
+                      </div>
+                    </div>
+
                     {/* ── Use defaults toggle ─────────────────────── */}
                     <label className="flex items-start gap-2 cursor-pointer">
                       <input
@@ -591,6 +648,23 @@ export function LabelPrintDialog({
                             disabled={printSettings.useDefaults}
                             className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />
+                        </div>
+
+                        {/* silver price line Y */}
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-muted-foreground" htmlFor="lbl-priceY">Price Y</label>
+                          <input
+                            id="lbl-priceY"
+                            type="number"
+                            min={0}
+                            max={120}
+                            step={1}
+                            value={printSettings.priceY}
+                            onChange={(e) => updateSetting("priceY", Number(e.target.value) || 0)}
+                            disabled={printSettings.useDefaults}
+                            className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
+                          />
+                          <p className="text-[9px] text-muted-foreground">0 = auto (below weight)</p>
                         </div>
 
                         {/* goldNameY */}
@@ -853,7 +927,7 @@ export function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrint
   // Gold labels: smaller name font to fit weight fields below
   const nameLen = nameWithPurity.length;
   const nameFontSize = isGold
-    ? (nameLen <= 8 ? 5.5 : nameLen <= 12 ? 5 : nameLen <= 16 ? 4.5 : 4)
+    ? (nameLen <= 8 ? 4.5 : nameLen <= 12 ? 4 : nameLen <= 16 ? 3.5 : 3)
     : (nameLen <= 10 ? 8 : nameLen <= 14 ? 7 : nameLen <= 18 ? 6 : 5.5);
 
   // Build weight details for Gold — respect each field's toggle + prefix text
@@ -865,10 +939,8 @@ export function renderLabelMarkupHTML(label: ProductLabel, settings?: LabelPrint
   if (settings?.showChejatWeight !== false && label.chejatWeight?.trim()) weightFields.push(`${settings?.chejatWeightPrefix ?? "C"}: ${label.chejatWeight.trim()}`);
   if (settings?.showNetWeight !== false && label.netWeight?.trim()) weightFields.push(`${settings?.netWeightPrefix ?? "Net"}: ${label.netWeight.trim()}`);
 
-  // Silver price line (TSPL prints it for non-gold, prefix configurable)
-  const priceText = !isGold && label.sellingPrice > 0
-    ? `${settings?.pricePrefix ?? "p"}: ₹${label.sellingPrice.toLocaleString("en-IN")}`
-    : "";
+  // Silver price line — price + labour share one line (same builder as TSPL)
+  const priceText = !isGold ? buildSilverPriceLine(label, settings ?? {}) : "";
 
   // Silver size — concatenated with the weight on the same line (no position).
   const sizeValue = isGold ? "" : label.size?.trim() ?? "";
@@ -916,5 +988,9 @@ function renderLabelSheetHtmlFor(labels: ProductLabel[], copies: number, setting
     showSku: settings.showSku,
     showSize: settings.showSize,
     sizePrefix: settings.sizePrefix,
+    showPrice: settings.showPrice,
+    showLabour: settings.showLabour,
+    pricePrefix: settings.pricePrefix,
+    labourPrefix: settings.labourPrefix,
   });
 }

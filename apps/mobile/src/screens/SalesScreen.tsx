@@ -14,8 +14,11 @@ import {Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, 
 import * as Print from 'expo-print';
 import {Camera, Minus, Plus, ShoppingCart, Trash2} from 'lucide-react-native';
 import {
+  applyGoldBaseRate,
   buildBillDocument,
+  priceProductRow,
   renderBillHtml,
+  resolveGoldRateTable,
   swatchColor,
   type BillTemplate,
   type BillClassicColor,
@@ -26,6 +29,7 @@ import {
 import {
   useApiClient,
   useCreateInvoice,
+  useGoldRates,
   useProductByBarcode,
   useSettings,
   useSyncProductPrices,
@@ -76,6 +80,35 @@ export function SalesScreen() {
   const [classicColor, setClassicColor] = useState<BillClassicColor>('red');
   const [twoInOne, setTwoInOne] = useState(false);
   const [mode, setMode] = useState<BillMode>('duplicate');
+  const [weightAfterName, setWeightAfterName] = useState(true);
+  const [goldRateLine, setGoldRateLine] = useState(true);
+  const [silverRateLine, setSilverRateLine] = useState(true);
+
+  const {data: goldRates} = useGoldRates();
+  const goldBaseRate = goldRates?.baseRatePerGram ?? null;
+
+  // Per-bill gold base ₹/g — prefilled with the shop's rate; editing it
+  // re-prices every auto-priced gold line as you type (Phase 4b).
+  const [goldRateInput, setGoldRateInput] = useState('');
+  const goldRateTouched = useRef(false);
+  React.useEffect(() => {
+    if (goldBaseRate != null && !goldRateTouched.current) setGoldRateInput(String(goldBaseRate));
+  }, [goldBaseRate]);
+  const parsedGoldRate = Number(goldRateInput);
+  const billGoldRate =
+    goldRateInput.trim() && Number.isFinite(parsedGoldRate) && parsedGoldRate > 0
+      ? parsedGoldRate
+      : goldBaseRate;
+
+  const billTemplateSettings: BillTemplateSettings = {
+    template,
+    classicColor,
+    twoInOne,
+    mode,
+    weightAfterName,
+    goldRateLine,
+    silverRateLine,
+  };
 
   // Barcode scanner
   const [scanOpen, setScanOpen] = useState(false);
@@ -100,6 +133,37 @@ export function SalesScreen() {
   const getClient = useApiClient();
   const syncPrices = useSyncProductPrices();
 
+  /** Pricing inputs for the bill — the gold table re-based on `billGoldRate`. */
+  const billPricingContext = React.useMemo(() => {
+    const table = resolveGoldRateTable(goldRates?.rates ?? []);
+    const overridden =
+      billGoldRate != null ? applyGoldBaseRate(table, billGoldRate, goldRates?.baseKarat ?? null) : table;
+    const defaultLabour =
+      (settings?.defaultLabourValue ?? 0) > 0
+        ? {type: settings?.defaultLabourType ?? 'PERCENT', value: settings?.defaultLabourValue ?? 0}
+        : null;
+    return {
+      goldRateTable: overridden,
+      silverRatePerGram: settings?.silverRatePerGram ?? 0,
+      defaultLabour,
+    };
+  }, [goldRates, billGoldRate, settings]);
+
+  /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
+  function repriceGoldLines(prev: BillItem[]): BillItem[] {
+    return prev.map(item => {
+      const p = item.product;
+      if (p.type !== 'Gold' || p.priceMode !== 'auto') return item;
+      return {...item, price: priceProductRow(p, billPricingContext).price};
+    });
+  }
+
+  function handleGoldRateChange(value: string) {
+    goldRateTouched.current = true;
+    setGoldRateInput(value);
+    setItems(prev => repriceGoldLines(prev));
+  }
+
   async function handleSyncPrices() {
     try {
       const r = await syncPrices.mutateAsync();
@@ -120,10 +184,12 @@ export function SalesScreen() {
         const api = await getClient();
         const rows = await Promise.all(items.map(i => api.products.get(i.product.id)));
         setItems(prev =>
-          prev.map(item => {
-            const row = rows.find(fresh => fresh.id === item.product.id);
-            return row ? {...item, product: row, price: row.effectivePrice} : item;
-          }),
+          repriceGoldLines(
+            prev.map(item => {
+              const row = rows.find(fresh => fresh.id === item.product.id);
+              return row ? {...item, product: row, price: row.effectivePrice} : item;
+            }),
+          ),
         );
       } catch {
         // Best-effort: keep the current line prices if the refresh fails.
@@ -149,6 +215,11 @@ export function SalesScreen() {
       scanningRef.current = false;
       setScanOpen(false);
       const product = scanQ.data;
+      if (product.stock <= 0) {
+        errorFeedback(`${product.name} is out of stock`);
+        setScanCode(null);
+        return;
+      }
       // Check if already in bill
       const existing = items.find(i => i.product.id === product.id);
       if (existing) {
@@ -210,7 +281,7 @@ export function SalesScreen() {
     }
     setBusy(true);
     try {
-      const templateSettings: BillTemplateSettings = {template, classicColor, twoInOne, mode};
+      const templateSettings = billTemplateSettings;
       const invoice = await createInvoice.mutateAsync({
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
@@ -221,6 +292,8 @@ export function SalesScreen() {
           sku: i.product.sku,
           color: i.product.color || undefined,
           size: i.product.size || undefined,
+          weight: i.product.weight,
+          weightUnit: i.product.weightUnit === 'mg' ? 'mg' : 'gm',
           quantity: i.quantity,
           price: i.price,
         })),
@@ -230,6 +303,7 @@ export function SalesScreen() {
         materialReturnedWeight: materialReturnedWeight.trim() || undefined,
         materialReturnedValue: Number(materialReturnedValue) || 0,
         templateSettings,
+        goldRate: billGoldRate ?? undefined,
         shopDetails: settings
           ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail ?? ''}
           : undefined,
@@ -249,6 +323,8 @@ export function SalesScreen() {
           sku: it.sku,
           color: it.color,
           size: it.size,
+          weight: it.weight,
+          weightUnit: it.weightUnit,
           quantity: it.quantity,
           price: it.price,
         })),
@@ -258,8 +334,10 @@ export function SalesScreen() {
         materialReturnedValue: invoice.materialReturnedValue,
         amountPaid: invoice.amountPaid,
         status: invoice.status,
+        goldRate: invoice.goldRate ?? goldBaseRate,
+        silverRate: settings?.silverRatePerGram ?? null,
       });
-      const html = renderBillHtml(doc);
+      const html = renderBillHtml(doc, billTemplateSettings);
       const {uri} = await Print.printToFileAsync({html, base64: false});
 
       // Save to Downloads (Android) or share (iOS)
@@ -269,6 +347,8 @@ export function SalesScreen() {
       setItems([]);
       setCustomerName('');
       setCustomerPhone('');
+      goldRateTouched.current = false;
+      setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : '');
       successFeedback('Sale completed');
     } catch {
       errorFeedback('Failed to create sale');
@@ -367,6 +447,45 @@ export function SalesScreen() {
             />
           </View>
 
+          <View style={styles.toggleRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.toggleLabel}>Weight column</Text>
+              <Text style={{fontSize: typography.caption, color: colors.muted}}>Show item weight after the name</Text>
+            </View>
+            <Switch
+              value={weightAfterName}
+              onValueChange={value => { selectionTick(); setWeightAfterName(value); }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.card}
+            />
+          </View>
+
+          <View style={styles.toggleRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.toggleLabel}>Gold rate line</Text>
+              <Text style={{fontSize: typography.caption, color: colors.muted}}>Today's gold rate row on the bill</Text>
+            </View>
+            <Switch
+              value={goldRateLine}
+              onValueChange={value => { selectionTick(); setGoldRateLine(value); }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.card}
+            />
+          </View>
+
+          <View style={styles.toggleRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.toggleLabel}>Silver rate line</Text>
+              <Text style={{fontSize: typography.caption, color: colors.muted}}>Today's silver rate row on the bill</Text>
+            </View>
+            <Switch
+              value={silverRateLine}
+              onValueChange={value => { selectionTick(); setSilverRateLine(value); }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.card}
+            />
+          </View>
+
           {twoInOne ? (
             <>
               <Text style={[styles.cardTitle, {marginTop: spacing.sm}]}>Mode</Text>
@@ -396,6 +515,13 @@ export function SalesScreen() {
           <Text style={styles.cardTitle}>Customer (optional)</Text>
           <Field label="Name" value={customerName} onChangeText={setCustomerName} placeholder="Walk-in customer" />
           <Field label="Phone" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" placeholder="Optional" />
+          <Field
+            label="Gold rate (₹/g) — editing re-prices gold lines"
+            value={goldRateInput}
+            onChangeText={handleGoldRateChange}
+            keyboardType="numeric"
+            placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
+          />
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>Include delivery charge</Text>
             <Switch
@@ -531,6 +657,7 @@ export function SalesScreen() {
       <EditProductModal
         visible={formOpen}
         product={editing}
+        mode="bill"
         onClose={() => { setFormOpen(false); setEditing(null); }}
         onSaved={() => { setFormOpen(false); setEditing(null); }}
       />

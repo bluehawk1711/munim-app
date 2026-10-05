@@ -1,14 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt, RefreshCw } from "lucide-react"
+import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt, RefreshCw, Copy } from "lucide-react"
 import { Button, Input, Label, Card, CardContent, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, ProductSearchSelect, BarcodeLookupInput, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
 import { useCreateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
 import { useProducts, useSyncProductPrices } from "@/hooks/use-products"
-import { useApiClient } from "@munim/query"
-import { buildBillDocument, type BillDocument } from "@munim/core"
+import { useApiClient, useGoldRates } from "@munim/query"
+import { applyGoldBaseRate, buildBillDocument, priceProductRow, resolveGoldRateTable, type BillDocument } from "@munim/core"
 import { generateBillPDF, type BillTemplateSettings } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
@@ -22,6 +22,8 @@ type LineItem = {
   color?: string
   size?: string
   description: string
+  weight?: number | null
+  weightUnit?: "gm" | "mg"
   quantity: number
   price: number
   silverPercentage?: number
@@ -40,10 +42,12 @@ type PickableProduct = {
   sku: string | null
   color: string | null
   size: string | null
+  weight?: number | null
+  weightUnit?: string | null
   type: string
   stock: number
   sellingPrice: number
-  /** SQL-computed current price (auto gold → weight×rate+making, else sellingPrice). */
+  /** SQL-computed current price (auto gold — weightA-rate+making, else sellingPrice). */
   effectivePrice: number
   silverPercentage?: number
 }
@@ -54,8 +58,10 @@ export function BillingView() {
   const { data: settings } = useSettings()
   const { data: parties } = useParties()
   const { data: productData } = useProducts({ pageSize: 1000 })
+  const { data: goldRates } = useGoldRates()
   const products = productData?.products ?? []
   const getClient = useApiClient()
+  const goldBaseRate = goldRates?.baseRatePerGram ?? null
 
   const shop = settings ?? {
     shopName: "JEWELLERY WALA",
@@ -80,6 +86,22 @@ export function BillingView() {
   const [classicColor, setClassicColor] = React.useState<BillClassicColor>("red")
   const [twoInOne, setTwoInOne] = React.useState(false)
   const [mode, setMode] = React.useState<BillMode>("duplicate")
+  const [weightAfterName, setWeightAfterName] = React.useState(true)
+  const [goldRateLine, setGoldRateLine] = React.useState(true)
+  const [silverRateLine, setSilverRateLine] = React.useState(true)
+
+  // Per-bill gold base ₹/g — prefilled with the shop's rate; editing it
+  // re-prices every auto-priced gold line as you type (Phase 4b).
+  const [goldRateInput, setGoldRateInput] = React.useState("")
+  const goldRateTouched = React.useRef(false)
+  React.useEffect(() => {
+    if (goldBaseRate != null && !goldRateTouched.current) setGoldRateInput(String(goldBaseRate))
+  }, [goldBaseRate])
+  const parsedGoldRate = Number(goldRateInput)
+  const billGoldRate =
+    goldRateInput.trim() && Number.isFinite(parsedGoldRate) && parsedGoldRate > 0
+      ? parsedGoldRate
+      : goldBaseRate
 
   // Second bill — only used in 2-in-1 "Separate" mode.
   const [secondCustomerName, setSecondCustomerName] = React.useState("")
@@ -96,6 +118,39 @@ export function BillingView() {
   // ── Recalculate prices: cart lines are refreshed inside handleRecalcPrices
   //    with a per-product fetch (auto prices are computed on read). ─────────
   const syncPrices = useSyncProductPrices()
+
+  /** Pricing inputs for the bill's rate — the gold table re-based on `billGoldRate`. */
+  const billPricingContext = React.useMemo(() => {
+    const table = resolveGoldRateTable(goldRates?.rates ?? [])
+    const overridden =
+      billGoldRate != null ? applyGoldBaseRate(table, billGoldRate, goldRates?.baseKarat ?? null) : table
+    const defaultLabour =
+      (settings?.defaultLabourValue ?? 0) > 0
+        ? { type: settings?.defaultLabourType ?? "PERCENT", value: settings?.defaultLabourValue ?? 0 }
+        : null
+    return {
+      goldRateTable: overridden,
+      silverRatePerGram: settings?.silverRatePerGram ?? 0,
+      defaultLabour,
+    }
+  }, [goldRates, billGoldRate, settings])
+
+  /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
+  function repriceGoldLines(prev: LineItem[]): LineItem[] {
+    return prev.map((it) => {
+      if (!it.productId) return it
+      const p = products.find((x) => x.id === it.productId)
+      if (!p || p.type !== "Gold" || p.priceMode !== "auto") return it
+      return { ...it, price: priceProductRow(p, billPricingContext).price }
+    })
+  }
+
+  function handleGoldRateChange(value: string) {
+    goldRateTouched.current = true
+    setGoldRateInput(value)
+    setItems((prev) => repriceGoldLines(prev))
+    setSecondItems((prev) => repriceGoldLines(prev))
+  }
 
   async function handleRecalcPrices() {
     try {
@@ -123,8 +178,10 @@ export function BillingView() {
             const fresh = priceOf(it.productId)
             return fresh === null ? it : { ...it, price: fresh }
           })
-        setItems(refresh)
-        setSecondItems(refresh)
+        // Server rates land first, then the bill's own gold rate (if any)
+        // re-applies on top so an edited rate is never clobbered.
+        setItems((prev) => repriceGoldLines(refresh(prev)))
+        setSecondItems((prev) => repriceGoldLines(refresh(prev)))
       } catch {
         // Best-effort: keep the current line prices if the refresh fails.
       }
@@ -143,6 +200,10 @@ export function BillingView() {
     return async (code: string): Promise<unknown> => {
       const api = await getClient()
       const p = await api.products.byBarcode(code)
+      if (p.stock <= 0) {
+        toast.error(`${p.name} is out of stock`, { description: "Fix its stock in Products before billing it." })
+        return null
+      }
       const item: LineItem = {
         productId: p.id,
         productName: p.name,
@@ -150,6 +211,8 @@ export function BillingView() {
         color: p.color ?? undefined,
         size: p.size ?? undefined,
         description: "",
+        weight: p.weight ?? null,
+        weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
         quantity: 1,
         price: p.effectivePrice,
         silverPercentage: p.silverPercentage ?? 100,
@@ -195,6 +258,8 @@ export function BillingView() {
       color: p.color ?? undefined,
       size: p.size ?? undefined,
       description: "",
+      weight: p.weight ?? null,
+      weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
       quantity: 1,
       price: p.effectivePrice,
       silverPercentage: p.silverPercentage ?? 100,
@@ -207,7 +272,7 @@ export function BillingView() {
   }
 
   function buildSettings(): BillTemplateSettings {
-    return { template, classicColor, twoInOne, mode }
+    return { template, classicColor, twoInOne, mode, weightAfterName, goldRateLine, silverRateLine }
   }
 
   /** Builds a SHARED BillDocument (core) — the same model desktop & mobile render. */
@@ -240,6 +305,8 @@ export function BillingView() {
         sku: it.sku,
         color: it.color,
         size: it.size,
+        weight: it.weight ?? null,
+        weightUnit: it.weightUnit ?? null,
         quantity: it.quantity,
         price: it.price,
       })),
@@ -249,6 +316,8 @@ export function BillingView() {
       materialReturnedValue: opts.materialReturnedValue,
       amountPaid: opts.amountPaid,
       currency: "INR",
+      goldRate: billGoldRate,
+      silverRate: settings?.silverRatePerGram ?? null,
     })
   }
 
@@ -316,6 +385,7 @@ export function BillingView() {
         email: shop.shopEmail ?? "",
       },
       templateSettings: buildSettings(),
+      goldRate: billGoldRate ?? undefined,
     }
 
     const payload: CreateInvoiceInput = {
@@ -386,6 +456,8 @@ export function BillingView() {
     setSecondDeliveryCharge(0)
     setSecondDiscount(0)
     setSecondAmountPaid(0)
+    goldRateTouched.current = false
+    setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : "")
   }
 
   return (
@@ -408,6 +480,21 @@ export function BillingView() {
               classicColor={classicColor}
               twoInOne={twoInOne}
               mode={mode}
+              weightAfterName={weightAfterName}
+              goldRateLine={goldRateLine}
+              silverRateLine={silverRateLine}
+              onWeightAfterName={(next) => {
+                setWeightAfterName(next)
+                toast.success(next ? "Weight column shown" : "Weight column hidden")
+              }}
+              onGoldRateLine={(next) => {
+                setGoldRateLine(next)
+                toast.success(next ? "Gold rate line shown" : "Gold rate line hidden")
+              }}
+              onSilverRateLine={(next) => {
+                setSilverRateLine(next)
+                toast.success(next ? "Silver rate line shown" : "Silver rate line hidden")
+              }}
               onTemplate={(next) => {
                 setTemplate(next)
                 toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template", {
@@ -470,6 +557,19 @@ export function BillingView() {
                 <div className="space-y-1.5">
                   <Label className="text-xs">Date</Label>
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Gold rate (₹/g)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={goldRateInput}
+                    onChange={(e) => handleGoldRateChange(e.target.value)}
+                    placeholder={goldBaseRate != null ? String(goldBaseRate) : "—"}
+                    className="h-9"
+                  />
+                  <p className="text-[11px] text-muted-foreground">Editing re-prices gold lines on this bill.</p>
                 </div>
               </div>
             </div>
@@ -737,6 +837,8 @@ function BillItemsCard({
       color: p.color ?? undefined,
       size: p.size ?? undefined,
       description: "",
+      weight: p.weight ?? null,
+      weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
       quantity: 1,
       price: p.effectivePrice,
       silverPercentage: p.silverPercentage ?? 100,
@@ -799,6 +901,20 @@ function BillItemsCard({
                     placeholder="Description (optional)"
                     className="h-8 text-xs"
                   />
+                  {item.productId && item.sku && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
+                        {item.sku}
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Copy SKU"
+                        onClick={() => item.sku && void navigator.clipboard.writeText(item.sku)}
+                        className="inline-flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground">
+                        <Copy className="h-3 w-3" /> Copy
+                      </button>
+                    </div>
+                  )}
                   {item.productId && (() => {
                     const selectedProduct = products.find(p => p.id === item.productId)
                     if (selectedProduct?.type !== "Silver") return null

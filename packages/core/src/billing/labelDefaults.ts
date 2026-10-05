@@ -66,6 +66,14 @@ export type LabelPrintSettings = {
   netWeightPrefix: string;
   /** Silver price prefix (shown before ₹ value). */
   pricePrefix: string;
+  /** Silver price line: print the selling price. */
+  showPrice: boolean;
+  /** Silver price line: print the labour (making) charge beside it. */
+  showLabour: boolean;
+  /** Silver labour prefix (shown before the labour value). */
+  labourPrefix: string;
+  /** Silver price line Y position (dots). 0 = auto (below the weight line). */
+  priceY: number;
   /** When true, ignore saved settings and always use these defaults. */
   useDefaults: boolean;
 };
@@ -90,6 +98,10 @@ export const DEFAULT_LABEL_PRINT_SETTINGS: LabelPrintSettings = {
   chejatWeightPrefix: "C",
   netWeightPrefix: "Net",
   pricePrefix: "p",
+  showPrice: true,
+  showLabour: true,
+  labourPrefix: "L",
+  priceY: 0,
   leftMarginMm: 3.5,
   barcodeX: 295,
   barcodeY: 65,

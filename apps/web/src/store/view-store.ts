@@ -7,6 +7,7 @@ export type ViewKey =
   | "products"
   | "sales"
   | "invoices"
+  | "orders"
   | "billing"
   | "job-letter"
   | "parties"
@@ -22,6 +23,7 @@ const VIEW_KEYS: ViewKey[] = [
   "products",
   "sales",
   "invoices",
+  "orders",
   "billing",
   "job-letter",
   "parties",

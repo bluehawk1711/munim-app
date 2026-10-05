@@ -1,8 +1,26 @@
 import { jsPDF } from "jspdf";
 import { formatCurrency } from "../utils/format.js";
-import type { BillDocument, BillTemplateSettings } from "./billDocument.js";
+import type { BillDocument, BillLine, BillTemplateSettings } from "./billDocument.js";
 
 export type { BillTemplateSettings } from "./billDocument.js";
+
+/** "24.5g" / "24500mg" — WEIGHT column display (dash when no snapshot). */
+function weightText(item: BillLine): string {
+  if (item.weight == null) return "-";
+  return `${item.weight}${item.weightUnit === "mg" ? "mg" : "g"}`;
+}
+
+/** Shop rate rows gated by the per-bill toggles + present rate values. */
+function rateRowsOf(bill: BillDocument, settings: BillTemplateSettings): string[] {
+  const rows: string[] = [];
+  if (settings.goldRateLine && bill.goldRate != null && bill.goldRate > 0) {
+    rows.push(`Gold rate: ${formatCurrency(bill.goldRate)}/g`);
+  }
+  if (settings.silverRateLine && bill.silverRate != null && bill.silverRate > 0) {
+    rows.push(`Silver rate: ${formatCurrency(bill.silverRate)}/g`);
+  }
+  return rows;
+}
 
 // Color themes for classic template
 const classicColors = {
@@ -32,6 +50,52 @@ const ecommerceColors = {
 };
 
 /**
+ * Content height for the e-commerce template (mm, relative to yOffset) —
+ * mirrors drawEcommerceBill's fixed layout so the frame hugs the content
+ * instead of stretching to the page bottom.
+ */
+function measureEcommerceBillHeight(
+  doc: jsPDF,
+  bill: BillDocument,
+  contentWidth: number,
+): number {
+  // Header (3..31) + bill-to (38..57) + table header are fixed; rows start at 76.
+  const totalY = 84 + bill.lines.length * 8;
+  let grandTotalY = totalY + 5;
+  if (bill.deliveryCharge > 0) grandTotalY = totalY + 12;
+  if (bill.discount > 0) grandTotalY += 7;
+  const wordsY = grandTotalY + 16;
+  const wordsLines = doc.splitTextToSize(bill.amountInWords, contentWidth - 20).length;
+  const contentEnd = Math.max(grandTotalY + 10, wordsY + wordsLines * 3.6);
+  return contentEnd + 24; // footer zone: separator + thank-you + email + padding
+}
+
+/**
+ * Content height for the classic jewellery template (mm, relative to yOffset)
+ * — mirrors drawClassicJewelleryBill up to the signature block.
+ */
+function measureClassicBillHeight(
+  doc: jsPDF,
+  bill: BillDocument,
+  contentWidth: number,
+): number {
+  const customerY = 62; // detailsY (52) + 10
+  const tableHeaderY = customerY + (bill.customerPhone ? 22 : 16);
+  let itemY = tableHeaderY + 10;
+  for (const line of bill.lines) itemY += line.description ? 12 : 10;
+  let totalY = itemY + 6;
+  if (bill.deliveryCharge > 0 || bill.discount > 0) {
+    totalY += 6; // subtotal row
+    if (bill.deliveryCharge > 0) totalY += 6;
+    if (bill.discount > 0) totalY += 6;
+  }
+  const wordsY = totalY + 18;
+  const wordsLines = doc.splitTextToSize(bill.amountInWords, contentWidth - 20).length;
+  const contentEnd = Math.max(totalY + 12, wordsY + wordsLines * 3.6);
+  return contentEnd + 30; // gap + signature block (signatureY = height - 20)
+}
+
+/**
  * Shared bill/invoice PDF renderer — the single source of truth used by BOTH
  * web and desktop. Renders the `BillDocument` (built by `buildBillDocument`
  * from core) into a rich jsPDF PDF with two presentation templates (Classic
@@ -54,11 +118,21 @@ export function generateBillPDF(
 
   const drawBill = (yOffset: number, billDoc: BillDocument) => {
     const isEcommerce = settings.template === "ecommerce";
-    const billHeight = (pageHeight - 16) / (settings.twoInOne ? 2 : 1);
     const contentWidth = pageWidth - 2 * margin;
+    // Content-based height: hug the drawn content, clamped to this bill's
+    // page slot (halves in 2-in-1) so a short bill no longer stretches to
+    // the page bottom and a long bill never bleeds into its neighbour.
+    const slotMax =
+      settings.twoInOne && yOffset < pageHeight / 2
+        ? pageHeight / 2 - yOffset
+        : pageHeight - margin - yOffset;
+    const contentH = isEcommerce
+      ? measureEcommerceBillHeight(doc, billDoc, contentWidth)
+      : measureClassicBillHeight(doc, billDoc, contentWidth);
+    const billHeight = Math.min(slotMax, Math.max(60, contentH));
 
     if (isEcommerce) {
-      drawEcommerceBill(doc, yOffset, billDoc, billHeight, pageWidth, margin, contentWidth);
+      drawEcommerceBill(doc, yOffset, billDoc, billHeight, pageWidth, margin, contentWidth, settings);
     } else {
       const colorTheme = classicColors[settings.classicColor];
       drawClassicJewelleryBill(
@@ -70,6 +144,7 @@ export function generateBillPDF(
         margin,
         contentWidth,
         colorTheme,
+        settings,
       );
     }
   };
@@ -95,6 +170,7 @@ function drawEcommerceBill(
   pageWidth: number,
   margin: number,
   contentWidth: number,
+  settings: BillTemplateSettings,
 ): void {
   const colors = ecommerceColors;
 
@@ -176,9 +252,14 @@ function drawEcommerceBill(
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   doc.setFontSize(8);
   doc.setFont("helvetica", "bold");
+  const showWeight = settings.weightAfterName;
+  const weightX = margin + 87;
+  const qtyX = showWeight ? margin + 112 : margin + 105;
+  const priceX = showWeight ? margin + 137 : margin + 130;
   doc.text("PRODUCT", margin + 10, tableHeaderY);
-  doc.text("QTY", margin + 105, tableHeaderY, { align: "center" });
-  doc.text("PRICE", margin + 130, tableHeaderY, { align: "center" });
+  if (showWeight) doc.text("WEIGHT", weightX, tableHeaderY, { align: "center" });
+  doc.text("QTY", qtyX, tableHeaderY, { align: "center" });
+  doc.text("PRICE", priceX, tableHeaderY, { align: "center" });
   doc.text("TOTAL", pageWidth - margin - 15, tableHeaderY, { align: "right" });
 
   // Items - DARK text
@@ -202,12 +283,15 @@ function drawEcommerceBill(
     // Quantity - Normal, Gray
     doc.setFont("helvetica", "normal");
     doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
-    doc.text(item.quantity.toString(), margin + 105, itemY, {
+    if (showWeight) {
+      doc.text(weightText(item), weightX, itemY, { align: "center" });
+    }
+    doc.text(item.quantity.toString(), qtyX, itemY, {
       align: "center",
     });
 
     // Price - Normal, Gray
-    doc.text(formatCurrency(item.price), margin + 130, itemY, {
+    doc.text(formatCurrency(item.price), priceX, itemY, {
       align: "center",
     });
 
@@ -228,6 +312,14 @@ function drawEcommerceBill(
   const grandTotal = bill.total;
 
   const totalY = itemY + 8;
+
+  // Shop rate rows (per-bill display toggles) — left side of the totals band
+  rateRowsOf(bill, settings).forEach((row, i) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
+    doc.text(row, margin + 10, totalY + i * 5);
+  });
 
   doc.setDrawColor(colors.gold[0], colors.gold[1], colors.gold[2]);
   doc.setLineWidth(0.3);
@@ -312,6 +404,7 @@ function drawClassicJewelleryBill(
   margin: number,
   contentWidth: number,
   colorTheme: (typeof classicColors)["red"],
+  settings: BillTemplateSettings,
 ): void {
   const { primary, secondary, accent, dark } = colorTheme;
 
@@ -420,9 +513,14 @@ function drawClassicJewelleryBill(
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
+  const showWeight = settings.weightAfterName;
+  const weightX = margin + 78;
+  const qtyX = showWeight ? margin + 112 : margin + 100;
+  const rateX = showWeight ? margin + 142 : margin + 128;
   doc.text("NAME", margin + 12, tableHeaderY);
-  doc.text("QTY", margin + 100, tableHeaderY, { align: "center" });
-  doc.text("RATE", margin + 128, tableHeaderY, { align: "center" });
+  if (showWeight) doc.text("WEIGHT", weightX, tableHeaderY, { align: "center" });
+  doc.text("QTY", qtyX, tableHeaderY, { align: "center" });
+  doc.text("RATE", rateX, tableHeaderY, { align: "center" });
   doc.text("AMOUNT", pageWidth - margin - 15, tableHeaderY, { align: "right" });
 
   // Items
@@ -454,10 +552,13 @@ function drawClassicJewelleryBill(
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(item.quantity.toString(), margin + 100, itemY, {
+    if (showWeight) {
+      doc.text(weightText(item), weightX, itemY, { align: "center" });
+    }
+    doc.text(item.quantity.toString(), qtyX, itemY, {
       align: "center",
     });
-    doc.text(formatCurrency(item.price), margin + 128, itemY, {
+    doc.text(formatCurrency(item.price), rateX, itemY, {
       align: "center",
     });
 
@@ -476,6 +577,14 @@ function drawClassicJewelleryBill(
   const grandTotal = bill.total;
 
   let totalY = itemY + 6;
+
+  // Shop rate rows (per-bill display toggles) — left of the totals band
+  rateRowsOf(bill, settings).forEach((row, i) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(primary[0], primary[1], primary[2]);
+    doc.text(row, margin + 10, totalY + i * 5);
+  });
 
   // Show subtotal + extras when there are extras
   if (deliveryCharge > 0 || discount > 0) {

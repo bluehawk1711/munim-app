@@ -26,6 +26,8 @@ export type ShopSettingsInput = {
   defaultLabourValue?: number;
   /** Shop-wide silver ₹/gram for auto-priced silver products (0 → off). */
   silverRatePerGram?: number;
+  /** Rates-editor display/entry unit ("gm" | "10gm") — storage stays per-gram. */
+  rateDisplayUnit?: "gm" | "10gm";
 };
 
 /** Fetches settings, creating the singleton row on first use. */
@@ -61,6 +63,9 @@ export async function updateSettings(db: DbClient, input: ShopSettingsInput) {
       ...(input.defaultLabourType !== undefined ? { defaultLabourType: input.defaultLabourType } : {}),
       ...(input.defaultLabourValue !== undefined ? { defaultLabourValue: input.defaultLabourValue } : {}),
       ...(input.silverRatePerGram !== undefined ? { silverRatePerGram: input.silverRatePerGram } : {}),
+      ...(input.rateDisplayUnit !== undefined
+        ? { rateDisplayUnit: input.rateDisplayUnit === "10gm" ? "10gm" : "gm" }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(schema.settings.id, SETTINGS_ID))

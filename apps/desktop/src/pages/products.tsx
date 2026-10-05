@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Barcode,
   CheckCircle2,
+  Copy,
   Eye,
   EyeOff,
   FileDown,
@@ -27,6 +28,7 @@ import {
 } from "lucide-react";
 import {
   buildProductLabel,
+  calcNetWeight,
   classifyProduct,
   formatNumber,
   formatWeight,
@@ -154,6 +156,7 @@ type FormState = {
   weightUnit: "mg" | "gm";
   grossWeight: string;
   nagLessWeight: string;
+  nagUnit: "mg" | "gm";
   nagRate: string;
   chejatWeight: string;
   netWeight: string;
@@ -168,6 +171,10 @@ type FormState = {
   goldKarat: string;
   labourType: LabourType;
   labourValue: string;
+  povayiRate: string;
+  otherCharges: string;
+  /** Per-product silver ₹/gram ("" → follow the shop rate). */
+  silverRatePerGram: string;
   priceMode: "auto" | "manual";
 };
 
@@ -182,12 +189,13 @@ const EMPTY_FORM: FormState = {
   weightUnit: "gm",
   grossWeight: "",
   nagLessWeight: "",
+  nagUnit: "gm",
   nagRate: "",
   chejatWeight: "",
   netWeight: "",
   purity: "",
   imageUrl: "",
-  stock: "0",
+  stock: "1",
   purchasePrice: "0",
   sellingPrice: "0",
   silverPercentage: "100",
@@ -196,6 +204,9 @@ const EMPTY_FORM: FormState = {
   goldKarat: "0",
   labourType: "PERCENT",
   labourValue: "",
+  povayiRate: "",
+  otherCharges: "",
+  silverRatePerGram: "",
   priceMode: "auto",
 };
 
@@ -203,6 +214,38 @@ function stockVariant(p: ProductDto): "success" | "warning" | "destructive" | "s
   if (p.stock <= 0) return "destructive";
   if (p.stock <= p.lowStockThreshold) return "warning";
   return "success";
+}
+
+/** mg/gm segmented toggle — sits beside the nag-less + chejat weight fields. */
+function UnitToggle({
+  value,
+  onChange,
+  ariaLabel,
+}: {
+  value: "mg" | "gm";
+  onChange: (unit: "mg" | "gm") => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div className="flex overflow-hidden rounded-md border" role="group" aria-label={ariaLabel}>
+      {(["mg", "gm"] as const).map((u) => (
+        <button
+          key={u}
+          type="button"
+          aria-pressed={value === u}
+          onClick={() => onChange(u)}
+          className={cn(
+            "px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+            value === u
+              ? "bg-primary text-primary-foreground"
+              : "bg-background/60 text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {u}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** Quick-filter category chips on the products page. */
@@ -315,6 +358,11 @@ export function ProductsPage() {
         labourType: form.labourType,
         labourValue: form.labourValue.trim() === "" ? null : Number(form.labourValue) || 0,
         netWeight: form.netWeight,
+        nagRate: form.nagRate,
+        povayiRate: form.povayiRate.trim() === "" ? null : Number(form.povayiRate) || 0,
+        otherCharges: form.otherCharges.trim() === "" ? null : Number(form.otherCharges) || 0,
+        silverRatePerGram:
+          form.silverRatePerGram.trim() === "" ? null : Number(form.silverRatePerGram) || 0,
         sellingPrice: Number(form.sellingPrice) || 0,
       },
       karatTable,
@@ -330,6 +378,10 @@ export function ProductsPage() {
     form.labourType,
     form.labourValue,
     form.netWeight,
+    form.nagRate,
+    form.povayiRate,
+    form.otherCharges,
+    form.silverRatePerGram,
     form.sellingPrice,
     goldKarat,
     karatTable,
@@ -528,7 +580,9 @@ export function ProductsPage() {
 
   function openAdd() {
     setEditing(null);
-    setForm(EMPTY_FORM);
+    // Seed the type from the page's type filter ("Gold"/"Silver") — adding
+    // from a filtered view creates the matching product.
+    setForm(typeFilter === "Gold" || typeFilter === "Silver" ? { ...EMPTY_FORM, type: typeFilter } : EMPTY_FORM);
     setCustomColor(false);
     setCustomSize(false);
     setCustomCategory(false);
@@ -551,6 +605,7 @@ export function ProductsPage() {
       weightUnit: (p.weightUnit === "mg" || p.weightUnit === "gm") ? p.weightUnit : "gm",
       grossWeight: p.grossWeight ?? "",
       nagLessWeight: p.nagLessWeight ?? "",
+      nagUnit: p.nagUnit === "mg" ? "mg" : "gm",
       nagRate: p.nagRate ?? "",
       chejatWeight: p.chejatWeight ?? "",
       netWeight: p.netWeight ?? "",
@@ -565,9 +620,34 @@ export function ProductsPage() {
       goldKarat: String(p.goldKarat ?? 0),
       labourType: isLabourType(p.labourType) ? p.labourType : "PERCENT",
       labourValue: p.labourValue != null ? String(p.labourValue) : "",
+      povayiRate: p.povayiRate != null ? String(p.povayiRate) : "",
+      otherCharges: p.otherCharges != null ? String(p.otherCharges) : "",
+      silverRatePerGram: p.productSilverRatePerGram != null ? String(p.productSilverRatePerGram) : "",
       priceMode: p.priceMode,
     });
     setFormOpen(true);
+  }
+
+  /**
+   * Weight-field edit (gross / nag-less / chejat / nag unit): re-derives
+   * net = gross − nag + chejat via the ONE core helper, so the stored value
+   * always matches the price. Net stays manual-editable; it only re-fills
+   * when one of these inputs changes. Unparseable gross leaves net alone.
+   */
+  function updateWeightField(
+    patch: Partial<Pick<FormState, "grossWeight" | "nagLessWeight" | "chejatWeight" | "nagUnit">>,
+  ) {
+    setForm((f) => {
+      const next = { ...f, ...patch };
+      const derived = calcNetWeight({
+        grossWeight: next.grossWeight,
+        nagLessWeight: next.nagLessWeight,
+        chejatWeight: next.chejatWeight,
+        weightUnit: next.weightUnit,
+        nagUnit: next.nagUnit,
+      });
+      return derived ? { ...next, netWeight: derived.text } : next;
+    });
   }
 
   function handleColorSelect(value: string) {
@@ -695,6 +775,7 @@ export function ProductsPage() {
         weightUnit: form.weightUnit,
         grossWeight: form.grossWeight.trim() || undefined,
         nagLessWeight: form.nagLessWeight.trim() || undefined,
+        nagUnit: form.nagUnit,
         nagRate: form.nagRate.trim() || undefined,
         chejatWeight: form.chejatWeight.trim() || undefined,
         netWeight: form.netWeight.trim() || undefined,
@@ -710,6 +791,10 @@ export function ProductsPage() {
         labourType: form.labourType,
         labourValue:
           form.labourValue.trim() === "" ? null : Math.max(0, Number(form.labourValue) || 0),
+        povayiRate: form.povayiRate.trim() === "" ? null : Math.max(0, Number(form.povayiRate) || 0),
+        otherCharges: form.otherCharges.trim() === "" ? null : Math.max(0, Number(form.otherCharges) || 0),
+        silverRatePerGram:
+          form.silverRatePerGram.trim() === "" ? null : Math.max(0, Number(form.silverRatePerGram) || 0),
         priceMode: form.priceMode,
       };
       if (editing) {
@@ -861,6 +946,8 @@ export function ProductsPage() {
         netWeight: p.netWeight ?? null,
         purity: p.purity,
         sellingPrice: p.effectivePrice,
+        labourType: p.labourType,
+        labourValue: p.labourValue,
         colorName: p.color || null,
         sizeName: p.size || null,
         categoryName: p.category || null,
@@ -1268,7 +1355,7 @@ export function ProductsPage() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-[80vw] sm:max-h-[85vh]">
           <DialogHeader>
             <DialogTitle>{editing ? "Edit Product" : "Add Product"}</DialogTitle>
             <DialogDescription>SKU is auto-generated by the shared core.</DialogDescription>
@@ -1394,6 +1481,38 @@ export function ProductsPage() {
                 <Label htmlFor="p-barcode">Barcode</Label>
                 <Input id="p-barcode" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Auto-generate if blank" />
               </div>
+            </div>
+
+            {/* SKU — read-only, generated by core; copy for fast search */}
+            <div className="space-y-1.5">
+              <Label htmlFor="p-sku">SKU</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="p-sku"
+                  readOnly
+                  disabled
+                  value={editing ? editing.sku : "Auto-generated on save"}
+                  className="h-9 text-muted-foreground"
+                />
+                {editing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 shrink-0 gap-1.5"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(editing.sku);
+                      toast.success("SKU copied", { description: editing.sku });
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy
+                  </Button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Paste it in the New Bill fast-entry box to add this product instantly.
+              </p>
             </div>
 
             {/* Row 6: Weight + Purity */}
@@ -1527,6 +1646,23 @@ export function ProductsPage() {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="p-product-silver-rate">Product silver rate (₹ per gram)</Label>
+                      <Input
+                        id="p-product-silver-rate"
+                        type="text"
+                        inputMode="decimal"
+                        className="h-9 tabular-nums"
+                        placeholder={silverRatePerGram ? `e.g. ${silverRatePerGram}` : "e.g. 95"}
+                        value={form.silverRatePerGram}
+                        onChange={(e) => setForm({ ...form, silverRatePerGram: e.target.value })}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Custom rate — wins over the shop rate. Blank follows the shop rate, and a
+                        shop-rate change re-prices only products without a custom rate here.
+                      </p>
+                    </div>
                   </div>
                 )}
 
@@ -1542,6 +1678,37 @@ export function ProductsPage() {
                       : "Silver labour is per product — empty means none."
                   }
                 />
+
+                {/* Flat ₹ charges — added to the auto price (with the gold-only
+                    nag rate below) for both metals. */}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-povayi-rate">Povayi rate (₹)</Label>
+                    <Input
+                      id="p-povayi-rate"
+                      inputMode="decimal"
+                      className="h-9 tabular-nums"
+                      placeholder="e.g. 100"
+                      value={form.povayiRate}
+                      onChange={(e) => setForm({ ...form, povayiRate: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="p-other-charges">Other charges (₹)</Label>
+                    <Input
+                      id="p-other-charges"
+                      inputMode="decimal"
+                      className="h-9 tabular-nums"
+                      placeholder="e.g. 25"
+                      value={form.otherCharges}
+                      onChange={(e) => setForm({ ...form, otherCharges: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Flat amounts added to the auto price (povayi + other; gold also gets the nag
+                  rate). Empty means none.
+                </p>
 
                 {metalPreview ? (
                   <p className="text-xs text-muted-foreground">
@@ -1626,31 +1793,79 @@ export function ProductsPage() {
 
             {form.type !== "Silver" && (
               <>
-                {/* Row 7: Gross weight + Nag less weight */}
+                {/* Row 7: Gross weight + Nag less weight (nag unit toggle beside) */}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="p-gross-weight">Gross weight</Label>
-                    <Input id="p-gross-weight" value={form.grossWeight} onChange={(e) => setForm({ ...form, grossWeight: e.target.value })} placeholder="e.g. 10+5" />
+                    <Input
+                      id="p-gross-weight"
+                      value={form.grossWeight}
+                      onChange={(e) => updateWeightField({ grossWeight: e.target.value })}
+                      placeholder="e.g. 10+5"
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
-                    <Input id="p-nag-less-weight" value={form.nagLessWeight} onChange={(e) => setForm({ ...form, nagLessWeight: e.target.value })} placeholder="e.g. 2.5" />
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="p-nag-less-weight">Nag less weight</Label>
+                      <UnitToggle
+                        value={form.nagUnit}
+                        onChange={(nagUnit) => updateWeightField({ nagUnit })}
+                        ariaLabel="Nag/chejat weight unit"
+                      />
+                    </div>
+                    <Input
+                      id="p-nag-less-weight"
+                      value={form.nagLessWeight}
+                      onChange={(e) => updateWeightField({ nagLessWeight: e.target.value })}
+                      placeholder="e.g. 2.5"
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="p-nag-rate">Nag rate</Label>
-                    <Input id="p-nag-rate" value={form.nagRate} onChange={(e) => setForm({ ...form, nagRate: e.target.value })} placeholder="e.g. 5" />
+                    <Label htmlFor="p-nag-rate">Nag rate (₹)</Label>
+                    <Input
+                      id="p-nag-rate"
+                      inputMode="decimal"
+                      className="tabular-nums"
+                      value={form.nagRate}
+                      onChange={(e) => setForm({ ...form, nagRate: e.target.value })}
+                      placeholder="e.g. 5"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Flat ₹ added to the gold auto price.
+                    </p>
                   </div>
                 </div>
 
-                {/* Row 8: Chejat weight + Net weight */}
+                {/* Row 8: Chejat weight + Net weight (auto-derived, editable) */}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="p-chejat-weight">Chejat weight</Label>
-                    <Input id="p-chejat-weight" value={form.chejatWeight} onChange={(e) => setForm({ ...form, chejatWeight: e.target.value })} placeholder="e.g. 3" />
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="p-chejat-weight">Chejat weight</Label>
+                      <UnitToggle
+                        value={form.nagUnit}
+                        onChange={(nagUnit) => updateWeightField({ nagUnit })}
+                        ariaLabel="Nag/chejat weight unit"
+                      />
+                    </div>
+                    <Input
+                      id="p-chejat-weight"
+                      value={form.chejatWeight}
+                      onChange={(e) => updateWeightField({ chejatWeight: e.target.value })}
+                      placeholder="e.g. 3"
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="p-net-weight">Net weight</Label>
-                    <Input id="p-net-weight" value={form.netWeight} onChange={(e) => setForm({ ...form, netWeight: e.target.value })} placeholder="e.g. 19" />
+                    <Input
+                      id="p-net-weight"
+                      value={form.netWeight}
+                      onChange={(e) => setForm({ ...form, netWeight: e.target.value })}
+                      placeholder="e.g. 19"
+                    />
+                    <p className="text-[11px] text-muted-foreground">
+                      Auto = gross − nag + chejat. Edit freely — it re-fills when the weights above
+                      change.
+                    </p>
                   </div>
                 </div>
               </>

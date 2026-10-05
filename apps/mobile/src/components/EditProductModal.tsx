@@ -6,7 +6,7 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import {type ProductDto, karatPurityPercent, priceFallbackMessage, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
+import {type ProductDto, calcNetWeight, karatPurityPercent, priceFallbackMessage, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
 import {
   useCatalog,
   useCreateProduct,
@@ -17,6 +17,7 @@ import {
   useUploadImage,
 } from '@munim/query';
 import {successFeedback, errorFeedback} from '../lib/haptics';
+import {copyText} from '../lib/clipboard';
 import {uploadImageDirect} from '../lib/cloudinary';
 import {rs, spacing, radii, typography} from '../lib/responsive';
 import {useThemeStyles} from '../theme';
@@ -33,10 +34,17 @@ type EditProductModalProps = {
   onSaved?: () => void;
   /** null = add new product; non-null = edit existing */
   product: ProductDto | null;
+  /**
+   * "full" (default) — the complete catalog form (Products screen).
+   * "bill" — weight/pricing fields only, for quick tweaks from the sales
+   * flow (name/type/catalog/stock stay hydrated and are sent unchanged).
+   */
+  mode?: 'full' | 'bill';
 };
 
-export function EditProductModal({visible, onClose, onSaved, product}: EditProductModalProps) {
+export function EditProductModal({visible, onClose, onSaved, product, mode = 'full'}: EditProductModalProps) {
   const isEdit = !!product;
+  const isBillMode = mode === 'bill';
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const uploadImage = useUploadImage();
@@ -68,6 +76,30 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
       },
       goldTitle: {fontSize: typography.secondary, fontWeight: '700', color: c.text},
       goldPreview: {fontSize: 12, color: c.muted, lineHeight: 17},
+      netHint: {fontSize: 11, color: c.muted, marginTop: -spacing.xs, marginBottom: spacing.xs},
+      skuRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+        borderWidth: 1,
+        borderColor: c.border,
+        borderRadius: radii.lg,
+        backgroundColor: c.mutedSoft,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        marginBottom: spacing.md,
+      },
+      skuLabel: {fontSize: 11, color: c.muted, fontWeight: '600', textTransform: 'uppercase'},
+      skuValue: {fontSize: typography.body, color: c.text, fontWeight: '700'},
+      skuCopyBtn: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: 8,
+        borderRadius: radii.full,
+        borderWidth: 1,
+        borderColor: c.primary,
+        backgroundColor: c.card,
+      },
+      skuCopyText: {fontSize: typography.secondary, color: c.primary, fontWeight: '700'},
     }),
   );
 
@@ -88,12 +120,13 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
   const [weightUnit, setWeightUnit] = useState<'mg' | 'gm'>('gm');
   const [grossWeight, setGrossWeight] = useState('');
   const [nagLessWeight, setNagLessWeight] = useState('');
+  const [nagUnit, setNagUnit] = useState<'mg' | 'gm'>('gm');
   const [nagRate, setNagRate] = useState('');
   const [chejatWeight, setChejatWeight] = useState('');
   const [netWeight, setNetWeight] = useState('');
   const [purity, setPurity] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [stock, setStock] = useState('0');
+  const [stock, setStock] = useState('1');
   const [buy, setBuy] = useState('0');
   const [sell, setSell] = useState('0');
   const [silverPercentage, setSilverPercentage] = useState('100');
@@ -101,6 +134,9 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
   const [labourType, setLabourType] = useState<LabourType>('PERCENT');
   const [labourValue, setLabourValue] = useState('');
   const [priceMode, setPriceMode] = useState<'auto' | 'manual'>('auto');
+  const [povayiRate, setPovayiRate] = useState('');
+  const [otherCharges, setOtherCharges] = useState('');
+  const [silverProductRate, setSilverProductRate] = useState('');
 
   // Catalog pickers
   const [typePickerOpen, setTypePickerOpen] = useState(false);
@@ -139,13 +175,17 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
         labourType,
         labourValue: labourValue.trim() === '' ? null : Number(labourValue) || 0,
         netWeight,
+        nagRate,
+        povayiRate: povayiRate.trim() === '' ? null : Math.max(0, Number(povayiRate) || 0),
+        otherCharges: otherCharges.trim() === '' ? null : Math.max(0, Number(otherCharges) || 0),
+        silverRatePerGram: silverProductRate.trim() === '' ? null : Math.max(0, Number(silverProductRate) || 0),
         sellingPrice: Number(sell) || 0,
       },
       karatTable,
       silverRatePerGram,
       defaultLabour,
     );
-  }, [type, priceMode, weight, weightUnit, selectedKarat, silverPercentage, labourType, labourValue, netWeight, sell, karatTable, silverRatePerGram, defaultLabour]);
+  }, [type, priceMode, weight, weightUnit, selectedKarat, silverPercentage, labourType, labourValue, netWeight, nagRate, povayiRate, otherCharges, silverProductRate, sell, karatTable, silverRatePerGram, defaultLabour]);
 
   const catalogColors = useMemo(() => (colorsCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [colorsCatalog]);
   const catalogSizes = useMemo(() => (sizesCatalog ?? []).map((s: {name: string}) => ({label: s.name, value: s.name})), [sizesCatalog]);
@@ -164,6 +204,7 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
       setWeightUnit(product.weightUnit === 'mg' ? 'mg' : 'gm');
       setGrossWeight(product.grossWeight ?? '');
       setNagLessWeight(product.nagLessWeight ?? '');
+      setNagUnit(product.nagUnit === 'mg' ? 'mg' : 'gm');
       setNagRate(product.nagRate ?? '');
       setChejatWeight(product.chejatWeight ?? '');
       setNetWeight(product.netWeight ?? '');
@@ -176,6 +217,9 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
       setGoldKarat(String(product.goldKarat ?? 0));
       setLabourType(product.labourType);
       setLabourValue(product.labourValue != null ? String(product.labourValue) : '');
+      setPovayiRate(product.povayiRate != null ? String(product.povayiRate) : '');
+      setOtherCharges(product.otherCharges != null ? String(product.otherCharges) : '');
+      setSilverProductRate(product.productSilverRatePerGram != null ? String(product.productSilverRatePerGram) : '');
       setPriceMode(product.priceMode);
     } else {
       setName('');
@@ -187,21 +231,56 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
       setWeightUnit('gm');
       setGrossWeight('');
       setNagLessWeight('');
+      setNagUnit('gm');
       setNagRate('');
       setChejatWeight('');
       setNetWeight('');
       setPurity('');
       setImageUrl('');
-      setStock('0');
+      setStock('1');
       setBuy('0');
       setSell('0');
       setSilverPercentage('100');
       setGoldKarat('0');
       setLabourType('PERCENT');
       setLabourValue('');
+      setPovayiRate('');
+      setOtherCharges('');
+      setSilverProductRate('');
       setPriceMode('auto');
     }
   }, [visible, product]);
+
+  /**
+   * Weight-field edit (gross/nag/chejat/nag unit): re-derives
+   * net = gross − nag + chejat via the ONE core helper, so the stored value
+   * always matches the price. Net stays manual-editable; it only re-fills on
+   * these edits (never on open, so an existing stored net survives).
+   * Unparseable gross → net is left alone.
+   */
+  function updateWeight(patch: {
+    grossWeight?: string;
+    nagLessWeight?: string;
+    chejatWeight?: string;
+    nagUnit?: 'mg' | 'gm';
+  }) {
+    const nextGross = patch.grossWeight ?? grossWeight;
+    const nextNag = patch.nagLessWeight ?? nagLessWeight;
+    const nextChejat = patch.chejatWeight ?? chejatWeight;
+    const nextNagUnit = patch.nagUnit ?? nagUnit;
+    if (patch.grossWeight !== undefined) setGrossWeight(patch.grossWeight);
+    if (patch.nagLessWeight !== undefined) setNagLessWeight(patch.nagLessWeight);
+    if (patch.chejatWeight !== undefined) setChejatWeight(patch.chejatWeight);
+    if (patch.nagUnit !== undefined) setNagUnit(patch.nagUnit);
+    const derived = calcNetWeight({
+      grossWeight: nextGross,
+      nagLessWeight: nextNag,
+      chejatWeight: nextChejat,
+      weightUnit,
+      nagUnit: nextNagUnit,
+    });
+    if (derived) setNetWeight(derived.text);
+  }
 
   async function handlePickImage() {
     try {
@@ -255,9 +334,13 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
         weightUnit,
         grossWeight: grossWeight.trim() || undefined,
         nagLessWeight: nagLessWeight.trim() || undefined,
+        nagUnit,
         nagRate: nagRate.trim() || undefined,
         chejatWeight: chejatWeight.trim() || undefined,
         netWeight: netWeight.trim() || undefined,
+        povayiRate: povayiRate.trim() === '' ? null : Math.max(0, Number(povayiRate) || 0),
+        otherCharges: otherCharges.trim() === '' ? null : Math.max(0, Number(otherCharges) || 0),
+        silverRatePerGram: silverProductRate.trim() === '' ? null : Math.max(0, Number(silverProductRate) || 0),
         purity: purity.trim() || undefined,
         imageUrl: imageUrl.trim() || undefined,
         stock: Math.max(0, Number(stock) || 0),
@@ -288,35 +371,61 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
   return (
     <>
       <ModalSheet visible={visible} size="xl" title={isEdit ? `Edit — ${product.name}` : 'Add product'} onClose={onClose} dismissable={!saving && !uploading} centered scrollable>
-        <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
-        <SelectField label="Type" value={type} placeholder="Select type" onPress={() => setTypePickerOpen(true)} />
-        <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
-          {imageUrl ? (
-            <Image source={{uri: imageUrl}} style={styles.imagePickerThumb} />
-          ) : (
-            <Text style={styles.imagePickerText}>{uploading ? 'Uploading…' : '+ Add image'}</Text>
-          )}
-        </Pressable>
-        <SelectField label="Color" value={color} placeholder="Select color (optional)" onPress={() => setColorPickerOpen(true)} />
-        <SelectField label="Size" value={size} placeholder="Select size" onPress={() => setSizePickerOpen(true)} />
-        <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
-        {type === 'Silver' && catalogCategories.length > 0 && (
-          <View style={{marginBottom: spacing.sm}}>
-            <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Silver sub-category</Text>
-            <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs}}>
-              {catalogCategories.map(c => {
-                const active = category === c.value;
-                return (
-                  <Pressable
-                    key={c.value}
-                    onPress={() => setCategory(active ? '' : c.value)}
-                    style={{paddingVertical: 6, paddingHorizontal: spacing.sm, borderRadius: radii.full, borderWidth: 1, borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : colors.card}}>
-                    <Text style={{fontSize: 12, fontWeight: active ? '700' : '500', color: active ? colors.inverseOnSurface : colors.text}}>{c.label}</Text>
-                  </Pressable>
-                );
-              })}
+        {!isBillMode && (
+          <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
+        )}
+        {!isBillMode && (
+          <SelectField label="Type" value={type} placeholder="Select type" onPress={() => setTypePickerOpen(true)} />
+        )}
+        {isEdit && product && (
+          <View style={styles.skuRow}>
+            <View style={{flex: 1}}>
+              <Text style={styles.skuLabel}>SKU</Text>
+              <Text style={styles.skuValue}>{product.sku}</Text>
             </View>
+            <Pressable
+              onPress={() => {
+                copyText(product.sku);
+                successFeedback();
+              }}
+              style={styles.skuCopyBtn}>
+              <Text style={styles.skuCopyText}>Copy</Text>
+            </Pressable>
           </View>
+        )}
+        {!isBillMode && (
+          <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
+            {imageUrl ? (
+              <Image source={{uri: imageUrl}} style={styles.imagePickerThumb} />
+            ) : (
+              <Text style={styles.imagePickerText}>{uploading ? 'Uploading…' : '+ Add image'}</Text>
+            )}
+          </Pressable>
+        )}
+        {!isBillMode && (
+          <>
+            <SelectField label="Color" value={color} placeholder="Select color (optional)" onPress={() => setColorPickerOpen(true)} />
+            <SelectField label="Size" value={size} placeholder="Select size (optional)" onPress={() => setSizePickerOpen(true)} />
+            <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
+            {type === 'Silver' && catalogCategories.length > 0 && (
+              <View style={{marginBottom: spacing.sm}}>
+                <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Silver sub-category</Text>
+                <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs}}>
+                  {catalogCategories.map(c => {
+                    const active = category === c.value;
+                    return (
+                      <Pressable
+                        key={c.value}
+                        onPress={() => setCategory(active ? '' : c.value)}
+                        style={{paddingVertical: 6, paddingHorizontal: spacing.sm, borderRadius: radii.full, borderWidth: 1, borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : colors.card}}>
+                        <Text style={{fontSize: 12, fontWeight: active ? '700' : '500', color: active ? colors.inverseOnSurface : colors.text}}>{c.label}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </>
         )}
         <View style={{flexDirection: 'row', gap: spacing.sm}}>
           <View style={{flex: 1}}>
@@ -333,11 +442,53 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
         </View>
         {type !== 'Silver' && (
           <>
-            <Field label="Gross weight" value={grossWeight} onChangeText={setGrossWeight} placeholder="e.g. 10+5 or 24.5" />
-            <Field label="Nag less weight" value={nagLessWeight} onChangeText={setNagLessWeight} placeholder="e.g. 2.5" />
-            <Field label="Nag rate" value={nagRate} onChangeText={setNagRate} placeholder="e.g. 5" />
-            <Field label="Chejat weight" value={chejatWeight} onChangeText={setChejatWeight} placeholder="e.g. 3" />
-            <Field label="Net weight" value={netWeight} onChangeText={setNetWeight} placeholder="e.g. 19" />
+            <Field
+              label="Gross weight"
+              value={grossWeight}
+              onChangeText={v => updateWeight({grossWeight: v})}
+              placeholder="e.g. 10+5 or 24.5"
+            />
+            <View style={{flexDirection: 'row', gap: spacing.sm}}>
+              <View style={{flex: 1}}>
+                <Field
+                  label="Nag less weight"
+                  value={nagLessWeight}
+                  onChangeText={v => updateWeight({nagLessWeight: v})}
+                  placeholder={nagUnit === 'gm' ? 'e.g. 2.5' : 'e.g. 2500'}
+                />
+              </View>
+              <View style={{width: 70}}>
+                <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Unit</Text>
+                <Pressable
+                  onPress={() => updateWeight({nagUnit: nagUnit === 'gm' ? 'mg' : 'gm'})}
+                  style={{height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center'}}>
+                  <Text style={{fontSize: 14, fontWeight: '700', color: colors.primary}}>{nagUnit}</Text>
+                </Pressable>
+              </View>
+            </View>
+            <Field label="Nag rate (₹)" value={nagRate} onChangeText={setNagRate} placeholder="e.g. 5" />
+            <View style={{flexDirection: 'row', gap: spacing.sm}}>
+              <View style={{flex: 1}}>
+                <Field
+                  label="Chejat weight"
+                  value={chejatWeight}
+                  onChangeText={v => updateWeight({chejatWeight: v})}
+                  placeholder={nagUnit === 'gm' ? 'e.g. 3' : 'e.g. 3000'}
+                />
+              </View>
+              <View style={{width: 70}}>
+                <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Unit</Text>
+                <Pressable
+                  onPress={() => updateWeight({nagUnit: nagUnit === 'gm' ? 'mg' : 'gm'})}
+                  style={{height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center'}}>
+                  <Text style={{fontSize: 14, fontWeight: '700', color: colors.primary}}>{nagUnit}</Text>
+                </Pressable>
+              </View>
+            </View>
+            <View>
+              <Field label="Net weight" value={netWeight} onChangeText={setNetWeight} placeholder="e.g. 19" />
+              <Text style={styles.netHint}>Auto = gross − nag + chejat. You can still edit it by hand.</Text>
+            </View>
           </>
         )}
         <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
@@ -380,6 +531,17 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
                   : 'Silver labour is per product — empty means none.'
               }
             />
+            <View style={{flexDirection: 'row', gap: spacing.sm}}>
+              <View style={{flex: 1}}>
+                <Field label="Povayi rate (₹)" value={povayiRate} onChangeText={setPovayiRate} keyboardType="numeric" placeholder="e.g. 10" />
+              </View>
+              <View style={{flex: 1}}>
+                <Field label="Other charges (₹)" value={otherCharges} onChangeText={setOtherCharges} keyboardType="numeric" placeholder="e.g. 25" />
+              </View>
+            </View>
+            <Text style={styles.goldPreview}>
+              Flat amounts added to the auto price (both metals). Blank = none.
+            </Text>
             {metalPreview ? (
               <Text style={styles.goldPreview}>
                 {metalPreview.source === 'auto'
@@ -392,13 +554,27 @@ export function EditProductModal({visible, onClose, onSaved, product}: EditProdu
               </Text>
             )}
             {type === 'Silver' && (
-              <Text style={styles.goldPreview}>
-                Shop silver rate: ₹{silverRatePerGram.toFixed(2)}/g{silverRatePerGram > 0 ? '' : ' (not set — set it in Settings)'}
-              </Text>
+              <>
+                <Field
+                  label="Product silver rate (₹ per gram)"
+                  value={silverProductRate}
+                  onChangeText={setSilverProductRate}
+                  keyboardType="numeric"
+                  placeholder={silverRatePerGram > 0 ? `e.g. ${silverRatePerGram}` : 'e.g. 95'}
+                />
+                <Text style={styles.goldPreview}>
+                  Custom rate — wins over the shop rate. Blank follows the shop rate.
+                </Text>
+                <Text style={styles.goldPreview}>
+                  Shop silver rate: ₹{silverRatePerGram.toFixed(2)}/g{silverRatePerGram > 0 ? '' : ' (not set — set it in Settings)'}
+                </Text>
+              </>
             )}
           </View>
         )}
-        <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
+        {!isBillMode && (
+          <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
+        )}
         <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
         <Field
           label={priceMode === 'auto' && (type === 'Gold' || type === 'Silver') ? 'Sell price — calculated' : 'Sell price'}

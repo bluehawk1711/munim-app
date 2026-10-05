@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 import type { FastifyReply } from "fastify";
 import { ZodError } from "zod";
-import { ProductError, PartyError, InvoiceError, AdvanceError, GoldRateError } from "@munim/core";
+import { ProductError, PartyError, InvoiceError, OrderError, AdvanceError, GoldRateError } from "@munim/core";
 
 /**
  * Global exception filter — every error leaves the API as
@@ -45,6 +45,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       exception instanceof ProductError ||
       exception instanceof PartyError ||
       exception instanceof InvoiceError ||
+      exception instanceof OrderError ||
       exception instanceof AdvanceError ||
       exception instanceof GoldRateError
     ) {

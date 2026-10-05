@@ -11,15 +11,21 @@
  *   1. Gold  + priceMode "auto" + karat + karat rate>0 + NET weight parsed>0
  *          metalValue = netWeightGm × rate(karat)
  *          labour     = product labour, else SHOP DEFAULT (settings)
- *          price      = round2(metalValue + labour)
+ *          charges    = nag rate + povayi rate + other charges (flat ₹,
+ *                       parsed — nag is a gold-only charge)
+ *          price      = round2(metalValue + labour + charges)
  *          (net weight is free text — `parseNetWeight` strips non-numeric
  *           chars; no number found → the "invalid-net-weight" fallback.)
  *
- *   2. Silver + priceMode "auto" + shop silver rate>0 + weight>0
- *          metalValue = weightGm × silverPercentage/100 × silverRate
+ *   2. Silver + priceMode "auto" + silver rate>0 + weight>0
+ *          rate       = product's OWN silverRatePerGram when > 0, else the
+ *                       shop-wide rate (a global silver change recalculates
+ *                       every product without a custom rate instantly)
+ *          metalValue = weightGm × silverPercentage/100 × rate
  *          labour     = product labour ONLY (silver never uses a shop default
  *                       — per-product by design), unset → ₹0
- *          price      = round2(metalValue + labour)
+ *          charges    = povayi rate + other charges (flat ₹; nag is gold-only)
+ *          price      = round2(metalValue + labour + charges)
  *
  *   3. Anything else (manual mode, non-metal type, missing karat/rate/weight)
  *          → the stored `sellingPrice`, with a typed `fallback` reason.
@@ -74,11 +80,38 @@ export function priceFallbackMessage(fallback: PriceFallback): string | null {
     case "invalid-net-weight":
       return "Net weight is missing or not a number — enter a number like 9.85 so this gold product can auto-price.";
     case "no-silver-rate":
-      return "Shop silver rate is 0 — set it in Settings → Rates & labour.";
+      return "No silver rate — set this product's rate in the form or the shop rate in Settings → Rates & labour.";
     default:
       return null;
   }
 }
+
+/**
+ * Parses a flat ₹ charge (nag rate / povayi rate / other charges) — accepts
+ * the free-text column (`"5"`, `"₹5"`) or an already-numeric value. Anything
+ * unparseable or ≤ 0 is ₹0 (never a negative price contribution). Mirrors the
+ * SQL charge parse in `services/products.ts` — keep them in lockstep.
+ */
+export function parseCharge(value: string | number | null | undefined): number {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? r2(value) : 0;
+  }
+  if (!value) return 0;
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (cleaned === "") return 0;
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) && parsed > 0 ? r2(parsed) : 0;
+}
+
+/** The flat ₹ charges slice of the breakdown (0 in manual mode). */
+export type PriceCharges = {
+  /** Gold-only flat ₹ nag charge. */
+  nag: number;
+  /** Flat ₹ povayi charge (gold + silver). */
+  povayi: number;
+  /** Flat ₹ other charges (gold + silver). */
+  other: number;
+};
 
 /** The labour slice of the breakdown (what the operator sees). */
 export type PriceLabour = {
@@ -107,6 +140,8 @@ export type PriceBreakdown = {
   /** rate × weight (× purity for silver). */
   metalValue: number;
   labour: PriceLabour;
+  /** Flat ₹ charges added on top (nag/povayi/other) — all 0 in manual mode. */
+  charges: PriceCharges;
   /** Final unit price (before invoice-level discount/delivery). */
   price: number;
 };
@@ -128,6 +163,14 @@ export type PriceableProduct = {
   labourValue: number | null;
   /** Free-text net weight (gold auto-price basis) — parsed by `parseNetWeight`. */
   netWeight?: string | null;
+  /** Per-product silver ₹/gram — wins over the shop rate when > 0. */
+  silverRatePerGram?: number | null;
+  /** Flat ₹ nag charge — free-text column, parsed by {@link parseCharge} (gold only). */
+  nagRate?: string | number | null;
+  /** Flat ₹ povayi charge (gold + silver). */
+  povayiRate?: number | null;
+  /** Flat ₹ other charges (gold + silver). */
+  otherCharges?: number | null;
   /** Stored price — the manual price and every fallback. */
   sellingPrice: number;
 };
@@ -176,6 +219,7 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
     weightGm,
     metalValue: 0,
     labour: { type: null, value: 0, amount: 0 },
+    charges: { nag: 0, povayi: 0, other: 0 },
     price: r2(product.sellingPrice),
     ...extra,
   });
@@ -202,6 +246,12 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
     // Gold: product labour wins; unset falls back to the shop default.
     const labourConfig = productLabour(product) ?? context.defaultLabour;
     const labourAmount = computeLabour(labourConfig, { metalValue, weightGm: netWeightGm });
+    // Flat ₹ charges: nag (gold-only) + povayi + other.
+    const charges: PriceCharges = {
+      nag: parseCharge(product.nagRate),
+      povayi: parseCharge(product.povayiRate),
+      other: parseCharge(product.otherCharges),
+    };
     return {
       source: "auto",
       fallback: null,
@@ -216,13 +266,22 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
         value: labourConfig?.value ?? 0,
         amount: labourAmount,
       },
-      price: r2(metalValue + labourAmount),
+      charges,
+      price: r2(metalValue + labourAmount + charges.nag + charges.povayi + charges.other),
     };
   }
 
   // ── Silver ──────────────────────────────────────────────────────
   if (product.type === "Silver") {
-    const rate = Number.isFinite(context.silverRatePerGram) ? context.silverRatePerGram : 0;
+    // Per-product rate wins; blank/0 falls back to the shop-wide rate so a
+    // global silver change recalculates every non-custom product live.
+    const customRate = product.silverRatePerGram;
+    const rate =
+      typeof customRate === "number" && Number.isFinite(customRate) && customRate > 0
+        ? customRate
+        : Number.isFinite(context.silverRatePerGram)
+          ? context.silverRatePerGram
+          : 0;
     if (rate <= 0) return manual("no-silver-rate");
     if (weightGm <= 0) return manual("zero-weight", { ratePerGram: rate, purityPercent: silverPercent });
 
@@ -230,6 +289,12 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
     // Silver labour is strictly per product (no shop default) → unset = ₹0.
     const labourConfig = productLabour(product);
     const labourAmount = computeLabour(labourConfig, { metalValue, weightGm });
+    // Flat ₹ charges: nag is gold-only, so silver gets povayi + other only.
+    const charges: PriceCharges = {
+      nag: 0,
+      povayi: parseCharge(product.povayiRate),
+      other: parseCharge(product.otherCharges),
+    };
     return {
       source: "auto",
       fallback: null,
@@ -244,7 +309,8 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
         value: labourConfig?.value ?? 0,
         amount: labourAmount,
       },
-      price: r2(metalValue + labourAmount),
+      charges,
+      price: r2(metalValue + labourAmount + charges.povayi + charges.other),
     };
   }
 
@@ -263,5 +329,65 @@ export function priceWithTable(
   defaultLabour: LabourConfig | null,
 ): PriceBreakdown {
   return priceProduct(product, { goldRateTable, silverRatePerGram, defaultLabour });
+}
+
+/** Serialized product rows (`ProductDto`) — the same fields, keyed by the
+ *  DTO's `productSilverRatePerGram` read key. */
+export type ProductRowPricingInput = Omit<PriceableProduct, "silverRatePerGram"> & {
+  productSilverRatePerGram?: number | null;
+};
+
+/** `priceProduct` for serialized product rows — billing reprice when the
+ *  shop edits a bill's gold rate. */
+export function priceProductRow(product: ProductRowPricingInput, context: PricingContext): PriceBreakdown {
+  const { productSilverRatePerGram, ...rest } = product;
+  return priceProduct({ ...rest, silverRatePerGram: productSilverRatePerGram ?? null }, context);
+}
+
+/* ── Net weight derivation (product forms) ─────────────────────── */
+
+export type NetWeightInput = {
+  /** Free text, in the product's `weightUnit` (e.g. "6.890" / "6890"). */
+  grossWeight?: string | null;
+  /** Free text nag-less weight, in `nagUnit`. */
+  nagLessWeight?: string | null;
+  /** Free text chejat weight, in `nagUnit`. */
+  chejatWeight?: string | null;
+  /** Unit of gross/net: "mg" | "gm" (default gm). */
+  weightUnit?: string | null;
+  /** Unit of the nag/chejat pair — the toggle beside those fields. */
+  nagUnit?: string | null;
+};
+
+export type NetWeightResult = {
+  /** Derived net weight in GRAMS (the pricing basis). */
+  grams: number;
+  /** Ready-to-store `net_weight` text expressed in the product's weight unit. */
+  text: string;
+};
+
+function toGrams(value: number, unit: string | null | undefined): number {
+  return unit === "mg" ? value / 1000 : value;
+}
+
+/**
+ * net = gross − nag + chejat, every input normalised to grams (nag/chejat use
+ * their own unit toggle; gross uses the product weight unit). Free text is
+ * parsed with the same non-digit/dot strip as `parseNetWeight`. Returns null
+ * when gross itself is unparseable (nothing to derive from); missing nag or
+ * chejat counts as 0. This is the ONE derivation — desktop, web and mobile
+ * forms all call it so the value they store always matches the price.
+ */
+export function calcNetWeight(input: NetWeightInput): NetWeightResult | null {
+  const gross = parseNetWeight(input.grossWeight);
+  if (gross === null) return null;
+  const nag = parseNetWeight(input.nagLessWeight) ?? 0;
+  const chejat = parseNetWeight(input.chejatWeight) ?? 0;
+  const raw = toGrams(gross, input.weightUnit) - toGrams(nag, input.nagUnit) + toGrams(chejat, input.nagUnit);
+  const grams = Math.round(raw * 10000) / 10000;
+  if (!Number.isFinite(grams)) return null;
+  const unit = input.weightUnit === "mg" ? "mg" : "gm";
+  const stored = unit === "mg" ? Math.round(grams * 1000 * 100) / 100 : grams;
+  return { grams, text: `${stored} ${unit}` };
 }
 

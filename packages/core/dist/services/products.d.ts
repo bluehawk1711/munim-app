@@ -69,15 +69,21 @@ export type ProductWithMeta = schema.Product & {
     categoryName: string | null;
 } & ProductComputedPricing;
 export declare const goldRatePerGramSql: import("drizzle-orm").SQL<number>;
-/** Shop-wide silver ₹/gram (settings singleton; 0 → silver never auto-prices). */
+/** Effective silver ₹/gram — the product's OWN `silver_rate_per_gram` when
+ *  set, else the shop-wide settings value. SQL twin of the silver branch's
+ *  rate lookup in `priceProduct` (a global silver change recalculates every
+ *  product without a custom rate on the very next read). 0 → never prices. */
 export declare const silverRatePerGramSql: import("drizzle-orm").SQL<number>;
 /** Product weight in grams — `weight` is stored in `weightUnit` (mg or gm). */
 export declare const weightGmSql: import("drizzle-orm").SQL<number>;
 /**
  * Auto price — the SQL twin of `priceProduct` (pricing/product.ts):
  *
- *   Gold  (auto + karat + rate>0 + NET weight parsed>0) → round2(goldMetal + goldLabour)
- *   Silver(auto + shop rate>0 + weight>0)              → round2(silverMetal + silverLabour)
+ *   Gold  (auto + karat + rate>0 + NET weight parsed>0)
+ *     → round2(goldMetal + goldLabour + nag + povayi + other)
+ *   Silver(auto + effective silver rate>0 + weight>0)
+ *     → round2(silverMetal + silverLabour + povayi + other)
+ *     (nag is gold-only; the rate is product-silver ?? shop-silver)
  *   anything else → NULL (callers fall back to `sellingPrice`, never ₹0)
  *
  * Expressed ONCE so every list, aggregate and report agrees with the form
@@ -93,9 +99,13 @@ export declare const effectivePriceSql: import("drizzle-orm").SQL<number>;
 export type ProductComputedPricing = {
     /** Effective ₹/gram for the product's karat (0 when not karat-priced). */
     goldRatePerGram: number;
-    /** Shop-wide silver ₹/gram the silver branch used (0 → silver not priced). */
+    /** Effective silver ₹/gram the silver branch used — product override ?? shop
+     *  rate (0 → silver not priced). The RAW per-product rate rides along as
+     *  `productSilverRatePerGram` for form round-trips. */
     silverRatePerGram: number;
-    /** Computed auto price (null unless the product is auto-priced). */
+    /** RAW per-product silver ₹/gram column (null → follow the shop rate). */
+    productSilverRatePerGram: number | null;
+    /** Computed auto price (null when not auto-priced). */
     autoPrice: number | null;
     /** `autoPrice ?? sellingPrice`. */
     effectivePrice: number;
@@ -113,6 +123,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         weight: number | null;
         weightUnit: string;
         grossWeight: string | null;
+        nagUnit: "mg" | "gm";
         nagLessWeight: string | null;
         nagRate: string | null;
         chejatWeight: string | null;
@@ -123,8 +134,11 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         purchasePrice: number;
         sellingPrice: number;
         silverPercentage: number;
+        productSilverRatePerGram: number | null;
+        povayiRate: number | null;
+        otherCharges: number | null;
         goldKarat: number | null;
-        labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+        labourType: "PER_GRAM" | "PERCENT" | "FIXED";
         labourValue: number | null;
         priceMode: "auto" | "manual";
         notes: string | null;
@@ -158,6 +172,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     weight: number | null;
     weightUnit: string;
     grossWeight: string | null;
+    nagUnit: "mg" | "gm";
     nagLessWeight: string | null;
     nagRate: string | null;
     chejatWeight: string | null;
@@ -168,8 +183,11 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    productSilverRatePerGram: number | null;
+    povayiRate: number | null;
+    otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -201,6 +219,8 @@ export type ProductInput = {
     weightUnit?: string;
     /** Jewelry-specific weight fields (free text for formulas). */
     grossWeight?: string;
+    /** Unit for the nag-less + chejat pair (own toggle). */
+    nagUnit?: "mg" | "gm";
     nagLessWeight?: string;
     nagRate?: string;
     chejatWeight?: string;
@@ -214,6 +234,12 @@ export type ProductInput = {
     sellingPrice?: number;
     /** Silver purity percentage — e.g. 90 means 90% silver content. */
     silverPercentage?: number;
+    /** Per-product silver ₹/gram (undefined → keep; null → clear → shop rate). */
+    silverRatePerGram?: number | null;
+    /** Flat ₹ povayi charge added to the auto price (undefined → keep; null → clear). */
+    povayiRate?: number | null;
+    /** Flat ₹ other charges added to the auto price (undefined → keep; null → clear). */
+    otherCharges?: number | null;
     /** Gold karat 0–24 (null → clear the karat / not karat-priced). */
     goldKarat?: number | null;
     /** Labour method: PERCENT (% of metal), FIXED (₹) or PER_GRAM (₹/g). */
@@ -243,6 +269,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     weight: number | null;
     weightUnit: string;
     grossWeight: string | null;
+    nagUnit: "mg" | "gm";
     nagLessWeight: string | null;
     nagRate: string | null;
     chejatWeight: string | null;
@@ -253,8 +280,11 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    productSilverRatePerGram: number | null;
+    povayiRate: number | null;
+    otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -281,6 +311,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     weight: number | null;
     weightUnit: string;
     grossWeight: string | null;
+    nagUnit: "mg" | "gm";
     nagLessWeight: string | null;
     nagRate: string | null;
     chejatWeight: string | null;
@@ -291,8 +322,11 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    productSilverRatePerGram: number | null;
+    povayiRate: number | null;
+    otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -326,6 +360,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     weight: number | null;
     weightUnit: string;
     grossWeight: string | null;
+    nagUnit: "mg" | "gm";
     nagLessWeight: string | null;
     nagRate: string | null;
     chejatWeight: string | null;
@@ -336,8 +371,11 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    productSilverRatePerGram: number | null;
+    povayiRate: number | null;
+    otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -381,6 +419,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     weight: number | null;
     weightUnit: string;
     grossWeight: string | null;
+    nagUnit: "mg" | "gm";
     nagLessWeight: string | null;
     nagRate: string | null;
     chejatWeight: string | null;
@@ -391,8 +430,11 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    productSilverRatePerGram: number | null;
+    povayiRate: number | null;
+    otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -428,6 +470,7 @@ export declare function findProductByCode(db: DbClient, code: string): Promise<{
     weight: number | null;
     weightUnit: string;
     grossWeight: string | null;
+    nagUnit: "mg" | "gm";
     nagLessWeight: string | null;
     nagRate: string | null;
     chejatWeight: string | null;
@@ -438,8 +481,11 @@ export declare function findProductByCode(db: DbClient, code: string): Promise<{
     purchasePrice: number;
     sellingPrice: number;
     silverPercentage: number;
+    productSilverRatePerGram: number | null;
+    povayiRate: number | null;
+    otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
+    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
