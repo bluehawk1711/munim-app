@@ -325,9 +325,6 @@ export function ProductsPage() {
   const [defaultLabourType, setDefaultLabourType] = useState<LabourType>("PERCENT");
   const [defaultLabourValue, setDefaultLabourValue] = useState(0);
   const [silverRatePerGram, setSilverRatePerGram] = useState(0);
-  // Raw text of the silver-rate field while typing (keeps "95." from being
-  // clobbered back to "95" by the number-derived controlled value).
-  const [silverInputText, setSilverInputText] = useState<string | null>(null);
   useEffect(() => {
     const s = settingsQuery.data;
     if (!s) return;
@@ -1762,30 +1759,11 @@ export function ProductsPage() {
                   </div>
                 ) : (
                   <div className="border-t pt-2">
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label htmlFor="p-silver-rate">Silver rate (₹ per gram)</Label>
-                        <Input
-                          id="p-silver-rate"
-                          type="text"
-                          inputMode="decimal"
-                          className="h-9 tabular-nums"
-                          placeholder="e.g. 95"
-                          value={silverInputText ?? (silverRatePerGram ? String(silverRatePerGram) : "")}
-                          onChange={(e) => {
-                            setSilverInputText(e.target.value);
-                            const parsed = Number.parseFloat(e.target.value);
-                            handleSaveSilverRate(
-                              Number.isFinite(parsed) ? Math.max(0, parsed) : 0,
-                            );
-                          }}
-                          onBlur={() => setSilverInputText(null)}
-                        />
-                        <p className="text-[11px] text-muted-foreground">
-                          Shop-wide rate — auto-priced silver products re-price instantly.
-                        </p>
-                      </div>
-                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Shop silver rate: ₹{silverRatePerGram.toFixed(2)}/g
+                      {silverRatePerGram > 0 ? "" : " (not set — set it in Settings)"} — edit it
+                      in Settings → Rates &amp; labour; blank product rates follow it.
+                    </p>
                   </div>
                 )}
               </div>

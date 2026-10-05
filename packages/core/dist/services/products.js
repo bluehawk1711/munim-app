@@ -205,7 +205,7 @@ function chargeSql(raw) {
       when length(${cleaned}) - length(replace(${cleaned}, '.', '')) > 1 then null
       when ${cleaned} !~ '[0-9]' then null
       when ${cleaned}::double precision <= 0 then null
-      else round(${cleaned}::double precision, 2)
+      else round(${cleaned}::numeric, 2)::double precision
     end,
     0
   )`;

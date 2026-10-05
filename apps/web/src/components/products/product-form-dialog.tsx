@@ -80,9 +80,6 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
   const [defaultLabourType, setDefaultLabourType] = React.useState<LabourType>("PERCENT")
   const [defaultLabourValue, setDefaultLabourValue] = React.useState(0)
   const [silverRatePerGram, setSilverRatePerGram] = React.useState(0)
-  // Raw text of the silver-rate field while typing (keeps "95." from being
-  // clobbered back to "95" by the number-derived controlled value).
-  const [silverInputText, setSilverInputText] = React.useState<string | null>(null)
   React.useEffect(() => {
     const s = settingsQuery.data
     if (!s) return
@@ -858,26 +855,11 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
                 </div>
               ) : (
                 <div className="border-t pt-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="silverRate">Silver rate (₹ per gram)</Label>
-                    <Input
-                      id="silverRate"
-                      type="text"
-                      inputMode="decimal"
-                      className="h-9 tabular-nums"
-                      placeholder="e.g. 95"
-                      value={silverInputText ?? (silverRatePerGram ? String(silverRatePerGram) : "")}
-                      onChange={(e) => {
-                        setSilverInputText(e.target.value)
-                        const parsed = Number.parseFloat(e.target.value)
-                        handleSaveSilverRate(Number.isFinite(parsed) ? Math.max(0, parsed) : 0)
-                      }}
-                      onBlur={() => setSilverInputText(null)}
-                    />
-                    <p className="text-[11px] text-muted-foreground">
-                      Shop-wide rate — auto-priced silver products re-price instantly.
-                    </p>
-                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Shop silver rate: ₹{silverRatePerGram.toFixed(2)}/g
+                    {silverRatePerGram > 0 ? "" : " (not set — set it in Settings)"} — edit it in
+                    Settings → Rates &amp; labour; blank product rates follow it.
+                  </p>
                 </div>
               )}
             </div>
