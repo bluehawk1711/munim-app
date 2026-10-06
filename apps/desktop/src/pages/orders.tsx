@@ -599,7 +599,7 @@ export function OrdersPage() {
         status: inv.status,
         currency: settings?.currency ?? "INR",
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
-        silverRate: settings?.silverRatePerGram ?? null,
+        silverRate: inv.silverRate ?? settings?.silverRatePerGram ?? null,
       });
       await downloadBillPdf(bill, mergeBillTemplateSettings(inv.templateSettings));
       toast.success("PDF downloaded", { description: inv.invoiceNumber });

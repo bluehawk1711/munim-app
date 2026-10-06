@@ -15,7 +15,7 @@
  */
 import * as React from "react";
 import { BadgeIndianRupee, Loader2, RotateCcw, Save, Sparkles } from "lucide-react";
-import { resolveGoldRateTable, type LabourType } from "@munim/core";
+import { resolveGoldRateTable, type LabourType, type RateDisplayUnit } from "@munim/core";
 import { Button } from "./button.js";
 import { Input } from "./input.js";
 import { Label } from "./label.js";
@@ -52,6 +52,10 @@ export type GoldRateEditorProps = {
   silverRatePerGram: number;
   /** Fired on every keystroke — the page owns the persisted value. */
   onSilverRateChange: (value: number) => void;
+  /** Silver entry/display unit (storage always stays per-gram). */
+  rateDisplayUnit?: RateDisplayUnit;
+  /** Fired when the silver unit toggles (₹/gm ⇄ ₹/10gm). */
+  onRateDisplayUnitChange?: (unit: RateDisplayUnit) => void;
   /** Fired by Save with the complete 0–24 table. */
   onSave: (rates: GoldRateDraft[]) => void;
   saving?: boolean;
@@ -75,6 +79,8 @@ export function GoldRateEditor({
   onLabourChange,
   silverRatePerGram,
   onSilverRateChange,
+  rateDisplayUnit = "gm",
+  onRateDisplayUnitChange,
   onSave,
   saving = false,
   onBackfillKarats,
@@ -163,9 +169,14 @@ export function GoldRateEditor({
 
   function handleSilverRate(value: string) {
     const parsed = Number.parseFloat(value);
-    onSilverRateChange(Number.isFinite(parsed) ? Math.max(0, parsed) : 0);
+    // The input shows the selected unit; storage always stays per-gram.
+    const perGram = rateDisplayUnit === "10gm" ? parsed / 10 : parsed;
+    onSilverRateChange(Number.isFinite(perGram) ? Math.max(0, perGram) : 0);
     setTouched(true);
   }
+
+  // Silver rate shown in the selected unit (×10 for ₹/10gm, rounded like the bill inputs).
+  const silverShown = rateDisplayUnit === "10gm" ? Math.round(silverRatePerGram * 1000) / 100 : silverRatePerGram;
 
   if (compact) {
     return (
@@ -279,17 +290,44 @@ export function GoldRateEditor({
               hint="Applied when a gold product has no labour of its own."
             />
             <div className="space-y-1.5">
-              <Label htmlFor="gold-silver-rate">Silver rate (₹ per gram)</Label>
+              <Label htmlFor="gold-silver-rate">
+                Silver rate ({rateDisplayUnit === "10gm" ? "₹ per 10 grams" : "₹ per gram"})
+              </Label>
               <Input
                 id="gold-silver-rate"
                 type="text"
                 inputMode="decimal"
                 className="h-9 tabular-nums"
-                placeholder="e.g. 95"
-                value={shownText("silver", silverRatePerGram)}
+                placeholder={rateDisplayUnit === "10gm" ? "e.g. 950" : "e.g. 95"}
+                value={shownText("silver", silverShown)}
                 onChange={(e) => editText("silver", e.target.value, handleSilverRate)}
                 onBlur={() => setEditing(null)}
               />
+              {onRateDisplayUnitChange ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted-foreground">Show as</span>
+                  {(["gm", "10gm"] as const).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      aria-pressed={rateDisplayUnit === u}
+                      onClick={() => {
+                        // Drop any half-typed text — it's in the OLD unit.
+                        setEditing((prev) => (prev?.key === "silver" ? null : prev));
+                        onRateDisplayUnitChange(u);
+                      }}
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors",
+                        rateDisplayUnit === u
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {u === "gm" ? "₹/gm" : "₹/10gm"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <p className="text-[11px] text-muted-foreground">
                 0 keeps auto-priced silver products on their stored price.
               </p>

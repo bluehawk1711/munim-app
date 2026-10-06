@@ -1,0 +1,1 @@
+ALTER TABLE "invoices" ADD COLUMN "silver_rate" double precision;

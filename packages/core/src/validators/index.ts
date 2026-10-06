@@ -165,6 +165,8 @@ export const invoiceSchema = z.object({
   // Gold base ₹/gram this bill was created at — reprints must show THIS rate,
   // not whatever today's shop rate happens to be. Optional (older bills: null).
   goldRate: z.coerce.number().min(0).optional(),
+  // Silver ₹/gram this bill was created at (bill-level override). Optional.
+  silverRate: z.coerce.number().min(0).optional(),
 });
 
 export type InvoiceFormValues = z.infer<typeof invoiceSchema>;
@@ -336,6 +338,11 @@ const settingsString = (max: number, min = 0) =>
     .transform((v) => v ?? undefined)
     .optional();
 
+/** Allowed rates-editor display units (storage always stays per-gram). */
+export const RATE_DISPLAY_UNITS = ["gm", "10gm"] as const;
+/** Entry/display unit for the shop silver rate in the rates editor. */
+export type RateDisplayUnit = (typeof RATE_DISPLAY_UNITS)[number];
+
 export const settingsSchema = z.object({
   shopName: settingsString(120, 1),
   shopAddress: settingsString(300),
@@ -373,7 +380,7 @@ export const settingsSchema = z.object({
     .transform((v) => v ?? undefined)
     .optional(),
   /** Rates-editor display/entry unit — storage stays per-gram. */
-  rateDisplayUnit: z.enum(["gm", "10gm"]).optional(),
+  rateDisplayUnit: z.enum(RATE_DISPLAY_UNITS).optional(),
 });
 
 export type SettingsFormValues = z.infer<typeof settingsSchema>;

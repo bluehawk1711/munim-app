@@ -23,7 +23,7 @@ import {
   useBackfillGoldKarats,
   useSyncProductPrices,
 } from "@munim/query";
-import { buildProductLabel, formatDateTime, type LabelPrinterInfo, type LabourType } from "@munim/core";
+import { buildProductLabel, formatDateTime, type LabelPrinterInfo, type LabourType, type RateDisplayUnit } from "@munim/core";
 import { toast } from "@munim/ui";
 import {
   ThemeSelect,
@@ -102,6 +102,7 @@ export function SettingsPage() {
   const [defaultLabourType, setDefaultLabourType] = useState<LabourType>("PERCENT");
   const [defaultLabourValue, setDefaultLabourValue] = useState(0);
   const [silverRatePerGram, setSilverRatePerGram] = useState(0);
+  const [rateDisplayUnit, setRateDisplayUnit] = useState<RateDisplayUnit>("gm");
   // Only guards one-time population of the form from settings — a ref avoids
   // a pointless re-render (its value is never read in JSX).
   const loadedRef = useRef(false);
@@ -149,6 +150,7 @@ export function SettingsPage() {
       setDefaultLabourType(settings.defaultLabourType ?? "PERCENT");
       setDefaultLabourValue(settings.defaultLabourValue ?? 0);
       setSilverRatePerGram(settings.silverRatePerGram ?? 0);
+      setRateDisplayUnit(settings.rateDisplayUnit ?? "gm");
     }
   }, [settings]);
 
@@ -325,6 +327,7 @@ export function SettingsPage() {
         defaultLabourType,
         defaultLabourValue,
         silverRatePerGram,
+        rateDisplayUnit,
       });
       toast.success("Rates saved", {
         description: "Every auto-priced gold & silver product now uses the new rates.",
@@ -497,6 +500,8 @@ export function SettingsPage() {
               }}
               silverRatePerGram={silverRatePerGram}
               onSilverRateChange={setSilverRatePerGram}
+              rateDisplayUnit={rateDisplayUnit}
+              onRateDisplayUnitChange={setRateDisplayUnit}
               onSave={handleSaveGoldRates}
               saving={saveGoldRates.isPending || updateSettings.isPending}
               onBackfillKarats={handleBackfillKarats}

@@ -31,6 +31,7 @@ import {
   useSyncProductPrices,
 } from '@munim/query';
 import {money} from '../lib/format';
+import {copyText} from '../lib/clipboard';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {
   Badge,
@@ -280,6 +281,20 @@ function LineItemsEditor({
               productId={line.productId}
               onSelect={(id, product) => onSelectProduct(index, id, product)}
             />
+            {line.sku ? (
+              <View style={styles.skuRow}>
+                <Text style={styles.skuChip}>{line.sku}</Text>
+                <Pressable
+                  accessibilityLabel="Copy SKU"
+                  hitSlop={8}
+                  onPress={() => {
+                    void copyText(line.sku).then(ok => ok && successFeedback());
+                  }}
+                >
+                  <Text style={styles.skuCopy}>Copy</Text>
+                </Pressable>
+              </View>
+            ) : null}
             <Field
               label="Item name"
               value={line.productName}
@@ -425,6 +440,23 @@ export function BillingScreen() {
       ? parsedGoldRate
       : goldBaseRate;
 
+  // Per-bill silver ₹/10g — prefilled from the shop's ₹/g rate (×10); editing
+  // it re-prices every auto-priced silver line on THIS bill only (stored per-gram).
+  const [silverRateInput, setSilverRateInput] = useState('');
+  const silverRateTouched = React.useRef(false);
+  const shopSilverPerGram = settings?.silverRatePerGram ?? 0;
+  const shopSilverPer10g = Math.round(shopSilverPerGram * 1000) / 100;
+  React.useEffect(() => {
+    if (shopSilverPerGram > 0 && !silverRateTouched.current) setSilverRateInput(String(shopSilverPer10g));
+  }, [shopSilverPerGram, shopSilverPer10g]);
+  const parsedSilver10g = Number(silverRateInput);
+  // null until the user edits it — untouched bills keep each product's own rate.
+  const billSilverRate: number | null = !silverRateTouched.current
+    ? null
+    : silverRateInput.trim() && Number.isFinite(parsedSilver10g) && parsedSilver10g > 0
+      ? parsedSilver10g / 10
+      : shopSilverPerGram;
+
   /** Same snapshot web + desktop save — options follow each invoice + render. */
   const billTemplateSettings: BillTemplateSettings = {
     template,
@@ -471,9 +503,10 @@ export function BillingScreen() {
     return {
       goldRateTable: overridden,
       silverRatePerGram: settings?.silverRatePerGram ?? 0,
+      silverRateOverride: billSilverRate,
       defaultLabour,
     };
-  }, [goldRates, billGoldRate, settings]);
+  }, [goldRates, billGoldRate, billSilverRate, settings]);
 
   /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
   function repriceGoldLines(prev: LineState[]): LineState[] {
@@ -485,11 +518,28 @@ export function BillingScreen() {
     });
   }
 
+  /** Re-prices the auto-priced SILVER lines with the bill's rate (core engine). */
+  function repriceSilverLines(prev: LineState[]): LineState[] {
+    return prev.map(line => {
+      if (!line.productId) return line;
+      const p = productsData?.products.find(x => x.id === line.productId);
+      if (!p || p.type !== 'Silver' || p.priceMode !== 'auto') return line;
+      return {...line, price: String(priceProductRow(p, billPricingContext).price)};
+    });
+  }
+
   function handleGoldRateChange(value: string) {
     goldRateTouched.current = true;
     setGoldRateInput(value);
     setLines(prev => repriceGoldLines(prev));
     setSecondLines(prev => repriceGoldLines(prev));
+  }
+
+  function handleSilverRateChange(value: string) {
+    silverRateTouched.current = true;
+    setSilverRateInput(value);
+    setLines(prev => repriceSilverLines(prev));
+    setSecondLines(prev => repriceSilverLines(prev));
   }
 
   async function handleSyncPrices() {
@@ -521,10 +571,10 @@ export function BillingScreen() {
             const fresh = priceOf(line.productId);
             return fresh === null ? line : {...line, price: fresh};
           });
-        // Server rates land first, then the bill's own gold rate (if any)
-        // re-applies on top so an edited rate is never clobbered.
-        setLines(prev => repriceGoldLines(refresh(prev)));
-        setSecondLines(prev => repriceGoldLines(refresh(prev)));
+        // Server rates land first, then the bill's own gold/silver rates (if
+        // any) re-apply on top so edited rates are never clobbered.
+        setLines(prev => repriceSilverLines(repriceGoldLines(refresh(prev))));
+        setSecondLines(prev => repriceSilverLines(repriceGoldLines(refresh(prev))));
       } catch {
         // Best-effort: keep the current line prices if the refresh fails.
       }
@@ -629,7 +679,7 @@ export function BillingScreen() {
       status: invoice.status,
       currency: settings?.currency ?? 'INR',
       goldRate: invoice.goldRate ?? goldBaseRate,
-      silverRate: settings?.silverRatePerGram ?? null,
+      silverRate: invoice.silverRate ?? settings?.silverRatePerGram ?? null,
     });
   }
 
@@ -660,6 +710,8 @@ export function BillingScreen() {
     setSecondLines([emptyLine()]);
     goldRateTouched.current = false;
     setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : '');
+    silverRateTouched.current = false;
+    setSilverRateInput(shopSilverPer10g > 0 ? String(shopSilverPer10g) : '');
   }
 
   async function handleCreate() {
@@ -689,6 +741,7 @@ export function BillingScreen() {
         date: date || undefined,
         notes: notes.trim() || undefined,
         goldRate: billGoldRate ?? undefined,
+        silverRate: billSilverRate ?? undefined,
       };
       const invoice = await createInvoice.mutateAsync({
         customerName: customer.trim() || undefined,
@@ -985,11 +1038,22 @@ export function BillingScreen() {
           />
           <DateField label="Date" value={date} onChange={setDate} />
           <Field
-            label="Gold rate (₹/g) — editing re-prices gold lines"
+            label="Gold karat rate (₹/g) — editing re-prices gold lines"
             value={goldRateInput}
             onChangeText={handleGoldRateChange}
             keyboardType="numeric"
             placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
+          />
+          <Field
+            label={
+              billSilverRate != null
+                ? `Silver rate (₹/10g) ≈ ₹${billSilverRate.toFixed(2)}/g — editing re-prices silver lines`
+                : 'Silver rate (₹/10g) — editing re-prices silver lines'
+            }
+            value={silverRateInput}
+            onChangeText={handleSilverRateChange}
+            keyboardType="numeric"
+            placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
           />
           <Button
             variant="outline"
@@ -1231,6 +1295,18 @@ const makeStyles = () =>
       borderBottomColor: colors.border,
     },
     lineRow: {flexDirection: 'row'},
+    skuRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6},
+    skuChip: {
+      fontSize: 11,
+      fontFamily: 'monospace',
+      color: colors.muted,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.sm,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    skuCopy: {fontSize: 11, fontWeight: '600', color: colors.primary},
     total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
     totalBreakdown: {marginTop: 4, marginBottom: 10, gap: 3},
     totalRow: {flexDirection: 'row', justifyContent: 'space-between'},

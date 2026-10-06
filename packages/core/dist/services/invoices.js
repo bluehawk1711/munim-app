@@ -36,6 +36,7 @@ function pricingSnapshotFor(product, pricingContext) {
     }, {
         goldRateTable: pricingContext.table,
         silverRatePerGram: pricingContext.silverRatePerGram,
+        silverRateOverride: pricingContext.silverRateOverride,
         defaultLabour: pricingContext.defaultLabour,
     });
     if (breakdown.source !== "auto" || breakdown.metal === null)
@@ -169,7 +170,7 @@ export async function createInvoice(db, input) {
     // pricing snapshot below. Rates at SAVE time; later rate edits never touch
     // this invoice (price/total stay authoritative).
     const pricingContext = input.items.some((it) => it.productId)
-        ? await loadGoldPricing(db, { goldBaseRate: input.goldRate })
+        ? await loadGoldPricing(db, { goldBaseRate: input.goldRate, silverBaseRate: input.silverRate })
         : null;
     const [invoice] = await db
         .insert(schema.invoices)
@@ -192,6 +193,7 @@ export async function createInvoice(db, input) {
         shopDetails: input.shopDetails ?? null,
         templateSettings: input.templateSettings ?? null,
         goldRate: input.goldRate && input.goldRate > 0 ? input.goldRate : null,
+        silverRate: input.silverRate && input.silverRate > 0 ? input.silverRate : null,
     })
         .returning();
     if (!invoice)

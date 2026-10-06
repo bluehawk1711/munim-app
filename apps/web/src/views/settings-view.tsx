@@ -6,7 +6,7 @@ import { Save, Loader2, Store, Server, CheckCircle2, XCircle, Palette, ShieldChe
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings"
 import { useGoldRates, useSaveGoldRates, useBackfillGoldKarats } from "@/hooks/use-gold-rates"
 import { useApiClient, useSyncProductPrices } from "@munim/query"
-import { formatDateTime, type LabourType } from "@munim/core"
+import { formatDateTime, type LabourType, type RateDisplayUnit } from "@munim/core"
 import {
   Button,
   Input,
@@ -84,6 +84,7 @@ export function SettingsView() {
   const [defaultLabourType, setDefaultLabourType] = React.useState<LabourType>("PERCENT")
   const [defaultLabourValue, setDefaultLabourValue] = React.useState(0)
   const [silverRatePerGram, setSilverRatePerGram] = React.useState(0)
+  const [rateDisplayUnit, setRateDisplayUnit] = React.useState<RateDisplayUnit>("gm")
   const [loaded, setLoaded] = React.useState(false)
 
   // Gold rate table (dynamic karat pricing) + its save/backfill mutations.
@@ -107,6 +108,7 @@ export function SettingsView() {
       setDefaultLabourType(settings.defaultLabourType ?? "PERCENT")
       setDefaultLabourValue(settings.defaultLabourValue ?? 0)
       setSilverRatePerGram(settings.silverRatePerGram ?? 0)
+      setRateDisplayUnit(settings.rateDisplayUnit ?? "gm")
       setLoaded(true)
     }
   }
@@ -146,6 +148,7 @@ export function SettingsView() {
         defaultLabourType,
         defaultLabourValue,
         silverRatePerGram,
+        rateDisplayUnit,
       })
       toast.success("Rates saved", {
         description: "Every auto-priced gold & silver product now uses the new rates.",
@@ -378,6 +381,8 @@ export function SettingsView() {
               }}
               silverRatePerGram={silverRatePerGram}
               onSilverRateChange={setSilverRatePerGram}
+              rateDisplayUnit={rateDisplayUnit}
+              onRateDisplayUnitChange={setRateDisplayUnit}
               onSave={handleSaveGoldRates}
               saving={saveGoldRates.isPending || updateSettings.isPending}
               onBackfillKarats={handleBackfillKarats}

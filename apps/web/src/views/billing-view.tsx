@@ -103,6 +103,23 @@ export function BillingView() {
       ? parsedGoldRate
       : goldBaseRate
 
+  // Per-bill silver ₹/10g — prefilled from the shop's ₹/g rate (×10); editing
+  // it re-prices every auto-priced silver line on THIS bill only (stored per-gram).
+  const [silverRateInput, setSilverRateInput] = React.useState("")
+  const silverRateTouched = React.useRef(false)
+  const shopSilverPerGram = settings?.silverRatePerGram ?? 0
+  const shopSilverPer10g = Math.round(shopSilverPerGram * 1000) / 100
+  React.useEffect(() => {
+    if (shopSilverPerGram > 0 && !silverRateTouched.current) setSilverRateInput(String(shopSilverPer10g))
+  }, [shopSilverPerGram, shopSilverPer10g])
+  const parsedSilver10g = Number(silverRateInput)
+  // null until the user edits it — untouched bills keep each product's own rate.
+  const billSilverRate: number | null = !silverRateTouched.current
+    ? null
+    : silverRateInput.trim() && Number.isFinite(parsedSilver10g) && parsedSilver10g > 0
+      ? parsedSilver10g / 10
+      : shopSilverPerGram
+
   // Second bill — only used in 2-in-1 "Separate" mode.
   const [secondCustomerName, setSecondCustomerName] = React.useState("")
   const [secondCustomerPhone, setSecondCustomerPhone] = React.useState("")
@@ -131,9 +148,10 @@ export function BillingView() {
     return {
       goldRateTable: overridden,
       silverRatePerGram: settings?.silverRatePerGram ?? 0,
+      silverRateOverride: billSilverRate,
       defaultLabour,
     }
-  }, [goldRates, billGoldRate, settings])
+  }, [goldRates, billGoldRate, billSilverRate, settings])
 
   /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
   function repriceGoldLines(prev: LineItem[]): LineItem[] {
@@ -145,11 +163,28 @@ export function BillingView() {
     })
   }
 
+  /** Re-prices the auto-priced SILVER lines with the bill's rate (core engine). */
+  function repriceSilverLines(prev: LineItem[]): LineItem[] {
+    return prev.map((it) => {
+      if (!it.productId) return it
+      const p = products.find((x) => x.id === it.productId)
+      if (!p || p.type !== "Silver" || p.priceMode !== "auto") return it
+      return { ...it, price: priceProductRow(p, billPricingContext).price }
+    })
+  }
+
   function handleGoldRateChange(value: string) {
     goldRateTouched.current = true
     setGoldRateInput(value)
     setItems((prev) => repriceGoldLines(prev))
     setSecondItems((prev) => repriceGoldLines(prev))
+  }
+
+  function handleSilverRateChange(value: string) {
+    silverRateTouched.current = true
+    setSilverRateInput(value)
+    setItems((prev) => repriceSilverLines(prev))
+    setSecondItems((prev) => repriceSilverLines(prev))
   }
 
   async function handleRecalcPrices() {
@@ -178,10 +213,10 @@ export function BillingView() {
             const fresh = priceOf(it.productId)
             return fresh === null ? it : { ...it, price: fresh }
           })
-        // Server rates land first, then the bill's own gold rate (if any)
-        // re-applies on top so an edited rate is never clobbered.
-        setItems((prev) => repriceGoldLines(refresh(prev)))
-        setSecondItems((prev) => repriceGoldLines(refresh(prev)))
+        // Server rates land first, then the bill's own gold/silver rates (if
+        // any) re-apply on top so edited rates are never clobbered.
+        setItems((prev) => repriceSilverLines(repriceGoldLines(refresh(prev))))
+        setSecondItems((prev) => repriceSilverLines(repriceGoldLines(refresh(prev))))
       } catch {
         // Best-effort: keep the current line prices if the refresh fails.
       }
@@ -317,7 +352,7 @@ export function BillingView() {
       amountPaid: opts.amountPaid,
       currency: "INR",
       goldRate: billGoldRate,
-      silverRate: settings?.silverRatePerGram ?? null,
+      silverRate: billSilverRate ?? shopSilverPerGram ?? null,
     })
   }
 
@@ -386,6 +421,7 @@ export function BillingView() {
       },
       templateSettings: buildSettings(),
       goldRate: billGoldRate ?? undefined,
+      silverRate: billSilverRate ?? undefined,
     }
 
     const payload: CreateInvoiceInput = {
@@ -458,6 +494,8 @@ export function BillingView() {
     setSecondAmountPaid(0)
     goldRateTouched.current = false
     setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : "")
+    silverRateTouched.current = false
+    setSilverRateInput(shopSilverPer10g > 0 ? String(shopSilverPer10g) : "")
   }
 
   return (
@@ -559,7 +597,7 @@ export function BillingView() {
                   <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Gold rate (₹/g)</Label>
+                  <Label className="text-xs">Gold karat rate (₹/g)</Label>
                   <Input
                     type="number"
                     min={0}
@@ -570,6 +608,22 @@ export function BillingView() {
                     className="h-9"
                   />
                   <p className="text-[11px] text-muted-foreground">Editing re-prices gold lines on this bill.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Silver rate (₹/10g)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={silverRateInput}
+                    onChange={(e) => handleSilverRateChange(e.target.value)}
+                    placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : "—"}
+                    className="h-9"
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    {billSilverRate != null ? `≈ ₹${billSilverRate.toFixed(2)}/g · ` : ""}
+                    Editing re-prices silver lines on this bill.
+                  </p>
                 </div>
               </div>
             </div>

@@ -55,6 +55,7 @@ function pricingSnapshotFor(
     {
       goldRateTable: pricingContext.table,
       silverRatePerGram: pricingContext.silverRatePerGram,
+      silverRateOverride: pricingContext.silverRateOverride,
       defaultLabour: pricingContext.defaultLabour,
     },
   );
@@ -194,6 +195,8 @@ export type InvoiceInput = {
   templateSettings?: BillTemplateSettings;
   /** Gold base ₹/gram used for THIS bill (reprint keeps it; null → current shop rate). */
   goldRate?: number;
+  /** Silver ₹/gram used for THIS bill (bill-level override; null → shop rate). */
+  silverRate?: number;
   /** initial payment received */
   amountPaid?: number;
   paymentMethod?: string;
@@ -241,7 +244,7 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
   // pricing snapshot below. Rates at SAVE time; later rate edits never touch
   // this invoice (price/total stay authoritative).
   const pricingContext = input.items.some((it) => it.productId)
-    ? await loadGoldPricing(db, { goldBaseRate: input.goldRate })
+    ? await loadGoldPricing(db, { goldBaseRate: input.goldRate, silverBaseRate: input.silverRate })
     : null;
 
   const [invoice] = await db
@@ -265,6 +268,7 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       shopDetails: input.shopDetails ?? null,
       templateSettings: input.templateSettings ?? null,
       goldRate: input.goldRate && input.goldRate > 0 ? input.goldRate : null,
+      silverRate: input.silverRate && input.silverRate > 0 ? input.silverRate : null,
     })
     .returning();
   if (!invoice) throw new InvoiceError("Failed to create invoice", "CREATE_FAILED", 500);

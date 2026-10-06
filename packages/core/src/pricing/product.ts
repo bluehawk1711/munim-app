@@ -181,6 +181,10 @@ export type PricingContext = {
   goldRateTable: readonly GoldRateTableEntry[];
   /** Shop-wide silver ₹/gram (0 → silver never auto-prices). */
   silverRatePerGram: number;
+  /** Bill-level silver ₹/gram override — wins over the product's own rate AND
+   *  the shop rate (only while a bill is being built; products keep their
+   *  custom rate everywhere else). null → normal precedence. */
+  silverRateOverride?: number | null;
   /** Shop default labour for GOLD products with no labour of their own. */
   defaultLabour: LabourConfig | null;
 };
@@ -274,14 +278,18 @@ export function priceProduct(product: PriceableProduct, context: PricingContext)
   // ── Silver ──────────────────────────────────────────────────────
   if (product.type === "Silver") {
     // Per-product rate wins; blank/0 falls back to the shop-wide rate so a
-    // global silver change recalculates every non-custom product live.
+    // global silver change recalculates every non-custom product live. A
+    // bill-level override (this bill only) wins over BOTH.
     const customRate = product.silverRatePerGram;
+    const override = context.silverRateOverride;
     const rate =
-      typeof customRate === "number" && Number.isFinite(customRate) && customRate > 0
-        ? customRate
-        : Number.isFinite(context.silverRatePerGram)
-          ? context.silverRatePerGram
-          : 0;
+      typeof override === "number" && Number.isFinite(override) && override > 0
+        ? override
+        : typeof customRate === "number" && Number.isFinite(customRate) && customRate > 0
+          ? customRate
+          : Number.isFinite(context.silverRatePerGram)
+            ? context.silverRatePerGram
+            : 0;
     if (rate <= 0) return manual("no-silver-rate");
     if (weightGm <= 0) return manual("zero-weight", { ratePerGram: rate, purityPercent: silverPercent });
 

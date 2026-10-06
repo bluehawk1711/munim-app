@@ -12,7 +12,7 @@
 import React, {useRef, useState} from 'react';
 import {Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, KeyboardAvoidingView} from 'react-native';
 import * as Print from 'expo-print';
-import {Camera, Minus, Plus, ShoppingCart, Trash2} from 'lucide-react-native';
+import {Camera, Copy, Minus, Plus, ShoppingCart, Trash2} from 'lucide-react-native';
 import {
   applyGoldBaseRate,
   buildBillDocument,
@@ -35,6 +35,7 @@ import {
   useSyncProductPrices,
 } from '@munim/query';
 import {money} from '../lib/format';
+import {copyText} from '../lib/clipboard';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 import {
@@ -100,6 +101,23 @@ export function SalesScreen() {
       ? parsedGoldRate
       : goldBaseRate;
 
+  // Per-bill silver ₹/10g — prefilled from the shop's ₹/g rate (×10); editing
+  // it re-prices every auto-priced silver line on THIS bill only (stored per-gram).
+  const [silverRateInput, setSilverRateInput] = useState('');
+  const silverRateTouched = useRef(false);
+  const shopSilverPerGram = settings?.silverRatePerGram ?? 0;
+  const shopSilverPer10g = Math.round(shopSilverPerGram * 1000) / 100;
+  React.useEffect(() => {
+    if (shopSilverPerGram > 0 && !silverRateTouched.current) setSilverRateInput(String(shopSilverPer10g));
+  }, [shopSilverPerGram, shopSilverPer10g]);
+  const parsedSilver10g = Number(silverRateInput);
+  // null until the user edits it — untouched bills keep each product's own rate.
+  const billSilverRate: number | null = !silverRateTouched.current
+    ? null
+    : silverRateInput.trim() && Number.isFinite(parsedSilver10g) && parsedSilver10g > 0
+      ? parsedSilver10g / 10
+      : shopSilverPerGram;
+
   const billTemplateSettings: BillTemplateSettings = {
     template,
     classicColor,
@@ -145,9 +163,10 @@ export function SalesScreen() {
     return {
       goldRateTable: overridden,
       silverRatePerGram: settings?.silverRatePerGram ?? 0,
+      silverRateOverride: billSilverRate,
       defaultLabour,
     };
-  }, [goldRates, billGoldRate, settings]);
+  }, [goldRates, billGoldRate, billSilverRate, settings]);
 
   /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
   function repriceGoldLines(prev: BillItem[]): BillItem[] {
@@ -158,10 +177,25 @@ export function SalesScreen() {
     });
   }
 
+  /** Re-prices the auto-priced SILVER lines with the bill's rate (core engine). */
+  function repriceSilverLines(prev: BillItem[]): BillItem[] {
+    return prev.map(item => {
+      const p = item.product;
+      if (p.type !== 'Silver' || p.priceMode !== 'auto') return item;
+      return {...item, price: priceProductRow(p, billPricingContext).price};
+    });
+  }
+
   function handleGoldRateChange(value: string) {
     goldRateTouched.current = true;
     setGoldRateInput(value);
     setItems(prev => repriceGoldLines(prev));
+  }
+
+  function handleSilverRateChange(value: string) {
+    silverRateTouched.current = true;
+    setSilverRateInput(value);
+    setItems(prev => repriceSilverLines(prev));
   }
 
   async function handleSyncPrices() {
@@ -184,11 +218,13 @@ export function SalesScreen() {
         const api = await getClient();
         const rows = await Promise.all(items.map(i => api.products.get(i.product.id)));
         setItems(prev =>
-          repriceGoldLines(
-            prev.map(item => {
-              const row = rows.find(fresh => fresh.id === item.product.id);
-              return row ? {...item, product: row, price: row.effectivePrice} : item;
-            }),
+          repriceSilverLines(
+            repriceGoldLines(
+              prev.map(item => {
+                const row = rows.find(fresh => fresh.id === item.product.id);
+                return row ? {...item, product: row, price: row.effectivePrice} : item;
+              }),
+            ),
           ),
         );
       } catch {
@@ -304,6 +340,7 @@ export function SalesScreen() {
         materialReturnedValue: Number(materialReturnedValue) || 0,
         templateSettings,
         goldRate: billGoldRate ?? undefined,
+        silverRate: billSilverRate ?? undefined,
         shopDetails: settings
           ? {name: settings.shopName, address: settings.shopAddress ?? '', phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail ?? ''}
           : undefined,
@@ -335,7 +372,7 @@ export function SalesScreen() {
         amountPaid: invoice.amountPaid,
         status: invoice.status,
         goldRate: invoice.goldRate ?? goldBaseRate,
-        silverRate: settings?.silverRatePerGram ?? null,
+        silverRate: invoice.silverRate ?? settings?.silverRatePerGram ?? null,
       });
       const html = renderBillHtml(doc, billTemplateSettings);
       const {uri} = await Print.printToFileAsync({html, base64: false});
@@ -349,6 +386,8 @@ export function SalesScreen() {
       setCustomerPhone('');
       goldRateTouched.current = false;
       setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : '');
+      silverRateTouched.current = false;
+      setSilverRateInput(shopSilverPer10g > 0 ? String(shopSilverPer10g) : '');
       successFeedback('Sale completed');
     } catch {
       errorFeedback('Failed to create sale');
@@ -516,11 +555,22 @@ export function SalesScreen() {
           <Field label="Name" value={customerName} onChangeText={setCustomerName} placeholder="Walk-in customer" />
           <Field label="Phone" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" placeholder="Optional" />
           <Field
-            label="Gold rate (₹/g) — editing re-prices gold lines"
+            label="Gold karat rate (₹/g) — editing re-prices gold lines"
             value={goldRateInput}
             onChangeText={handleGoldRateChange}
             keyboardType="numeric"
             placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
+          />
+          <Field
+            label={
+              billSilverRate != null
+                ? `Silver rate (₹/10g) ≈ ₹${billSilverRate.toFixed(2)}/g — editing re-prices silver lines`
+                : 'Silver rate (₹/10g) — editing re-prices silver lines'
+            }
+            value={silverRateInput}
+            onChangeText={handleSilverRateChange}
+            keyboardType="numeric"
+            placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
           />
           <View style={styles.toggleRow}>
             <Text style={styles.toggleLabel}>Include delivery charge</Text>
@@ -558,9 +608,21 @@ export function SalesScreen() {
                   <View style={styles.billItemTop}>
                     <View style={{flex: 1, minWidth: 0}}>
                       <Text style={styles.itemName} numberOfLines={1}>{item.product.name}</Text>
-                      <Text style={styles.itemMeta}>
-                        {[item.product.sku, item.product.color, item.product.size].filter(Boolean).join(' · ')}
-                      </Text>
+                      <View style={styles.itemMetaRow}>
+                        <Text style={styles.itemMeta} numberOfLines={1}>
+                          {[item.product.sku, item.product.color, item.product.size].filter(Boolean).join(' · ')}
+                        </Text>
+                        {item.product.sku ? (
+                          <Pressable
+                            accessibilityLabel="Copy SKU"
+                            hitSlop={8}
+                            onPress={() => {
+                              void copyText(item.product.sku).then(ok => ok && successFeedback());
+                            }}>
+                            <Copy size={rs(13)} color={colors.muted} strokeWidth={2} />
+                          </Pressable>
+                        ) : null}
+                      </View>
                     </View>
                     <Pressable onPress={() => removeItem(item.product.id)} hitSlop={8}>
                       <Trash2 size={rs(16)} color={colors.danger} strokeWidth={2} />
@@ -713,7 +775,8 @@ const makeStyles = () =>
     },
     billItemTop: {flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm, marginBottom: spacing.sm},
     itemName: {fontSize: typography.secondary, fontWeight: '600', color: colors.text},
-    itemMeta: {fontSize: typography.caption, color: colors.muted, marginTop: rs(2)},
+    itemMeta: {fontSize: typography.caption, color: colors.muted, flex: 1, minWidth: 0},
+    itemMetaRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginTop: rs(2)},
     billItemBottom: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
     qtyRow: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm},
     qtyBtn: {

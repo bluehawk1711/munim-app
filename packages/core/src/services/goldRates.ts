@@ -77,12 +77,14 @@ export type GoldPricingContext = {
   defaultLabour: LabourConfig | null;
   /** Shop-wide silver ₹/gram (0 → silver never auto-prices). */
   silverRatePerGram: number;
+  /** Bill-level silver ₹/gram override (null → normal precedence). */
+  silverRateOverride: number | null;
 };
 
 /** The effective 0–24 table + shop pricing defaults, in one round trip. */
 export async function loadGoldPricing(
   db: DbClient,
-  opts?: { goldBaseRate?: number },
+  opts?: { goldBaseRate?: number; silverBaseRate?: number },
 ): Promise<GoldPricingContext> {
   const [rows, settingsRow] = await Promise.all([
     db.select().from(schema.goldRates),
@@ -109,6 +111,7 @@ export async function loadGoldPricing(
         ? { type: settingsRow?.defaultLabourType ?? "PERCENT", value: defaultLabourValue }
         : null,
     silverRatePerGram: settingsRow?.silverRatePerGram ?? 0,
+    silverRateOverride: opts?.silverBaseRate !== undefined && opts.silverBaseRate > 0 ? opts.silverBaseRate : null,
   };
 }
 

@@ -598,7 +598,7 @@ export function OrdersScreen() {
         status: inv.status,
         currency: settings.currency ?? 'INR',
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
-        silverRate: settings.silverRatePerGram ?? null,
+        silverRate: inv.silverRate ?? settings.silverRatePerGram ?? null,
       });
       const html = renderBillHtml(doc, mergeBillTemplateSettings(inv.templateSettings));
       const {uri} = await Print.printToFileAsync({html, base64: false});

@@ -56,6 +56,8 @@ export type InvoiceInput = {
     templateSettings?: BillTemplateSettings;
     /** Gold base ₹/gram used for THIS bill (reprint keeps it; null → current shop rate). */
     goldRate?: number;
+    /** Silver ₹/gram used for THIS bill (bill-level override; null → shop rate). */
+    silverRate?: number;
     /** initial payment received */
     amountPaid?: number;
     paymentMethod?: string;
@@ -127,6 +129,7 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
         } | null;
         templateSettings: BillTemplateSettings | null;
         goldRate: number | null;
+        silverRate: number | null;
         createdAt: Date;
         updatedAt: Date;
     }[];

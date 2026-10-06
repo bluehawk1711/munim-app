@@ -146,7 +146,7 @@ function invoiceToBillDocument(
     status: inv.status,
     currency,
     goldRate: inv.goldRate ?? rates?.gold ?? null,
-    silverRate: rates?.silver ?? null,
+    silverRate: inv.silverRate ?? rates?.silver ?? null,
   });
 }
 

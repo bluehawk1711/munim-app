@@ -257,6 +257,8 @@ export const invoices = pgTable(
     templateSettings: json("template_settings").$type<BillTemplateSettings | null>(),
     /** Gold base ₹/gram used for THIS bill (null → the shop's current rate). */
     goldRate: doublePrecision("gold_rate"),
+    /** Silver ₹/gram used for THIS bill (bill-level override; null → the shop's current rate). */
+    silverRate: doublePrecision("silver_rate"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
+import type { RateDisplayUnit } from "../validators/index.js";
 
 const SETTINGS_ID = "shop-settings";
 
@@ -27,7 +28,7 @@ export type ShopSettingsInput = {
   /** Shop-wide silver ₹/gram for auto-priced silver products (0 → off). */
   silverRatePerGram?: number;
   /** Rates-editor display/entry unit ("gm" | "10gm") — storage stays per-gram. */
-  rateDisplayUnit?: "gm" | "10gm";
+  rateDisplayUnit?: RateDisplayUnit;
 };
 
 /** Fetches settings, creating the singleton row on first use. */

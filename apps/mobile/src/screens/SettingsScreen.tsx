@@ -10,7 +10,7 @@ import {
   saveApiUrl,
 } from '../lib/api';
 import {useQueryState, useSettings, useUpdateSettings, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, useSyncProductPrices} from '@munim/query';
-import {resolveGoldRateTable, type LabourType} from '@munim/core';
+import {resolveGoldRateTable, type LabourType, type RateDisplayUnit} from '@munim/core';
 import {Badge, Button, Card, Field, LabourField, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {ThemeToggleButton} from '../components/theme-toggle';
@@ -67,7 +67,11 @@ export function SettingsScreen() {
   const [karatDraftText, setKaratDraftText] = useState<Record<number, string>>({});
   const [defaultLabourType, setDefaultLabourType] = useState<LabourType>('PERCENT');
   const [defaultLabourValue, setDefaultLabourValue] = useState('');
-  const [silverRate, setSilverRate] = useState('');
+  const [silverRate, setSilverRate] = useState(''); // per-gram (the stored value)
+  // Raw text while typing, in the SELECTED display unit — without this a
+  // conversion (÷10 while the unit is ₹/10gm) would swallow a mid-typing dot.
+  const [silverRateText, setSilverRateText] = useState<string | null>(null);
+  const [rateDisplayUnit, setRateDisplayUnit] = useState<RateDisplayUnit>('gm');
   const [karatSheetOpen, setKaratSheetOpen] = useState(false);
   const [savingRates, setSavingRates] = useState(false);
   // DB connection test modal: opens first, stays open (non-dismissible) while
@@ -115,6 +119,8 @@ export function SettingsScreen() {
       setDefaultLabourType(settings.defaultLabourType ?? 'PERCENT');
       setDefaultLabourValue(String(settings.defaultLabourValue ?? 0));
       setSilverRate(String(settings.silverRatePerGram ?? 0));
+      setRateDisplayUnit(settings.rateDisplayUnit ?? 'gm');
+      setSilverRateText(null);
       setShopLoaded(true);
     }
   }, [settings, shopLoaded]);
@@ -180,6 +186,7 @@ export function SettingsScreen() {
         defaultLabourType,
         defaultLabourValue: Math.max(0, Number(defaultLabourValue) || 0),
         silverRatePerGram: Math.max(0, Number(silverRate) || 0),
+        rateDisplayUnit,
       });
       successFeedback();
       setKaratSheetOpen(false);
@@ -481,12 +488,46 @@ export function SettingsScreen() {
           placeholder="e.g. 7200"
         />
         <Field
-          label="Silver rate (₹ per gram)"
-          value={silverRate === '0' ? '' : silverRate}
-          onChangeText={setSilverRate}
+          label={rateDisplayUnit === '10gm' ? 'Silver rate (₹ per 10 grams)' : 'Silver rate (₹ per gram)'}
+          value={
+            silverRateText ??
+            (silverRate === '' || silverRate === '0'
+              ? ''
+              : rateDisplayUnit === '10gm'
+                ? String(Math.round(Number(silverRate) * 1000) / 100)
+                : silverRate)
+          }
+          onChangeText={text => {
+            setSilverRateText(text);
+            if (text === '') {
+              setSilverRate('');
+              return;
+            }
+            const parsed = Number(text);
+            if (Number.isFinite(parsed)) {
+              setSilverRate(String(rateDisplayUnit === '10gm' ? parsed / 10 : parsed));
+            }
+          }}
           keyboardType="numeric"
-          placeholder="e.g. 95"
+          placeholder={rateDisplayUnit === '10gm' ? 'e.g. 950' : 'e.g. 95'}
         />
+        <View style={styles.unitRow}>
+          <Text style={styles.unitLabel}>Show as</Text>
+          {(['gm', '10gm'] as const).map(u => (
+            <Pressable
+              key={u}
+              accessibilityState={{selected: rateDisplayUnit === u}}
+              onPress={() => {
+                setRateDisplayUnit(u);
+                setSilverRateText(null);
+              }}
+              style={[styles.unitBtn, rateDisplayUnit === u && styles.unitBtnActive]}>
+              <Text style={[styles.unitText, rateDisplayUnit === u && styles.unitTextActive]}>
+                {u === 'gm' ? '₹/gm' : '₹/10gm'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         <LabourField
           label="Default labour (gold)"
           type={defaultLabourType}
@@ -931,5 +972,11 @@ const makeStyles = () =>
   swatchCheck: {fontSize: 15, fontWeight: '800'},
   swatchLabel: {fontSize: 10, fontWeight: '600'},
   toggleRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, paddingTop: 8, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border},
+  unitRow: {flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: -2, marginBottom: 8},
+  unitLabel: {fontSize: 12, color: colors.muted},
+  unitBtn: {borderWidth: 1, borderColor: colors.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4},
+  unitBtnActive: {borderColor: colors.primary, backgroundColor: colors.accent},
+  unitText: {fontSize: 11, fontWeight: '600', color: colors.muted},
+  unitTextActive: {color: colors.primary},
   switchLabel: {fontSize: 14, fontWeight: '600', color: colors.text},
 });
