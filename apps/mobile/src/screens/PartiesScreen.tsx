@@ -13,7 +13,7 @@ import {Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
 import {FlashList} from '@shopify/flash-list';
 import {formatDate} from '@munim/core';
 import type {PartyUpdateValues} from '@munim/core';
-import {Search, X} from 'lucide-react-native';
+import {Plus, Search, X} from 'lucide-react-native';
 import {
   useAdvances,
   useCreateAdvance,
@@ -114,6 +114,14 @@ export function PartiesScreen() {
       return matchesSearch && matchesType;
     });
   }, [parties, search, typeFilter]);
+
+  /** Opens the Add party sheet with a clean form (header + in-page buttons). */
+  function openAddParty() {
+    setNewName('');
+    setNewPhone('');
+    setNewType('CUSTOMER');
+    setAddOpen(true);
+  }
 
   async function handleAddParty() {
     if (!newName.trim()) return;
@@ -300,16 +308,7 @@ export function PartiesScreen() {
 
   return (
     <Screen>
-      <HomeHeader
-        title="Khata"
-        addLabel="Add party"
-        onAddPress={() => {
-          setNewName('');
-          setNewPhone('');
-          setNewType('CUSTOMER');
-          setAddOpen(true);
-        }}
-      />
+      <HomeHeader title="Khata" addLabel="Add party" onAddPress={openAddParty} />
 
       {/* Search + type filter (parity with web/desktop) */}
       <View style={styles.searchWrap}>
@@ -344,6 +343,16 @@ export function PartiesScreen() {
         })}
       </View>
 
+      {/* In-page Add party — the header "+" is easy to miss, so the primary
+          action also lives here (parity with the web/desktop toolbar button). */}
+      <Button
+        variant="outline"
+        title="Add party"
+        icon={<Plus size={rs(16)} color={colors.text} strokeWidth={2.4} />}
+        onPress={openAddParty}
+        style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}}
+      />
+
       {loading || !parties ? (
         <Loading />
       ) : (
@@ -353,7 +362,14 @@ export function PartiesScreen() {
           keyExtractor={item => item.id}
           {...headerScrollHandlers}
           ListEmptyComponent={
-            <Empty text={search.trim() || typeFilter !== 'ALL' ? 'No parties match your search' : 'No parties yet'} />
+            <Empty
+              text={search.trim() || typeFilter !== 'ALL' ? 'No parties match your search' : 'No parties yet'}
+              action={
+                !search.trim() && typeFilter === 'ALL'
+                  ? {label: 'Add party', onPress: openAddParty}
+                  : undefined
+              }
+            />
           }
           contentContainerStyle={{paddingBottom: spacing.xxxl}}
         />
