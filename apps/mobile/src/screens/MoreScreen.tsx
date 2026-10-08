@@ -4,6 +4,7 @@ import {
   BarChart3,
   ChevronLeft,
   ChevronRight,
+  CircleHelp,
   ClipboardList,
   FileText,
   Palette,
@@ -22,6 +23,7 @@ import {OrdersScreen} from './OrdersScreen';
 import {JobLettersScreen} from './JobLettersScreen';
 import {ReportsScreen} from './ReportsScreen';
 import {SettingsScreen} from './SettingsScreen';
+import {HelpScreen} from './HelpScreen';
 import {useNavStore, type MoreSection as Section} from '../lib/nav-store';
 
 const SECTIONS: {
@@ -37,6 +39,7 @@ const SECTIONS: {
   {key: 'reports', label: 'Reports', subtitle: 'Sales, stock & profit', icon: BarChart3},
   {key: 'catalog', label: 'Catalog', subtitle: 'Colors & sizes for products', icon: Palette},
   {key: 'settings', label: 'Settings', subtitle: 'Database & shop profile', icon: SettingsIcon},
+  {key: 'help', label: 'Help', subtitle: 'Pricing guide & counter tips', icon: CircleHelp},
 ];
 
 /** Back bar shown above a sub-screen opened from the More list. */
@@ -108,6 +111,13 @@ export function MoreScreen() {
     return (
       <SectionView onBack={closeMore}>
         <SettingsScreen />
+      </SectionView>
+    );
+  }
+  if (section === 'help') {
+    return (
+      <SectionView onBack={closeMore}>
+        <HelpScreen />
       </SectionView>
     );
   }

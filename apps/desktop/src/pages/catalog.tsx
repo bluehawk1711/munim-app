@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Palette, Ruler, FolderTree, Plus, Pencil, Trash2, Loader2, Search, Layers, X, Package, ImageIcon, Barcode, AlertTriangle, Tag, Eye, EyeOff } from "lucide-react";
 import {
   swatchColor,
+  formatWeight,
   type CatalogItem,
   type CatalogKind,
 } from "@munim/core";
@@ -11,6 +12,7 @@ import {
   useUpdateCatalogItem,
   useDeleteCatalogItem,
   useProducts,
+  useCategoryBreakdown,
   useQueryState,
 } from "@munim/query";
 import { toast } from "@munim/ui";
@@ -43,6 +45,7 @@ function MasterColumn({
   onDelete,
   search,
   status,
+  weightByName,
 }: {
   kind: CatalogKind;
   icon: React.ComponentType<{ className?: string }>;
@@ -57,6 +60,8 @@ function MasterColumn({
   onDelete: (item: CatalogItem) => void;
   search: string;
   status: StatusFilter;
+  /** On-hand weight per category name (grams) — the Categories column shows it per row. */
+  weightByName?: Record<string, number>;
 }) {
   const q = search.trim().toLowerCase();
   const filtered = items.filter((item) => {
@@ -131,6 +136,9 @@ function MasterColumn({
                     </div>
                     <p className="text-muted-foreground text-[11px]">
                       {inUse ? `${item.productCount} product${item.productCount !== 1 ? "s" : ""} linked` : "No products linked"}
+                      {kind === "category" && weightByName && item.name in weightByName
+                        ? ` · ${formatWeight(weightByName[item.name])}`
+                        : ""}
                     </p>
                   </div>
                   <Badge variant={inUse ? "warning" : "secondary"} className="shrink-0 gap-1">
@@ -203,6 +211,17 @@ export function CatalogPage() {
   const totalProducts = productsQ.data?.pagination.totalCount ?? 0;
   const allProducts = useMemo(() => productsQ.data?.products ?? [], [productsQ.data]);
 
+  // On-hand weight per category (grams) — powers the weight shown on each
+  // Categories row and the linked-weight total on the composition donut.
+  const breakdown = useQueryState(useCategoryBreakdown());
+  const weightByName = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const row of breakdown.data ?? []) {
+      if (row.category && row.category !== "Uncategorized") map[row.category] = row.weightGm;
+    }
+    return map;
+  }, [breakdown.data]);
+
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [showAnalytics, setShowAnalytics] = useState(() => {
@@ -232,12 +251,14 @@ export function CatalogPage() {
       .filter((c) => c.productCount > 0)
       .sort((a, b) => b.productCount - a.productCount);
     const total = withProducts.reduce((a, c) => a + c.productCount, 0);
+    const weightGm = withProducts.reduce((a, c) => a + (weightByName[c.name] ?? 0), 0);
     return {
       slices: withProducts.map((c) => ({ label: c.name, value: c.productCount, color: swatchColor(c.name) })),
       legend: withProducts.map((c) => ({ label: c.name, value: c.productCount, color: swatchColor(c.name), maxValue: total })),
       total,
+      weightGm,
     };
-  }, [categoryItems]);
+  }, [categoryItems, weightByName]);
 
   function openAdd(kind: CatalogKind) {
     setName("");
@@ -416,7 +437,10 @@ export function CatalogPage() {
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <h2 className="text-sm font-bold">Linked Products by Category</h2>
-                  <span className="text-muted-foreground text-xs tabular-nums">{composition.total} linked</span>
+                  <span className="text-muted-foreground text-xs tabular-nums">
+                    {composition.total} linked
+                    {composition.weightGm > 0 ? ` · ${formatWeight(composition.weightGm)}` : ""}
+                  </span>
                 </div>
                 {composition.slices.length === 0 ? (
                   <p className="text-muted-foreground py-8 text-center text-xs">
@@ -498,6 +522,7 @@ export function CatalogPage() {
           onDelete={(item) => handleDelete("category", item)}
           search={search}
           status={status}
+          weightByName={weightByName}
         />
       </div>
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw, BadgeIndianRupee } from "lucide-react";
+import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw, BadgeIndianRupee, FileText } from "lucide-react";
 import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
 import {
@@ -41,6 +41,7 @@ import {
   ConnectionTestDialog,
   type ConnectionTestState,
   PinSettingsCard,
+  SampleBillCard,
   SettingsShell,
   Switch,
   type SettingsSection,
@@ -393,6 +394,12 @@ export function SettingsPage() {
           : undefined,
     },
     {
+      id: "bills",
+      label: "Bills",
+      description: "Sample bill & layout check",
+      icon: FileText,
+    },
+    {
       id: "appearance",
       label: "Appearance",
       description: "Color theme & light/dark mode",
@@ -523,6 +530,8 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       )}
+
+      {section === "bills" && <SampleBillCard />}
 
       {section === "appearance" && (
         <Card>

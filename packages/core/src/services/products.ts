@@ -13,8 +13,20 @@ export type InventoryStats = {
   totalSkus: number;
   /** Sum of `stock` across all products (units, not value). */
   totalUnits: number;
-  /** Sum of `stock * weight` in milligrams — total physical material on hand. */
-  totalWeightMg: number;
+  /**
+   * Sum of `stock * weight` in **grams** — total physical material on hand.
+   * Every row is normalized from its own `weightUnit` via `weightGmSql`
+   * (mg rows ÷ 1000). Renamed from `totalWeightMg` — the old value was in
+   * mixed units despite the name.
+   */
+  totalWeightGm: number;
+  /**
+   * On-hand material split by product type — the "total gold / total silver"
+   * breakdown behind the inventory analytics. Grams, unit-normalized like
+   * `totalWeightGm`; types with zero weighted stock are omitted and the list
+   * is sorted heaviest-first.
+   */
+  weightByTypeGm: { type: string; weightGm: number }[];
   /** Sum of `stock * purchase_price` — capital tied up in inventory. */
   stockValuationPurchase: number;
   /** Sum of `stock * selling_price` — retail value of current inventory. */
@@ -37,8 +49,8 @@ export type CategoryBreakdown = {
   skuCount: number;
   /** Sum of `stock` in this category. */
   units: number;
-  /** Sum of `stock * weight` in milligrams. */
-  weightMg: number;
+  /** Sum of `stock * weight` in **grams** (weight-unit normalized). */
+  weightGm: number;
   /** Sum of `stock * selling_price` for this category. */
   value: number;
   /** Pie slice color (deterministic from the category name). */
@@ -54,22 +66,37 @@ export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
   // Single aggregate query — Postgres can fold all of these into one scan.
   const rows = await db
     .select({
-      totalSkus: sql<number>`count(*)::int`,
-      totalUnits: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`,
-      totalWeightMg: sql<number>`coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
-      stockValuationPurchase: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.purchasePrice}), 0)::double precision`,
-      stockValuationSelling: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`,
-      inStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > ${schema.products.lowStockThreshold})::int`,
-      lowStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > 0 and ${schema.products.stock} <= ${schema.products.lowStockThreshold})::int`,
-      outOfStockCount: sql<number>`count(*) filter (where ${schema.products.stock} <= 0)::int`,
-      withBarcodeCount: sql<number>`count(*) filter (where ${schema.products.barcode} is not null and length(${schema.products.barcode}) > 0)::int`,
+      // Aliases are MANDATORY: Neon's HTTP rows are objects, so unaliased
+      // fragments sharing a PG column name ("coalesce", "count") silently
+      // collapse to the LAST one's value. See db/client.ts guard.
+      totalSkus: sql<number>`count(*)::int`.as("total_skus"),
+      totalUnits: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`.as("total_units"),
+      totalWeightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)::double precision`.as("total_weight_gm"),
+      stockValuationPurchase: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.purchasePrice}), 0)::double precision`.as("stock_valuation_purchase"),
+      stockValuationSelling: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`.as("stock_valuation_selling"),
+      inStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > ${schema.products.lowStockThreshold})::int`.as("in_stock_count"),
+      lowStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > 0 and ${schema.products.stock} <= ${schema.products.lowStockThreshold})::int`.as("low_stock_count"),
+      outOfStockCount: sql<number>`count(*) filter (where ${schema.products.stock} <= 0)::int`.as("out_of_stock_count"),
+      withBarcodeCount: sql<number>`count(*) filter (where ${schema.products.barcode} is not null and length(${schema.products.barcode}) > 0)::int`.as("with_barcode_count"),
     })
     .from(schema.products);
+  // Per-type material split — the same math as totalWeightGm, grouped by type.
+  const typeRows = await db
+    .select({
+      type: schema.products.type,
+      weightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)::double precision`.as("weight_gm"),
+    })
+    .from(schema.products)
+    .groupBy(schema.products.type)
+    .orderBy(desc(sql`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)`));
   const row = rows[0];
   return {
     totalSkus: row?.totalSkus ?? 0,
     totalUnits: row?.totalUnits ?? 0,
-    totalWeightMg: row?.totalWeightMg ?? 0,
+    totalWeightGm: row?.totalWeightGm ?? 0,
+    weightByTypeGm: typeRows
+      .filter((r) => r.weightGm > 0)
+      .map((r) => ({ type: r.type, weightGm: r.weightGm })),
     stockValuationPurchase: row?.stockValuationPurchase ?? 0,
     stockValuationSelling: row?.stockValuationSelling ?? 0,
     inStockCount: row?.inStockCount ?? 0,
@@ -88,11 +115,13 @@ export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
 export async function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakdown[]> {
   const rows = await db
     .select({
-      category: sql<string>`coalesce(${schema.categories.name}, 'Uncategorized')`,
-      skuCount: sql<number>`count(${schema.products.id})::int`,
-      units: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`,
-      weightMg: sql<number>`coalesce(sum(${schema.products.stock} * coalesce(${schema.products.weight}, 0)), 0)::double precision`,
-      value: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`,
+      // Every fragment aliased — unaliased coalesce/count columns collapse in
+      // the Neon object-row transport (category used to come back as `value`).
+      category: sql<string>`coalesce(${schema.categories.name}, 'Uncategorized')`.as("category"),
+      skuCount: sql<number>`count(${schema.products.id})::int`.as("sku_count"),
+      units: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`.as("units"),
+      weightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)::double precision`.as("weight_gm"),
+      value: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`.as("value"),
     })
     .from(schema.products)
     .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
@@ -103,7 +132,7 @@ export async function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakd
     category: r.category ?? "Uncategorized",
     skuCount: r.skuCount,
     units: r.units,
-    weightMg: r.weightMg,
+    weightGm: r.weightGm,
     value: r.value,
     color: categoryColor(r.category ?? "Uncategorized", i),
   }));

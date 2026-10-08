@@ -20,6 +20,9 @@ export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 export * from "./billing/index.js";
 export * from "./security/index.js";
 
+/* Help — the shared PricingGuide wording rendered by web, desktop & mobile */
+export * from "./help/pricingGuide.js";
+
 /* Pricing — dynamic metal pricing (gold karats + silver + labour), shared by
  * every app + the API: `priceProduct` is THE formula; gold.ts holds the rate
  * table utilities; labour.ts the Fixed/Per-Gram/Percent methods; labels.ts the

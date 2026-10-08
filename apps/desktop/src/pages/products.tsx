@@ -1117,7 +1117,7 @@ export function ProductsPage() {
         />
         <StatTile
           label="Products / Material Weight"
-          value={formatWeight(stats?.totalWeightMg ?? 0)}
+          value={formatWeight(stats?.totalWeightGm ?? 0)}
           icon={Scale}
           accent="amber"
           loading={statsQ.isLoading}
@@ -1142,6 +1142,42 @@ export function ProductsPage() {
           subline={`${withBarcode} of ${totalCount} products`}
         />
       </div>
+
+      {/* Material weight split by product type — total gold / silver / … */}
+      <Card>
+        <SectionHeader title="Material Weight by Type" subtitle="On-hand weight per metal & type" />
+        <CardContent>
+          {statsQ.isLoading ? (
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-36 rounded-full" />
+              ))}
+            </div>
+          ) : (stats?.weightByTypeGm.length ?? 0) === 0 ? (
+            <p className="text-muted-foreground text-sm">
+              No weighted stock yet — add weights to your products to see the gold / silver split here.
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {stats!.weightByTypeGm.map((t) => {
+                const color = PRODUCT_TYPE_COLORS[t.type] ?? PRODUCT_TYPE_COLORS.Other;
+                return (
+                  <span
+                    key={t.type}
+                    className="inline-flex items-center gap-1.5 rounded-full border bg-card px-3 py-1.5 text-xs font-semibold tabular-nums"
+                    style={{ borderColor: `${color}44`, color }}
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+                    {t.type}
+                    <span className="text-muted-foreground font-medium">·</span>
+                    <span className="text-foreground">{formatWeight(t.weightGm)}</span>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Charts row: allocation bar chart + category donut. */}
       <div className="grid gap-4 xl:grid-cols-3">

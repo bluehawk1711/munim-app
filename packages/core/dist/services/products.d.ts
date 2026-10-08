@@ -5,8 +5,23 @@ export type InventoryStats = {
     totalSkus: number;
     /** Sum of `stock` across all products (units, not value). */
     totalUnits: number;
-    /** Sum of `stock * weight` in milligrams — total physical material on hand. */
-    totalWeightMg: number;
+    /**
+     * Sum of `stock * weight` in **grams** — total physical material on hand.
+     * Every row is normalized from its own `weightUnit` via `weightGmSql`
+     * (mg rows ÷ 1000). Renamed from `totalWeightMg` — the old value was in
+     * mixed units despite the name.
+     */
+    totalWeightGm: number;
+    /**
+     * On-hand material split by product type — the "total gold / total silver"
+     * breakdown behind the inventory analytics. Grams, unit-normalized like
+     * `totalWeightGm`; types with zero weighted stock are omitted and the list
+     * is sorted heaviest-first.
+     */
+    weightByTypeGm: {
+        type: string;
+        weightGm: number;
+    }[];
     /** Sum of `stock * purchase_price` — capital tied up in inventory. */
     stockValuationPurchase: number;
     /** Sum of `stock * selling_price` — retail value of current inventory. */
@@ -28,8 +43,8 @@ export type CategoryBreakdown = {
     skuCount: number;
     /** Sum of `stock` in this category. */
     units: number;
-    /** Sum of `stock * weight` in milligrams. */
-    weightMg: number;
+    /** Sum of `stock * weight` in **grams** (weight-unit normalized). */
+    weightGm: number;
     /** Sum of `stock * selling_price` for this category. */
     value: number;
     /** Pie slice color (deterministic from the category name). */

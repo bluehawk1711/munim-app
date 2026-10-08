@@ -51,6 +51,9 @@ packages/core/drizzle/meta/_journal.json.bak
 # db backups
 packages/core/backups/
 
+# local bill previews (dummy data)
+bill-previews/
+
 # editor
 .vscode/
 .idea/

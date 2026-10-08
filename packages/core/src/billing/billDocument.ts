@@ -1,4 +1,5 @@
 import { amountInWords } from "../utils/numberToWords.js";
+import { formatCurrency } from "../utils/format.js";
 
 /**
  * Shared bill/invoice generation — THE single source of truth used by all
@@ -129,6 +130,18 @@ export interface BuildBillInput {
   silverRate?: number | null;
 }
 
+/** Shop rate rows gated by the per-bill toggles + present rate values. */
+export function rateRowsOf(bill: BillDocument, settings: BillTemplateSettings): string[] {
+  const rows: string[] = [];
+  if (settings.goldRateLine && bill.goldRate != null && bill.goldRate > 0) {
+    rows.push(`Gold rate: ${formatCurrency(bill.goldRate)}/g`);
+  }
+  if (settings.silverRateLine && bill.silverRate != null && bill.silverRate > 0) {
+    rows.push(`Silver rate: ${formatCurrency(bill.silverRate)}/g`);
+  }
+  return rows;
+}
+
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -192,6 +205,8 @@ export function renderBillText(bill: BillDocument): string {
     `Ph: ${bill.shop.phones.join(", ")}${bill.shop.email ? ` | ${bill.shop.email}` : ""}`,
     "",
     `BILL NO: ${bill.billNo}        DATE: ${bill.date}`,
+    bill.goldRate != null && bill.goldRate > 0 ? `Gold rate:   ${currency}${bill.goldRate.toFixed(2)}/g` : "",
+    bill.silverRate != null && bill.silverRate > 0 ? `Silver rate: ${currency}${bill.silverRate.toFixed(2)}/g` : "",
     `Customer: ${bill.customerName ?? ""}${bill.customerPhone ? ` (${bill.customerPhone})` : ""}`,
     "",
     ...bill.lines.flatMap((l) => {
@@ -202,8 +217,6 @@ export function renderBillText(bill: BillDocument): string {
       ];
     }),
     "",
-    bill.goldRate != null && bill.goldRate > 0 ? `Gold rate:   ${currency}${bill.goldRate.toFixed(2)}/g` : "",
-    bill.silverRate != null && bill.silverRate > 0 ? `Silver rate: ${currency}${bill.silverRate.toFixed(2)}/g` : "",
     `Subtotal:      ${currency}${bill.subtotal.toFixed(2)}`,
     bill.discount > 0 ? `Discount:      -${currency}${bill.discount.toFixed(2)}` : "",
     bill.materialReturnedValue > 0 ? `Material Retd:  -${currency}${bill.materialReturnedValue.toFixed(2)}${bill.materialReturnedWeight ? ` (${bill.materialReturnedWeight})` : ""}` : "",
@@ -217,132 +230,4 @@ export function renderBillText(bill: BillDocument): string {
     `Status: ${bill.status} — Thank you for your business!`,
   ].filter((line) => line !== "");
   return lines.join("\n");
-}
-
-const esc = (s: string | null | undefined): string =>
-  (s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-
-/**
- * HTML render of a bill — the shared, print-friendly markup used by the
- * mobile app (expo-print) and available to any platform that prints HTML.
- * Same numbers as `renderBillText` / jsPDF — one model, any renderer.
- * `settings` gates the per-bill display toggles (WEIGHT column, rate rows);
- * omitted → defaults (all ON).
- */
-export function renderBillHtml(bill: BillDocument, settings?: BillTemplateSettings): string {
-  const s = settings ?? DEFAULT_BILL_TEMPLATE_SETTINGS;
-  const symbol = bill.currency === "INR" ? "₹" : `${esc(bill.currency)} `;
-  const money = (n: number) =>
-    `${symbol}${n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-  const showWeight = s.weightAfterName;
-  const weightCell = (l: BillLine) =>
-    `<td class="num">${l.weight != null ? `${l.weight}${l.weightUnit === "mg" ? "mg" : "g"}` : "-"}</td>`;
-
-  const itemRows = bill.lines
-    .map(
-      (l, i) => `<tr>
-        <td>${i + 1}</td>
-        <td>${esc(l.productName)}${l.color ? `<br/><small>${esc(l.color)}${l.size ? ` / ${esc(l.size)}` : ""}</small>` : l.size ? `<br/><small>${esc(l.size)}</small>` : ""}</td>
-        ${showWeight ? weightCell(l) : ""}
-        <td>${esc(l.sku ?? "")}</td>
-        <td class="num">${l.quantity}</td>
-        <td class="num">${money(l.price)}</td>
-        <td class="num">${money(l.total)}</td>
-      </tr>`,
-    )
-    .join("");
-
-  const totalSpan = (showWeight ? 6 : 5) + "";
-  const rateRows = [
-    ...(s.goldRateLine && bill.goldRate != null && bill.goldRate > 0
-      ? [`<tr><td colspan="${totalSpan}">Gold rate</td><td class="num">${money(bill.goldRate)}/g</td></tr>`]
-      : []),
-    ...(s.silverRateLine && bill.silverRate != null && bill.silverRate > 0
-      ? [`<tr><td colspan="${totalSpan}">Silver rate</td><td class="num">${money(bill.silverRate)}/g</td></tr>`]
-      : []),
-  ].join("");
-
-  const extraRows = [
-    ...(bill.discount > 0 ? [`<tr><td colspan="${totalSpan}">Discount</td><td class="num">− ${money(bill.discount)}</td></tr>`] : []),
-    ...(bill.materialReturnedValue > 0 ? [`<tr><td colspan="${totalSpan}">Material Returned${bill.materialReturnedWeight ? ` (${esc(bill.materialReturnedWeight)})` : ""}</td><td class="num">− ${money(bill.materialReturnedValue)}</td></tr>`] : []),
-    ...(bill.deliveryCharge > 0 ? [`<tr><td colspan="${totalSpan}">Delivery</td><td class="num">+ ${money(bill.deliveryCharge)}</td></tr>`] : []),
-  ].join("");
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8" />
-<style>
-  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; margin: 0; padding: 32px; }
-  .shop { border-bottom: 3px solid #111; padding-bottom: 12px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-end; }
-  .shop h1 { margin: 0; font-size: 22px; letter-spacing: 0.3px; }
-  .shop p { margin: 2px 0; color: #555; font-size: 11px; }
-  .meta { text-align: right; }
-  .meta .no { font-size: 14px; font-weight: 600; }
-  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #444; margin: 18px 0 6px; }
-  .cust { font-size: 12px; line-height: 1.6; }
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
-  th { text-align: left; background: #f4f4f4; padding: 8px; border-bottom: 2px solid #111; }
-  td { padding: 7px 8px; border-bottom: 1px solid #e5e5e5; vertical-align: top; }
-  td small { color: #777; }
-  .num { text-align: right; font-variant-numeric: tabular-nums; }
-  .totals { margin-top: 14px; margin-left: auto; width: 280px; font-size: 12px; }
-  .totals td { padding: 4px 8px; }
-  .grand td { font-size: 15px; font-weight: 700; border-top: 2px solid #111; border-bottom: none; }
-  .words { margin-top: 16px; font-size: 11px; color: #333; }
-  .words b { color: #111; }
-  .foot { margin-top: 28px; font-size: 10px; color: #888; display: flex; justify-content: space-between; border-top: 1px solid #ddd; padding-top: 10px; }
-</style>
-</head>
-<body>
-  <div class="shop">
-    <div>
-      <h1>${esc(bill.shop.name)}</h1>
-      ${bill.shop.address ? `<p>${esc(bill.shop.address)}</p>` : ""}
-      <p>Ph: ${esc(bill.shop.phones.join(", "))}${bill.shop.email ? ` | ${esc(bill.shop.email)}` : ""}</p>
-    </div>
-    <div class="meta">
-      <div class="no">INVOICE / BILL</div>
-      <p>No: ${esc(bill.billNo)}</p>
-      <p>Date: ${esc(bill.date)}</p>
-      <p>Status: ${esc(bill.status)}</p>
-    </div>
-  </div>
-
-  <h2>Bill To</h2>
-  <div class="cust">
-    <b>${esc(bill.customerName ?? "Walk-in Customer")}</b><br/>
-    ${bill.customerAddress ? `${esc(bill.customerAddress)}<br/>` : ""}
-    ${bill.customerPhone ? `Ph: ${esc(bill.customerPhone)}` : ""}
-  </div>
-
-  <table>
-    <thead>
-      <tr><th>#</th><th>Item</th>${showWeight ? `<th class="num">Weight</th>` : ""}<th>SKU</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr>
-    </thead>
-    <tbody>${itemRows}</tbody>
-  </table>
-
-  <table class="totals">
-    ${rateRows}
-    <tr><td>Subtotal</td><td class="num">${money(bill.subtotal)}</td></tr>
-    ${extraRows}
-    <tr class="grand"><td>TOTAL</td><td class="num">${money(bill.total)}</td></tr>
-    <tr><td>Amount paid</td><td class="num">${money(bill.amountPaid)}</td></tr>
-    <tr><td>Due</td><td class="num">${money(bill.dueAmount)}</td></tr>
-  </table>
-
-  <div class="words"><b>Amount in words:</b> ${esc(bill.amountInWords)}</div>
-
-  <div class="foot">
-    <span>Generated by Munim</span>
-    <span>Thank you for your business!</span>
-  </div>
-</body>
-</html>`;
 }

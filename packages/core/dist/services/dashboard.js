@@ -62,8 +62,8 @@ export async function getDashboard(db) {
             .select({
             productId: schema.invoiceItems.productId,
             productName: schema.invoiceItems.productName,
-            quantitySold: sql `coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`,
-            revenue: sql `coalesce(sum(${schema.invoiceItems.total}),0)::float8`,
+            quantitySold: sql `coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`.as("quantity_sold"),
+            revenue: sql `coalesce(sum(${schema.invoiceItems.total}),0)::float8`.as("revenue"),
         })
             .from(schema.invoiceItems)
             .groupBy(schema.invoiceItems.productId, schema.invoiceItems.productName)
@@ -251,8 +251,8 @@ export async function getReport(db, type, startDate, endDate) {
         .select({
         productId: schema.invoiceItems.productId,
         productName: schema.invoiceItems.productName,
-        soldQuantity: sql `coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`,
-        revenue: sql `coalesce(sum(${schema.invoiceItems.total}),0)::float8`,
+        soldQuantity: sql `coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`.as("sold_quantity"),
+        revenue: sql `coalesce(sum(${schema.invoiceItems.total}),0)::float8`.as("revenue"),
     })
         .from(schema.invoiceItems)
         .innerJoin(schema.invoices, eq(schema.invoices.id, schema.invoiceItems.invoiceId))

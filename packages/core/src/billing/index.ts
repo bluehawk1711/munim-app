@@ -1,7 +1,6 @@
 export {
   buildBillDocument,
   renderBillText,
-  renderBillHtml,
   DEFAULT_BILL_TEMPLATE_SETTINGS,
   mergeBillTemplateSettings,
   type BillDocument,
@@ -15,6 +14,15 @@ export {
   type BillMode,
   type BillTemplateSettings,
 } from "./billDocument.js";
+
+export {
+  renderBillHtml,
+} from "./billHtml.js";
+
+export {
+  buildSampleBill,
+} from "./sampleBill.js";
+export type { SampleBillKind } from "./sampleBill.js";
 
 export {
   generateBillPDF,

@@ -10,7 +10,7 @@ against the **shared Neon database** (no API server). Scaffolded from
 
 Dashboard · Products & Stock (search, image upload, adjust with reason) ·
 Catalog (colors & sizes) · Sales (undo, date filter) · Billing (shared bill
-generation, templates / 2-in-1, PDF via shared `renderBillHtml`) · Invoices ·
+generation, templates / 2-in-1, PDF via shared `generateBillPDF`) · Invoices ·
 Parties & Khata (advances given/taken, ledger) · Advances · Job Letters (PDF) ·
 Reports (custom dates, CSV export) · Settings (Shop / Appearance / Security /
 Database — sectioned `SettingsShell` shared with web).

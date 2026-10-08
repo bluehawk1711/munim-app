@@ -11,6 +11,7 @@ export type * from "./db/schema.js";
 export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 export * from "./billing/index.js";
 export * from "./security/index.js";
+export * from "./help/pricingGuide.js";
 export * from "./pricing/gold.js";
 export * from "./pricing/labour.js";
 export * from "./pricing/product.js";

@@ -190,7 +190,12 @@ export async function getPartyBalances(db: DbClient): Promise<PartyBalance[]> {
     const { balance } = await getPartyLedger(db, party.id);
     const [advRows] = await Promise.all([
       db
-        .select({ given: sql<number>`coalesce(sum(case when direction = 'GIVEN' then amount else 0 end), 0)::float8`, taken: sql<number>`coalesce(sum(case when direction = 'TAKEN' then amount else 0 end), 0)::float8` })
+        .select({
+          // Both fragments aliased — unaliased they share the PG name
+          // "coalesce" and collapse to the last one (given became taken).
+          given: sql<number>`coalesce(sum(case when direction = 'GIVEN' then amount else 0 end), 0)::float8`.as("given"),
+          taken: sql<number>`coalesce(sum(case when direction = 'TAKEN' then amount else 0 end), 0)::float8`.as("taken"),
+        })
         .from(schema.advances)
         .where(and(eq(schema.advances.partyId, party.id), eq(schema.advances.status, "OPEN"))),
     ]);

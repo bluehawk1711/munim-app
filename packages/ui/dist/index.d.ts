@@ -38,6 +38,7 @@ export * from "./components/khata-card.js";
 export * from "./components/label.js";
 export * from "./components/ledger-kind-badge.js";
 export * from "./components/scroll-area.js";
+export * from "./components/sample-bill-card.js";
 export * from "./components/select.js";
 export * from "./components/separator.js";
 export * from "./components/settings-shell.js";

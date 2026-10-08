@@ -32,6 +32,7 @@ import {
 } from '@munim/query';
 import {money} from '../lib/format';
 import {copyText} from '../lib/clipboard';
+import {savePdf} from '../lib/save-pdf';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {
   Badge,
@@ -842,7 +843,7 @@ export function BillingScreen() {
         html,
         base64: false,
       });
-      await Share.share({url: uri, message: `Bill ${preview.billNo} — ${preview.shop.name}`});
+      await savePdf(uri, preview.billNo);
     } catch {
       // user cancelled share or print failed
     }
@@ -856,7 +857,7 @@ export function BillingScreen() {
         html = `${html}<div style="page-break-after: always"></div>${renderBillHtml(secondDoc, billTemplateSettings)}`;
       }
       const {uri} = await Print.printToFileAsync({html, base64: false});
-      await Share.share({url: uri, message: `Bill ${doc.billNo} — ${doc.shop.name}`});
+      await savePdf(uri, doc.billNo);
     } catch {
       // user cancelled — bill is already saved, no error needed
     }

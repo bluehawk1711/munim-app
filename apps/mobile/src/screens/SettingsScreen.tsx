@@ -1,6 +1,7 @@
 import React, {useEffect, useState} from 'react';
 import {ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View} from 'react-native';
-import {KeyRound} from 'lucide-react-native';
+import {FileText, KeyRound} from 'lucide-react-native';
+import * as Print from 'expo-print';
 import {themes, themeLabels, themeNames, themeSwatches} from '@munim/theme';
 import {
   getSavedApiKey,
@@ -10,7 +11,16 @@ import {
   saveApiUrl,
 } from '../lib/api';
 import {useQueryState, useSettings, useUpdateSettings, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, useSyncProductPrices} from '@munim/query';
-import {resolveGoldRateTable, type LabourType, type RateDisplayUnit} from '@munim/core';
+import {
+  buildSampleBill,
+  mergeBillTemplateSettings,
+  renderBillHtml,
+  resolveGoldRateTable,
+  type LabourType,
+  type RateDisplayUnit,
+  type SampleBillKind,
+} from '@munim/core';
+import {savePdf} from '../lib/save-pdf';
 import {Badge, Button, Card, Field, LabourField, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {ThemeToggleButton} from '../components/theme-toggle';
@@ -54,6 +64,29 @@ export function SettingsScreen() {
   const [allowZeroTotal, setAllowZeroTotal] = useState(true);
   const [shopLoaded, setShopLoaded] = useState(false);
   const [savingShop, setSavingShop] = useState(false);
+
+  // ── Sample bill (Settings → Bills) — same dummy bills the web/desktop
+  // Settings card generates, saved to Downloads via the shared savePdf. ──
+  const [sampleBusy, setSampleBusy] = useState<SampleBillKind | null>(null);
+
+  async function handleSampleBill(kind: SampleBillKind) {
+    setSampleBusy(kind);
+    try {
+      const bill = buildSampleBill(kind);
+      const html = renderBillHtml(
+        bill,
+        mergeBillTemplateSettings({template: kind === 'gold' ? 'jewellery' : 'ecommerce'}),
+      );
+      const {uri} = await Print.printToFileAsync({html, base64: false});
+      const saved = await savePdf(uri, `${bill.billNo} (sample)`);
+      if (saved) successFeedback();
+      else errorFeedback();
+    } catch {
+      errorFeedback();
+    } finally {
+      setSampleBusy(null);
+    }
+  }
 
   // ── Gold rate table (dynamic karat pricing, shared by all 3 apps) ──────
   const goldRates = useGoldRates();
@@ -556,6 +589,34 @@ export function SettingsScreen() {
           title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
           onPress={handleSyncPrices}
         />
+      </Card>
+      <Section title="Bills" index={1} />
+      <Card index={1}>
+        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
+          <FileText size={16} color={colors.primary} style={{marginRight: 6}} />
+          <Text style={{fontSize: 14, fontWeight: '700', color: colors.text}}>Sample bill</Text>
+        </View>
+        <Text style={{fontSize: 12, color: colors.muted, lineHeight: 17, marginBottom: 10}}>
+          Renders a dummy bill with the real template and saves the PDF to your device
+          (Downloads on Android — first tap asks to grant the folder; share sheet on iOS).
+          Check the layout, fonts and gold/silver rate lines without creating an invoice.
+        </Text>
+        <View style={{gap: 8}}>
+          <Button
+            title={sampleBusy === 'gold' ? 'Generating…' : 'Classic Jewellery (gold sample)'}
+            variant="outline"
+            loading={sampleBusy === 'gold'}
+            disabled={sampleBusy !== null}
+            onPress={() => void handleSampleBill('gold')}
+          />
+          <Button
+            title={sampleBusy === 'silver' ? 'Generating…' : 'Modern E-commerce (silver sample)'}
+            variant="outline"
+            loading={sampleBusy === 'silver'}
+            disabled={sampleBusy !== null}
+            onPress={() => void handleSampleBill('silver')}
+          />
+        </View>
       </Card>
       <Section title="Appearance" index={1} />
       <Card index={1}>

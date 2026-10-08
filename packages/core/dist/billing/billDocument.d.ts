@@ -104,6 +104,8 @@ export interface BuildBillInput {
     goldRate?: number | null;
     silverRate?: number | null;
 }
+/** Shop rate rows gated by the per-bill toggles + present rate values. */
+export declare function rateRowsOf(bill: BillDocument, settings: BillTemplateSettings): string[];
 /** Builds a normalized bill document from raw inputs. Pure + shared. */
 export declare function buildBillDocument(input: BuildBillInput): BillDocument;
 /**
@@ -112,12 +114,4 @@ export declare function buildBillDocument(input: BuildBillInput): BillDocument;
  * BillDocument and keep the same numbers.
  */
 export declare function renderBillText(bill: BillDocument): string;
-/**
- * HTML render of a bill — the shared, print-friendly markup used by the
- * mobile app (expo-print) and available to any platform that prints HTML.
- * Same numbers as `renderBillText` / jsPDF — one model, any renderer.
- * `settings` gates the per-bill display toggles (WEIGHT column, rate rows);
- * omitted → defaults (all ON).
- */
-export declare function renderBillHtml(bill: BillDocument, settings?: BillTemplateSettings): string;
 //# sourceMappingURL=billDocument.d.ts.map

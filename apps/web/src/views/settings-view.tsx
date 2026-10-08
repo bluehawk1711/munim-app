@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import * as m from "motion/react-m"
-import { Save, Loader2, Store, Server, CheckCircle2, XCircle, Palette, ShieldCheck, ShoppingBag, SunMoon, BadgeIndianRupee, RefreshCw } from "lucide-react"
+import { Save, Loader2, Store, Server, CheckCircle2, XCircle, Palette, ShieldCheck, ShoppingBag, SunMoon, BadgeIndianRupee, RefreshCw, FileText } from "lucide-react"
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings"
 import { useGoldRates, useSaveGoldRates, useBackfillGoldKarats } from "@/hooks/use-gold-rates"
 import { useApiClient, useSyncProductPrices } from "@munim/query"
@@ -19,6 +19,7 @@ import {
   Badge,
   Skeleton,
   PinSettingsCard,
+  SampleBillCard,
   SettingsShell,
   Switch,
   type SettingsSection,
@@ -226,6 +227,12 @@ export function SettingsView() {
         : undefined,
     },
     {
+      id: "bills",
+      label: "Bills",
+      description: "Sample bill & layout check",
+      icon: FileText,
+    },
+    {
       id: "appearance",
       label: "Appearance",
       description: "Color theme & light/dark mode",
@@ -404,6 +411,8 @@ export function SettingsView() {
           </CardContent>
         </Card>
       )}
+
+      {section === "bills" && <SampleBillCard />}
 
       {section === "appearance" && (
         <Card>

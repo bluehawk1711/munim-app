@@ -145,13 +145,22 @@ export function createDb(opts?: {
     // results POSITIONALLY (mapResultRow reads row[columnIndex]), so rows must
     // be converted to positional arrays aligned with the fields array — object
     // rows otherwise map to all-undefined values.
+    //
+    // CRITICAL GUARD: an unaliased SELECT with two expressions Postgres names
+    // the same (two `coalesce(...)` → both "coalesce", `products.id` +
+    // `categories.id` → both "id") collapses to ONE key in the JSON object —
+    // the last value silently wins and every duplicate position reads it.
+    // That bug once made totalWeightGm return the stock valuation. Always
+    // `.as("unique_name")` raw sql fragments / same-named joined columns.
     if (Array.isArray(payload)) {
       // Legacy shape: bare array of object rows.
       const fields = payload.length > 0 ? Object.keys(payload[0] as NeonRow) : [];
+      assertUniqueFieldNames(fields);
       return { rows: payload.map((row) => fields.map((name) => row[name])) };
     }
 
     const fields = Array.isArray(payload.fields) ? payload.fields.map((f) => f.name) : [];
+    assertUniqueFieldNames(fields);
     const objectRows = Array.isArray(payload.rows) ? payload.rows : [];
     const rows = objectRows.map((row) => fields.map((name) => row[name]));
     return {
@@ -165,6 +174,29 @@ export function createDb(opts?: {
 }
 
 export type DbOptions = NonNullable<Parameters<typeof createDb>[0]>;
+
+/**
+ * Fails loudly when a result set contains duplicate column names. Neon's HTTP
+ * rows are objects, so duplicates already collapsed to the last value BEFORE
+ * this point — recovering is impossible, and silently returning wrong numbers
+ * (money, weights, counts) is worse than throwing. Fix: `.as("unique_name")`
+ * every raw sql fragment / same-named joined column in the SELECT.
+ */
+function assertUniqueFieldNames(fields: string[]): void {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const name of fields) {
+    if (seen.has(name)) dupes.add(name);
+    seen.add(name);
+  }
+  if (dupes.size > 0) {
+    throw new Error(
+      `Munim DB: duplicate result column name(s): ${[...dupes].join(", ")}. ` +
+        `Neon returns object rows, so duplicates already collapsed to the last value — ` +
+        `alias each expression with .as("unique_name") in the SELECT.`,
+    );
+  }
+}
 
 /**
  * Singleton for apps that share one connection (web app, desktop).
