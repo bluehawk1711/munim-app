@@ -59,19 +59,19 @@ export function SampleBillCard() {
             variant="outline"
             size="sm"
             disabled={busy !== null}
-            onClick={() => void generate("gold")}
+            onClick={() => void generate("silver")}
           >
-            {busy === "gold" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Classic Jewellery (gold sample)
+            {busy === "silver" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Estimate · New Bill (default)
           </Button>
           <Button
             variant="outline"
             size="sm"
             disabled={busy !== null}
-            onClick={() => void generate("silver")}
+            onClick={() => void generate("gold")}
           >
-            {busy === "silver" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Modern E-commerce (silver sample)
+            {busy === "gold" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Classic Jewellery (gold sample)
           </Button>
         </div>
       </CardContent>

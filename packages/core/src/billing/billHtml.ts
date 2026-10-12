@@ -7,7 +7,12 @@
  */
 import { formatCurrency } from "../utils/format.js";
 import {
+  estimateLabourTag,
+  estimateRowOf,
+  estimateWeightLayout,
+  materialReturnedTitleOf,
   mergeBillTemplateSettings,
+  nameWithPurity,
   rateRowsOf,
 } from "./billDocument.js";
 import type { BillClassicColor, BillDocument, BillLine, BillTemplateSettings } from "./billDocument.js";
@@ -101,7 +106,7 @@ ${PAGE_CSS}
   .thanks { font-family: 'MunimBill'; font-style: italic; font-size: 13px; color: var(--p); padding-bottom: 4px; }
   .seal { position: relative; width: 194px; }
   .seal img { display: block; width: 100%; height: auto; }
-  .seal-line { position: absolute; left: 30%; right: 13%; top: 72%; border-top: 1.5px solid var(--d); }
+  .seal-line { position: absolute; left: 40%; right: 1.5%; top: 63.6%; border-top: 1.5px solid var(--d); }
 `;
 
 function renderClassicHtml(
@@ -113,12 +118,12 @@ function renderClassicHtml(
   const vars = `--p:${rgb(theme.primary)};--s:${rgb(theme.secondary)};--a:${rgb(theme.accent)};--d:${rgb(theme.dark)}`;
   const showWeight = s.weightAfterName;
   const rates = rateRowHtml(rateRowsOf(bill, s));
-  const hasExtras = bill.deliveryCharge > 0 || bill.discount > 0;
+  const hasExtras = bill.deliveryCharge > 0 || bill.discount > 0 || bill.materialReturnedValue > 0;
 
   const rows = bill.lines
     .map(
       (l, i) => `<tr>
-        <td><span class="pname">${esc(l.productName)}</span>${
+        <td><span class="pname">${esc(nameWithPurity(l))}</span>${
         l.description ? `<div class="pdesc">${esc(l.description)}</div>` : ""
       }</td>
         ${showWeight ? `<td class="c">${weightText(l)}</td>` : ""}
@@ -140,6 +145,13 @@ function renderClassicHtml(
         ${
           bill.discount > 0
             ? `<tr><td>Discount:</td><td class="r money">- ${formatCurrency(bill.discount)}</td></tr>`
+            : ""
+        }
+        ${
+          bill.materialReturnedValue > 0
+            ? `<tr><td>${esc(materialReturnedTitleOf(bill))}${
+                bill.materialReturnedWeight ? ` (${esc(bill.materialReturnedWeight)})` : ""
+              }:</td><td class="r money">- ${formatCurrency(bill.materialReturnedValue)}</td></tr>`
             : ""
         }
       </table>`
@@ -195,100 +207,173 @@ function renderClassicHtml(
 const ECOMMERCE_CSS = `
 ${PAGE_CSS}
   .ecom { background: #fff; color: ${rgb(ecommerceColors.text)}; border: 2px solid ${rgb(ecommerceColors.gold)}; padding: 4px; }
-  .ecom::before { content: ""; }
-  .inner { border: 1px solid ${rgb(ecommerceColors.lightGray)}; outline: 1px solid ${rgb(ecommerceColors.mediumGray)}; outline-offset: -3px; padding: 0 0 14px; }
-  .head { display: flex; justify-content: space-between; gap: 14px; background: ${rgb(ecommerceColors.primary)}; color: #fff; padding: 14px 18px; }
-  .shop { font-size: 24px; font-weight: 700; }
-  .haddr, .htel { color: ${rgb(ecommerceColors.gold)}; font-size: 11px; margin-top: 3px; }
-  .head-r { text-align: right; }
-  .inv { color: ${rgb(ecommerceColors.gold)}; font-size: 26px; font-weight: 700; line-height: 1; }
-  .billno { font-size: 13px; margin-top: 4px; }
-  .bdate { color: ${rgb(ecommerceColors.gold)}; font-size: 11px; margin-top: 3px; }
-  .rate { text-align: right; color: ${rgb(ecommerceColors.goldDark)}; font-weight: 700; font-size: 11px; margin-top: 4px; padding: 0 14px; }
-  .billto { padding: 12px 18px 0; }
-  .billto-label { color: ${rgb(ecommerceColors.gold)}; font-size: 12px; font-weight: 700; display: inline-block; border-bottom: 1px solid ${rgb(ecommerceColors.gold)}; padding-bottom: 2px; }
-  .cname { font-size: 15px; font-weight: 700; color: ${rgb(ecommerceColors.text)}; margin-top: 8px; }
-  .cdetail { font-size: 11px; color: ${rgb(ecommerceColors.mediumGray)}; margin-top: 3px; }
-  table.items { width: calc(100% - 36px); margin: 12px 18px 0; border-collapse: collapse; }
-  table.items th { background: ${rgb(ecommerceColors.lightGray)}; color: ${rgb(ecommerceColors.primary)}; font-size: 11px; padding: 7px 9px; text-align: left; font-weight: 700; border-bottom: 1px solid ${rgb(ecommerceColors.mediumGray)}; }
-  table.items td { padding: 7px 9px; font-size: 12px; border-bottom: 1px solid #eee; }
-  table.items tr.alt td { background: #fcfcfd; }
-  .pname { font-weight: 700; color: ${rgb(ecommerceColors.text)}; }
-  .totals { width: 300px; margin: 12px 18px 0 auto; font-size: 12px; color: ${rgb(ecommerceColors.mediumGray)}; border-collapse: collapse; }
-  .totals td { padding: 3px 6px; }
-  .totalbox { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 300px; margin: 8px 18px 0 auto; background: ${rgb(ecommerceColors.primary)}; color: #fff; border-radius: 8px; padding: 9px 14px; font-weight: 700; font-size: 14px; }
-  .totalbox .amt { color: ${rgb(ecommerceColors.gold)}; font-size: 16px; }
-  .words { margin: 14px 18px 0; font-size: 11px; font-style: italic; color: ${rgb(ecommerceColors.mediumGray)}; }
-  .seal-foot { width: 150px; margin: 14px auto 0; }
+  .inner { border: 1px solid ${rgb(ecommerceColors.lightGray)}; outline: 1px solid ${rgb(ecommerceColors.mediumGray)}; outline-offset: -3px; padding: 8px 5px 14px; }
+  .letterhead { text-align: center; padding-top: 2px; }
+  .letterhead .shop { font-size: 18px; font-weight: 700; color: ${rgb(ecommerceColors.primary)}; line-height: 1.1; }
+  .letterhead .contact { font-size: 10px; color: ${rgb(ecommerceColors.mediumGray)}; margin-top: 3px; }
+  .letterhead .est { font-size: 15px; font-weight: 700; color: ${rgb(ecommerceColors.primary)}; letter-spacing: 4px; margin-top: 7px; }
+  .hbox { display: flex; border: 1px solid ${rgb(ecommerceColors.mediumGray)}; margin-top: 7px; min-height: 62px; }
+  .hb-l { flex: 0 0 58.7%; padding: 5px 8px; border-right: 1px solid ${rgb(ecommerceColors.mediumGray)}; }
+  .hb-r { flex: 1; padding: 5px 8px; text-align: right; }
+  .hb-l .hlabel { font-size: 10.5px; font-weight: 700; color: ${rgb(ecommerceColors.primary)}; display: inline-block; border-bottom: 1px solid ${rgb(ecommerceColors.primary)}; padding-bottom: 2px; }
+  .hb-l .cname { font-size: 13px; font-weight: 700; color: ${rgb(ecommerceColors.text)}; margin-top: 7px; }
+  .hb-l .cdetail { font-size: 10.5px; color: ${rgb(ecommerceColors.mediumGray)}; margin-top: 3px; }
+  .hb-l .phone { font-size: 10.5px; color: ${rgb(ecommerceColors.mediumGray)}; margin-top: 5px; }
+  .hb-l .phone b { color: ${rgb(ecommerceColors.primary)}; margin-right: 6px; }
+  .hb-r .vou { font-size: 11.5px; font-weight: 700; color: ${rgb(ecommerceColors.primary)}; }
+  .hb-r .bdate { font-size: 11.5px; color: ${rgb(ecommerceColors.primary)}; margin-top: 5px; }
+  .hb-r .rate { text-align: right; color: ${rgb(ecommerceColors.goldDark)}; font-weight: 700; font-size: 10px; margin-top: 4px; }
+  table.items { width: 100%; border-collapse: collapse; margin-top: 8px; table-layout: fixed; }
+  table.items th, table.items td { border: 1px solid ${rgb(ecommerceColors.mediumGray)}; padding: 3px 4px; font-size: 10.5px; }
+  table.items th { color: ${rgb(ecommerceColors.primary)}; font-weight: 700; text-align: center; background: transparent; font-size: 9.5px; white-space: nowrap; }
+  table.items th.h-desc { text-align: left; }
+  table.items th.h-amt, table.items td.amt { text-align: right; }
+  table.items td { color: ${rgb(ecommerceColors.text)}; vertical-align: middle; }
+  table.items td.c { text-align: center; }
+  table.items td.num, table.items td.amt { text-align: right; font-variant-numeric: tabular-nums; }
+  .pname { font-weight: 700; }
+  .pdesc { font-size: 9px; font-style: italic; color: ${rgb(ecommerceColors.mediumGray)}; font-weight: 400; margin-top: 2px; }
+  table.items tr.sum td { font-weight: 700; color: ${rgb(ecommerceColors.primary)}; }
+  .adj { width: 65%; margin: 8px 0 0 auto; font-size: 10.5px; color: ${rgb(ecommerceColors.mediumGray)}; border-collapse: collapse; }
+  .adj td { padding: 3px 2px; text-align: right; }
+  .adj td.v { text-align: right; width: 110px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .adj tr.closing td { font-weight: 700; color: ${rgb(ecommerceColors.primary)}; }
+  .words { margin-top: 7px; font-size: 9.5px; font-style: italic; color: ${rgb(ecommerceColors.mediumGray)}; text-align: right; }
+  .seal-foot { position: relative; width: 150px; margin: 14px 10px 0 auto; }
   .seal-foot img { display: block; width: 100%; height: auto; }
-  .foot { margin: 16px 18px 0; padding-top: 8px; border-top: 1px solid ${rgb(ecommerceColors.mediumGray)}; text-align: center; }
+  .seal-foot .seal-line { position: absolute; left: 40%; right: 1.5%; top: 63.6%; border-top: 1px solid ${rgb(ecommerceColors.text)}; }
+  .foot { margin: 16px 5px 0; padding-top: 8px; border-top: 1px solid ${rgb(ecommerceColors.mediumGray)}; text-align: center; }
   .foot .ty { font-size: 11px; font-style: italic; color: ${rgb(ecommerceColors.mediumGray)}; }
   .foot .em { font-size: 10px; color: ${rgb(ecommerceColors.primary)}; margin-top: 4px; }
 `;
 
 function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): string {
-  const showWeight = s.weightAfterName;
   const rates = rateRowHtml(rateRowsOf(bill, s));
 
+  const estNum = (v: number, dp: number): string => v.toFixed(dp);
+
+  // Gold bills keep the G. Wt./N. Wt. pair; silver-only bills show ONE
+  // combined "Weight" column (gross weight is gold-only at this shop). The
+  // Dia/Stn Wt. column (always "-") is gone; "Other Charges" carries the
+  // frozen flat charges summed (nag + povayi + other). Widths total 100% in
+  // both layouts.
+  const split = estimateWeightLayout(bill) === "split";
+
   const rows = bill.lines
-    .map(
-      (l, i) => `<tr${i % 2 === 1 ? ' class="alt"' : ""}>
-        <td><span class="pname">${esc(l.productName)}</span>${
-        l.description ? `<div class="pdesc">${esc(l.description)}</div>` : ""
-      }</td>
-        ${showWeight ? `<td class="c">${weightText(l)}</td>` : ""}
+    .map((l) => {
+      const est = estimateRowOf(l);
+      const weightCells = split
+        ? `<td class="c">${esc(l.grossWeight?.trim() || "-")}</td>
+        <td class="c">${l.weight != null ? estNum(l.weight, 3) : "-"}</td>`
+        : `<td class="c">${l.weight != null ? estNum(l.weight, 3) : esc(l.grossWeight?.trim() || "-")}</td>`;
+      const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(l)}` : "-";
+      return `<tr>
+        <td><span class="pname">${esc(nameWithPurity(l))}</span>${
+          l.description ? `<div class="pdesc">${esc(l.description)}</div>` : ""
+        }</td>
+        ${weightCells}
         <td class="c">${l.quantity}</td>
-        <td class="c money">${formatCurrency(l.price)}</td>
-        <td class="r money"><b>${formatCurrency(l.total)}</b></td>
-      </tr>`,
-    )
+        <td class="num">${estNum(est.rate, 2)}</td>
+        <td class="num">${estNum(est.value, 2)}</td>
+        <td class="num">${labourText}</td>
+        <td class="num">${est.otherCharges != null && est.otherCharges > 0 ? estNum(est.otherCharges, 2) : "-"}</td>
+        <td class="amt"><b>${estNum(l.total, 2)}</b></td>
+      </tr>`;
+    })
     .join("");
+
+  const grossVals = bill.lines.map((l) => parseFloat(l.grossWeight ?? ""));
+  const hasGross = grossVals.some((v) => !Number.isNaN(v));
+  const sumGross = grossVals.reduce<number>((t, v) => t + (Number.isNaN(v) ? 0 : v), 0);
+  const sumWeight = bill.lines.reduce<number>((t, l) => t + (l.weight ?? 0), 0);
+  const labours = bill.lines.map((l) => estimateRowOf(l).labour);
+  const hasLabour = labours.some((v) => v != null);
+  const sumLabour = labours.reduce<number>((t, v) => t + (v ?? 0), 0);
+  const otherChargess = bill.lines.map((l) => estimateRowOf(l).otherCharges);
+  const hasOtherCharges = otherChargess.some((v) => v != null && v > 0);
+  const sumOtherCharges = otherChargess.reduce<number>((t, v) => t + (v != null && v > 0 ? v : 0), 0);
+
+  const adjRows: string[] = [];
+  if (bill.discount > 0) {
+    adjRows.push(`<tr><td>LESS:</td><td class="v">- ${estNum(bill.discount, 2)}</td></tr>`);
+  }
+  if (bill.materialReturnedValue > 0) {
+    adjRows.push(
+      `<tr><td>${esc(materialReturnedTitleOf(bill))}${
+        bill.materialReturnedWeight ? ` (${esc(bill.materialReturnedWeight)})` : ""
+      }:</td><td class="v">- ${estNum(bill.materialReturnedValue, 2)}</td></tr>`,
+    );
+  }
+  if (bill.deliveryCharge > 0) {
+    adjRows.push(`<tr><td>Delivery:</td><td class="v">+ ${estNum(bill.deliveryCharge, 2)}</td></tr>`);
+  }
+  if (bill.amountPaid > 0) {
+    adjRows.push(`<tr><td>RECEIPT CASH:</td><td class="v">- ${estNum(bill.amountPaid, 2)}</td></tr>`);
+  }
+  adjRows.push(
+    `<tr class="closing"><td>Closing Balance:</td><td class="v">${
+      bill.dueAmount > 0 ? estNum(bill.dueAmount, 2) : "NIL"
+    }</td></tr>`,
+  );
 
   return `${docStart(`Bill ${bill.billNo}`, ECOMMERCE_CSS)}
 <div class="ecom">
  <div class="inner">
-  <div class="head">
-    <div class="head-l">
-      <div class="shop">${esc(bill.shop.name)}</div>
-      <div class="haddr">${esc(bill.shop.address ?? "")}</div>
-      <div class="htel">Tel: ${esc(bill.shop.phones.join(" | "))}</div>
-    </div>
-    <div class="head-r">
-      <div class="inv">INVOICE</div>
-      <div class="billno">#${esc(bill.billNo)}</div>
-      <div class="bdate">Date: ${esc(bill.date)}</div>
-    </div>
+  <div class="letterhead">
+    <div class="shop">${esc(bill.shop.name)}</div>
+    <div class="contact">${esc([bill.shop.address ?? "", bill.shop.phones.length ? `Tel: ${bill.shop.phones.join(" | ")}` : ""].filter(Boolean).join("  ·  "))}</div>
+    <div class="est">ESTIMATE</div>
   </div>
-  ${rates}
-  <div class="billto">
-    <span class="billto-label">BILL TO:</span>
-    <div class="cname">${esc(bill.customerName || "-")}</div>
-    ${bill.customerAddress ? `<div class="cdetail">${esc(bill.customerAddress)}</div>` : ""}
-    ${bill.customerPhone ? `<div class="cdetail">${esc(bill.customerPhone)}</div>` : ""}
+  <div class="hbox">
+    <div class="hb-l">
+      <span class="hlabel">Customer Name &amp; Address :</span>
+      <div class="cname">${esc(bill.customerName || "-")}</div>
+      ${bill.customerAddress ? `<div class="cdetail">${esc(bill.customerAddress)}</div>` : ""}
+      <div class="phone"><b>Ph #</b>${bill.customerPhone ? esc(bill.customerPhone) : ""}</div>
+    </div>
+    <div class="hb-r">
+      <div class="vou">Vou.No.: ${esc(bill.billNo)}</div>
+      <div class="bdate">Date : ${esc(bill.date)}</div>
+      ${rates}
+    </div>
   </div>
   <table class="items">
-    <thead><tr>
-      <th>PRODUCT</th>${showWeight ? `<th class="c">WEIGHT</th>` : ""}
-      <th class="c">QTY</th><th class="c">PRICE</th><th class="r">TOTAL</th>
-    </tr></thead>
+    <colgroup>${
+      split
+        ? `<col style="width:23%" /><col style="width:7%" /><col style="width:7%" />
+      <col style="width:4.5%" /><col style="width:8.5%" /><col style="width:9%" />
+      <col style="width:11.5%" /><col style="width:9.5%" /><col style="width:20%" />`
+        : `<col style="width:27%" /><col style="width:9%" /><col style="width:5%" />
+      <col style="width:9%" /><col style="width:10%" /><col style="width:13%" />
+      <col style="width:11%" /><col style="width:16%" />`
+    }</colgroup>
+    <thead><tr>${
+      split
+        ? `<th class="h-desc">Description</th><th>G. Wt.</th><th>N. Wt.</th><th>Pcs.</th>
+      <th>Rate ₹/gm</th><th>Value</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
+        : `<th class="h-desc">Description</th><th>Weight</th><th>Pcs.</th>
+      <th>Rate ₹/gm</th><th>Value</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
+    }</tr></thead>
     <tbody>${rows}</tbody>
+    <tfoot><tr class="sum">
+      <td></td>
+      ${
+        split
+          ? `<td class="c">${hasGross ? estNum(sumGross, 3) : "-"}</td>
+      <td class="c">${estNum(sumWeight, 3)}</td>`
+          : `<td class="c">${estNum(sumWeight, 3)}</td>`
+      }
+      <td></td>
+      <td></td>
+      <td></td>
+      <td class="num">${hasLabour ? estNum(sumLabour, 2) : "-"}</td>
+      <td class="num">${hasOtherCharges ? estNum(sumOtherCharges, 2) : "-"}</td>
+      <td class="amt">${estNum(bill.subtotal, 2)}</td>
+    </tr></tfoot>
   </table>
-  <table class="totals">
-    <tr><td>Subtotal:</td><td class="r money">${formatCurrency(bill.subtotal)}</td></tr>
-    ${
-      bill.deliveryCharge > 0
-        ? `<tr><td>Delivery:</td><td class="r money">${formatCurrency(bill.deliveryCharge)}</td></tr>`
-        : ""
-    }
-    ${
-      bill.discount > 0
-        ? `<tr><td>Discount:</td><td class="r money">- ${formatCurrency(bill.discount)}</td></tr>`
-        : ""
-    }
-  </table>
-  <div class="totalbox"><span>TOTAL</span><span class="amt money">${formatCurrency(bill.total)}</span></div>
-  <div class="words">${esc(bill.amountInWords)}</div>
-  <div class="seal-foot"><img src="${BILL_SEAL_DATA_URI}" alt="" /></div>
+  <table class="adj">${adjRows.join("")}</table>
+  <div class="words">Rs.${esc(bill.amountInWords)}</div>
+  <div class="seal-foot"><img src="${BILL_SEAL_DATA_URI}" alt="" /><span class="seal-line"></span></div>
   <div class="foot">
     <div class="ty">Thank you for your business!</div>
     ${bill.shop.email ? `<div class="em">${esc(bill.shop.email)}</div>` : ""}

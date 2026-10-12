@@ -259,9 +259,11 @@ export const goldRatePerGramSql = sql<number>`coalesce(
 /** Effective silver ₹/gram — the product's OWN `silver_rate_per_gram` when
  *  set, else the shop-wide settings value. SQL twin of the silver branch's
  *  rate lookup in `priceProduct` (a global silver change recalculates every
- *  product without a custom rate on the very next read). 0 → never prices. */
+ *  product without a custom rate on the very next read). A stored 0 counts
+ *  as "no custom rate" (TS: `customRate > 0`), so `nullif(…, 0)` falls
+ *  through to the shop rate; 0 → never prices. */
 export const silverRatePerGramSql = sql<number>`coalesce(
-  ${schema.products.silverRatePerGram},
+  nullif(${schema.products.silverRatePerGram}, 0),
   (select s.silver_rate_per_gram from settings s limit 1),
   0
 )`;

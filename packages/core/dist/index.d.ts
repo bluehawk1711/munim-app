@@ -15,6 +15,7 @@ export * from "./help/pricingGuide.js";
 export * from "./pricing/gold.js";
 export * from "./pricing/labour.js";
 export * from "./pricing/product.js";
+export * from "./pricing/bill-line.js";
 export * from "./pricing/labels.js";
 export { numberToWords, amountInWords } from "./utils/numberToWords.js";
 export { generateSku, generateInvoiceNumber, generateOrderNumber, stripCodePrefix, codeMatches } from "./utils/codes.js";

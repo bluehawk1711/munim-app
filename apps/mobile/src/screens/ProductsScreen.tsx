@@ -2,8 +2,10 @@
  * ProductsScreen — Inventory, redesigned to the swatch-row reference layout.
  *
  * - Custom HomeHeader ("Stock")
- * - Search + scan in one row; filter chips (All / In Stock / Low / Out) with
- *   live counts
+ * - Search + scan in one row with an Add-product icon button beside it;
+ *   filter badges (stock · type · price) in ONE horizontally scrollable row
+ *   with live counts — no floating CTA, no recalculate button, so the list
+ *   gets the screen
  * - FlashList of image-forward product rows: thumbnail, name, variant chip
  *   (Color · Size · weight), price + "Out of stock"/"Cost" line, and a stock
  *   pill on the right ("98 units" / "8 units (Low)" / "0 units")
@@ -16,15 +18,15 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Image,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import Animated, {FadeInUp} from 'react-native-reanimated';
 import {FlashList} from '@shopify/flash-list';
-import {Search, ScanLine, Package, X} from 'lucide-react-native';
+import {Search, ScanLine, Package, Plus, X} from 'lucide-react-native';
 import {SvgXml} from 'react-native-svg';
 import * as Print from 'expo-print';
 import {
@@ -43,7 +45,6 @@ import {
   useProducts,
   useQueryState,
   useSettings,
-  useSyncProductPrices,
 } from '@munim/query';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
 import {rw, rh, rs, typography, spacing, radii, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
@@ -223,7 +224,6 @@ export function ProductsScreen() {
   // Mutations
   const deleteProduct = useDeleteProduct();
   const backfillBarcodes = useBackfillBarcodes();
-  const syncPrices = useSyncProductPrices();
 
   // UI state
   const [detailTarget, setDetailTarget] = useState<ProductDto | null>(null);
@@ -355,7 +355,7 @@ export function ProductsScreen() {
     setLabelBusy(true);
     try {
       const label = buildProductLabel(
-        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, sellingPrice: labelTarget.effectivePrice, labourType: labelTarget.labourType, labourValue: labelTarget.labourValue, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
+        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, type: labelTarget.type, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, purity: labelTarget.purity, sellingPrice: labelTarget.effectivePrice, labourType: labelTarget.labourType, labourValue: labelTarget.labourValue, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
         {name: settings?.shopName ?? ''},
       );
       const html = renderLabelSheetHtml([label], {copies: labelCopies});
@@ -378,21 +378,6 @@ export function ProductsScreen() {
       errorFeedback('Barcode generation failed');
     } finally {
       setBackfilling(false);
-    }
-  }
-
-  async function handleSyncPrices() {
-    try {
-      const r = await syncPrices.mutateAsync();
-      if (r.scanned === 0) {
-        successFeedback('No auto-priced products yet');
-      } else if (r.updated === 0) {
-        successFeedback('Prices already up to date');
-      } else {
-        successFeedback(`Re-priced ${r.updated} of ${r.scanned} products`);
-      }
-    } catch {
-      errorFeedback('Recalculation failed');
     }
   }
 
@@ -425,7 +410,7 @@ export function ProductsScreen() {
   ];
 
   const TYPE_FILTERS: {key: TypeFilter; label: string}[] = [
-    {key: 'all', label: 'All'},
+    {key: 'all', label: 'All types'},
     {key: 'Gold', label: 'Gold'},
     {key: 'Silver', label: 'Silver'},
   ];
@@ -440,104 +425,103 @@ export function ProductsScreen() {
     <Screen>
       <HomeHeader title="Stock" />
 
-      {/* Search + scan row */}
-      <View style={styles.searchWrap}>
-        <Search size={rs(16)} color={colors.muted} style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          value={search}
-          onChangeText={v => { setSearch(v); setPage(1); setAllProducts([]); }}
-          placeholder="Search product name, SKU, barcode…"
-          placeholderTextColor={colors.inputPlaceholder}
-          autoCapitalize="none"
-          autoCorrect={false}
-          returnKeyType="search"
-        />
-        {search ? (
-          <Pressable onPress={() => { setSearch(''); setPage(1); setAllProducts([]); }} style={styles.searchClear} accessibilityLabel="Clear search">
-            <X size={rs(16)} color={colors.muted} />
+      {/* Search + scan row, with add-product icon button beside it */}
+      <View style={styles.searchBarRow}>
+        <View style={styles.searchWrap}>
+          <Search size={rs(16)} color={colors.muted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            value={search}
+            onChangeText={v => { setSearch(v); setPage(1); setAllProducts([]); }}
+            placeholder="Search product name, SKU, barcode…"
+            placeholderTextColor={colors.inputPlaceholder}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {search ? (
+            <Pressable onPress={() => { setSearch(''); setPage(1); setAllProducts([]); }} style={styles.searchClear} accessibilityLabel="Clear search">
+              <X size={rs(16)} color={colors.muted} />
+            </Pressable>
+          ) : null}
+          <Pressable
+            onPress={() => { setScanMsg(''); setScanOpen(true); }}
+            style={({pressed}) => [styles.scanButton, pressed && {opacity: 0.7}]}
+            accessibilityLabel="Scan barcode">
+            <ScanLine size={rs(18)} color={colors.onPrimary} />
           </Pressable>
-        ) : null}
+        </View>
         <Pressable
-          onPress={() => { setScanMsg(''); setScanOpen(true); }}
-          style={({pressed}) => [styles.scanButton, pressed && {opacity: 0.7}]}
-          accessibilityLabel="Scan barcode">
-          <ScanLine size={rs(18)} color={colors.onPrimary} />
+          onPress={openAdd}
+          style={({pressed}) => [styles.addButton, pressed && {opacity: 0.7}]}
+          accessibilityLabel="Add product">
+          <Plus size={rs(20)} color={colors.onPrimary} />
         </Pressable>
       </View>
 
-      {/* Filter chips */}
-      <View style={styles.chipRow}>
-        {FILTERS.map(f => {
-          const active = stockFilter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => {
-                selectionTick();
-                setStockFilter(f.key);
-                setPage(1);
-                setAllProducts([]);
-              }}
-              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
-              {f.key === 'low' && f.count > 0 ? <View style={styles.dotWarning} /> : null}
-              {f.key === 'out' && f.count > 0 ? <View style={styles.dotDanger} /> : null}
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {f.label}
-              </Text>
-              {f.count > 0 ? <Text style={[styles.chipCount, active && styles.chipTextActive]}>{f.count}</Text> : null}
-            </Pressable>
-          );
-        })}
-      </View>
-      <View style={styles.chipRow}>
-        {TYPE_FILTERS.map(f => {
-          const active = typeFilter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => {
-                selectionTick();
-                setTypeFilter(f.key);
-                setPage(1);
-                setAllProducts([]);
-              }}
-              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <View style={styles.chipRow}>
-        {PRICE_FILTERS.map(f => {
-          const active = priceFilter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => {
-                selectionTick();
-                setPriceFilter(f.key);
-                setPage(1);
-                setAllProducts([]);
-              }}
-              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
-              <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                {f.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={{marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm}}>
-        <Button
-          title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
-          variant="outline"
-          onPress={handleSyncPrices}
-          disabled={syncPrices.isPending}
-        />
+      {/* Filter badges — one horizontally scrollable row (stock · type · price) */}
+      <View style={styles.chipScrollWrap}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScrollContent}>
+          {FILTERS.map(f => {
+            const active = stockFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  selectionTick();
+                  setStockFilter(f.key);
+                  setPage(1);
+                  setAllProducts([]);
+                }}
+                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+                {f.key === 'low' && f.count > 0 ? <View style={styles.dotWarning} /> : null}
+                {f.key === 'out' && f.count > 0 ? <View style={styles.dotDanger} /> : null}
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {f.label}
+                </Text>
+                {f.count > 0 ? <Text style={[styles.chipCount, active && styles.chipTextActive]}>{f.count}</Text> : null}
+              </Pressable>
+            );
+          })}
+          <View style={styles.chipDivider} />
+          {TYPE_FILTERS.map(f => {
+            const active = typeFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  selectionTick();
+                  setTypeFilter(f.key);
+                  setPage(1);
+                  setAllProducts([]);
+                }}
+                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+          <View style={styles.chipDivider} />
+          {PRICE_FILTERS.map(f => {
+            const active = priceFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  selectionTick();
+                  setPriceFilter(f.key);
+                  setPage(1);
+                  setAllProducts([]);
+                }}
+                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  {f.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {missingBarcodes ? (
@@ -555,7 +539,7 @@ export function ProductsScreen() {
           data={filtered}
           renderItem={renderItem}
           keyExtractor={keyExtractor}
-          contentContainerStyle={{paddingHorizontal: CARD_MARGIN, paddingBottom: 110, gap: spacing.sm}}
+          contentContainerStyle={{paddingHorizontal: CARD_MARGIN, paddingBottom: spacing.xxxl, gap: spacing.sm}}
           keyboardShouldPersistTaps="handled"
           onEndReached={loadMore}
           onEndReachedThreshold={0.5}
@@ -580,11 +564,6 @@ export function ProductsScreen() {
           }
         />
       )}
-
-      {/* CTA — Add Product */}
-      <Animated.View entering={FadeInUp.duration(320)} style={styles.fab}>
-        <Button title="+ Add Product" onPress={openAdd} />
-      </Animated.View>
 
       {/* Product detail bottom sheet (@gorhom) */}
       <ProductDetailSheet
@@ -722,11 +701,17 @@ const makeRowStyles = () =>
 
 const makeStyles = () =>
   StyleSheet.create({
-    searchWrap: {
+    searchBarRow: {
       flexDirection: 'row',
       alignItems: 'center',
+      gap: spacing.sm,
       marginHorizontal: CARD_MARGIN,
       marginBottom: spacing.sm,
+    },
+    searchWrap: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: radii.full,
@@ -747,12 +732,29 @@ const makeStyles = () =>
       justifyContent: 'center',
       marginLeft: spacing.sm,
     },
-    chipRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: rs(6),
+    addButton: {
+      width: rh(42),
+      height: rh(42),
+      borderRadius: radii.full,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    chipScrollWrap: {
       marginHorizontal: CARD_MARGIN,
       marginBottom: spacing.sm,
+    },
+    chipScrollContent: {
+      gap: rs(6),
+      alignItems: 'center',
+      paddingRight: rs(6),
+    },
+    chipDivider: {
+      width: 1,
+      height: rs(18),
+      backgroundColor: colors.border,
+      marginHorizontal: rs(3),
     },
     chip: {
       flexDirection: 'row',
@@ -788,5 +790,4 @@ const makeStyles = () =>
       borderRadius: radii.full,
       backgroundColor: colors.danger,
     },
-    fab: {position: 'absolute', bottom: rs(32), left: CARD_MARGIN, right: CARD_MARGIN, elevation: 4, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: {width: 0, height: 4}},
   });

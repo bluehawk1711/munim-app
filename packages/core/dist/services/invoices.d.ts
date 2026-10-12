@@ -26,9 +26,17 @@ export type InvoiceItemInput = {
     color?: string;
     size?: string;
     description?: string;
+    /** Metal purity stamp printed beside the name (`p:` prefix). */
+    purity?: string;
+    /** Gross-weight free text snapshot from the product (bill G.Wt. column). */
+    grossWeight?: string;
     /** Product weight + unit snapshot — bill WEIGHT column display only. */
     weight?: number | null;
     weightUnit?: string | null;
+    /** Frozen pricing snapshot computed by the bill screen (reflects its
+     *  per-line rate/labour/charge edits); null/omitted → the server freezes
+     *  its own from the product at save time. */
+    pricing?: schema.InvoiceItemPricing | null;
     quantity: number;
     price: number;
 };
@@ -45,6 +53,8 @@ export type InvoiceInput = {
     materialReturnedWeight?: string;
     /** Monetary value of material returned (deducted from total). */
     materialReturnedValue?: number;
+    /** Per-bill label for the deduction row (blank → "Material Returned"). */
+    materialReturnedTitle?: string;
     notes?: string;
     shopDetails?: {
         name: string;
@@ -80,10 +90,14 @@ export type InvoiceFilters = {
 export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Promise<{
     invoices: {
         items: {
+            description: string | null;
+            pricing: schema.InvoiceItemPricing | null;
             productId: string | null;
             productName: string;
             sku: string | null;
             weightUnit: string | null;
+            grossWeight: string | null;
+            purity: string | null;
             color: string | null;
             size: string | null;
             id: string;
@@ -91,19 +105,7 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
             quantity: number;
             total: number;
             invoiceId: string;
-            description: string | null;
             price: number;
-            pricing: {
-                metal: "Gold" | "Silver";
-                ratePerGram: number;
-                karat?: number | null;
-                silverPercentage?: number | null;
-                weightGm?: number | null;
-                metalValue?: number | null;
-                labourType?: string | null;
-                labourValue?: number | null;
-                labourAmount?: number | null;
-            } | null;
         }[];
         id: string;
         invoiceNumber: string;
@@ -118,6 +120,7 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
         discount: number;
         materialReturnedWeight: string | null;
         materialReturnedValue: number;
+        materialReturnedTitle: string | null;
         total: number;
         amountPaid: number;
         notes: string | null;

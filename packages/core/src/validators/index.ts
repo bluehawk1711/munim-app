@@ -111,6 +111,26 @@ export type SaleFormValues = z.infer<typeof saleSchema>;
 
 /* ── Invoices / bills ─────────────────────────────────────────── */
 
+/** Frozen per-line pricing snapshot (mirrors `InvoiceItemPricing`) — the bill
+ *  screen sends its edited line's snapshot (rate/labour/povayi) so the printed
+ *  bill matches what the operator saw. Omitted → server freezes its own. */
+export const invoiceItemPricingSchema = z.object({
+  metal: z.enum(["Gold", "Silver"]),
+  ratePerGram: z.coerce.number().min(0),
+  karat: z.coerce.number().nullish(),
+  silverPercentage: z.coerce.number().nullish(),
+  weightGm: z.coerce.number().nullish(),
+  metalValue: z.coerce.number().nullish(),
+  labourType: z.string().max(16).nullish(),
+  labourValue: z.coerce.number().nullish(),
+  labourAmount: z.coerce.number().nullish(),
+  povayi: z.coerce.number().nullish(),
+  nag: z.coerce.number().nullish(),
+  other: z.coerce.number().nullish(),
+});
+
+export type InvoiceItemPricingValues = z.infer<typeof invoiceItemPricingSchema>;
+
 export const invoiceItemSchema = z.object({
   productId: z.string().optional(),
   productName: z.string().min(1, "Item name is required"),
@@ -118,10 +138,17 @@ export const invoiceItemSchema = z.object({
   color: z.string().optional(),
   size: z.string().optional(),
   description: z.string().optional(),
+  /** Per-line purity stamp printed beside the name ("22K" / "916" / "925"). */
+  purity: z.string().max(24).optional(),
+  /** Gross-weight free text snapshot from the product (bill G.Wt. column). */
+  grossWeight: z.string().max(30).optional(),
   weight: z.coerce.number().min(0).nullish(),
   weightUnit: z.enum(["gm", "mg"]).nullish(),
   quantity: z.coerce.number().positive("Quantity must be positive"),
   price: z.coerce.number().min(0),
+  /** Client-computed pricing snapshot (per-line rate/labour/charge edits) —
+   *  optional; clients that omit it keep the server-side product freeze. */
+  pricing: invoiceItemPricingSchema.nullish(),
 });
 
 export type InvoiceItemValues = z.infer<typeof invoiceItemSchema>;
@@ -137,6 +164,8 @@ export const invoiceSchema = z.object({
   discount: z.coerce.number().min(0).optional(),
   materialReturnedWeight: z.string().optional(),
   materialReturnedValue: z.coerce.number().min(0).optional(),
+  /** Per-bill label for the deduction row (blank → "Material Returned"). */
+  materialReturnedTitle: z.string().max(60).optional(),
   notes: z.string().optional(),
   shopDetails: z
     .object({

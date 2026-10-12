@@ -87,7 +87,9 @@ export declare const goldRatePerGramSql: import("drizzle-orm").SQL<number>;
 /** Effective silver ₹/gram — the product's OWN `silver_rate_per_gram` when
  *  set, else the shop-wide settings value. SQL twin of the silver branch's
  *  rate lookup in `priceProduct` (a global silver change recalculates every
- *  product without a custom rate on the very next read). 0 → never prices. */
+ *  product without a custom rate on the very next read). A stored 0 counts
+ *  as "no custom rate" (TS: `customRate > 0`), so `nullif(…, 0)` falls
+ *  through to the shop rate; 0 → never prices. */
 export declare const silverRatePerGramSql: import("drizzle-orm").SQL<number>;
 /** Product weight in grams — `weight` is stored in `weightUnit` (mg or gm). */
 export declare const weightGmSql: import("drizzle-orm").SQL<number>;
@@ -153,7 +155,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         povayiRate: number | null;
         otherCharges: number | null;
         goldKarat: number | null;
-        labourType: "PER_GRAM" | "PERCENT" | "FIXED";
+        labourType: "PER_GRAM" | "FIXED" | "PERCENT";
         labourValue: number | null;
         priceMode: "auto" | "manual";
         notes: string | null;
@@ -202,7 +204,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -299,7 +301,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -341,7 +343,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -390,7 +392,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -449,7 +451,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -500,7 +502,7 @@ export declare function findProductByCode(db: DbClient, code: string): Promise<{
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;

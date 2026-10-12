@@ -1,6 +1,13 @@
 import { jsPDF } from "jspdf";
 import { formatCurrency } from "../utils/format.js";
-import { rateRowsOf } from "./billDocument.js";
+import {
+  estimateLabourTag,
+  estimateRowOf,
+  estimateWeightLayout,
+  materialReturnedTitleOf,
+  nameWithPurity,
+  rateRowsOf,
+} from "./billDocument.js";
 import type { BillDocument, BillLine, BillTemplateSettings } from "./billDocument.js";
 import { BILL_FONT_BOLD_B64, BILL_FONT_ITALIC_B64, BILL_FONT_REGULAR_B64 } from "./billFonts.js";
 import { BILL_SEAL_DATA_URI, BILL_SEAL_HEIGHT, BILL_SEAL_WIDTH } from "./billSeal.js";
@@ -9,10 +16,11 @@ import { classicColors, ecommerceColors, type ClassicTheme } from "./billTheme.j
 export type { BillTemplateSettings } from "./billDocument.js";
 
 /**
- * Signature stamp (seal.png, 816x294 transparent PNG) — mm widths per
+ * Signature stamp (seal.png, transparent PNG) — mm widths per
  * template. The stamp carries its own "For M/s. …" header, signature gap and
- * "PROPRIETOR" label; the sign line is drawn INSIDE the gap at 30%..87%
- * width, 72% height of the image box.
+ * "PROPRIETOR" label; the sign line is drawn INSIDE the gap at 40%..98.5%
+ * width, 63.6% height of the image box (new 894x294 stamp: PROPRIETOR sits
+ * at 72%..92.5%, so the line must stay above it).
  */
 const CLASSIC_SEAL_W = 46;
 const ECOM_SEAL_W = 36;
@@ -62,24 +70,30 @@ function weightText(item: BillLine): string {
 }
 
 /**
- * Content height for the e-commerce template (mm, relative to yOffset) —
- * mirrors drawEcommerceBill's fixed layout so the frame hugs the content
- * instead of stretching to the page bottom.
+ * Content height for the e-commerce (ESTIMATE) template (mm, relative to
+ * yOffset) — mirrors drawEcommerceBill's fixed layout so the frame hugs the
+ * content instead of stretching to the page bottom.
  */
 function measureEcommerceBillHeight(
   doc: jsPDF,
   bill: BillDocument,
   contentWidth: number,
 ): number {
-  // Header (3..31) + bill-to (38..57) + table header are fixed; rows start at 76.
-  const totalY = 84 + bill.lines.length * 8;
-  let grandTotalY = totalY + 5;
-  if (bill.deliveryCharge > 0) grandTotalY = totalY + 12;
-  if (bill.discount > 0) grandTotalY += 7;
-  const wordsY = grandTotalY + 16;
+  // Letterhead (3..18) + header box (21..47) + gap + table header (51..58).
+  let tableY = 58;
+  for (const line of bill.lines) tableY += line.description ? 10 : 7;
+  const tableEnd = tableY + 7; // column-totals row
+  // Right-aligned adjustments: Closing Balance always; others when present.
+  let adjRows = 1;
+  if (bill.discount > 0) adjRows += 1;
+  if (bill.materialReturnedValue > 0) adjRows += 1;
+  if (bill.deliveryCharge > 0) adjRows += 1;
+  if (bill.amountPaid > 0) adjRows += 1;
+  const adjEnd = tableEnd + 8 + adjRows * 6;
+  const wordsY = adjEnd + 5;
   doc.setFont("notosans", "italic");
-  const wordsLines = doc.splitTextToSize(bill.amountInWords, contentWidth - 20).length;
-  const contentEnd = Math.max(grandTotalY + 10, wordsY + wordsLines * 3.6);
+  const wordsLines = doc.splitTextToSize(`Rs.${bill.amountInWords}`, contentWidth - 20).length;
+  const contentEnd = Math.max(adjEnd, wordsY + wordsLines * 3.6);
   // Footer zone: separator + thank-you + email + padding (24) plus the
   // signature stamp centered above the separator (seal height + 2mm margin).
   return contentEnd + 24 + ECOM_SEAL_W * SEAL_ASPECT + 2;
@@ -100,10 +114,11 @@ function measureClassicBillHeight(
   let itemY = tableHeaderY + 10;
   for (const line of bill.lines) itemY += line.description ? 14 : 12;
   let totalY = itemY + 6;
-  if (bill.deliveryCharge > 0 || bill.discount > 0) {
+  if (bill.deliveryCharge > 0 || bill.discount > 0 || bill.materialReturnedValue > 0) {
     totalY += 6; // subtotal row
     if (bill.deliveryCharge > 0) totalY += 6;
     if (bill.discount > 0) totalY += 6;
+    if (bill.materialReturnedValue > 0) totalY += 6;
   }
   // Words sit under the GRAND TOTAL box, wrapped to the box width (72mm).
   const wordsY = totalY + 16;
@@ -203,171 +218,250 @@ function drawEcommerceBill(
   doc.setLineWidth(0.3);
   doc.rect(margin + 2, yOffset + 2, contentWidth - 4, billHeight - 4);
 
-  // Header section with dark background
-  doc.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-  doc.rect(margin + 3, yOffset + 3, contentWidth - 6, 28, "F");
-
-  // Company name (left side in header) - WHITE text
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont("notosans", "bold");
-  doc.text(bill.shop.name, margin + 10, yOffset + 15);
-
-  // Company details (smaller, below company name) - GOLD text
-  doc.setFontSize(8);
-  doc.setFont("notosans", "normal");
-  doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-  doc.text(bill.shop.address ?? "", margin + 10, yOffset + 21);
-  doc.text("Tel: " + bill.shop.phones.join(" | "), margin + 10, yOffset + 26);
-
-  // Invoice label (right side in header) - GOLD text
-  doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-  doc.setFontSize(20);
-  doc.setFont("notosans", "bold");
-  doc.text("INVOICE", pageWidth - margin - 10, yOffset + 14, {
-    align: "right",
-  });
-
-  // Invoice number - WHITE text
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text("#" + bill.billNo, pageWidth - margin - 10, yOffset + 21, {
-    align: "right",
-  });
-  doc.setFontSize(8);
-  doc.text("Date: " + bill.date, pageWidth - margin - 10, yOffset + 27, {
-    align: "right",
-  });
-
-  // Rate rows sit directly below the date (per review) — gold accent.
-  rateRowsOf(bill, settings).forEach((row, i) => {
-    doc.setFontSize(8);
-    doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-    money(doc, row, pageWidth - margin - 10, yOffset + 36 + i * 4.5, "right", true);
-  });
-
-  // Bill To section - DARK text for readability
-  const billToY = yOffset + 38;
+  // ── ESTIMATE letterhead ───────────────────────────────────────────────
+  const x0 = margin + 5;
+  const tableW = contentWidth - 10;
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+  doc.setFont("notosans", "bold");
+  doc.setFontSize(13);
+  doc.text(bill.shop.name, pageWidth / 2, yOffset + 9, { align: "center" });
+  doc.setFont("notosans", "normal");
+  doc.setFontSize(7);
+  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
+  const contactBits = [
+    bill.shop.address ?? "",
+    bill.shop.phones.length ? `Tel: ${bill.shop.phones.join(" | ")}` : "",
+  ].filter(Boolean);
+  if (contactBits.length) {
+    doc.text(contactBits.join("  ·  "), pageWidth / 2, yOffset + 13.5, { align: "center" });
+  }
+  doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+  doc.setFont("notosans", "bold");
+  doc.setFontSize(10.5);
+  doc.text("ESTIMATE", pageWidth / 2, yOffset + 19.5, { align: "center", charSpace: 2 });
+
+  // ── Customer / Vou.No. header box (estimate sheet style) ──────────────
+  const boxTop = yOffset + 21;
+  const boxH = 26;
+  doc.setDrawColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
+  doc.setLineWidth(0.4);
+  doc.rect(x0, boxTop, tableW, boxH);
+  doc.line(x0 + 108, boxTop, x0 + 108, boxTop + boxH);
+
+  doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+  doc.setFont("notosans", "bold");
+  doc.setFontSize(7.5);
+  doc.text("Customer Name & Address :", x0 + 3, boxTop + 5);
+  doc.setLineWidth(0.2);
+  doc.line(x0 + 3, boxTop + 6.5, x0 + 44, boxTop + 6.5);
   doc.setFontSize(9);
+  doc.text(bill.customerName || "-", x0 + 3, boxTop + 13);
+  doc.setFont("notosans", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
+  if (bill.customerAddress) doc.text(bill.customerAddress, x0 + 3, boxTop + 18);
+  doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   doc.setFont("notosans", "bold");
-  doc.text("BILL TO:", margin + 10, billToY);
-
-  doc.setDrawColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-  doc.setLineWidth(0.5);
-  doc.line(margin + 10, billToY + 2, margin + 35, billToY + 2);
-
-  // Customer name - larger, bold, dark
-  doc.setFont("notosans", "bold");
-  doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-  doc.setFontSize(11);
-  doc.text(bill.customerName || "-", margin + 10, billToY + 9);
-
-  // Customer details - smaller, gray
-  doc.setFontSize(8);
+  doc.text("Ph #", x0 + 3, boxTop + 23);
   doc.setFont("notosans", "normal");
   doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
-  doc.text(bill.customerAddress ?? "", margin + 10, billToY + 14);
-  doc.text(bill.customerPhone ?? "", margin + 10, billToY + 19);
+  if (bill.customerPhone) doc.text(bill.customerPhone, x0 + 15, boxTop + 23);
 
-  // Items Table Header
-  const tableHeaderY = billToY + 28;
-  doc.setFillColor(colors.lightGray[0], colors.lightGray[1], colors.lightGray[2]);
-  doc.rect(margin + 5, tableHeaderY - 4, contentWidth - 10, 8, "F");
-
+  doc.setFont("notosans", "bold");
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   doc.setFontSize(8);
-  doc.setFont("notosans", "bold");
-  const showWeight = settings.weightAfterName;
-  const weightX = margin + 87;
-  const qtyX = showWeight ? margin + 112 : margin + 105;
-  const priceX = showWeight ? margin + 137 : margin + 130;
-  doc.text("PRODUCT", margin + 10, tableHeaderY);
-  if (showWeight) doc.text("WEIGHT", weightX, tableHeaderY, { align: "center" });
-  doc.text("QTY", qtyX, tableHeaderY, { align: "center" });
-  doc.text("PRICE", priceX, tableHeaderY, { align: "center" });
-  doc.text("TOTAL", pageWidth - margin - 15, tableHeaderY, { align: "right" });
-
-  // Items - DARK text
+  doc.text(`Vou.No.: ${bill.billNo}`, x0 + 111, boxTop + 5);
   doc.setFont("notosans", "normal");
-  let itemY = tableHeaderY + 10;
-  const rowHeight = 8;
-
-  bill.lines.forEach((item, index) => {
-    // Alternate row background
-    if (index % 2 === 1) {
-      doc.setFillColor(252, 252, 253);
-      doc.rect(margin + 5, itemY - 4, contentWidth - 10, rowHeight, "F");
-    }
-
-    // Product Name - Bold, Dark
-    doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-    doc.setFontSize(9);
-    doc.setFont("notosans", "bold");
-    doc.text(item.productName || "-", margin + 10, itemY);
-
-    // Quantity - Normal, Gray
-    doc.setFont("notosans", "normal");
-    doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
-    if (showWeight) {
-      doc.text(weightText(item), weightX, itemY, { align: "center" });
-    }
-    doc.text(item.quantity.toString(), qtyX, itemY, {
-      align: "center",
-    });
-
-    // Price - Normal, Gray
-    money(doc, formatCurrency(item.price), priceX, itemY, "center");
-
-    // Total - Bold, Dark (from the shared model)
-    doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-    money(doc, formatCurrency(item.total), pageWidth - margin - 15, itemY, "right", true);
-
-    itemY += rowHeight;
+  doc.text(`Date : ${bill.date}`, x0 + 111, boxTop + 11);
+  rateRowsOf(bill, settings).forEach((row, i) => {
+    doc.setFontSize(7);
+    doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
+    money(doc, row, x0 + tableW - 3, boxTop + 17 + i * 4.5, "right", true);
   });
 
-  // Totals section (values come from core's BillDocument)
-  const subtotal = bill.subtotal;
+  // ── Estimate items table (full grid, estimate-sheet columns) ──────────
+  // Gold bills keep the G. Wt./N. Wt. pair; silver-only bills show ONE
+  // combined "Weight" column (gross weight is gold-only at this shop). The
+  // old Dia/Stn Wt. column (always "-") is gone; "Other Charges" carries the
+  // frozen flat charges summed (nag + povayi + other). Both layouts total
+  // the same 184mm table width.
+  const tableTop = yOffset + 51;
+  const split = estimateWeightLayout(bill) === "split";
+  const colW = split
+    ? [48, 15, 15, 9, 18, 18, 19, 17, 25]
+    : [55, 18, 9, 18, 20, 21, 18, 25];
+  const colX: number[] = [];
+  {
+    let acc = x0;
+    for (const w of colW) {
+      colX.push(acc);
+      acc += w;
+    }
+  }
+  const headers = split
+    ? ["Description", "G. Wt.", "N. Wt.", "Pcs.", "Rate ₹/gm", "Value", "Labour", "Other Charges", "Amount (Rupees)"]
+    : ["Description", "Weight", "Pcs.", "Rate ₹/gm", "Value", "Labour", "Other Charges", "Amount (Rupees)"];
+  const iQty = split ? 3 : 2;
+  const iRate = iQty + 1;
+  const iValue = iRate + 1;
+  const iLabour = iValue + 1;
+  const iOtherCharges = iLabour + 1;
+  const iAmount = iOtherCharges + 1;
+  const lastCol = colW.length - 1;
+  const gray = colors.mediumGray;
+  doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+  doc.setFont("notosans", "bold");
+  doc.setFontSize(7.5);
+  headers.forEach((h, c) => {
+    // Shrink headers ("Amount (Rupees)", "Rate ₹/gm") to stay on one line.
+    let fs = 7.5;
+    doc.setFontSize(fs);
+    const avail = (colW[c] ?? 0) - (c === 0 || c === lastCol ? 4 : 2);
+    while (fs > 5.5 && doc.getTextWidth(h) > avail) {
+      fs -= 0.5;
+      doc.setFontSize(fs);
+    }
+    if (c === 0) doc.text(h, colX[0]! + 2, tableTop + 4.7);
+    else if (c === lastCol) doc.text(h, colX[lastCol]! + colW[lastCol]! - 2, tableTop + 4.7, { align: "right" });
+    else doc.text(h, colX[c]! + colW[c]! / 2, tableTop + 4.7, { align: "center" });
+  });
+  doc.setFontSize(8);
+
+  const estNum = (v: number, dp: number): string => v.toFixed(dp);
+  const rowTops: number[] = [];
+  let itemY = tableTop + 7;
+
+  bill.lines.forEach((item) => {
+    rowTops.push(itemY);
+    const rowH = item.description ? 10 : 7;
+    const baseY = itemY + 4.5;
+    // Description: name + (purity), with the optional description under it.
+    // Shrink the font when the name would cross the next column's border.
+    const label = nameWithPurity(item);
+    let nameSize = 8.5;
+    doc.setFont("notosans", "bold");
+    doc.setFontSize(nameSize);
+    const availW = colW[0]! - 4;
+    while (nameSize > 6.5 && doc.getTextWidth(label) > availW) {
+      nameSize -= 0.5;
+      doc.setFontSize(nameSize);
+    }
+    doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+    doc.text(label, colX[0]! + 2, itemY + 4);
+    if (item.description) {
+      doc.setFont("notosans", "italic");
+      doc.setFontSize(6.5);
+      doc.setTextColor(gray[0], gray[1], gray[2]);
+      doc.text(item.description, colX[0]! + 2, itemY + 8.3);
+    }
+    doc.setFont("notosans", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+    if (split) {
+      doc.text(item.grossWeight?.trim() || "-", colX[1]! + colW[1]! / 2, baseY, { align: "center" });
+      doc.text(item.weight != null ? estNum(item.weight, 3) : "-", colX[2]! + colW[2]! / 2, baseY, { align: "center" });
+    } else {
+      // Silver-only bills: ONE combined Weight column (the priced weight,
+      // falling back to the gross text when no weight snapshot was frozen).
+      const combined = item.weight != null ? estNum(item.weight, 3) : (item.grossWeight?.trim() || "-");
+      doc.text(combined, colX[1]! + colW[1]! / 2, baseY, { align: "center" });
+    }
+    doc.text(String(item.quantity), colX[iQty]! + colW[iQty]! / 2, baseY, { align: "center" });
+    const est = estimateRowOf(item);
+    doc.text(estNum(est.rate, 2), colX[iRate]! + colW[iRate]! - 2, baseY, { align: "right" });
+    doc.text(estNum(est.value, 2), colX[iValue]! + colW[iValue]! - 2, baseY, { align: "right" });
+    // Labour ₹ + method tag — "(fixed)" / "(11.82/gm)" / "(2.5%)" — shrunk
+    // so a tagged amount still stays inside its column rules.
+    const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(item)}` : "-";
+    let labourSize = 8;
+    doc.setFontSize(labourSize);
+    while (labourSize > 6 && doc.getTextWidth(labourText) > (colW[iLabour] ?? 0) - 2) {
+      labourSize -= 0.5;
+      doc.setFontSize(labourSize);
+    }
+    doc.text(labourText, colX[iLabour]! + colW[iLabour]! - 2, baseY, { align: "right" });
+    doc.setFontSize(8);
+    doc.text(est.otherCharges != null && est.otherCharges > 0 ? estNum(est.otherCharges, 2) : "-", colX[iOtherCharges]! + colW[iOtherCharges]! - 2, baseY, { align: "right" });
+    doc.setFont("notosans", "bold");
+    doc.text(estNum(item.total, 2), colX[iAmount]! + colW[iAmount]! - 2, baseY, { align: "right" });
+    itemY += rowH;
+  });
+
+  // ── Column totals row (weights · labour · other charges · amount) ─────
+  const grossVals = bill.lines.map((l) => parseFloat(l.grossWeight ?? ""));
+  const hasGross = grossVals.some((v) => !Number.isNaN(v));
+  const sumGross = grossVals.reduce((s, v) => s + (Number.isNaN(v) ? 0 : v), 0);
+  const sumWeight = bill.lines.reduce((s, l) => s + (l.weight ?? 0), 0);
+  const labours = bill.lines.map((l) => estimateRowOf(l).labour);
+  const hasLabour = labours.some((v) => v != null);
+  const sumLabour = labours.reduce<number>((s, v) => s + (v ?? 0), 0);
+  const otherChargess = bill.lines.map((l) => estimateRowOf(l).otherCharges);
+  const hasOtherCharges = otherChargess.some((v) => v != null && v > 0);
+  const sumOtherCharges = otherChargess.reduce<number>((s, v) => s + (v != null && v > 0 ? v : 0), 0);
+  const totalsTop = itemY;
+
+  doc.setFont("notosans", "bold");
+  doc.setFontSize(8);
+  doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+  if (split) {
+    doc.text(hasGross ? estNum(sumGross, 3) : "-", colX[1]! + colW[1]! / 2, totalsTop + 4.5, { align: "center" });
+    doc.text(estNum(sumWeight, 3), colX[2]! + colW[2]! / 2, totalsTop + 4.5, { align: "center" });
+  } else {
+    doc.text(estNum(sumWeight, 3), colX[1]! + colW[1]! / 2, totalsTop + 4.5, { align: "center" });
+  }
+  doc.text(hasLabour ? estNum(sumLabour, 2) : "-", colX[iLabour]! + colW[iLabour]! - 2, totalsTop + 4.5, { align: "right" });
+  doc.text(hasOtherCharges ? estNum(sumOtherCharges, 2) : "-", colX[iOtherCharges]! + colW[iOtherCharges]! - 2, totalsTop + 4.5, { align: "right" });
+  doc.text(estNum(bill.subtotal, 2), colX[iAmount]! + colW[iAmount]! - 2, totalsTop + 4.5, { align: "right" });
+  const tableEnd = totalsTop + 7;
+
+  // Full grid over the table.
+  doc.setDrawColor(gray[0], gray[1], gray[2]);
+  doc.setLineWidth(0.3);
+  doc.rect(x0, tableTop, tableW, tableEnd - tableTop);
+  doc.line(x0, tableTop + 7, x0 + tableW, tableTop + 7);
+  for (const top of rowTops) doc.line(x0, top, x0 + tableW, top);
+  doc.line(x0, totalsTop, x0 + tableW, totalsTop);
+  for (let c = 1; c < colW.length; c += 1) doc.line(colX[c]!, tableTop, colX[c]!, tableEnd);
+
+  // ── Adjustments block (estimate style: LESS / RECEIPT CASH / CLOSING) ─
   const deliveryCharge = bill.deliveryCharge;
   const discount = bill.discount;
-  const grandTotal = bill.total;
 
-  const totalY = itemY + 8;
-
-  doc.setDrawColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-  doc.setLineWidth(0.3);
-  doc.line(pageWidth - margin - 80, totalY - 8, pageWidth - margin - 10, totalY - 8);
-
-  // Subtotal row
-  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
-  doc.setFontSize(8);
+  const valX = x0 + tableW - 2;
+  let adjY = tableEnd + 8;
   doc.setFont("notosans", "normal");
-  doc.text("Subtotal:", pageWidth - margin - 60, totalY - 2);
-  money(doc, formatCurrency(subtotal), pageWidth - margin - 15, totalY - 2, "right");
-
-  let grandTotalY = totalY + 5;
-  if (deliveryCharge > 0) {
-    doc.text("Delivery:", pageWidth - margin - 60, totalY + 4);
-    money(doc, formatCurrency(deliveryCharge), pageWidth - margin - 15, totalY + 4, "right");
-    grandTotalY = totalY + 12;
+  doc.setFontSize(8);
+  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
+  const adjRow = (label: string, value: string, bold = false) => {
+    doc.setFont("notosans", bold ? "bold" : "normal");
+    // Right-align the label to the value column so long custom titles
+    // (up to 60 chars) never run into the amount.
+    doc.text(label, valX - doc.getTextWidth(value) - 4, adjY, { align: "right" });
+    doc.text(value, valX, adjY, { align: "right" });
+    adjY += 6;
+  };
+  if (discount > 0) adjRow("LESS:", `- ${estNum(discount, 2)}`);
+  if (bill.materialReturnedValue > 0) {
+    const matLabel = `${materialReturnedTitleOf(bill)}${
+      bill.materialReturnedWeight ? ` (${bill.materialReturnedWeight})` : ""
+    }`;
+    adjRow(`${matLabel}:`, `- ${estNum(bill.materialReturnedValue, 2)}`);
   }
-  if (discount > 0) {
-    doc.text("Discount:", pageWidth - margin - 60, grandTotalY);
-    money(doc, `- ${formatCurrency(discount)}`, pageWidth - margin - 15, grandTotalY, "right");
-    grandTotalY += 7;
-  }
+  if (deliveryCharge > 0) adjRow("Delivery:", `+ ${estNum(deliveryCharge, 2)}`);
+  if (bill.amountPaid > 0) adjRow("RECEIPT CASH:", `- ${estNum(bill.amountPaid, 2)}`);
+  doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
+  adjRow("Closing Balance:", bill.dueAmount > 0 ? estNum(bill.dueAmount, 2) : "NIL", true);
 
-  // Grand Total box
-  doc.setFillColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-  doc.roundedRect(pageWidth - margin - 70, grandTotalY - 2, 60, 12, 2, 2, "F");
-
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(9);
-  doc.setFont("notosans", "bold");
-  doc.text("TOTAL", pageWidth - margin - 65, grandTotalY + 5);
-  doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-  doc.setFontSize(11);
-  money(doc, formatCurrency(grandTotal), pageWidth - margin - 15, grandTotalY + 6, "right", true);
+  // Amount in words — right-aligned directly under the adjustments block so
+  // the price-in-words sits with the prices it describes (review: "place the
+  // text price more correctly"), directly above the seal.
+  const wordsY = adjY + 5;
+  doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
+  doc.setFontSize(6.5);
+  doc.setFont("notosans", "italic");
+  // amountInWords already ends with "Only" — just prefix Rs.
+  const words = doc.splitTextToSize(`Rs.${bill.amountInWords}`, contentWidth - 20) as string[];
+  doc.text(words, valX, wordsY, { align: "right" });
 
   // Footer
   const footerY = yOffset + billHeight - 12;
@@ -389,27 +483,18 @@ function drawEcommerceBill(
     align: "center",
   });
 
-  // Amount in words (shared, from core) — only if there is room
-  const wordsY = grandTotalY + 16;
-  if (wordsY + 12 < footerY) {
-    doc.setTextColor(colors.mediumGray[0], colors.mediumGray[1], colors.mediumGray[2]);
-    doc.setFontSize(6.5);
-    doc.setFont("notosans", "italic");
-    const words = doc.splitTextToSize(bill.amountInWords, contentWidth - 20) as string[];
-    doc.text(words, margin + 10, wordsY);
-  }
-
-  // Signature stamp (seal.png) — centered above the footer separator.
+  // Signature stamp (seal.png) — right-aligned above the footer separator
+  // (matching Classic's placement), with the sign line drawn inside the
+  // stamp's blank signature gap (as Classic does).
   const sealW = ECOM_SEAL_W;
   const sealH = sealW * SEAL_ASPECT;
-  doc.addImage(
-    BILL_SEAL_DATA_URI,
-    "PNG",
-    (pageWidth - sealW) / 2,
-    yOffset + billHeight - 15 - 2 - sealH,
-    sealW,
-    sealH,
-  );
+  const sealX = pageWidth - margin - 10 - sealW;
+  const sealY = yOffset + billHeight - 15 - 2 - sealH;
+  doc.addImage(BILL_SEAL_DATA_URI, "PNG", sealX, sealY, sealW, sealH);
+  const signLineY = sealY + 0.636 * sealH;
+  doc.setDrawColor(colors.text[0], colors.text[1], colors.text[2]);
+  doc.setLineWidth(0.3);
+  doc.line(sealX + 0.4 * sealW, signLineY, sealX + 0.985 * sealW, signLineY);
 }
 
 function drawClassicJewelleryBill(
@@ -560,10 +645,20 @@ function drawClassicJewelleryBill(
       doc.line(margin + 8, itemY - rowHeight / 2, pageWidth - margin - 8, itemY - rowHeight / 2);
     }
 
-    // Product name (bold)
+    // Product name (bold) with the (purity) suffix beside it
     doc.setFontSize(10);
     doc.setFont("notosans", "bold");
-    doc.text(item.productName || "-", margin + 12, itemY);
+    const displayName = item.productName || "-";
+    doc.text(displayName, margin + 12, itemY);
+    const itemPurity = item.purity?.trim();
+    if (itemPurity) {
+      const nameW = doc.getTextWidth(displayName);
+      doc.setFont("notosans", "normal");
+      doc.setFontSize(9);
+      doc.text(` (${itemPurity})`, margin + 13 + nameW, itemY);
+      doc.setFont("notosans", "bold");
+      doc.setFontSize(10);
+    }
 
     // Description (smaller, italic)
     if (item.description) {
@@ -598,7 +693,7 @@ function drawClassicJewelleryBill(
   let totalY = itemY + 6;
 
   // Show subtotal + extras when there are extras
-  if (deliveryCharge > 0 || discount > 0) {
+  if (deliveryCharge > 0 || discount > 0 || bill.materialReturnedValue > 0) {
     doc.setTextColor(dark[0], dark[1], dark[2]);
     doc.setFontSize(10);
     doc.setFont("notosans", "normal");
@@ -613,6 +708,18 @@ function drawClassicJewelleryBill(
     if (discount > 0) {
       doc.text("Discount:", pageWidth - margin - 55, totalY);
       money(doc, `- ${formatCurrency(discount)}`, pageWidth - margin - 12, totalY, "right");
+      totalY += 6;
+    }
+    if (bill.materialReturnedValue > 0) {
+      const matLabel = `${materialReturnedTitleOf(bill)}${
+        bill.materialReturnedWeight ? ` (${bill.materialReturnedWeight})` : ""
+      }`;
+      const matVal = `- ${formatCurrency(bill.materialReturnedValue)}`;
+      const matValX = pageWidth - margin - 12;
+      // Right-align the label to the value column so long custom titles
+      // (up to 60 chars) never run into the amount.
+      doc.text(`${matLabel}:`, matValX - doc.getTextWidth(matVal) - 4, totalY, { align: "right" });
+      money(doc, matVal, matValX, totalY, "right");
       totalY += 6;
     }
   }
@@ -653,12 +760,12 @@ function drawClassicJewelleryBill(
   const sealH = sealW * SEAL_ASPECT;
   const lineY = signatureY + 8;
   const sealX = pageWidth - margin - 10 - sealW;
-  const sealY = lineY - 0.72 * sealH;
+  const sealY = lineY - 0.636 * sealH;
   doc.addImage(BILL_SEAL_DATA_URI, "PNG", sealX, sealY, sealW, sealH);
   // Sign line inside the stamp's blank gap, just above PROPRIETOR.
   doc.setDrawColor(dark[0], dark[1], dark[2]);
   doc.setLineWidth(0.3);
-  doc.line(sealX + 0.3 * sealW, lineY, sealX + 0.87 * sealW, lineY);
+  doc.line(sealX + 0.4 * sealW, lineY, sealX + 0.985 * sealW, lineY);
 
   // Footer note
   doc.setTextColor(primary[0], primary[1], primary[2]);

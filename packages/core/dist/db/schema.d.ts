@@ -693,7 +693,7 @@ export declare const products: import("drizzle-orm/pg-core").PgTableWithColumns<
             tableName: "products";
             dataType: "string";
             columnType: "PgText";
-            data: "PER_GRAM" | "PERCENT" | "FIXED";
+            data: "PER_GRAM" | "FIXED" | "PERCENT";
             driverParam: string;
             notNull: true;
             hasDefault: true;
@@ -1555,6 +1555,23 @@ export declare const invoices: import("drizzle-orm/pg-core").PgTableWithColumns<
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        materialReturnedTitle: import("drizzle-orm/pg-core").PgColumn<{
+            name: "material_returned_title";
+            tableName: "invoices";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         total: import("drizzle-orm/pg-core").PgColumn<{
             name: "total";
             tableName: "invoices";
@@ -1725,6 +1742,25 @@ export declare const invoices: import("drizzle-orm/pg-core").PgTableWithColumns<
     };
     dialect: "pg";
 }>;
+/** Frozen pricing inputs snapshotted on an invoice line at sale time. */
+export type InvoiceItemPricing = {
+    metal: "Gold" | "Silver";
+    ratePerGram: number;
+    karat?: number | null;
+    silverPercentage?: number | null;
+    weightGm?: number | null;
+    metalValue?: number | null;
+    labourType?: string | null;
+    labourValue?: number | null;
+    labourAmount?: number | null;
+    /** Frozen flat ₹ povayi charge included in this line's price. */
+    povayi?: number | null;
+    /** Frozen flat ₹ nag charge included in this line's price (gold-only —
+     *  silver's engine ignores nag, so silver snapshots leave it null). */
+    nag?: number | null;
+    /** Frozen flat ₹ other charges included in this line's price. */
+    other?: number | null;
+};
 export declare const invoiceItems: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "invoice_items";
     schema: undefined;
@@ -1865,6 +1901,40 @@ export declare const invoiceItems: import("drizzle-orm/pg-core").PgTableWithColu
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        purity: import("drizzle-orm/pg-core").PgColumn<{
+            name: "purity";
+            tableName: "invoice_items";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        grossWeight: import("drizzle-orm/pg-core").PgColumn<{
+            name: "gross_weight";
+            tableName: "invoice_items";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         weight: import("drizzle-orm/pg-core").PgColumn<{
             name: "weight";
             tableName: "invoice_items";
@@ -1955,17 +2025,7 @@ export declare const invoiceItems: import("drizzle-orm/pg-core").PgTableWithColu
             tableName: "invoice_items";
             dataType: "json";
             columnType: "PgJson";
-            data: {
-                metal: "Gold" | "Silver";
-                ratePerGram: number;
-                karat?: number | null;
-                silverPercentage?: number | null;
-                weightGm?: number | null;
-                metalValue?: number | null;
-                labourType?: string | null;
-                labourValue?: number | null;
-                labourAmount?: number | null;
-            } | null;
+            data: InvoiceItemPricing | null;
             driverParam: unknown;
             notNull: false;
             hasDefault: false;
@@ -1977,17 +2037,7 @@ export declare const invoiceItems: import("drizzle-orm/pg-core").PgTableWithColu
             identity: undefined;
             generated: undefined;
         }, {}, {
-            $type: {
-                metal: "Gold" | "Silver";
-                ratePerGram: number;
-                karat?: number | null;
-                silverPercentage?: number | null;
-                weightGm?: number | null;
-                metalValue?: number | null;
-                labourType?: string | null;
-                labourValue?: number | null;
-                labourAmount?: number | null;
-            } | null;
+            $type: InvoiceItemPricing | null;
         }>;
     };
     dialect: "pg";
@@ -2995,7 +3045,7 @@ export declare const settings: import("drizzle-orm/pg-core").PgTableWithColumns<
             tableName: "settings";
             dataType: "string";
             columnType: "PgText";
-            data: "PER_GRAM" | "PERCENT" | "FIXED";
+            data: "PER_GRAM" | "FIXED" | "PERCENT";
             driverParam: string;
             notNull: true;
             hasDefault: true;

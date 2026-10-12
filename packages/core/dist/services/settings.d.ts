@@ -40,7 +40,7 @@ export declare function getSettings(db: DbClient): Promise<{
     defaultTemplate: Record<string, unknown>;
     theme: string;
     allowZeroTotal: boolean;
-    defaultLabourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    defaultLabourType: "PER_GRAM" | "FIXED" | "PERCENT";
     defaultLabourValue: number;
     rateDisplayUnit: "gm" | "10gm";
 }>;
@@ -56,7 +56,7 @@ export declare function updateSettings(db: DbClient, input: ShopSettingsInput): 
     theme: string;
     mode: string;
     allowZeroTotal: boolean;
-    defaultLabourType: "PER_GRAM" | "PERCENT" | "FIXED";
+    defaultLabourType: "PER_GRAM" | "FIXED" | "PERCENT";
     defaultLabourValue: number;
     silverRatePerGram: number;
     rateDisplayUnit: "gm" | "10gm";

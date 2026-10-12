@@ -243,6 +243,8 @@ export const invoices = pgTable(
     materialReturnedWeight: text("material_returned_weight"),
     /** Monetary value of material returned (deducted from total). */
     materialReturnedValue: doublePrecision("material_returned_value").notNull().default(0),
+    /** Per-bill label for the deduction row (null → "Material Returned"). */
+    materialReturnedTitle: text("material_returned_title"),
     total: doublePrecision("total").notNull().default(0),
     amountPaid: doublePrecision("amount_paid").notNull().default(0),
     notes: text("notes"),
@@ -270,6 +272,26 @@ export const invoices = pgTable(
   ],
 );
 
+/** Frozen pricing inputs snapshotted on an invoice line at sale time. */
+export type InvoiceItemPricing = {
+  metal: "Gold" | "Silver";
+  ratePerGram: number;
+  karat?: number | null;
+  silverPercentage?: number | null;
+  weightGm?: number | null;
+  metalValue?: number | null;
+  labourType?: string | null;
+  labourValue?: number | null;
+  labourAmount?: number | null;
+  /** Frozen flat ₹ povayi charge included in this line's price. */
+  povayi?: number | null;
+  /** Frozen flat ₹ nag charge included in this line's price (gold-only —
+   *  silver's engine ignores nag, so silver snapshots leave it null). */
+  nag?: number | null;
+  /** Frozen flat ₹ other charges included in this line's price. */
+  other?: number | null;
+};
+
 export const invoiceItems = pgTable(
   "invoice_items",
   {
@@ -281,6 +303,11 @@ export const invoiceItems = pgTable(
     color: text("color"),
     size: text("size"),
     description: text("description"),
+    /** Metal purity stamp for the bill's description ("22K", "916", "925"…)
+     *  — editable per line on the bill screen, defaulted from the product. */
+    purity: text("purity"),
+    /** Gross-weight free-text snapshot from the product (bill G.Wt. column). */
+    grossWeight: text("gross_weight"),
     /** Product weight + unit snapshot — drives the bill's WEIGHT column. */
     weight: doublePrecision("weight"),
     weightUnit: text("weight_unit"),
@@ -290,17 +317,7 @@ export const invoiceItems = pgTable(
     /** Frozen pricing inputs at sale time (rate used, labour method + amount,
      *  metal value) so a reprint can explain the number even after gold/silver
      *  rates change. NULL for legacy/manual lines — `price` stays authoritative. */
-    pricing: json("pricing").$type<{
-      metal: "Gold" | "Silver";
-      ratePerGram: number;
-      karat?: number | null;
-      silverPercentage?: number | null;
-      weightGm?: number | null;
-      metalValue?: number | null;
-      labourType?: string | null;
-      labourValue?: number | null;
-      labourAmount?: number | null;
-    } | null>(),
+    pricing: json("pricing").$type<InvoiceItemPricing | null>(),
   },
   (t) => [index("invoice_items_invoice_idx").on(t.invoiceId)],
 );

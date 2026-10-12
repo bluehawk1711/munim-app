@@ -17,6 +17,7 @@ import {type PartyBalanceDto} from '@munim/core';
 import type BottomSheet from '@gorhom/bottom-sheet';
 import {
   useCreateAdvance,
+  useCreateParty,
   useParties,
   useParty,
   usePartyBalances,
@@ -46,6 +47,8 @@ type Action = {party: PartyBalanceDto; kind: ActionKind};
 type BalanceFilter = 'all' | 'get' | 'give' | 'settled';
 
 const TYPE_LABELS: Record<string, string> = {CUSTOMER: 'Customer', SUPPLIER: 'Supplier', WORKER: 'Worker', OTHER: 'Other'};
+
+type PartyType = 'CUSTOMER' | 'SUPPLIER' | 'WORKER' | 'OTHER';
 
 export function AdvancesScreen() {
   const styles = useThemeStyles(makeStyles);
@@ -87,6 +90,14 @@ export function AdvancesScreen() {
 
   const createAdvance = useCreateAdvance();
   const recordPartyPayment = useRecordPartyPayment();
+
+  // Add party (ported from PartiesScreen — the Khata tab is this screen).
+  const [addOpen, setAddOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newType, setNewType] = useState<PartyType>('CUSTOMER');
+  const [adding, setAdding] = useState(false);
+  const createParty = useCreateParty();
 
   const receivables = useMemo(() => (balances ?? []).filter(p => p.balance > 0.001), [balances]);
   const payables = useMemo(() => (balances ?? []).filter(p => p.balance < -0.001), [balances]);
@@ -148,6 +159,34 @@ export function AdvancesScreen() {
     }
   }
 
+  function openAddParty() {
+    setNewName('');
+    setNewPhone('');
+    setNewType('CUSTOMER');
+    setAddOpen(true);
+  }
+
+  async function handleAddParty() {
+    if (!newName.trim()) return;
+    setAdding(true);
+    try {
+      await createParty.mutateAsync({
+        name: newName.trim(),
+        phone: newPhone.trim() || undefined,
+        type: newType,
+      });
+      successFeedback(`${newName} added to khata`);
+      setAddOpen(false);
+      setNewName('');
+      setNewPhone('');
+      setNewType('CUSTOMER');
+    } catch {
+      errorFeedback('Failed to add party');
+    } finally {
+      setAdding(false);
+    }
+  }
+
   const actionTitle = action?.kind === 'GIVEN' ? 'Give advance' : action?.kind === 'TAKEN' ? 'Take advance' : action?.kind === 'PAYMENT_IN' ? 'Receive payment' : 'Make payment';
 
   const renderPartyCard = ({item, type}: {item: PartyBalanceDto; type: 'receivable' | 'payable' | 'settled'}) => (
@@ -184,7 +223,7 @@ export function AdvancesScreen() {
 
   return (
     <Screen>
-      <HomeHeader title="Khata & Advance" />
+      <HomeHeader title="Khata & Advance" addLabel="Add party" onAddPress={openAddParty} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -267,7 +306,10 @@ export function AdvancesScreen() {
         ) : error ? (
           <Empty text={error} />
         ) : filteredParties.length === 0 ? (
-          <Empty text={filter === 'all' ? 'No parties yet.' : `No ${filter === 'get' ? "receivables" : filter === 'give' ? "payables" : "settled parties"}.`} />
+          <Empty
+            text={filter === 'all' ? 'No parties yet.' : `No ${filter === 'get' ? "receivables" : filter === 'give' ? "payables" : "settled parties"}.`}
+            action={filter === 'all' ? {label: 'Add party', onPress: openAddParty} : undefined}
+          />
         ) : (
           <Card style={{marginHorizontal: CARD_MARGIN}} index={1}>
             <View style={styles.khataHeader}>
@@ -302,6 +344,15 @@ export function AdvancesScreen() {
           )}
           keyExtractor={item => item.id}
         />
+      </ModalSheet>
+
+      {/* Add party — centered modal (ported from PartiesScreen; the Khata tab
+          is this screen, so the add flow lives here.) */}
+      <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)} dismissable={!adding} centered>
+        <Field label="Name" value={newName} onChangeText={setNewName} placeholder="e.g. Ramesh" />
+        <Field label="Phone" value={newPhone} onChangeText={setNewPhone} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
+        <TypeSelector value={newType} onChange={setNewType} />
+        <Button title={adding ? 'Adding…' : 'Add party'} onPress={() => void handleAddParty()} loading={adding} />
       </ModalSheet>
 
       {/* Action sheet — centered modal */}
@@ -383,6 +434,29 @@ export function AdvancesScreen() {
   );
 }
 
+/** Party-type picker used by the Add party sheet (parity with web's select). */
+function TypeSelector({value, onChange}: {value: PartyType; onChange: (t: PartyType) => void}) {
+  const styles = useThemeStyles(makeStyles);
+  return (
+    <View>
+      <Text style={[styles.openLabel, {marginBottom: spacing.xs}]}>Type</Text>
+      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs}}>
+        {(Object.keys(TYPE_LABELS) as PartyType[]).map(t => {
+          const active = value === t;
+          return (
+            <Pressable
+              key={t}
+              onPress={() => onChange(t)}
+              style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{TYPE_LABELS[t]}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const makeStyles = () =>
   StyleSheet.create({
     summaryGrid: {marginBottom: spacing.sm},
@@ -396,6 +470,21 @@ const makeStyles = () =>
     filterChipActive: {backgroundColor: colors.primary, borderColor: colors.primary},
     filterChipText: {fontSize: typography.caption, fontWeight: '600', color: colors.muted},
     filterChipTextActive: {color: colors.onPrimary},
+    openLabel: {fontSize: typography.caption, color: colors.muted, fontWeight: '700', textTransform: 'uppercase', letterSpacing: rs(0.4), marginBottom: spacing.sm},
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(5),
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      paddingHorizontal: rs(11),
+      paddingVertical: rs(6),
+    },
+    chipActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    chipText: {fontSize: rs(11.5), fontWeight: '600', color: colors.muted},
+    chipTextActive: {color: colors.onPrimary},
     cardTitle: {fontSize: typography.h3, fontWeight: '700', color: colors.text, marginBottom: spacing.md},
     partyPicker: {
       flexDirection: 'row',

@@ -1,11 +1,13 @@
-import React, {useMemo, useState} from 'react';
+﻿import React, {useMemo, useState} from 'react';
 import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, Switch, Text, TextInput, View} from 'react-native';
 import * as Print from 'expo-print';
 import {ChevronDown, Search} from 'lucide-react-native';
 import {
   applyGoldBaseRate,
   buildBillDocument,
-  priceProductRow,
+  invoicePricingFromBreakdown,
+  isLabourType,
+  priceBillLineRow,
   renderBillText,
   renderBillHtml,
   resolveGoldRateTable,
@@ -16,8 +18,12 @@ import {
   type BillClassicColor,
   type BillMode,
   type BillTemplateSettings,
+  type BillLinePricingOverrides,
+  type LabourType,
   type PartyDto,
   type InvoiceDto,
+  type PriceBreakdown,
+  type PricingContext,
   type ProductDto,
 } from '@munim/core';
 import {
@@ -58,10 +64,34 @@ type LineState = {
   size: string;
   weight: string;
   weightUnit: 'gm' | 'mg';
+  /** True once the shop edits this line's Weight — the edited weight then
+   *  drives auto-pricing (and survives later rate reprices). */
+  weightEdited: boolean;
+  /** Metal purity stamp ("22K") — printed beside the name in parentheses. */
+  purity: string;
+  /** Gross-weight free text — bill G.Wt. column. */
+  grossWeight: string;
   quantity: string;
   price: string;
   silverPercentage: string;
+  /** Per-line pricing edits (the auto-pricing strip: Rate/Labour/Nag/Povayi/
+   *  Other) — empty = keep the product's / bill's default. */
+  ratePerGram: string;
+  /** True once the shop edits this line's rate — it then sticks (stops
+   *  tracking the bill's gold/silver rate). */
+  rateEdited: boolean;
+  labourType: string;
+  labourValue: string;
+  nag: string;
+  povayi: string;
+  otherCharges: string;
 };
+
+/** The editable pricing fields on a line (strip patch shape). */
+type PricingStripFields = Pick<
+  LineState,
+  'ratePerGram' | 'labourType' | 'labourValue' | 'nag' | 'povayi' | 'otherCharges' | 'silverPercentage'
+>;
 
 const emptyLine = (): LineState => ({
   productId: '',
@@ -71,10 +101,47 @@ const emptyLine = (): LineState => ({
   size: '',
   weight: '',
   weightUnit: 'gm',
+  weightEdited: false,
+  purity: '',
+  grossWeight: '',
   quantity: '1',
   price: '0',
   silverPercentage: '100',
+  ratePerGram: '',
+  rateEdited: false,
+  labourType: '',
+  labourValue: '',
+  nag: '',
+  povayi: '',
+  otherCharges: '',
 });
+
+/** Parses a raw ₹/rate input — "" → null (keep the product's default). */
+const parseLineNum = (raw: string): number | null => {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+/** The line's strip edits layered onto the pricing engine (null/undefined
+ *  fields keep the product's own inputs — the engine still does the math). */
+const overridesFrom = (line: LineState): BillLinePricingOverrides => ({
+  ratePerGram: parseLineNum(line.ratePerGram),
+  labourType: isLabourType(line.labourType) ? line.labourType : null,
+  labourValue: parseLineNum(line.labourValue),
+  nag: parseLineNum(line.nag),
+  povayi: parseLineNum(line.povayi),
+  otherCharges: parseLineNum(line.otherCharges),
+  silverPercentage: parseLineNum(line.silverPercentage),
+});
+
+/** Labour method segments for the strip (same three methods as core). */
+const LABOUR_SEGMENTS: {type: LabourType; label: string}[] = [
+  {type: 'PERCENT', label: '%'},
+  {type: 'FIXED', label: '₹'},
+  {type: 'PER_GRAM', label: '₹/g'},
+];
 
 const TYPE_LABELS: Record<string, string> = {
   CUSTOMER: 'Customer',
@@ -257,6 +324,9 @@ function PartyPicker({
 function LineItemsEditor({
   lines,
   onChange,
+  onWeightChange,
+  onPricingChange,
+  pricing,
   onRemove,
   onAdd,
   products,
@@ -264,76 +334,221 @@ function LineItemsEditor({
 }: {
   lines: LineState[];
   onChange: (index: number, patch: Partial<LineState>) => void;
+  /** Weight edits re-price the line (core engine) — passed down from the screen. */
+  onWeightChange?: (index: number, weight: string) => void;
+  /** Pricing-strip edits (Rate/Labour/Nag/Povayi/Other/Silver %) — re-price the line. */
+  onPricingChange?: (index: number, patch: Partial<PricingStripFields>) => void;
+  /** Live pricing view per line (metal + breakdown) — null → no strip. */
+  pricing?: (index: number) => {metal: 'Gold' | 'Silver'; breakdown: PriceBreakdown} | null;
   onRemove: (index: number) => void;
   onAdd: () => void;
   products: ProductDto[] | null | undefined;
   onSelectProduct: (lineIndex: number, productId: string, product?: ProductDto) => void;
 }) {
   const styles = useThemeStyles(makeStyles);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
   return (
     <>
       {lines.map((line, index) => {
-        const selectedProduct = line.productId ? products?.find(p => p.id === line.productId) : undefined;
-        const isSilver = selectedProduct?.type === 'Silver';
+        const pricingView = pricing?.(index) ?? null;
+        const labourType: LabourType = isLabourType(line.labourType)
+          ? line.labourType
+          : (pricingView?.breakdown.labour.type ?? 'PERCENT');
+        const otherChargesTotal = pricingView
+          ? pricingView.breakdown.charges.nag +
+            pricingView.breakdown.charges.povayi +
+            pricingView.breakdown.charges.other
+          : 0;
+        const isOpen = expandedIndex === index;
+        const lineTotal = (Number(line.quantity) || 0) * (Number(line.price) || 0);
+        const summaryName = `${line.productName || 'New item'}${line.purity.trim() ? ` p:${line.purity.trim()}` : ''}`;
         return (
           <View key={index} style={styles.lineBox}>
-            <ProductPicker
-              products={products}
-              productId={line.productId}
-              onSelect={(id, product) => onSelectProduct(index, id, product)}
-            />
-            {line.sku ? (
-              <View style={styles.skuRow}>
-                <Text style={styles.skuChip}>{line.sku}</Text>
-                <Pressable
-                  accessibilityLabel="Copy SKU"
-                  hitSlop={8}
-                  onPress={() => {
-                    void copyText(line.sku).then(ok => ok && successFeedback());
-                  }}
-                >
-                  <Text style={styles.skuCopy}>Copy</Text>
-                </Pressable>
-              </View>
-            ) : null}
-            <Field
-              label="Item name"
-              value={line.productName}
-              onChangeText={text => onChange(index, {productName: text})}
-              placeholder="Or type manually"
-            />
-            <View style={styles.lineRow}>
-              <Field
-                label="Qty"
-                value={line.quantity}
-                onChangeText={text => onChange(index, {quantity: text})}
-                keyboardType="numeric"
-                style={{flex: 1, marginRight: 8}}
-              />
-              <Field
-                label="Price"
-                value={line.price}
-                onChangeText={text => onChange(index, {price: text})}
-                keyboardType="numeric"
-                style={{flex: 2}}
-              />
-            </View>
-            {isSilver ? (
-              <View style={styles.lineRow}>
-                <Field
-                  label="Silver %"
-                  value={line.silverPercentage}
-                  onChangeText={text => onChange(index, {silverPercentage: text})}
-                  keyboardType="numeric"
-                  style={{flex: 1}}
-                />
-                <Text style={{fontSize: 12, color: colors.muted, alignSelf: 'center', marginLeft: 8}}>
-                  {`${line.quantity || '0'}gm @ ${line.silverPercentage || '100'}% = ${((Number(line.quantity) || 0) * (Number(line.silverPercentage) || 100) / 100).toFixed(1)}gm`}
+            {/* Collapsed summary — tap to expand the inputs (Weight/Price/Purity…). */}
+            <Pressable onPress={() => setExpandedIndex(isOpen ? null : index)}>
+              <View style={styles.lineSummary}>
+                <Text style={styles.lineSummaryName} numberOfLines={1}>
+                  {summaryName}
                 </Text>
+                <Text style={styles.lineSummaryMeta}>{`${line.quantity || '0'} × ${money(Number(line.price) || 0)}`}</Text>
+                <Text style={styles.lineSummaryTotal}>{money(lineTotal)}</Text>
+                <ChevronDown
+                  size={16}
+                  color={colors.muted}
+                  style={{transform: [{rotate: isOpen ? '180deg' : '0deg'}]}}
+                />
               </View>
-            ) : null}
-            {index > 0 ? (
-              <Button title="Remove item" variant="outline" onPress={() => onRemove(index)} />
+            </Pressable>
+            {isOpen ? (
+              <>
+                <ProductPicker
+                  products={products}
+                  productId={line.productId}
+                  onSelect={(id, product) => onSelectProduct(index, id, product)}
+                />
+                {line.sku ? (
+                  <View style={styles.skuRow}>
+                    <Text style={styles.skuChip}>{line.sku}</Text>
+                    <Pressable
+                      accessibilityLabel="Copy SKU"
+                      hitSlop={8}
+                      onPress={() => {
+                        void copyText(line.sku).then(ok => ok && successFeedback());
+                      }}
+                    >
+                      <Text style={styles.skuCopy}>Copy</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
+                <Field
+                  label="Item name"
+                  value={line.productName}
+                  onChangeText={text => onChange(index, {productName: text})}
+                  placeholder="Or type manually"
+                />
+                <View style={styles.lineRow}>
+                  <Field
+                    label="Qty"
+                    value={line.quantity}
+                    onChangeText={text => onChange(index, {quantity: text})}
+                    keyboardType="numeric"
+                    style={{flex: 1, marginRight: 8}}
+                  />
+                  <Field
+                    label="Price"
+                    value={line.price}
+                    onChangeText={text => onChange(index, {price: text})}
+                    keyboardType="numeric"
+                    style={{flex: 2}}
+                  />
+                </View>
+                <View style={styles.lineRow}>
+                  <Field
+                    label="Weight"
+                    value={line.weight}
+                    onChangeText={text =>
+                      onWeightChange ? onWeightChange(index, text) : onChange(index, {weight: text})
+                    }
+                    keyboardType="numeric"
+                    style={{flex: 1, marginRight: 8}}
+                    placeholder="0.000"
+                  />
+                  <Field
+                    label="Purity"
+                    value={line.purity}
+                    onChangeText={text => onChange(index, {purity: text})}
+                    placeholder="22K"
+                    style={{flex: 1}}
+                  />
+                </View>
+                <View style={styles.lineRow}>
+                  <Field
+                    label="G. Wt."
+                    value={line.grossWeight}
+                    onChangeText={text => onChange(index, {grossWeight: text})}
+                    keyboardType="numeric"
+                    style={{flex: 1, marginRight: 8}}
+                    placeholder="19.12"
+                  />
+                  <View style={{flex: 2}} />
+                </View>
+                {pricingView ? (
+                  <View style={styles.pricingStrip}>
+                    <View style={styles.lineRow}>
+                      <Field
+                        label="Rate ₹/g"
+                        value={line.ratePerGram}
+                        onChangeText={text => onPricingChange?.(index, {ratePerGram: text})}
+                        keyboardType="numeric"
+                        style={{flex: 1, marginRight: 8}}
+                        placeholder={
+                          pricingView.breakdown.source === 'auto' ? String(pricingView.breakdown.ratePerGram) : '0'
+                        }
+                      />
+                      {pricingView.metal === 'Silver' ? (
+                        <Field
+                          label="Silver %"
+                          value={line.silverPercentage}
+                          onChangeText={text => onPricingChange?.(index, {silverPercentage: text})}
+                          keyboardType="numeric"
+                          style={{flex: 1}}
+                        />
+                      ) : (
+                        <View style={{flex: 1}} />
+                      )}
+                    </View>
+                    <View style={styles.lineRow}>
+                      <View style={{flex: 1, marginRight: 8}}>
+                        <Text style={styles.pricingLabel}>Labour</Text>
+                        <View style={styles.labourSegRow}>
+                          {LABOUR_SEGMENTS.map(seg => (
+                            <Pressable
+                              key={seg.type}
+                              onPress={() => onPricingChange?.(index, {labourType: seg.type})}
+                              style={[styles.labourSegBtn, labourType === seg.type && styles.labourSegBtnActive]}>
+                              <Text
+                                style={[
+                                  styles.labourSegText,
+                                  labourType === seg.type && styles.labourSegTextActive,
+                                ]}>
+                                {seg.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                      <Field
+                        label="Value"
+                        value={line.labourValue}
+                        onChangeText={text => onPricingChange?.(index, {labourValue: text})}
+                        keyboardType="numeric"
+                        style={{flex: 1}}
+                        placeholder={
+                          line.labourValue === '' &&
+                          pricingView.breakdown.source === 'auto' &&
+                          pricingView.breakdown.labour.value > 0
+                            ? String(pricingView.breakdown.labour.value)
+                            : '0'
+                        }
+                      />
+                    </View>
+                    <View style={styles.lineRow}>
+                      {pricingView.metal === 'Gold' ? (
+                        <Field
+                          label="Nag ₹"
+                          value={line.nag}
+                          onChangeText={text => onPricingChange?.(index, {nag: text})}
+                          keyboardType="numeric"
+                          style={{flex: 1, marginRight: 8}}
+                        />
+                      ) : null}
+                      <Field
+                        label="Povayi ₹"
+                        value={line.povayi}
+                        onChangeText={text => onPricingChange?.(index, {povayi: text})}
+                        keyboardType="numeric"
+                        style={{flex: pricingView.metal === 'Gold' ? 1 : 2, marginRight: 8}}
+                      />
+                      <Field
+                        label="Other ₹"
+                        value={line.otherCharges}
+                        onChangeText={text => onPricingChange?.(index, {otherCharges: text})}
+                        keyboardType="numeric"
+                        style={{flex: 1}}
+                      />
+                    </View>
+                    <Text style={styles.pricingReadout}>
+                      {`Metal ${money(pricingView.breakdown.metalValue)} · Labour ${money(pricingView.breakdown.labour.amount)}${
+                        otherChargesTotal > 0 ? ` · Other ${money(otherChargesTotal)}` : ''
+                      }`}
+                    </Text>
+                  </View>
+                ) : null}
+                <Button title="Done" variant="outline" onPress={() => setExpandedIndex(null)} />
+                {index > 0 ? (
+                  <Button title="Remove item" variant="outline" onPress={() => onRemove(index)} />
+                ) : null}
+              </>
             ) : null}
           </View>
         );
@@ -351,6 +566,7 @@ function TotalsBlock({
   discount,
   delivery,
   materialReturned,
+  materialTitle,
   total,
 }: {
   styles: ReturnType<typeof makeStyles>;
@@ -359,6 +575,7 @@ function TotalsBlock({
   discount: number;
   delivery: number;
   materialReturned: number;
+  materialTitle?: string;
   total: number;
 }) {
   return (
@@ -376,7 +593,7 @@ function TotalsBlock({
         ) : null}
         {materialReturned > 0 ? (
           <View style={styles.totalRow}>
-            <Text style={styles.totalRowLabel}>Material Returned</Text>
+            <Text style={styles.totalRowLabel}>{materialTitle?.trim() || 'Material Returned'}</Text>
             <Text style={styles.totalRowValue}>−{money(materialReturned)}</Text>
           </View>
         ) : null}
@@ -415,9 +632,10 @@ export function BillingScreen() {
   const [lines, setLines] = useState<LineState[]>([emptyLine()]);
   const [materialReturnedWeight, setMaterialReturnedWeight] = useState('');
   const [materialReturnedValue, setMaterialReturnedValue] = useState('');
+  const [materialReturnedTitle, setMaterialReturnedTitle] = useState('');
 
   // ── Template options (same model as web + desktop) ──────────────────────
-  const [template, setTemplate] = useState<BillTemplate>('jewellery');
+  const [template, setTemplate] = useState<BillTemplate>('ecommerce');
   const [classicColor, setClassicColor] = useState<BillClassicColor>('red');
   const [twoInOne, setTwoInOne] = useState(false);
   const [mode, setMode] = useState<BillMode>('duplicate');
@@ -478,6 +696,7 @@ export function BillingScreen() {
   const [secondDelivery, setSecondDelivery] = useState('0');
   const [secondMaterialReturnedWeight, setSecondMaterialReturnedWeight] = useState('');
   const [secondMaterialReturnedValue, setSecondMaterialReturnedValue] = useState('');
+  const [secondMaterialReturnedTitle, setSecondMaterialReturnedTitle] = useState('');
   const [secondPaid, setSecondPaid] = useState('0');
   const [secondLines, setSecondLines] = useState<LineState[]>([emptyLine()]);
   const [secondPreview, setSecondPreview] = useState<BillDocument | null>(null);
@@ -509,38 +728,113 @@ export function BillingScreen() {
     };
   }, [goldRates, billGoldRate, billSilverRate, settings]);
 
-  /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
-  function repriceGoldLines(prev: LineState[]): LineState[] {
-    return prev.map(line => {
-      if (!line.productId) return line;
-      const p = productsData?.products.find(x => x.id === line.productId);
-      if (!p || p.type !== 'Gold' || p.priceMode !== 'auto') return line;
-      return {...line, price: String(priceProductRow(p, billPricingContext).price)};
-    });
+  /** Live breakdown for one line — the strip edits layer on top. Null when
+   *  the line isn't an auto-priced Gold/Silver product. */
+  function lineBreakdown(line: LineState, ctx: PricingContext = billPricingContext): PriceBreakdown | null {
+    if (!line.productId) return null;
+    const p = productsData?.products.find(x => x.id === line.productId);
+    if (!p || p.priceMode !== 'auto' || (p.type !== 'Gold' && p.type !== 'Silver')) return null;
+    const parsed = Number(line.weight);
+    const weight = line.weight.trim() !== '' && Number.isFinite(parsed) ? parsed : null;
+    return priceBillLineRow(p, ctx, {weight, weightUnit: line.weightUnit}, overridesFrom(line));
   }
 
-  /** Re-prices the auto-priced SILVER lines with the bill's rate (core engine). */
-  function repriceSilverLines(prev: LineState[]): LineState[] {
+  /** Writes a breakdown back onto the line — price always; rate when the shop
+   *  hasn't typed one (untouched rates keep tracking the bill's rate). */
+  function applyBreakdown(line: LineState, bd: PriceBreakdown | null): LineState {
+    if (!bd) return line;
+    const next = {...line, price: String(bd.price)};
+    if (!line.rateEdited && bd.source === 'auto') next.ratePerGram = String(bd.ratePerGram);
+    return next;
+  }
+
+  /** Re-prices ONE auto-priced gold/silver line — the edited line weight (when
+   *  any) overrides the product's pricing weight so rate edits keep it. */
+  function repriceLine(line: LineState, ctx?: PricingContext): LineState {
+    return applyBreakdown(line, lineBreakdown(line, ctx));
+  }
+
+  /** Editing a line's Weight re-prices that line (clearing it reverts to the
+   *  product's own price). */
+  function makeWeightHandler(setter: (updater: (prev: LineState[]) => LineState[]) => void) {
+    return (index: number, raw: string) => {
+      setter(prev =>
+        prev.map((l, i) => (i === index ? repriceLine({...l, weight: raw, weightEdited: raw.trim() !== ''}) : l)),
+      );
+    };
+  }
+
+  /** Pricing-strip edits re-price the line; a typed rate sticks (stops
+   *  tracking the bill's gold/silver rate). */
+  function makePricingHandler(setter: (updater: (prev: LineState[]) => LineState[]) => void) {
+    return (index: number, patch: Partial<PricingStripFields>) => {
+      setter(prev =>
+        prev.map((l, i) => {
+          if (i !== index) return l;
+          const merged = {...l, ...patch};
+          if (patch.ratePerGram !== undefined) merged.rateEdited = patch.ratePerGram.trim() !== '';
+          return repriceLine(merged);
+        }),
+      );
+    };
+  }
+
+  /** Bill context with the gold base replaced by the field's live value — the
+   *  rate inputs reprice inside their own setState updater (a memo would still
+   *  hold the previous keystroke's rate at that point). */
+  function goldContextFor(raw: string): PricingContext {
+    const parsed = Number(raw);
+    const rate = raw.trim() !== '' && Number.isFinite(parsed) && parsed > 0 ? parsed : goldBaseRate;
+    const table = resolveGoldRateTable(goldRates?.rates ?? []);
+    return {
+      ...billPricingContext,
+      goldRateTable: rate != null ? applyGoldBaseRate(table, rate, goldRates?.baseKarat ?? null) : table,
+    };
+  }
+
+  /** Same for the silver ₹/10g field (stored per-gram). */
+  function silverContextFor(raw: string): PricingContext {
+    const parsed10g = Number(raw);
+    const perGram =
+      raw.trim() !== '' && Number.isFinite(parsed10g) && parsed10g > 0 ? parsed10g / 10 : shopSilverPerGram;
+    return {...billPricingContext, silverRateOverride: perGram};
+  }
+
+  /** Re-prices one metal's lines under an explicitly built context. */
+  function repriceMetalWith(prev: LineState[], metal: 'Gold' | 'Silver', ctx: PricingContext): LineState[] {
     return prev.map(line => {
       if (!line.productId) return line;
       const p = productsData?.products.find(x => x.id === line.productId);
-      if (!p || p.type !== 'Silver' || p.priceMode !== 'auto') return line;
-      return {...line, price: String(priceProductRow(p, billPricingContext).price)};
+      if (!p || p.type !== metal || p.priceMode !== 'auto') return line;
+      return applyBreakdown(line, lineBreakdown(line, ctx));
     });
   }
 
   function handleGoldRateChange(value: string) {
     goldRateTouched.current = true;
     setGoldRateInput(value);
-    setLines(prev => repriceGoldLines(prev));
-    setSecondLines(prev => repriceGoldLines(prev));
+    const ctx = goldContextFor(value);
+    setLines(prev => repriceMetalWith(prev, 'Gold', ctx));
+    setSecondLines(prev => repriceMetalWith(prev, 'Gold', ctx));
   }
 
   function handleSilverRateChange(value: string) {
     silverRateTouched.current = true;
     setSilverRateInput(value);
-    setLines(prev => repriceSilverLines(prev));
-    setSecondLines(prev => repriceSilverLines(prev));
+    const ctx = silverContextFor(value);
+    setLines(prev => repriceMetalWith(prev, 'Silver', ctx));
+    setSecondLines(prev => repriceMetalWith(prev, 'Silver', ctx));
+  }
+
+  /** The pricing strip's data for one line — metal + live breakdown
+   *  (null → no strip: no product / manual price / non-metal). */
+  function pricingViewFor(line: LineState): {metal: 'Gold' | 'Silver'; breakdown: PriceBreakdown} | null {
+    if (!line.productId) return null;
+    const p = productsData?.products.find(x => x.id === line.productId);
+    if (!p || p.priceMode !== 'auto' || (p.type !== 'Gold' && p.type !== 'Silver')) return null;
+    const bd = lineBreakdown(line);
+    if (!bd) return null;
+    return {metal: p.type, breakdown: bd};
   }
 
   async function handleSyncPrices() {
@@ -574,8 +868,8 @@ export function BillingScreen() {
           });
         // Server rates land first, then the bill's own gold/silver rates (if
         // any) re-apply on top so edited rates are never clobbered.
-        setLines(prev => repriceSilverLines(repriceGoldLines(refresh(prev))));
-        setSecondLines(prev => repriceSilverLines(repriceGoldLines(refresh(prev))));
+        setLines(prev => repriceMetalWith(repriceMetalWith(refresh(prev), 'Gold', billPricingContext), 'Silver', billPricingContext));
+        setSecondLines(prev => repriceMetalWith(repriceMetalWith(refresh(prev), 'Gold', billPricingContext), 'Silver', billPricingContext));
       } catch {
         // Best-effort: keep the current line prices if the refresh fails.
       }
@@ -605,8 +899,12 @@ export function BillingScreen() {
     setSecondLines(prev => prev.map((l, i) => (i === index ? {...l, ...patch} : l)));
   }
 
-  function onSelectProduct(lineIndex: number, productId: string, product?: ProductDto) {
-    updateLine(lineIndex, {
+  /** Picking a product resets the line's pricing edits and materializes its
+   *  inputs (rate from the live breakdown; labour/charges from the product
+   *  row), then re-prices through the engine so price + rate land together. */
+  function pickLine(base: LineState, productId: string, product?: ProductDto): LineState {
+    const picked: LineState = {
+      ...base,
       productId,
       productName: product?.name ?? '',
       sku: product?.sku ?? '',
@@ -614,38 +912,50 @@ export function BillingScreen() {
       size: product?.size ?? '',
       weight: product?.weight != null ? String(product.weight) : '',
       weightUnit: product?.weightUnit === 'mg' ? 'mg' : 'gm',
+      weightEdited: false,
+      purity: product?.purity ?? '',
+      grossWeight: product?.grossWeight ?? '',
       price: product ? String(product.effectivePrice) : '',
       silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
-    });
+      ratePerGram: '',
+      rateEdited: false,
+      labourType: product?.labourType ?? '',
+      labourValue: product?.labourValue != null ? String(product.labourValue) : '',
+      nag: product?.nagRate ?? '',
+      povayi: product?.povayiRate != null ? String(product.povayiRate) : '',
+      otherCharges: product?.otherCharges != null ? String(product.otherCharges) : '',
+    };
+    return applyBreakdown(picked, lineBreakdown(picked));
+  }
+
+  function onSelectProduct(lineIndex: number, productId: string, product?: ProductDto) {
+    setLines(prev => prev.map((l, i) => (i === lineIndex ? pickLine(l, productId, product) : l)));
   }
 
   function onSecondSelectProduct(lineIndex: number, productId: string, product?: ProductDto) {
-    updateSecondLine(lineIndex, {
-      productId,
-      productName: product?.name ?? '',
-      sku: product?.sku ?? '',
-      color: product?.color ?? '',
-      size: product?.size ?? '',
-      weight: product?.weight != null ? String(product.weight) : '',
-      weightUnit: product?.weightUnit === 'mg' ? 'mg' : 'gm',
-      price: product ? String(product.effectivePrice) : '',
-      silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
-    });
+    setSecondLines(prev => prev.map((l, i) => (i === lineIndex ? pickLine(l, productId, product) : l)));
   }
 
   function collectItems(list: LineState[]) {
     return list
-      .map(l => ({
-        productId: l.productId || undefined,
-        productName: l.productName.trim(),
-        sku: l.sku.trim() || undefined,
-        color: l.color.trim() || undefined,
-        size: l.size.trim() || undefined,
-        weight: l.weight.trim() ? Number(l.weight) : undefined,
-        weightUnit: l.weight.trim() ? l.weightUnit : undefined,
-        quantity: Number(l.quantity) || 0,
-        price: Number(l.price) || 0,
-      }))
+      .map(l => {
+        const bd = lineBreakdown(l);
+        const pricing = bd ? invoicePricingFromBreakdown(bd) : null;
+        return {
+          productId: l.productId || undefined,
+          productName: l.productName.trim(),
+          sku: l.sku.trim() || undefined,
+          color: l.color.trim() || undefined,
+          size: l.size.trim() || undefined,
+          weight: l.weight.trim() ? Number(l.weight) : undefined,
+          weightUnit: l.weight.trim() ? l.weightUnit : undefined,
+          purity: l.purity.trim() || undefined,
+          grossWeight: l.grossWeight.trim() || undefined,
+          quantity: Number(l.quantity) || 0,
+          price: Number(l.price) || 0,
+          pricing: pricing ?? undefined,
+        };
+      })
       .filter(it => it.productName && it.quantity > 0);
   }
 
@@ -669,6 +979,9 @@ export function BillingScreen() {
         size: it.size,
         weight: it.weight,
         weightUnit: it.weightUnit,
+        purity: it.purity,
+        grossWeight: it.grossWeight,
+        pricing: it.pricing,
         quantity: it.quantity,
         price: it.price,
       })),
@@ -676,6 +989,7 @@ export function BillingScreen() {
       deliveryCharge: invoice.deliveryCharge,
       materialReturnedWeight: invoice.materialReturnedWeight,
       materialReturnedValue: invoice.materialReturnedValue,
+      materialReturnedTitle: invoice.materialReturnedTitle,
       amountPaid: invoice.amountPaid,
       status: invoice.status,
       currency: settings?.currency ?? 'INR',
@@ -699,6 +1013,7 @@ export function BillingScreen() {
     setLines([emptyLine()]);
     setMaterialReturnedWeight('');
     setMaterialReturnedValue('');
+    setMaterialReturnedTitle('');
     setSecondCustomer('');
     setSecondCustomerPhone('');
     setSecondCustomerAddress('');
@@ -707,6 +1022,7 @@ export function BillingScreen() {
     setSecondDelivery('0');
     setSecondMaterialReturnedWeight('');
     setSecondMaterialReturnedValue('');
+    setSecondMaterialReturnedTitle('');
     setSecondPaid('0');
     setSecondLines([emptyLine()]);
     goldRateTouched.current = false;
@@ -755,6 +1071,7 @@ export function BillingScreen() {
         deliveryCharge: Number(delivery) || 0,
         materialReturnedWeight: materialReturnedWeight.trim() || undefined,
         materialReturnedValue: Number(materialReturnedValue) || 0,
+        materialReturnedTitle: materialReturnedTitle.trim() || undefined,
         amountPaid: Number(paid) || 0,
         paymentMethod: 'cash',
         shopDetails: shop,
@@ -776,6 +1093,7 @@ export function BillingScreen() {
             deliveryCharge: Number(secondDelivery) || 0,
             materialReturnedWeight: secondMaterialReturnedWeight.trim() || undefined,
             materialReturnedValue: Number(secondMaterialReturnedValue) || 0,
+            materialReturnedTitle: secondMaterialReturnedTitle.trim() || undefined,
             amountPaid: Number(secondPaid) || 0,
             paymentMethod: 'cash',
             shopDetails: shop,
@@ -1065,6 +1383,9 @@ export function BillingScreen() {
           <LineItemsEditor
             lines={lines}
             onChange={updateLine}
+            onWeightChange={makeWeightHandler(setLines)}
+            onPricingChange={makePricingHandler(setLines)}
+            pricing={index => (lines[index] ? pricingViewFor(lines[index]) : null)}
             onRemove={index => setLines(prev => prev.filter((_, i) => i !== index))}
             onAdd={() => setLines(prev => [...prev, emptyLine()])}
             products={products}
@@ -1072,8 +1393,9 @@ export function BillingScreen() {
           />
           <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
           <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="numeric" />
-          <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
-          <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" />
+            <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
+            <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
+            <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" />
           <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="numeric" />
           <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
           <TotalsBlock
@@ -1083,6 +1405,7 @@ export function BillingScreen() {
             discount={Number(discount) || 0}
             delivery={Number(delivery) || 0}
             materialReturned={Number(materialReturnedValue) || 0}
+            materialTitle={materialReturnedTitle}
             total={total}
           />
           <Button title={saving ? 'Saving…' : 'Create invoice'} onPress={handleCreate} loading={saving} />
@@ -1110,9 +1433,12 @@ export function BillingScreen() {
                 }
               }}
             />
-            <LineItemsEditor
-              lines={secondLines}
-              onChange={updateSecondLine}
+              <LineItemsEditor
+                lines={secondLines}
+                onChange={updateSecondLine}
+                onWeightChange={makeWeightHandler(setSecondLines)}
+                onPricingChange={makePricingHandler(setSecondLines)}
+                pricing={index => (secondLines[index] ? pricingViewFor(secondLines[index]) : null)}
               onRemove={index => setSecondLines(prev => prev.filter((_, i) => i !== index))}
               onAdd={() => setSecondLines(prev => [...prev, emptyLine()])}
               products={products}
@@ -1120,6 +1446,7 @@ export function BillingScreen() {
             />
             <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="numeric" />
             <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="numeric" />
+            <Field label="Material returned title" value={secondMaterialReturnedTitle} onChangeText={setSecondMaterialReturnedTitle} placeholder="Material Returned" />
             <Field label="Material returned weight" value={secondMaterialReturnedWeight} onChangeText={setSecondMaterialReturnedWeight} placeholder="e.g. 5gm" />
             <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="numeric" />
             <Field label="Paid now" value={secondPaid} onChangeText={setSecondPaid} keyboardType="numeric" />
@@ -1130,6 +1457,7 @@ export function BillingScreen() {
               discount={Number(secondDiscount) || 0}
               delivery={Number(secondDelivery) || 0}
               materialReturned={Number(secondMaterialReturnedValue) || 0}
+              materialTitle={secondMaterialReturnedTitle}
               total={secondTotal}
             />
           </Card>
@@ -1187,7 +1515,7 @@ export function BillingScreen() {
               ) : null}
               {preview.materialReturnedValue > 0 ? (
                 <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Material Returned{preview.materialReturnedWeight ? ` (${preview.materialReturnedWeight})` : ''}</Text>
+                  <Text style={styles.previewLabel}>{preview.materialReturnedTitle?.trim() || 'Material Returned'}{preview.materialReturnedWeight ? ` (${preview.materialReturnedWeight})` : ''}</Text>
                   <Text style={[styles.previewValue, {color: colors.danger}]}>−{money(preview.materialReturnedValue)}</Text>
                 </View>
               ) : null}
@@ -1296,6 +1624,10 @@ const makeStyles = () =>
       borderBottomColor: colors.border,
     },
     lineRow: {flexDirection: 'row'},
+    lineSummary: {flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 6},
+    lineSummaryName: {flex: 1, fontSize: 14, fontWeight: '700', color: colors.text},
+    lineSummaryMeta: {fontSize: 12, color: colors.muted},
+    lineSummaryTotal: {fontSize: 14, fontWeight: '700', color: colors.primary},
     skuRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6},
     skuChip: {
       fontSize: 11,
@@ -1308,6 +1640,29 @@ const makeStyles = () =>
       paddingVertical: 2,
     },
     skuCopy: {fontSize: 11, fontWeight: '600', color: colors.primary},
+    pricingStrip: {
+      borderTopWidth: RNStyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+      marginTop: 2,
+      marginBottom: 4,
+      gap: 6,
+    },
+    pricingLabel: {fontSize: 11, color: colors.muted, fontWeight: '600', marginBottom: 4},
+    labourSegRow: {flexDirection: 'row', gap: 4},
+    labourSegBtn: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.sm,
+      paddingVertical: 8,
+      alignItems: 'center',
+      backgroundColor: colors.card,
+    },
+    labourSegBtnActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    labourSegText: {fontSize: 12, fontWeight: '600', color: colors.muted},
+    labourSegTextActive: {color: colors.onPrimary},
+    pricingReadout: {fontSize: 11, color: colors.muted, fontVariant: ['tabular-nums'], marginBottom: 4},
     total: {fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12},
     totalBreakdown: {marginTop: 4, marginBottom: 10, gap: 3},
     totalRow: {flexDirection: 'row', justifyContent: 'space-between'},
@@ -1394,3 +1749,4 @@ const makeStyles = () =>
     name: {fontSize: 15, fontWeight: '600', color: colors.text},
     meta: {fontSize: 12, color: colors.muted, marginTop: 2},
   });
+

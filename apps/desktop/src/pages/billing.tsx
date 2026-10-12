@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy } from "lucide-react";
 import {
   applyGoldBaseRate,
   buildBillDocument,
-  priceProductRow,
+  invoicePricingFromBreakdown,
+  isLabourType,
+  priceBillLineRow,
   productMatchesCode,
   resolveGoldRateTable,
   type BillDocument,
   type BillShopDetails,
+  type PriceBreakdown,
+  type PricingContext,
+  type ProductDto,
 } from "@munim/core";
 import type { InvoiceDto, SettingsDto } from "@munim/api-client";
 import {
@@ -48,6 +53,8 @@ import {
   Checkbox,
   BarcodeLookupInput,
   ProductSearchSelect,
+  BillLinePricingStrip,
+  type BillLinePricingStripValue,
   type ProductOption,
   BillTemplateOptions,
   type BillTemplate,
@@ -64,13 +71,38 @@ type LineState = {
   description: string;
   weight: string;
   weightUnit: "gm" | "mg";
+  /** True once the shop edits this line's Weight — the edited weight then
+   *  drives auto-pricing (and survives later rate reprices). */
+  weightEdited: boolean;
+  /** Metal purity stamp ("22K") — printed beside the name in parentheses. */
+  purity: string;
+  /** Gross-weight free text — bill G.Wt. column. */
+  grossWeight: string;
   quantity: string;
   price: string;
   silverPercentage: string;
+  /** Per-line pricing editor (auto gold/silver lines) — the values on the
+   *  bill's Rate/Labour/Nag/Povayi/Other columns. Empty = product default;
+   *  an edited Rate sticks (`rateEdited`), otherwise it tracks the bill rate. */
+  ratePerGram: string;
+  rateEdited: boolean;
+  labourType: string;
+  labourValue: string;
+  nag: string;
+  povayi: string;
+  otherCharges: string;
 };
 
 function emptyLine(): LineState {
-  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", weight: "", weightUnit: "gm", quantity: "1", price: "0", silverPercentage: "100" };
+  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", weight: "", weightUnit: "gm", weightEdited: false, purity: "", grossWeight: "", quantity: "1", price: "0", silverPercentage: "100", ratePerGram: "", rateEdited: false, labourType: "", labourValue: "", nag: "", povayi: "", otherCharges: "" };
+}
+
+/** Raw line text → number; "" / garbage → null (= "keep the product's input"). */
+function parseLineNum(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
 }
 
 function settingsToShop(s: SettingsDto): BillShopDetails {
@@ -107,6 +139,9 @@ function invoiceToBillDocument(
       size: it.size,
       weight: it.weight,
       weightUnit: it.weightUnit,
+      purity: it.purity,
+      grossWeight: it.grossWeight,
+      pricing: it.pricing,
       quantity: it.quantity,
       price: it.price,
     })),
@@ -114,6 +149,7 @@ function invoiceToBillDocument(
     deliveryCharge: inv.deliveryCharge,
     materialReturnedWeight: inv.materialReturnedWeight,
     materialReturnedValue: inv.materialReturnedValue,
+    materialReturnedTitle: inv.materialReturnedTitle,
     amountPaid: inv.amountPaid,
     status: inv.status,
     currency,
@@ -143,11 +179,12 @@ export function BillingPage() {
   const [deliveryCharge, setDeliveryCharge] = useState("0");
   const [materialReturnedWeight, setMaterialReturnedWeight] = useState("");
   const [materialReturnedValue, setMaterialReturnedValue] = useState("0");
+  const [materialReturnedTitle, setMaterialReturnedTitle] = useState("");
   const [amountPaid, setAmountPaid] = useState("0");
   const [lines, setLines] = useState<LineState[]>([emptyLine()]);
 
   // ── Template options (shared with web — bill-template-options) ─────────
-  const [template, setTemplate] = useState<BillTemplate>("jewellery");
+  const [template, setTemplate] = useState<BillTemplate>("ecommerce");
   const [classicColor, setClassicColor] = useState<BillClassicColor>("red");
   const [twoInOne, setTwoInOne] = useState(false);
   const [mode, setMode] = useState<BillMode>("duplicate");
@@ -224,42 +261,199 @@ export function BillingPage() {
     };
   }, [goldRates, billGoldRate, billSilverRate, settings]);
 
-  /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
-  const repriceGoldLines = useCallback(
-    (prev: LineState[]): LineState[] =>
-      prev.map((line) => {
-        if (!line.productId) return line;
-        const p = allProducts?.find((x) => x.id === line.productId);
-        if (!p || p.type !== "Gold" || p.priceMode !== "auto") return line;
-        return { ...line, price: String(priceProductRow(p, billPricingContext).price) };
-      }),
-    [allProducts, billPricingContext],
+  /** Core breakdown for ONE line under a given bill context — the edited
+   *  weight/rate/labour/charges included; null when the line isn't an
+   *  auto-priced gold/silver product. */
+  const breakdownFor = useCallback(
+    (line: LineState, context: PricingContext): PriceBreakdown | null => {
+      if (!line.productId) return null;
+      const p = allProducts?.find((x) => x.id === line.productId);
+      if (!p || p.priceMode !== "auto" || (p.type !== "Gold" && p.type !== "Silver")) return null;
+      const weight = line.weightEdited ? parseLineNum(line.weight) : null;
+      return priceBillLineRow(
+        p,
+        context,
+        { weight, weightUnit: line.weightUnit },
+        {
+          ratePerGram: line.rateEdited ? parseLineNum(line.ratePerGram) : null,
+          labourType: isLabourType(line.labourType) ? line.labourType : null,
+          labourValue: parseLineNum(line.labourValue),
+          nag: parseLineNum(line.nag),
+          povayi: parseLineNum(line.povayi),
+          otherCharges: parseLineNum(line.otherCharges),
+          silverPercentage: parseLineNum(line.silverPercentage),
+        },
+      );
+    },
+    [allProducts],
   );
 
-  /** Re-prices the auto-priced SILVER lines with the bill's rate (core engine). */
-  const repriceSilverLines = useCallback(
-    (prev: LineState[]): LineState[] =>
-      prev.map((line) => {
-        if (!line.productId) return line;
-        const p = allProducts?.find((x) => x.id === line.productId);
-        if (!p || p.type !== "Silver" || p.priceMode !== "auto") return line;
-        return { ...line, price: String(priceProductRow(p, billPricingContext).price) };
-      }),
-    [allProducts, billPricingContext],
+  /** Applies a breakdown to the line — price from the engine; an untouched
+   *  Rate field tracks the bill/table rate (write-back), an edited one sticks. */
+  function applyBreakdown(line: LineState, breakdown: PriceBreakdown | null): LineState {
+    if (!breakdown) return line;
+    const next = { ...line, price: String(breakdown.price) };
+    if (!line.rateEdited && breakdown.source === "auto") next.ratePerGram = String(breakdown.ratePerGram);
+    return next;
+  }
+
+  const lineBreakdown = useCallback(
+    (line: LineState): PriceBreakdown | null => breakdownFor(line, billPricingContext),
+    [breakdownFor, billPricingContext],
   );
+
+  /** Re-prices ONE line with the bill's current rates. */
+  const repriceLine = useCallback(
+    (line: LineState): LineState => applyBreakdown(line, breakdownFor(line, billPricingContext)),
+    [breakdownFor, billPricingContext],
+  );
+
+  /** Editing a line's Weight re-prices that line (clearing it reverts to the
+   *  product's own weight basis). */
+  function makeWeightHandler(setter: (updater: (prev: LineState[]) => LineState[]) => void) {
+    return (index: number, raw: string) => {
+      setter((prev) =>
+        prev.map((l, i) => (i === index ? repriceLine({ ...l, weight: raw, weightEdited: raw.trim() !== "" }) : l)),
+      );
+    };
+  }
+
+  /** Per-line pricing edits (rate/labour/charges/silver %) — merge the patch,
+   *  flip `rateEdited` for the Rate field, then re-price. */
+  function handlePricingChange(
+    setter: (updater: (prev: LineState[]) => LineState[]) => void,
+    index: number,
+    patch: Partial<LineState>,
+  ) {
+    setter((prev) =>
+      prev.map((l, i) => {
+        if (i !== index) return l;
+        const merged = { ...l, ...patch };
+        if (patch.ratePerGram !== undefined) merged.rateEdited = patch.ratePerGram.trim() !== "";
+        return repriceLine(merged);
+      }),
+    );
+  }
+
+  /** Re-prices the auto-priced lines (optionally only one metal). */
+  const repriceAll = useCallback(
+    (prev: LineState[], metal?: "Gold" | "Silver"): LineState[] =>
+      prev.map((line) => {
+        if (metal) {
+          const p = allProducts?.find((x) => x.id === line.productId);
+          if (!p || p.type !== metal) return line;
+        }
+        return applyBreakdown(line, breakdownFor(line, billPricingContext));
+      }),
+    [allProducts, breakdownFor, billPricingContext],
+  );
+
+  /** Pricing fields materialised when a product lands on a line — visible
+   *  values the operator can edit (empty = product default). The rate comes
+   *  from the live breakdown (bill rate applied); labour/charges from the
+   *  product row itself. */
+  function pricingDefaultsFor(
+    provisional: LineState,
+    full?: ProductDto,
+  ): Pick<
+    LineState,
+    "ratePerGram" | "rateEdited" | "labourType" | "labourValue" | "nag" | "povayi" | "otherCharges"
+  > {
+    const product =
+      full ?? (provisional.productId ? allProducts?.find((x) => x.id === provisional.productId) : undefined);
+    const base = {
+      ratePerGram: "",
+      rateEdited: false,
+      labourType: "",
+      labourValue: "",
+      nag: "",
+      povayi: "",
+      otherCharges: "",
+    };
+    if (!product || product.priceMode !== "auto" || (product.type !== "Gold" && product.type !== "Silver"))
+      return base;
+    const breakdown = lineBreakdown(provisional);
+    const rate =
+      breakdown && breakdown.source === "auto"
+        ? String(breakdown.ratePerGram)
+        : product.type === "Gold" && product.goldRatePerGram > 0
+          ? String(product.goldRatePerGram)
+          : product.type === "Silver" && product.silverRatePerGram > 0
+            ? String(product.silverRatePerGram)
+            : "";
+    return {
+      ...base,
+      ratePerGram: rate,
+      labourType: product.labourType,
+      labourValue: product.labourValue != null ? String(product.labourValue) : "",
+      nag: product.nagRate ?? "",
+      povayi: product.povayiRate != null ? String(product.povayiRate) : "",
+      otherCharges: product.otherCharges != null ? String(product.otherCharges) : "",
+    };
+  }
+
+  /** The pricing strip's data for one line — metal + live breakdown
+   *  (null → no strip: no product / manual price / non-metal). */
+  function pricingViewFor(
+    line: LineState,
+  ): { metal: "Gold" | "Silver"; breakdown: PriceBreakdown } | null {
+    if (!line.productId) return null;
+    const p = allProducts?.find((x) => x.id === line.productId);
+    if (!p || p.priceMode !== "auto" || (p.type !== "Gold" && p.type !== "Silver")) return null;
+    const breakdown = lineBreakdown(line);
+    if (!breakdown) return null;
+    return { metal: p.type, breakdown };
+  }
+
+  /** Bill context with the gold base replaced by the field's live value. The
+   *  rate inputs reprice inside their own setState updater — a context memo
+   *  would still hold the previous keystroke's rate at that point. */
+  function goldContextFor(raw: string): PricingContext {
+    const parsed = Number(raw);
+    const rate = raw.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : goldBaseRate;
+    const table = resolveGoldRateTable(goldRates?.rates ?? []);
+    return {
+      ...billPricingContext,
+      goldRateTable:
+        rate != null ? applyGoldBaseRate(table, rate, goldRates?.baseKarat ?? null) : table,
+    };
+  }
+
+  /** Same for the silver ₹/10g field (stored per-gram). */
+  function silverContextFor(raw: string): PricingContext {
+    const parsed10g = Number(raw);
+    const perGram =
+      raw.trim() && Number.isFinite(parsed10g) && parsed10g > 0 ? parsed10g / 10 : shopSilverPerGram;
+    return { ...billPricingContext, silverRateOverride: perGram };
+  }
+
+  /** Re-prices one metal's lines under an explicitly built context (used by
+   *  the bill-rate inputs, whose new rate isn't in the memo yet). */
+  function repriceMetalWith(
+    prev: LineState[],
+    metal: "Gold" | "Silver",
+    context: PricingContext,
+  ): LineState[] {
+    return prev.map((line) => {
+      if (!line.productId) return line;
+      const p = allProducts?.find((x) => x.id === line.productId);
+      if (!p || p.type !== metal || p.priceMode !== "auto") return line;
+      return applyBreakdown(line, breakdownFor(line, context));
+    });
+  }
 
   function handleGoldRateChange(value: string) {
     goldRateTouched.current = true;
     setGoldRateInput(value);
-    setLines((prev) => repriceGoldLines(prev));
-    setSecondLines((prev) => repriceGoldLines(prev));
+    setLines((prev) => repriceMetalWith(prev, "Gold", goldContextFor(value)));
+    setSecondLines((prev) => repriceMetalWith(prev, "Gold", goldContextFor(value)));
   }
 
   function handleSilverRateChange(value: string) {
     setSilverTouched(true);
     setSilverRateInput(value);
-    setLines((prev) => repriceSilverLines(prev));
-    setSecondLines((prev) => repriceSilverLines(prev));
+    setLines((prev) => repriceMetalWith(prev, "Silver", silverContextFor(value)));
+    setSecondLines((prev) => repriceMetalWith(prev, "Silver", silverContextFor(value)));
   }
 
   useEffect(() => {
@@ -274,12 +468,12 @@ export function BillingPage() {
         const fresh = priceOf(line.productId);
         return fresh === null ? line : { ...line, price: fresh };
       });
-    // Server rates land first, then the bill's own gold/silver rates (if
-    // any) re-apply on top so edited rates are never clobbered.
-    setLines((prev) => repriceSilverLines(repriceGoldLines(refresh(prev))));
-    setSecondLines((prev) => repriceSilverLines(repriceGoldLines(refresh(prev))));
+    // Server prices land first, then every auto line re-prices with the
+    // bill's rates + this line's own rate/labour/charge edits on top.
+    setLines((prev) => repriceAll(refresh(prev)));
+    setSecondLines((prev) => repriceAll(refresh(prev)));
     setAwaitingFreshPrices(false);
-  }, [awaitingFreshPrices, allProducts, repriceGoldLines, repriceSilverLines]);
+  }, [awaitingFreshPrices, allProducts, repriceAll]);
 
   async function handleRecalcPrices() {
     try {
@@ -318,7 +512,7 @@ export function BillingPage() {
     }
     const apply = target === "second" ? setSecondLines : setLines;
     apply((prev) => {
-      const line: LineState = {
+      const base: LineState = {
         ...emptyLine(),
         productId: found.id,
         productName: found.name,
@@ -327,9 +521,14 @@ export function BillingPage() {
         size: found.size ?? "",
         weight: found.weight != null ? String(found.weight) : "",
         weightUnit: found.weightUnit === "mg" ? ("mg" as const) : ("gm" as const),
+        purity: found.purity ?? "",
+        grossWeight: found.grossWeight ?? "",
         price: String(found.effectivePrice),
         silverPercentage: String(found.silverPercentage ?? 100),
       };
+      // Materialise the editable pricing fields + re-price with the bill's
+      // CURRENT rates (picking after a rate edit still lands the right price).
+      const line = repriceLine({ ...base, ...pricingDefaultsFor(base, found) });
       const idx = prev.findIndex((l) => !l.productId && !l.productName.trim());
       return idx >= 0 ? prev.map((l, i) => (i === idx ? line : l)) : [...prev, line];
     });
@@ -375,7 +574,9 @@ export function BillingPage() {
   }
 
   function pickProduct(index: number, p: ProductOption, target: "first" | "second" = "first") {
-    const patch = {
+    const full = allProducts?.find((x) => x.id === p.id);
+    const base: LineState = {
+      ...emptyLine(),
       productId: p.id,
       productName: p.name,
       sku: p.sku ?? "",
@@ -383,27 +584,41 @@ export function BillingPage() {
       size: p.size ?? "",
       weight: p.weight != null ? String(p.weight) : "",
       weightUnit: p.weightUnit === "mg" ? ("mg" as const) : ("gm" as const),
+      weightEdited: false,
+      purity: p.purity ?? "",
+      grossWeight: p.grossWeight ?? "",
       price: String(p.effectivePrice ?? p.sellingPrice),
       silverPercentage: String(p.silverPercentage ?? 100),
     };
-    if (target === "second") updateSecondLine(index, patch);
-    else updateLine(index, patch);
+    // Materialise the editable pricing fields + re-price with the bill's
+    // CURRENT rates (picking after a rate edit still lands the right price).
+    const line = repriceLine({ ...base, ...pricingDefaultsFor(base, full) });
+    if (target === "second") updateSecondLine(index, line);
+    else updateLine(index, line);
   }
 
   function lineItems(list: LineState[]) {
     return list
-      .map((l) => ({
-        productId: l.productId || undefined,
-        productName: l.productName.trim(),
-        sku: l.sku.trim() || undefined,
-        color: l.color.trim() || undefined,
-        size: l.size.trim() || undefined,
-        description: l.description.trim() || undefined,
-        weight: l.weight.trim() ? Number(l.weight) : undefined,
-        weightUnit: l.weight.trim() ? l.weightUnit : undefined,
-        quantity: Number(l.quantity) || 0,
-        price: Number(l.price) || 0,
-      }))
+      .map((l) => {
+        // The edited line's snapshot (rate/labour/povayi) so the printed bill
+        // matches the screen; omitted → server freezes from the product.
+        const breakdown = l.productId ? lineBreakdown(l) : null;
+        return {
+          productId: l.productId || undefined,
+          productName: l.productName.trim(),
+          sku: l.sku.trim() || undefined,
+          color: l.color.trim() || undefined,
+          size: l.size.trim() || undefined,
+          description: l.description.trim() || undefined,
+          weight: l.weight.trim() ? Number(l.weight) : undefined,
+          weightUnit: l.weight.trim() ? l.weightUnit : undefined,
+          purity: l.purity.trim() || undefined,
+          grossWeight: l.grossWeight.trim() || undefined,
+          quantity: Number(l.quantity) || 0,
+          price: Number(l.price) || 0,
+          pricing: breakdown ? invoicePricingFromBreakdown(breakdown) ?? undefined : undefined,
+        };
+      })
       .filter((it) => it.productName && it.quantity > 0);
   }
 
@@ -416,6 +631,7 @@ export function BillingPage() {
     setDeliveryCharge("0");
     setMaterialReturnedWeight("");
     setMaterialReturnedValue("0");
+    setMaterialReturnedTitle("");
     setAmountPaid("0");
     setLines([emptyLine()]);
     setSecondCustomerName("");
@@ -482,6 +698,7 @@ export function BillingPage() {
         deliveryCharge: Number(deliveryCharge) || 0,
         materialReturnedWeight: materialReturnedWeight.trim() || undefined,
         materialReturnedValue: Number(materialReturnedValue) || 0,
+        materialReturnedTitle: materialReturnedTitle.trim() || undefined,
         // "Mark as paid" wins over the Paid-now field — the invoice is saved
         // with its full total as paid, so it lands as PAID (not UNPAID).
         amountPaid: markPaid ? total : Number(amountPaid) || 0,
@@ -734,6 +951,9 @@ export function BillingPage() {
                     lines={lines}
                     allProducts={allProducts}
                     update={updateLine}
+                    onWeightChange={makeWeightHandler(setLines)}
+                    onPricingChange={(i, patch) => handlePricingChange(setLines, i, patch)}
+                    pricing={(i) => (lines[i] ? pricingViewFor(lines[i]) : null)}
                     remove={(i) => setLines((prev) => prev.filter((_, x) => x !== i))}
                     add={() => setLines((prev) => [...prev, emptyLine()])}
                     pick={(i, p) => pickProduct(i, p, "first")}
@@ -750,8 +970,10 @@ export function BillingPage() {
                   />
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="b-mr-weight">Material returned weight</Label>
-                      <Input id="b-mr-weight" value={materialReturnedWeight} onChange={(e) => setMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" />
+          <Label htmlFor="b-mr-title">Material returned title</Label>
+          <Input id="b-mr-title" value={materialReturnedTitle} onChange={(e) => setMaterialReturnedTitle(e.target.value)} placeholder="Material Returned" />
+          <Label htmlFor="b-mr-weight">Material returned weight</Label>
+          <Input id="b-mr-weight" value={materialReturnedWeight} onChange={(e) => setMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="b-mr-value">Material returned value (₹)</Label>
@@ -800,6 +1022,9 @@ export function BillingPage() {
                       lines={secondLines}
                       allProducts={allProducts}
                       update={updateSecondLine}
+                      onWeightChange={makeWeightHandler(setSecondLines)}
+                      onPricingChange={(i, patch) => handlePricingChange(setSecondLines, i, patch)}
+                      pricing={(i) => (secondLines[i] ? pricingViewFor(secondLines[i]) : null)}
                       remove={(i) => setSecondLines((prev) => prev.filter((_, x) => x !== i))}
                       add={() => setSecondLines((prev) => [...prev, emptyLine()])}
                       pick={(i, p) => pickProduct(i, p, "second")}
@@ -1069,6 +1294,9 @@ function TotalsSummary({
 function LineItemsEditor({
   lines,
   update,
+  onWeightChange,
+  onPricingChange,
+  pricing,
   remove,
   add,
   pick,
@@ -1076,6 +1304,10 @@ function LineItemsEditor({
 }: {
   lines: LineState[];
   update: (i: number, patch: Partial<LineState>) => void;
+  onWeightChange?: (i: number, weight: string) => void;
+  onPricingChange?: (i: number, patch: Partial<BillLinePricingStripValue>) => void;
+  /** Live pricing view per line (metal + breakdown) — null → no strip. */
+  pricing?: (i: number) => { metal: "Gold" | "Silver"; breakdown: PriceBreakdown } | null;
   remove: (i: number) => void;
   add: () => void;
   pick: (i: number, p: ProductOption) => void;
@@ -1083,7 +1315,10 @@ function LineItemsEditor({
 }) {
   return (
     <div className="space-y-2">
-      {lines.map((line, index) => (
+      {lines.map((line, index) => {
+        const pricingView = pricing?.(index) ?? null;
+        const breakdown = pricingView?.breakdown;
+        return (
         <div key={index} className="bg-muted/50 flex flex-wrap items-end gap-2 rounded-lg border p-3">
           <div className="min-w-56 flex-1 space-y-1.5">
             <div className="flex items-center gap-1.5">
@@ -1123,20 +1358,67 @@ function LineItemsEditor({
             <Input type="number" min={1} value={line.quantity} onChange={(e) => update(index, { quantity: e.target.value })} />
           </div>
           <div className="w-28 space-y-1.5">
+            <Label>Weight</Label>
+            <Input
+              type="number"
+              min={0}
+              step="any"
+              value={line.weight}
+              onChange={(e) => (onWeightChange ? onWeightChange(index, e.target.value) : update(index, { weight: e.target.value }))}
+              placeholder="0.000"
+            />
+          </div>
+          <div className="w-28 space-y-1.5">
             <Label>Price</Label>
             <Input type="number" min={0} value={line.price} onChange={(e) => update(index, { price: e.target.value })} />
           </div>
-          {line.productId && (
-            <div className="w-24 space-y-1.5">
-              <Label>Silver %</Label>
-              <Input type="number" min={0} max={100} value={line.silverPercentage} onChange={(e) => update(index, { silverPercentage: e.target.value })} />
-            </div>
-          )}
+          <div className="w-20 space-y-1.5">
+            <Label>Purity</Label>
+            <Input value={line.purity} onChange={(e) => update(index, { purity: e.target.value })} placeholder="22K" className="h-8 text-xs" />
+          </div>
+          <div className="w-24 space-y-1.5">
+            <Label>G. Wt.</Label>
+            <Input value={line.grossWeight} onChange={(e) => update(index, { grossWeight: e.target.value })} placeholder="19.12" className="h-8 text-xs" />
+          </div>
           <Button variant="ghost" size="icon" onClick={() => remove(index)}>
             <Trash2 className="h-4 w-4" />
           </Button>
+          {pricingView && (
+            <BillLinePricingStrip
+              className="w-full"
+              metal={pricingView.metal}
+              value={{
+                ratePerGram: line.ratePerGram,
+                labourType: line.labourType,
+                labourValue: line.labourValue,
+                silverPercentage: line.silverPercentage,
+                nag: line.nag,
+                povayi: line.povayi,
+                otherCharges: line.otherCharges,
+              }}
+              effectiveLabourType={breakdown?.labour.type ?? undefined}
+              effectiveRatePerGram={
+                breakdown && breakdown.source === "auto" ? String(breakdown.ratePerGram) : undefined
+              }
+              effectiveLabourValue={
+                line.labourValue === "" && breakdown && breakdown.source === "auto" && breakdown.labour.value > 0
+                  ? String(breakdown.labour.value)
+                  : undefined
+              }
+              metalValue={breakdown?.metalValue ?? null}
+              labourAmount={breakdown?.labour.amount ?? null}
+              otherChargesTotal={
+                breakdown
+                  ? breakdown.charges.nag + breakdown.charges.povayi + breakdown.charges.other
+                  : null
+              }
+              autoPricing={breakdown?.source === "auto"}
+              onChange={(patch) => onPricingChange?.(index, patch)}
+            />
+          )}
         </div>
-      ))}
+        );
+      })}
       <Button variant="outline" size="sm" onClick={add}>
         <Plus className="h-4 w-4" /> Add item
       </Button>
@@ -1147,3 +1429,4 @@ function LineItemsEditor({
 function SeparatorLine() {
   return <div className="bg-border my-2 h-px" />;
 }
+

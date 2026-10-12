@@ -183,6 +183,8 @@ export const invoices = pgTable("invoices", {
     materialReturnedWeight: text("material_returned_weight"),
     /** Monetary value of material returned (deducted from total). */
     materialReturnedValue: doublePrecision("material_returned_value").notNull().default(0),
+    /** Per-bill label for the deduction row (null → "Material Returned"). */
+    materialReturnedTitle: text("material_returned_title"),
     total: doublePrecision("total").notNull().default(0),
     amountPaid: doublePrecision("amount_paid").notNull().default(0),
     notes: text("notes"),
@@ -211,6 +213,11 @@ export const invoiceItems = pgTable("invoice_items", {
     color: text("color"),
     size: text("size"),
     description: text("description"),
+    /** Metal purity stamp for the bill's description ("22K", "916", "925"…)
+     *  — editable per line on the bill screen, defaulted from the product. */
+    purity: text("purity"),
+    /** Gross-weight free-text snapshot from the product (bill G.Wt. column). */
+    grossWeight: text("gross_weight"),
     /** Product weight + unit snapshot — drives the bill's WEIGHT column. */
     weight: doublePrecision("weight"),
     weightUnit: text("weight_unit"),

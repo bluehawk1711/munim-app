@@ -4,6 +4,7 @@ import * as schema from "../db/schema.js";
 import { generateInvoiceNumber } from "../utils/codes.js";
 import type { BillTemplateSettings } from "../billing/index.js";
 import { priceProduct } from "../pricing/product.js";
+import { invoicePricingFromBreakdown } from "../pricing/bill-line.js";
 import { getProduct } from "./products.js";
 import { loadGoldPricing } from "./goldRates.js";
 import { logActivity } from "./activity.js";
@@ -59,18 +60,9 @@ function pricingSnapshotFor(
       defaultLabour: pricingContext.defaultLabour,
     },
   );
-  if (breakdown.source !== "auto" || breakdown.metal === null) return null;
-  return {
-    metal: breakdown.metal,
-    ratePerGram: breakdown.ratePerGram,
-    karat: breakdown.karat,
-    silverPercentage: breakdown.metal === "Silver" ? breakdown.purityPercent : null,
-    weightGm: breakdown.weightGm,
-    metalValue: breakdown.metalValue,
-    labourType: breakdown.labour.type,
-    labourValue: breakdown.labour.value,
-    labourAmount: breakdown.labour.amount,
-  };
+  // Single breakdown→snapshot mapping (shared with the bill screens, which
+  // send their edited line's snapshot on save).
+  return invoicePricingFromBreakdown(breakdown);
 }
 
 /** Quick single-product sale (like the stockPilot "sell" flow). Decrements stock. */
@@ -169,9 +161,17 @@ export type InvoiceItemInput = {
   color?: string;
   size?: string;
   description?: string;
+  /** Metal purity stamp printed beside the name (`p:` prefix). */
+  purity?: string;
+  /** Gross-weight free text snapshot from the product (bill G.Wt. column). */
+  grossWeight?: string;
   /** Product weight + unit snapshot — bill WEIGHT column display only. */
   weight?: number | null;
   weightUnit?: string | null;
+  /** Frozen pricing snapshot computed by the bill screen (reflects its
+   *  per-line rate/labour/charge edits); null/omitted → the server freezes
+   *  its own from the product at save time. */
+  pricing?: schema.InvoiceItemPricing | null;
   quantity: number;
   price: number;
 };
@@ -189,6 +189,8 @@ export type InvoiceInput = {
   materialReturnedWeight?: string;
   /** Monetary value of material returned (deducted from total). */
   materialReturnedValue?: number;
+  /** Per-bill label for the deduction row (blank → "Material Returned"). */
+  materialReturnedTitle?: string;
   notes?: string;
   shopDetails?: { name: string; address: string; phones: string[]; email: string };
   /** Snapshot of the bill template settings (template / classic color / 2-in-1). */
@@ -260,8 +262,9 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       subtotal,
       deliveryCharge: delivery,
       discount,
-      materialReturnedWeight: input.materialReturnedWeight?.trim() || null,
-      materialReturnedValue,
+    materialReturnedWeight: input.materialReturnedWeight?.trim() || null,
+    materialReturnedValue,
+    materialReturnedTitle: input.materialReturnedTitle?.trim() || null,
       total,
       amountPaid,
       notes: input.notes?.trim() || null,
@@ -283,12 +286,16 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       color: item.color || product?.colorName || null,
       size: item.size || product?.sizeName || null,
       description: item.description?.trim() || null,
+      purity: item.purity?.trim() || product?.purity || null,
+      grossWeight: item.grossWeight || product?.grossWeight || null,
       weight: item.weight ?? product?.weight ?? null,
       weightUnit: item.weightUnit ?? product?.weightUnit ?? null,
       quantity: item.quantity,
       price: item.price,
       total: item.quantity * item.price,
-      pricing: product ? pricingSnapshotFor(product, pricingContext) : null,
+      // The client-computed snapshot (bill-screen rate/labour/charge edits)
+      // wins; otherwise freeze the product's own pricing as before.
+      pricing: item.pricing ?? (product ? pricingSnapshotFor(product, pricingContext) : null),
     });
   }
 

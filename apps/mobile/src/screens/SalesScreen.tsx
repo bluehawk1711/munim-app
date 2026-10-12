@@ -74,6 +74,7 @@ export function SalesScreen() {
   const [deliveryCharge, setDeliveryCharge] = useState('');
   const [materialReturnedWeight, setMaterialReturnedWeight] = useState('');
   const [materialReturnedValue, setMaterialReturnedValue] = useState('');
+  const [materialReturnedTitle, setMaterialReturnedTitle] = useState('');
   const [busy, setBusy] = useState(false);
 
   // Template settings (same model as web + desktop)
@@ -330,6 +331,8 @@ export function SalesScreen() {
           size: i.product.size || undefined,
           weight: i.product.weight,
           weightUnit: i.product.weightUnit === 'mg' ? 'mg' : 'gm',
+          purity: i.product.purity || undefined,
+          grossWeight: i.product.grossWeight || undefined,
           quantity: i.quantity,
           price: i.price,
         })),
@@ -338,6 +341,7 @@ export function SalesScreen() {
         deliveryCharge: includeDelivery ? (Number(deliveryCharge) || 0) : 0,
         materialReturnedWeight: materialReturnedWeight.trim() || undefined,
         materialReturnedValue: Number(materialReturnedValue) || 0,
+        materialReturnedTitle: materialReturnedTitle.trim() || undefined,
         templateSettings,
         goldRate: billGoldRate ?? undefined,
         silverRate: billSilverRate ?? undefined,
@@ -362,6 +366,9 @@ export function SalesScreen() {
           size: it.size,
           weight: it.weight,
           weightUnit: it.weightUnit,
+          purity: it.purity,
+          grossWeight: it.grossWeight,
+          pricing: it.pricing,
           quantity: it.quantity,
           price: it.price,
         })),
@@ -369,6 +376,7 @@ export function SalesScreen() {
         deliveryCharge: invoice.deliveryCharge,
         materialReturnedWeight: invoice.materialReturnedWeight,
         materialReturnedValue: invoice.materialReturnedValue,
+        materialReturnedTitle: invoice.materialReturnedTitle,
         amountPaid: invoice.amountPaid,
         status: invoice.status,
         goldRate: invoice.goldRate ?? goldBaseRate,
@@ -584,6 +592,7 @@ export function SalesScreen() {
           {includeDelivery && (
             <Field label="Delivery charge" value={deliveryCharge} onChangeText={setDeliveryCharge} keyboardType="numeric" placeholder="0" />
           )}
+          <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
           <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
           <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" placeholder="0" />
         </Card>
@@ -656,7 +665,7 @@ export function SalesScreen() {
               ) : null}
               {(Number(materialReturnedValue) || 0) > 0 ? (
                 <View style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>Material Returned{materialReturnedWeight ? ` (${materialReturnedWeight})` : ''}</Text>
+                  <Text style={styles.totalLabel}>{materialReturnedTitle.trim() || 'Material Returned'}{materialReturnedWeight ? ` (${materialReturnedWeight})` : ''}</Text>
                   <Text style={[styles.totalValue, {color: colors.danger}]}>−{money(Number(materialReturnedValue) || 0)}</Text>
                 </View>
               ) : null}

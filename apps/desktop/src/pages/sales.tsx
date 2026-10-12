@@ -1,3 +1,8 @@
+/**
+ * Sales Counter & POS Terminal — USELESS FOR NOW: hidden from the sidebar
+ * because New Bill + Invoices already cover selling. The route stays alive for
+ * direct URLs; don't invest in this screen until there's a real POS need.
+ */
 import { useEffect, useMemo, useState } from "react";
 import {
   Search, ShoppingCart, Receipt, IndianRupee, TrendingUp, Undo2,

@@ -1,8 +1,9 @@
 import { amountInWords } from "../utils/numberToWords.js";
 import { formatCurrency } from "../utils/format.js";
-/** Defaults for the per-bill display toggles — all ON. */
+/** Defaults for the per-bill display toggles — all ON. The template defaults
+ *  to the E-commerce estimate sheet (the shop's new default bill design). */
 export const DEFAULT_BILL_TEMPLATE_SETTINGS = {
-    template: "jewellery",
+    template: "ecommerce",
     classicColor: "red",
     twoInOne: false,
     mode: "duplicate",
@@ -18,14 +19,97 @@ export const DEFAULT_BILL_TEMPLATE_SETTINGS = {
 export function mergeBillTemplateSettings(partial) {
     return { ...DEFAULT_BILL_TEMPLATE_SETTINGS, ...partial };
 }
-/** Shop rate rows gated by the per-bill toggles + present rate values. */
-export function rateRowsOf(bill, settings) {
-    const rows = [];
-    if (settings.goldRateLine && bill.goldRate != null && bill.goldRate > 0) {
-        rows.push(`Gold rate: ${formatCurrency(bill.goldRate)}/g`);
+/** Row label for the material-returned deduction — per-bill title or default. */
+export function materialReturnedTitleOf(bill) {
+    return bill.materialReturnedTitle?.trim() || "Material Returned";
+}
+/** Product name with the purity stamp in parentheses (`(22K)`) beside it. */
+export function nameWithPurity(line) {
+    const p = line.purity?.trim();
+    return p ? `${line.productName} (${p})` : line.productName;
+}
+/**
+ * Estimate-template row derivations: per-gram rate, metal value, labour ₹,
+ * other charges ₹ — the single "Other Charges" column printed instead of a
+ * povayi-only column: nag + povayi + other summed. Legacy snapshots (saved
+ * before nag/other were frozen) have them missing → 0, so the sum is just
+ * their povayi — old bills render unchanged. NULL when the line froze no
+ * pricing at all (manual/legacy lines).
+ */
+export function estimateRowOf(line) {
+    const p = line.pricing;
+    const rate = p?.ratePerGram != null && p.ratePerGram > 0
+        ? p.ratePerGram
+        : line.weight && line.weight > 0
+            ? line.price / line.weight
+            : line.price;
+    const value = p?.metalValue ?? line.price;
+    const labour = p?.labourAmount ?? null;
+    const otherCharges = p == null ? null : (p.nag ?? 0) + (p.povayi ?? 0) + (p.other ?? 0);
+    return { rate, value, labour, otherCharges };
+}
+/**
+ * Labour method tag printed beside the Labour amount on the estimate —
+ * "(fixed)" / "(11.82/gm)" / "(2.5%)" so the shop can see whether the
+ * labour was a flat charge, a per-gram rate or a percentage of metal value.
+ * Blank when the line froze no labour method (legacy/manual lines).
+ */
+export function estimateLabourTag(line) {
+    const p = line.pricing;
+    if (!p?.labourType)
+        return "";
+    if (p.labourType === "PER_GRAM")
+        return ` (${formatLabourValue(p.labourValue)}/gm)`;
+    if (p.labourType === "FIXED")
+        return " (fixed)";
+    if (p.labourType === "PERCENT")
+        return ` (${formatLabourValue(p.labourValue)}%)`;
+    return "";
+}
+function formatLabourValue(value) {
+    if (value == null || !Number.isFinite(value))
+        return "0";
+    return Number(value.toFixed(2)).toString();
+}
+/**
+ * Does any line of this bill declare a metal? Gates the header rate rows and
+ * the estimate's weight columns by what the bill actually bills.
+ */
+function declaredMetals(bill) {
+    let gold = false;
+    let silver = false;
+    for (const line of bill.lines) {
+        if (line.pricing?.metal === "Gold")
+            gold = true;
+        else if (line.pricing?.metal === "Silver")
+            silver = true;
     }
-    if (settings.silverRateLine && bill.silverRate != null && bill.silverRate > 0) {
-        rows.push(`Silver rate: ${formatCurrency(bill.silverRate)}/g`);
+    return { gold, silver };
+}
+/**
+ * Estimate weight-column layout: gold bills show the G. Wt. + N. Wt. pair;
+ * silver-only bills show ONE combined "Weight" column (gross weight is a
+ * gold-only concept at this shop). Bills with no frozen metal info (all
+ * manual/legacy lines) keep the classic pair so old bills look unchanged.
+ */
+export function estimateWeightLayout(bill) {
+    const { gold, silver } = declaredMetals(bill);
+    return silver && !gold ? "combined" : "split";
+}
+/**
+ * Shop rate rows gated by the per-bill toggles, present rate values AND the
+ * metals the bill actually contains (a silver-only bill never prints the
+ * gold rate, and vice versa). Rates state their unit — per gm.
+ */
+export function rateRowsOf(bill, settings) {
+    const { gold, silver } = declaredMetals(bill);
+    const anyMetal = gold || silver;
+    const rows = [];
+    if (settings.goldRateLine && bill.goldRate != null && bill.goldRate > 0 && (!anyMetal || gold)) {
+        rows.push(`Gold rate: ${formatCurrency(bill.goldRate)} per gm`);
+    }
+    if (settings.silverRateLine && bill.silverRate != null && bill.silverRate > 0 && (!anyMetal || silver)) {
+        rows.push(`Silver rate: ${formatCurrency(bill.silverRate)} per gm`);
     }
     return rows;
 }
@@ -62,6 +146,7 @@ export function buildBillDocument(input) {
         deliveryCharge,
         materialReturnedWeight: input.materialReturnedWeight?.trim() || null,
         materialReturnedValue,
+        materialReturnedTitle: input.materialReturnedTitle?.trim() || null,
         total,
         amountInWords: amountInWords(total),
         amountPaid,
@@ -79,27 +164,31 @@ export function buildBillDocument(input) {
  */
 export function renderBillText(bill) {
     const currency = bill.currency === "INR" ? "₹" : `${bill.currency} `;
+    const metals = declaredMetals(bill);
+    const anyMetal = metals.gold || metals.silver;
+    const showGoldRate = bill.goldRate != null && bill.goldRate > 0 && (!anyMetal || metals.gold);
+    const showSilverRate = bill.silverRate != null && bill.silverRate > 0 && (!anyMetal || metals.silver);
     const lines = [
         bill.shop.name,
         bill.shop.address ?? "",
         `Ph: ${bill.shop.phones.join(", ")}${bill.shop.email ? ` | ${bill.shop.email}` : ""}`,
         "",
         `BILL NO: ${bill.billNo}        DATE: ${bill.date}`,
-        bill.goldRate != null && bill.goldRate > 0 ? `Gold rate:   ${currency}${bill.goldRate.toFixed(2)}/g` : "",
-        bill.silverRate != null && bill.silverRate > 0 ? `Silver rate: ${currency}${bill.silverRate.toFixed(2)}/g` : "",
+        showGoldRate ? `Gold rate:   ${currency}${bill.goldRate?.toFixed(2)} per gm` : "",
+        showSilverRate ? `Silver rate: ${currency}${bill.silverRate?.toFixed(2)} per gm` : "",
         `Customer: ${bill.customerName ?? ""}${bill.customerPhone ? ` (${bill.customerPhone})` : ""}`,
         "",
         ...bill.lines.flatMap((l) => {
             const weight = l.weight != null ? `${l.weight}${l.weightUnit === "mg" ? "mg" : "g"}` : null;
             return [
-                `${l.quantity} × ${l.productName}${weight ? ` [${weight}]` : ""} @ ${currency}${l.price.toFixed(2)}`,
+                `${l.quantity} × ${l.productName}${l.purity?.trim() ? ` (${l.purity.trim()})` : ""}${weight ? ` [${weight}]` : ""} @ ${currency}${l.price.toFixed(2)}`,
                 `    ${currency}${l.total.toFixed(2)}`,
             ];
         }),
         "",
         `Subtotal:      ${currency}${bill.subtotal.toFixed(2)}`,
         bill.discount > 0 ? `Discount:      -${currency}${bill.discount.toFixed(2)}` : "",
-        bill.materialReturnedValue > 0 ? `Material Retd:  -${currency}${bill.materialReturnedValue.toFixed(2)}${bill.materialReturnedWeight ? ` (${bill.materialReturnedWeight})` : ""}` : "",
+        bill.materialReturnedValue > 0 ? `${materialReturnedTitleOf(bill)}:  -${currency}${bill.materialReturnedValue.toFixed(2)}${bill.materialReturnedWeight ? ` (${bill.materialReturnedWeight})` : ""}` : "",
         bill.deliveryCharge > 0 ? `Delivery:      +${currency}${bill.deliveryCharge.toFixed(2)}` : "",
         `TOTAL:         ${currency}${bill.total.toFixed(2)}`,
         `Amount paid:   ${currency}${bill.amountPaid.toFixed(2)}`,

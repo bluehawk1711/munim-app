@@ -603,18 +603,18 @@ export function SettingsScreen() {
         </Text>
         <View style={{gap: 8}}>
           <Button
+            title={sampleBusy === 'silver' ? 'Generating…' : 'Estimate · New Bill (default)'}
+            variant="outline"
+            loading={sampleBusy === 'silver'}
+            disabled={sampleBusy !== null}
+            onPress={() => void handleSampleBill('silver')}
+          />
+          <Button
             title={sampleBusy === 'gold' ? 'Generating…' : 'Classic Jewellery (gold sample)'}
             variant="outline"
             loading={sampleBusy === 'gold'}
             disabled={sampleBusy !== null}
             onPress={() => void handleSampleBill('gold')}
-          />
-          <Button
-            title={sampleBusy === 'silver' ? 'Generating…' : 'Modern E-commerce (silver sample)'}
-            variant="outline"
-            loading={sampleBusy === 'silver'}
-            disabled={sampleBusy !== null}
-            onPress={() => void handleSampleBill('silver')}
           />
         </View>
       </Card>

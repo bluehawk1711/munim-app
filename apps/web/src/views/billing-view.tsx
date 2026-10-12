@@ -1,4 +1,4 @@
-"use client"
+﻿"use client"
 
 import * as React from "react"
 import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt, RefreshCw, Copy } from "lucide-react"
@@ -8,7 +8,7 @@ import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
 import { useProducts, useSyncProductPrices } from "@/hooks/use-products"
 import { useApiClient, useGoldRates } from "@munim/query"
-import { applyGoldBaseRate, buildBillDocument, priceProductRow, resolveGoldRateTable, type BillDocument } from "@munim/core"
+import { applyGoldBaseRate, buildBillDocument, priceBillLineRow, priceProductRow, resolveGoldRateTable, type BillDocument } from "@munim/core"
 import { generateBillPDF, type BillTemplateSettings } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
@@ -24,6 +24,13 @@ type LineItem = {
   description: string
   weight?: number | null
   weightUnit?: "gm" | "mg"
+  /** True once the shop edits this line's Weight — the edited weight then
+   *  drives auto-pricing (and survives later rate reprices). */
+  weightEdited?: boolean
+  /** Metal purity stamp ("22K") — printed beside the name in parentheses. */
+  purity?: string
+  /** Gross-weight free text — bill G.Wt. column. */
+  grossWeight?: string
   quantity: number
   price: number
   silverPercentage?: number
@@ -44,6 +51,10 @@ type PickableProduct = {
   size: string | null
   weight?: number | null
   weightUnit?: string | null
+  /** Free-text purity stamp ("22K", "916", "925"). */
+  purity?: string | null
+  /** Gross-weight free text from the product record (bill G.Wt. column). */
+  grossWeight?: string | null
   type: string
   stock: number
   sellingPrice: number
@@ -80,9 +91,10 @@ export function BillingView() {
   const [discount, setDiscount] = React.useState(0)
   const [materialReturnedWeight, setMaterialReturnedWeight] = React.useState("")
   const [materialReturnedValue, setMaterialReturnedValue] = React.useState(0)
+  const [materialReturnedTitle, setMaterialReturnedTitle] = React.useState("")
   const [notes, setNotes] = React.useState("")
   const [amountPaid, setAmountPaid] = React.useState(0)
-  const [template, setTemplate] = React.useState<BillTemplate>("jewellery")
+  const [template, setTemplate] = React.useState<BillTemplate>("ecommerce")
   const [classicColor, setClassicColor] = React.useState<BillClassicColor>("red")
   const [twoInOne, setTwoInOne] = React.useState(false)
   const [mode, setMode] = React.useState<BillMode>("duplicate")
@@ -153,12 +165,49 @@ export function BillingView() {
     }
   }, [goldRates, billGoldRate, billSilverRate, settings])
 
+  /** Re-prices ONE auto-priced gold/silver line — the edited line weight (when
+   *  any) overrides the product's pricing weight so rate edits keep it. */
+  function repriceLine(it: LineItem): LineItem {
+    if (!it.productId) return it
+    const p = products.find((x) => x.id === it.productId)
+    if (!p || p.priceMode !== "auto" || (p.type !== "Gold" && p.type !== "Silver")) return it
+    if (it.weightEdited) {
+      const priced =
+        it.weight != null && Number.isFinite(it.weight)
+          ? priceBillLineRow(p, billPricingContext, { weight: it.weight, weightUnit: it.weightUnit })
+          : null
+      if (priced) return { ...it, price: priced.price }
+    }
+    return { ...it, price: priceProductRow(p, billPricingContext).price }
+  }
+
+  /** Editing a line's Weight re-prices that line (clearing it reverts to the
+   *  product's own price). */
+  function makeWeightHandler(setter: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+    return (index: number, raw: string) => {
+      setter((prev) =>
+        prev.map((it, i) => {
+          if (i !== index) return it
+          const weight = raw === "" ? null : Number(raw)
+          return repriceLine({ ...it, weight, weightEdited: raw !== "" })
+        }),
+      )
+    }
+  }
+
   /** Re-prices the auto-priced GOLD lines with the bill's rate (core engine). */
   function repriceGoldLines(prev: LineItem[]): LineItem[] {
     return prev.map((it) => {
       if (!it.productId) return it
       const p = products.find((x) => x.id === it.productId)
       if (!p || p.type !== "Gold" || p.priceMode !== "auto") return it
+      if (it.weightEdited) {
+        const priced =
+          it.weight != null && Number.isFinite(it.weight)
+            ? priceBillLineRow(p, billPricingContext, { weight: it.weight, weightUnit: it.weightUnit })
+            : null
+        if (priced) return { ...it, price: priced.price }
+      }
       return { ...it, price: priceProductRow(p, billPricingContext).price }
     })
   }
@@ -169,6 +218,13 @@ export function BillingView() {
       if (!it.productId) return it
       const p = products.find((x) => x.id === it.productId)
       if (!p || p.type !== "Silver" || p.priceMode !== "auto") return it
+      if (it.weightEdited) {
+        const priced =
+          it.weight != null && Number.isFinite(it.weight)
+            ? priceBillLineRow(p, billPricingContext, { weight: it.weight, weightUnit: it.weightUnit })
+            : null
+        if (priced) return { ...it, price: priced.price }
+      }
       return { ...it, price: priceProductRow(p, billPricingContext).price }
     })
   }
@@ -246,8 +302,11 @@ export function BillingView() {
         color: p.color ?? undefined,
         size: p.size ?? undefined,
         description: "",
-        weight: p.weight ?? null,
-        weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
+      weight: p.weight ?? null,
+      weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
+      weightEdited: false,
+      purity: p.purity ?? undefined,
+        grossWeight: p.grossWeight ?? undefined,
         quantity: 1,
         price: p.effectivePrice,
         silverPercentage: p.silverPercentage ?? 100,
@@ -295,6 +354,8 @@ export function BillingView() {
       description: "",
       weight: p.weight ?? null,
       weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
+      purity: p.purity ?? undefined,
+      grossWeight: p.grossWeight ?? undefined,
       quantity: 1,
       price: p.effectivePrice,
       silverPercentage: p.silverPercentage ?? 100,
@@ -321,6 +382,7 @@ export function BillingView() {
     amountPaid: number
     materialReturnedWeight?: string
     materialReturnedValue?: number
+    materialReturnedTitle?: string
   }): BillDocument {
     return buildBillDocument({
       billNo: "NEW",
@@ -342,6 +404,8 @@ export function BillingView() {
         size: it.size,
         weight: it.weight ?? null,
         weightUnit: it.weightUnit ?? null,
+        purity: it.purity,
+        grossWeight: it.grossWeight,
         quantity: it.quantity,
         price: it.price,
       })),
@@ -349,6 +413,7 @@ export function BillingView() {
       discount: opts.discount,
       materialReturnedWeight: opts.materialReturnedWeight,
       materialReturnedValue: opts.materialReturnedValue,
+      materialReturnedTitle: opts.materialReturnedTitle,
       amountPaid: opts.amountPaid,
       currency: "INR",
       goldRate: billGoldRate,
@@ -367,6 +432,7 @@ export function BillingView() {
       amountPaid: paid,
       materialReturnedWeight: materialReturnedWeight || undefined,
       materialReturnedValue,
+      materialReturnedTitle: materialReturnedTitle || undefined,
     })
   }
 
@@ -435,6 +501,7 @@ export function BillingView() {
       discount,
       materialReturnedWeight: materialReturnedWeight || undefined,
       materialReturnedValue,
+      materialReturnedTitle: materialReturnedTitle || undefined,
       amountPaid: paid,
     }
 
@@ -482,6 +549,7 @@ export function BillingView() {
     setDiscount(0)
     setMaterialReturnedWeight("")
     setMaterialReturnedValue(0)
+    setMaterialReturnedTitle("")
     setNotes("")
     setAmountPaid(0)
     setSecondCustomerName("")
@@ -658,6 +726,7 @@ export function BillingView() {
         title={distinct ? "Bill 1" : undefined}
         items={items}
         setItems={setItems}
+        onWeightChange={makeWeightHandler(setItems)}
         products={products}
         onBarcodeLookup={handleBarcodeLookup(setItems)}
         charges={{
@@ -751,6 +820,7 @@ export function BillingView() {
             title="Bill 2"
             items={secondItems}
             setItems={setSecondItems}
+            onWeightChange={makeWeightHandler(setSecondItems)}
             products={products}
             onBarcodeLookup={handleBarcodeLookup(setSecondItems)}
             charges={{
@@ -777,6 +847,10 @@ export function BillingView() {
               rows={4}
               className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
             />
+            <div className="space-y-1.5">
+              <Label className="text-xs">Material returned title</Label>
+              <Input value={materialReturnedTitle} onChange={(e) => setMaterialReturnedTitle(e.target.value)} placeholder="Material Returned" className="h-9" />
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs">Material returned weight</Label>
@@ -801,7 +875,7 @@ export function BillingView() {
             {discount > 0 && <Row label="Discount" value={`−${formatCurrency(discount)}`} />}
             {materialReturnedValue > 0 && (
               <Row
-                label={`Material Returned${materialReturnedWeight ? ` (${materialReturnedWeight})` : ""}`}
+                label={`${materialReturnedTitle.trim() || "Material Returned"}${materialReturnedWeight ? ` (${materialReturnedWeight})` : ""}`}
                 value={`−${formatCurrency(materialReturnedValue)}`}
               />
             )}
@@ -852,6 +926,7 @@ function BillItemsCard({
   title,
   items,
   setItems,
+  onWeightChange,
   products,
   charges,
   onBarcodeLookup,
@@ -859,6 +934,8 @@ function BillItemsCard({
   title?: string
   items: LineItem[]
   setItems: React.Dispatch<React.SetStateAction<LineItem[]>>
+  /** Weight edits re-price the line (core engine) — passed down from BillingView. */
+  onWeightChange?: (index: number, value: string) => void
   products: PickableProduct[]
   /** Optional USB-scanner fast entry — resolves on a hit, throws on a miss. */
   onBarcodeLookup?: (code: string) => Promise<unknown>
@@ -893,6 +970,8 @@ function BillItemsCard({
       description: "",
       weight: p.weight ?? null,
       weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
+      purity: p.purity ?? undefined,
+      grossWeight: p.grossWeight ?? undefined,
       quantity: 1,
       price: p.effectivePrice,
       silverPercentage: p.silverPercentage ?? 100,
@@ -955,6 +1034,33 @@ function BillItemsCard({
                     placeholder="Description (optional)"
                     className="h-8 text-xs"
                   />
+                  <div className="flex gap-1.5">
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      value={item.weight ?? ""}
+                      onChange={(e) =>
+                        onWeightChange
+                          ? onWeightChange(idx, e.target.value)
+                          : updateItem(idx, { weight: e.target.value === "" ? null : Number(e.target.value) })
+                      }
+                      placeholder="Weight"
+                      className="h-8 text-xs"
+                    />
+                    <Input
+                      value={item.purity ?? ""}
+                      onChange={(e) => updateItem(idx, { purity: e.target.value })}
+                      placeholder="Purity 22K"
+                      className="h-8 w-24 text-xs"
+                    />
+                    <Input
+                      value={item.grossWeight ?? ""}
+                      onChange={(e) => updateItem(idx, { grossWeight: e.target.value })}
+                      placeholder="G. Wt."
+                      className="h-8 w-24 text-xs"
+                    />
+                  </div>
                   {item.productId && item.sku && (
                     <div className="flex items-center gap-1.5">
                       <span className="rounded border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
@@ -1059,3 +1165,4 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   )
 }
+

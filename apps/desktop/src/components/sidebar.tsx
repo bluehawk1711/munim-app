@@ -1,5 +1,5 @@
 import * as m from "motion/react-m";
-import { LayoutDashboard, Package, Palette, ShoppingCart, FileText, Receipt, ClipboardList, Users, HandCoins, ScrollText, BarChart3, Settings, CircleHelp } from "lucide-react";
+import { LayoutDashboard, Package, Palette, FileText, Receipt, ClipboardList, Users, HandCoins, ScrollText, BarChart3, Settings, CircleHelp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { navigate } from "@/lib/navigation";
 
@@ -7,7 +7,8 @@ const NAV_ITEMS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/products", label: "Products & Stock", icon: Package },
   { href: "/catalog", label: "Catalog", icon: Palette },
-  { href: "/sales", label: "Sales", icon: ShoppingCart },
+  // Sales page is useless for now — New Bill + Invoices cover selling, so the
+  // /sales entry is hidden from the sidebar (route kept for direct URLs).
   { href: "/billing", label: "New Bill", icon: FileText },
   { href: "/invoices", label: "Invoices", icon: Receipt },
   { href: "/orders", label: "Orders", icon: ClipboardList },

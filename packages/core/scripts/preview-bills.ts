@@ -66,10 +66,14 @@ renderPdf(silverBill, ecommerce, "silver-ecommerce.pdf");
 
 writeFileSync(join(outDir, "gold-mobile-print.html"), renderBillHtml(goldBill));
 writeFileSync(join(outDir, "silver-mobile-print.html"), renderBillHtml(silverBill));
+writeFileSync(join(outDir, "gold-ecommerce.html"), renderBillHtml(goldBill, ecommerce));
+writeFileSync(join(outDir, "silver-ecommerce.html"), renderBillHtml(silverBill, ecommerce));
 writeFileSync(join(outDir, "gold.txt"), renderBillText(goldBill));
 writeFileSync(join(outDir, "silver.txt"), renderBillText(silverBill));
 console.log(`  ${join(outDir, "gold-mobile-print.html")}`);
 console.log(`  ${join(outDir, "silver-mobile-print.html")}`);
+console.log(`  ${join(outDir, "gold-ecommerce.html")}`);
+console.log(`  ${join(outDir, "silver-ecommerce.html")}`);
 console.log(`  ${join(outDir, "gold.txt")}`);
 console.log(`  ${join(outDir, "silver.txt")}`);
 console.log("Done.");

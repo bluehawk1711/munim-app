@@ -40,6 +40,8 @@ export type ProductOption = {
   goldKarat?: number | null;
   /** Free-text purity stamp ("22K", "916", "925"). */
   purity?: string | null;
+  /** Gross-weight free text from the product record (bill G.Wt. column). */
+  grossWeight?: string | null;
   /** Category name — silver subcategories ("92.5 Stock") live here. */
   category?: string | null;
 };
