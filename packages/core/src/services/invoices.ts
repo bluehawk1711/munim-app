@@ -161,10 +161,15 @@ export type InvoiceItemInput = {
   color?: string;
   size?: string;
   description?: string;
-  /** Metal purity stamp printed beside the name (`p:` prefix). */
+  /** Metal purity stamp for the bill's Purity column (dropdown on bill screens). */
   purity?: string;
   /** Gross-weight free text snapshot from the product (bill G.Wt. column). */
   grossWeight?: string;
+  /** Bill line's nag-less weight in GRAMS (gold net-weight derivation input:
+   *  `net = gross − nag + chejat` — the same rule as the product form). */
+  nagLessWeight?: number | null;
+  /** Bill line's chejat (stone) weight in GRAMS (derivation input). */
+  chejatWeight?: number | null;
   /** Product weight + unit snapshot — bill WEIGHT column display only. */
   weight?: number | null;
   weightUnit?: string | null;
@@ -288,6 +293,8 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       description: item.description?.trim() || null,
       purity: item.purity?.trim() || product?.purity || null,
       grossWeight: item.grossWeight || product?.grossWeight || null,
+      nagLessWeight: item.nagLessWeight ?? null,
+      chejatWeight: item.chejatWeight ?? null,
       weight: item.weight ?? product?.weight ?? null,
       weightUnit: item.weightUnit ?? product?.weightUnit ?? null,
       quantity: item.quantity,

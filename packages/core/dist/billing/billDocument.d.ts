@@ -50,16 +50,23 @@ export interface BillLineInput {
     sku?: string | null;
     color?: string | null;
     size?: string | null;
-    /** Metal purity stamp printed beside the name (`p:` prefix). */
+    /** Metal purity stamp — printed in the estimate's Purity column (dropdown
+     *  on the bill screens; Classic still appends it to the name). */
     purity?: string | null;
-    /** Gross-weight free text (bill G.Wt. column in the estimate template). */
+    /** Gross-weight free text (bill G. Wt. column in the estimate template). */
     grossWeight?: string | null;
+    /** Bill line's nag-less weight in GRAMS — gold net-weight derivation input
+     *  (`net = gross − nag + chejat`); the printed Nag Wt. column. */
+    nagLessWeight?: number | null;
+    /** Bill line's chejat (stone) weight in GRAMS — the other derivation
+     *  input; the printed Chejat Wt. column. */
+    chejatWeight?: number | null;
     /** Product weight + unit snapshot — display for the WEIGHT column only. */
     weight?: number | null;
     weightUnit?: string | null;
     quantity: number;
     price: number;
-    /** Frozen pricing inputs (rate/metal value/labour) — estimate columns. */
+    /** Frozen pricing inputs (rate/metal value/labour/povayi) — estimate columns. */
     pricing?: InvoiceItemPricing | null;
 }
 export interface BillLine extends BillLineInput {
@@ -122,11 +129,12 @@ export declare function materialReturnedTitleOf(bill: BillDocument): string;
 export declare function nameWithPurity(line: BillLineInput): string;
 /**
  * Estimate-template row derivations: per-gram rate, metal value, labour ₹,
- * other charges ₹ — the single "Other Charges" column printed instead of a
- * povayi-only column: nag + povayi + other summed. Legacy snapshots (saved
- * before nag/other were frozen) have them missing → 0, so the sum is just
- * their povayi — old bills render unchanged. NULL when the line froze no
- * pricing at all (manual/legacy lines).
+ * and the individual flat charges (nag / povayi / other ₹). The bill prints
+ * them ITEMIZED inside the Other Charges cell with their prefixes —
+ * `Nag: 500.00` / `Povayi: 250.00` / `Other: 150.00` — never summed on a line
+ * (the totals row adds them once). Legacy snapshots saved before nag/other
+ * were frozen have them missing → 0 (their povayi still shows). NULL when the
+ * line froze no pricing at all (manual/legacy lines).
  */
 export declare function estimateRowOf(line: BillLineInput & {
     total?: number;
@@ -134,8 +142,29 @@ export declare function estimateRowOf(line: BillLineInput & {
     rate: number;
     value: number;
     labour: number | null;
-    otherCharges: number | null;
+    charges: {
+        nag: number;
+        povayi: number;
+        other: number;
+    } | null;
 };
+/** The itemized Other Charges cell lines — one `Prefix: 0.00` entry per
+ *  non-empty charge, in the client's order (Nag, Povayi, Other). Empty → []. */
+export declare function estimateChargeLines(charges: {
+    nag: number;
+    povayi: number;
+    other: number;
+} | null): string[];
+/** Sum of the non-zero flat charges — the totals row's Other Charges cell. */
+export declare function estimateChargesTotal(charges: {
+    nag: number;
+    povayi: number;
+    other: number;
+} | null): number;
+/** Trimmed purity stamp for the estimate's Purity column (null → "-"). */
+export declare function purityCellOf(line: BillLineInput): string | null;
+/** Grams for the estimate's Chejat/Nag weight columns (null → "-"). */
+export declare function weightCellOf(value: number | null | undefined): string | null;
 /**
  * Labour method tag printed beside the Labour amount on the estimate —
  * "(fixed)" / "(11.82/gm)" / "(2.5%)" so the shop can see whether the

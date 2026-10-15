@@ -1,4 +1,5 @@
 export { buildBillDocument, renderBillText, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, } from "./billDocument.js";
+export { PURITY_PRESETS, purityOptionsFor, } from "./purity.js";
 export { renderBillHtml, } from "./billHtml.js";
 export { buildSampleBill, } from "./sampleBill.js";
 export { generateBillPDF, } from "./generateBillPdf.js";

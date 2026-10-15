@@ -16,6 +16,11 @@ export {
 } from "./billDocument.js";
 
 export {
+  PURITY_PRESETS,
+  purityOptionsFor,
+} from "./purity.js";
+
+export {
   renderBillHtml,
 } from "./billHtml.js";
 

@@ -399,3 +399,18 @@ export function calcNetWeight(input: NetWeightInput): NetWeightResult | null {
   return { grams, text: `${stored} ${unit}` };
 }
 
+/** One free-text weight value (nag / chejat / gross) → GRAMS, parsed with the
+ *  SAME `parseNetWeight` strip and unit rule as `calcNetWeight`. Empty or
+ *  unparseable → null. The bill screens use this to materialise their per-line
+ *  nag/chejat inputs as GRAMS, so what they print always matches what they
+ *  priced (bill-line nag/chejat are gram fields — no unit toggle there). */
+export function weightTextToGrams(
+  value: string | null | undefined,
+  unit: string | null | undefined,
+): number | null {
+  const parsed = parseNetWeight(value);
+  if (parsed === null) return null;
+  const grams = toGrams(parsed, unit);
+  return Number.isFinite(grams) ? Math.round(grams * 10000) / 10000 : null;
+}
+

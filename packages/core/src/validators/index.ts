@@ -138,10 +138,15 @@ export const invoiceItemSchema = z.object({
   color: z.string().optional(),
   size: z.string().optional(),
   description: z.string().optional(),
-  /** Per-line purity stamp printed beside the name ("22K" / "916" / "925"). */
+  /** Per-line purity stamp printed in the Purity column (dropdown on the
+   *  bill screens). */
   purity: z.string().max(24).optional(),
   /** Gross-weight free text snapshot from the product (bill G.Wt. column). */
   grossWeight: z.string().max(30).optional(),
+  /** Bill line's nag-less weight in GRAMS (gold net-weight derivation input). */
+  nagLessWeight: z.coerce.number().nullish(),
+  /** Bill line's chejat (stone) weight in GRAMS (derivation input). */
+  chejatWeight: z.coerce.number().nullish(),
   weight: z.coerce.number().min(0).nullish(),
   weightUnit: z.enum(["gm", "mg"]).nullish(),
   quantity: z.coerce.number().positive("Quantity must be positive"),

@@ -1,12 +1,15 @@
 import { jsPDF } from "jspdf";
 import { formatCurrency } from "../utils/format.js";
 import {
+  estimateChargeLines,
+  estimateChargesTotal,
   estimateLabourTag,
   estimateRowOf,
   estimateWeightLayout,
   materialReturnedTitleOf,
-  nameWithPurity,
+  purityCellOf,
   rateRowsOf,
+  weightCellOf,
 } from "./billDocument.js";
 import type { BillDocument, BillLine, BillTemplateSettings } from "./billDocument.js";
 import { BILL_FONT_BOLD_B64, BILL_FONT_ITALIC_B64, BILL_FONT_REGULAR_B64 } from "./billFonts.js";
@@ -279,17 +282,20 @@ function drawEcommerceBill(
     money(doc, row, x0 + tableW - 3, boxTop + 17 + i * 4.5, "right", true);
   });
 
-  // ── Estimate items table (full grid, estimate-sheet columns) ──────────
-  // Gold bills keep the G. Wt./N. Wt. pair; silver-only bills show ONE
-  // combined "Weight" column (gross weight is gold-only at this shop). The
-  // old Dia/Stn Wt. column (always "-") is gone; "Other Charges" carries the
-  // frozen flat charges summed (nag + povayi + other). Both layouts total
-  // the same 184mm table width.
+  // ── Estimate items table (client's column order) ────────────────────────
+  // Gold bills: Description | Purity | G. Wt. | Chejat Wt. | Nag Wt. |
+  // Rate ₹/gm | Labour | Other Charges | Amount. Chejat/Nag are the gold
+  // net-weight derivation inputs (net = gross − nag + chejat — the price
+  // basis); silver-only bills show ONE combined Weight column instead
+  // (gross/nag/chejat are gold-only at this shop). "Other Charges" prints the
+  // frozen charges ITEMIZED with their prefixes (Nag: / Povayi: / Other: —
+  // never summed on a line; the totals row adds them once). Both layouts
+  // total the same 184mm table width.
   const tableTop = yOffset + 51;
   const split = estimateWeightLayout(bill) === "split";
   const colW = split
-    ? [48, 15, 15, 9, 18, 18, 19, 17, 25]
-    : [55, 18, 9, 18, 20, 21, 18, 25];
+    ? [40, 12, 13, 13, 13, 16, 24, 28, 25]
+    : [50, 14, 17, 17, 28, 31, 27];
   const colX: number[] = [];
   {
     let acc = x0;
@@ -299,21 +305,23 @@ function drawEcommerceBill(
     }
   }
   const headers = split
-    ? ["Description", "G. Wt.", "N. Wt.", "Pcs.", "Rate ₹/gm", "Value", "Labour", "Other Charges", "Amount (Rupees)"]
-    : ["Description", "Weight", "Pcs.", "Rate ₹/gm", "Value", "Labour", "Other Charges", "Amount (Rupees)"];
-  const iQty = split ? 3 : 2;
-  const iRate = iQty + 1;
-  const iValue = iRate + 1;
-  const iLabour = iValue + 1;
-  const iOtherCharges = iLabour + 1;
-  const iAmount = iOtherCharges + 1;
+    ? ["Description", "Purity", "G. Wt.", "Chejat Wt.", "Nag Wt.", "Rate ₹/gm", "Labour", "Other Charges", "Amount (Rupees)"]
+    : ["Description", "Purity", "Weight", "Rate ₹/gm", "Labour", "Other Charges", "Amount (Rupees)"];
+  const iPurity = 1;
+  const iWeight = 2;
+  const iChejat = split ? 3 : -1;
+  const iNag = split ? 4 : -1;
+  const iRate = split ? 5 : 3;
+  const iLabour = split ? 6 : 4;
+  const iOtherCharges = split ? 7 : 5;
+  const iAmount = split ? 8 : 6;
   const lastCol = colW.length - 1;
   const gray = colors.mediumGray;
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   doc.setFont("notosans", "bold");
   doc.setFontSize(7.5);
   headers.forEach((h, c) => {
-    // Shrink headers ("Amount (Rupees)", "Rate ₹/gm") to stay on one line.
+    // Shrink headers ("Amount (Rupees)", "Chejat Wt.") to stay on one line.
     let fs = 7.5;
     doc.setFontSize(fs);
     const avail = (colW[c] ?? 0) - (c === 0 || c === lastCol ? 4 : 2);
@@ -328,16 +336,23 @@ function drawEcommerceBill(
   doc.setFontSize(8);
 
   const estNum = (v: number, dp: number): string => v.toFixed(dp);
+  /** Purity / chejat / nag cells: centered text or "-" when empty. */
+  const cellText = (v: string | null): string => v ?? "-";
   const rowTops: number[] = [];
   let itemY = tableTop + 7;
 
   bill.lines.forEach((item) => {
     rowTops.push(itemY);
-    const rowH = item.description ? 10 : 7;
+    const est = estimateRowOf(item);
+    // Itemized charge lines ("Nag: 500.00" …) stack inside the Other Charges
+    // cell — the row grows 3.6mm per extra line so nothing overlaps.
+    const chargeLines = estimateChargeLines(est.charges);
+    const rowH = Math.max(item.description ? 10 : 7, 7 + 3.6 * (chargeLines.length - 1));
     const baseY = itemY + 4.5;
-    // Description: name + (purity), with the optional description under it.
-    // Shrink the font when the name would cross the next column's border.
-    const label = nameWithPurity(item);
+    // Description: the plain product name (purity moved to its own column),
+    // with the optional description under it. Shrink the font when the name
+    // would cross the next column's border.
+    const label = item.productName;
     let nameSize = 8.5;
     doc.setFont("notosans", "bold");
     doc.setFontSize(nameSize);
@@ -357,19 +372,20 @@ function drawEcommerceBill(
     doc.setFont("notosans", "normal");
     doc.setFontSize(8);
     doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
+    // Purity column (both layouts).
+    doc.text(cellText(purityCellOf(item)), colX[iPurity]! + colW[iPurity]! / 2, baseY, { align: "center" });
     if (split) {
-      doc.text(item.grossWeight?.trim() || "-", colX[1]! + colW[1]! / 2, baseY, { align: "center" });
-      doc.text(item.weight != null ? estNum(item.weight, 3) : "-", colX[2]! + colW[2]! / 2, baseY, { align: "center" });
+      // Gold: G. Wt. (free text) + the nag/chejat derivation inputs (grams).
+      doc.text(item.grossWeight?.trim() || "-", colX[iWeight]! + colW[iWeight]! / 2, baseY, { align: "center" });
+      doc.text(cellText(weightCellOf(item.chejatWeight)), colX[iChejat]! + colW[iChejat]! / 2, baseY, { align: "center" });
+      doc.text(cellText(weightCellOf(item.nagLessWeight)), colX[iNag]! + colW[iNag]! / 2, baseY, { align: "center" });
     } else {
       // Silver-only bills: ONE combined Weight column (the priced weight,
       // falling back to the gross text when no weight snapshot was frozen).
       const combined = item.weight != null ? estNum(item.weight, 3) : (item.grossWeight?.trim() || "-");
-      doc.text(combined, colX[1]! + colW[1]! / 2, baseY, { align: "center" });
+      doc.text(combined, colX[iWeight]! + colW[iWeight]! / 2, baseY, { align: "center" });
     }
-    doc.text(String(item.quantity), colX[iQty]! + colW[iQty]! / 2, baseY, { align: "center" });
-    const est = estimateRowOf(item);
     doc.text(estNum(est.rate, 2), colX[iRate]! + colW[iRate]! - 2, baseY, { align: "right" });
-    doc.text(estNum(est.value, 2), colX[iValue]! + colW[iValue]! - 2, baseY, { align: "right" });
     // Labour ₹ + method tag — "(fixed)" / "(11.82/gm)" / "(2.5%)" — shrunk
     // so a tagged amount still stays inside its column rules.
     const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(item)}` : "-";
@@ -380,34 +396,46 @@ function drawEcommerceBill(
       doc.setFontSize(labourSize);
     }
     doc.text(labourText, colX[iLabour]! + colW[iLabour]! - 2, baseY, { align: "right" });
+    // Other Charges: one "Prefix: 0.00" line per frozen charge (never summed).
+    const chargeX = colX[iOtherCharges]! + colW[iOtherCharges]! - 2;
+    doc.setFontSize(7.5);
+    chargeLines.forEach((cl, ci) => {
+      doc.text(cl, chargeX, baseY + 3.6 * ci, { align: "right" });
+    });
+    if (chargeLines.length === 0) doc.text("-", chargeX, baseY, { align: "right" });
     doc.setFontSize(8);
-    doc.text(est.otherCharges != null && est.otherCharges > 0 ? estNum(est.otherCharges, 2) : "-", colX[iOtherCharges]! + colW[iOtherCharges]! - 2, baseY, { align: "right" });
     doc.setFont("notosans", "bold");
     doc.text(estNum(item.total, 2), colX[iAmount]! + colW[iAmount]! - 2, baseY, { align: "right" });
     itemY += rowH;
   });
 
-  // ── Column totals row (weights · labour · other charges · amount) ─────
+  // ── Column totals row (weights · povayi · labour · other · amount) ──────
   const grossVals = bill.lines.map((l) => parseFloat(l.grossWeight ?? ""));
   const hasGross = grossVals.some((v) => !Number.isNaN(v));
   const sumGross = grossVals.reduce((s, v) => s + (Number.isNaN(v) ? 0 : v), 0);
   const sumWeight = bill.lines.reduce((s, l) => s + (l.weight ?? 0), 0);
+  const sumChejat = bill.lines.reduce((s, l) => s + (l.chejatWeight ?? 0), 0);
+  const hasChejat = bill.lines.some((l) => l.chejatWeight != null && l.chejatWeight > 0);
+  const sumNag = bill.lines.reduce((s, l) => s + (l.nagLessWeight ?? 0), 0);
+  const hasNag = bill.lines.some((l) => l.nagLessWeight != null && l.nagLessWeight > 0);
   const labours = bill.lines.map((l) => estimateRowOf(l).labour);
   const hasLabour = labours.some((v) => v != null);
   const sumLabour = labours.reduce<number>((s, v) => s + (v ?? 0), 0);
-  const otherChargess = bill.lines.map((l) => estimateRowOf(l).otherCharges);
-  const hasOtherCharges = otherChargess.some((v) => v != null && v > 0);
-  const sumOtherCharges = otherChargess.reduce<number>((s, v) => s + (v != null && v > 0 ? v : 0), 0);
+  // Totals row is the ONE place the itemized charges are summed.
+  const chargeTotals = bill.lines.map((l) => estimateChargesTotal(estimateRowOf(l).charges));
+  const hasOtherCharges = chargeTotals.some((v) => v > 0);
+  const sumOtherCharges = chargeTotals.reduce((s, v) => s + v, 0);
   const totalsTop = itemY;
 
   doc.setFont("notosans", "bold");
   doc.setFontSize(8);
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   if (split) {
-    doc.text(hasGross ? estNum(sumGross, 3) : "-", colX[1]! + colW[1]! / 2, totalsTop + 4.5, { align: "center" });
-    doc.text(estNum(sumWeight, 3), colX[2]! + colW[2]! / 2, totalsTop + 4.5, { align: "center" });
+    doc.text(hasGross ? estNum(sumGross, 3) : "-", colX[iWeight]! + colW[iWeight]! / 2, totalsTop + 4.5, { align: "center" });
+    doc.text(hasChejat ? estNum(sumChejat, 3) : "-", colX[iChejat]! + colW[iChejat]! / 2, totalsTop + 4.5, { align: "center" });
+    doc.text(hasNag ? estNum(sumNag, 3) : "-", colX[iNag]! + colW[iNag]! / 2, totalsTop + 4.5, { align: "center" });
   } else {
-    doc.text(estNum(sumWeight, 3), colX[1]! + colW[1]! / 2, totalsTop + 4.5, { align: "center" });
+    doc.text(estNum(sumWeight, 3), colX[iWeight]! + colW[iWeight]! / 2, totalsTop + 4.5, { align: "center" });
   }
   doc.text(hasLabour ? estNum(sumLabour, 2) : "-", colX[iLabour]! + colW[iLabour]! - 2, totalsTop + 4.5, { align: "right" });
   doc.text(hasOtherCharges ? estNum(sumOtherCharges, 2) : "-", colX[iOtherCharges]! + colW[iOtherCharges]! - 2, totalsTop + 4.5, { align: "right" });

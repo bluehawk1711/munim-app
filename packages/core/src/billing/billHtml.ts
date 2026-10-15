@@ -7,13 +7,17 @@
  */
 import { formatCurrency } from "../utils/format.js";
 import {
+  estimateChargeLines,
+  estimateChargesTotal,
   estimateLabourTag,
   estimateRowOf,
   estimateWeightLayout,
   materialReturnedTitleOf,
   mergeBillTemplateSettings,
   nameWithPurity,
+  purityCellOf,
   rateRowsOf,
+  weightCellOf,
 } from "./billDocument.js";
 import type { BillClassicColor, BillDocument, BillLine, BillTemplateSettings } from "./billDocument.js";
 import { BILL_FONT_BOLD_B64, BILL_FONT_ITALIC_B64, BILL_FONT_REGULAR_B64 } from "./billFonts.js";
@@ -252,11 +256,13 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
 
   const estNum = (v: number, dp: number): string => v.toFixed(dp);
 
-  // Gold bills keep the G. Wt./N. Wt. pair; silver-only bills show ONE
-  // combined "Weight" column (gross weight is gold-only at this shop). The
-  // Dia/Stn Wt. column (always "-") is gone; "Other Charges" carries the
-  // frozen flat charges summed (nag + povayi + other). Widths total 100% in
-  // both layouts.
+  // Client's column order. Gold bills: Description | Purity | G. Wt. |
+  // Chejat Wt. | Nag Wt. | Rate ₹/gm | Labour | Other Charges | Amount —
+  // chejat/nag are the gold net-weight derivation inputs (net = gross − nag +
+  // chejat, the price basis). Silver-only bills show ONE combined Weight
+  // column instead. "Other Charges" prints the frozen charges ITEMIZED with
+  // their prefixes (Nag: / Povayi: / Other: — never summed on a line; the
+  // totals row adds them once). Widths total 100% both ways.
   const split = estimateWeightLayout(bill) === "split";
 
   const rows = bill.lines
@@ -264,19 +270,24 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
       const est = estimateRowOf(l);
       const weightCells = split
         ? `<td class="c">${esc(l.grossWeight?.trim() || "-")}</td>
-        <td class="c">${l.weight != null ? estNum(l.weight, 3) : "-"}</td>`
+        <td class="c">${weightCellOf(l.chejatWeight) ?? "-"}</td>
+        <td class="c">${weightCellOf(l.nagLessWeight) ?? "-"}</td>`
         : `<td class="c">${l.weight != null ? estNum(l.weight, 3) : esc(l.grossWeight?.trim() || "-")}</td>`;
       const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(l)}` : "-";
+      // Itemized "Nag: 500.00" / "Povayi: 250.00" / "Other: 150.00" lines.
+      const chargeLines = estimateChargeLines(est.charges);
+      const chargesCell = chargeLines.length
+        ? chargeLines.map((cl) => `<div>${esc(cl)}</div>`).join("")
+        : "-";
       return `<tr>
-        <td><span class="pname">${esc(nameWithPurity(l))}</span>${
+        <td><span class="pname">${esc(l.productName)}</span>${
           l.description ? `<div class="pdesc">${esc(l.description)}</div>` : ""
         }</td>
+        <td class="c">${esc(purityCellOf(l) ?? "-")}</td>
         ${weightCells}
-        <td class="c">${l.quantity}</td>
         <td class="num">${estNum(est.rate, 2)}</td>
-        <td class="num">${estNum(est.value, 2)}</td>
         <td class="num">${labourText}</td>
-        <td class="num">${est.otherCharges != null && est.otherCharges > 0 ? estNum(est.otherCharges, 2) : "-"}</td>
+        <td class="num">${chargesCell}</td>
         <td class="amt"><b>${estNum(l.total, 2)}</b></td>
       </tr>`;
     })
@@ -286,12 +297,17 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
   const hasGross = grossVals.some((v) => !Number.isNaN(v));
   const sumGross = grossVals.reduce<number>((t, v) => t + (Number.isNaN(v) ? 0 : v), 0);
   const sumWeight = bill.lines.reduce<number>((t, l) => t + (l.weight ?? 0), 0);
+  const sumChejat = bill.lines.reduce<number>((t, l) => t + (l.chejatWeight ?? 0), 0);
+  const hasChejat = bill.lines.some((l) => l.chejatWeight != null && l.chejatWeight > 0);
+  const sumNag = bill.lines.reduce<number>((t, l) => t + (l.nagLessWeight ?? 0), 0);
+  const hasNag = bill.lines.some((l) => l.nagLessWeight != null && l.nagLessWeight > 0);
   const labours = bill.lines.map((l) => estimateRowOf(l).labour);
   const hasLabour = labours.some((v) => v != null);
   const sumLabour = labours.reduce<number>((t, v) => t + (v ?? 0), 0);
-  const otherChargess = bill.lines.map((l) => estimateRowOf(l).otherCharges);
-  const hasOtherCharges = otherChargess.some((v) => v != null && v > 0);
-  const sumOtherCharges = otherChargess.reduce<number>((t, v) => t + (v != null && v > 0 ? v : 0), 0);
+  // Totals row is the ONE place the itemized charges are summed.
+  const chargeTotals = bill.lines.map((l) => estimateChargesTotal(estimateRowOf(l).charges));
+  const hasOtherCharges = chargeTotals.some((v) => v > 0);
+  const sumOtherCharges = chargeTotals.reduce((t, v) => t + v, 0);
 
   const adjRows: string[] = [];
   if (bill.discount > 0) {
@@ -340,31 +356,31 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
   <table class="items">
     <colgroup>${
       split
-        ? `<col style="width:23%" /><col style="width:7%" /><col style="width:7%" />
-      <col style="width:4.5%" /><col style="width:8.5%" /><col style="width:9%" />
-      <col style="width:11.5%" /><col style="width:9.5%" /><col style="width:20%" />`
-        : `<col style="width:27%" /><col style="width:9%" /><col style="width:5%" />
-      <col style="width:9%" /><col style="width:10%" /><col style="width:13%" />
-      <col style="width:11%" /><col style="width:16%" />`
+        ? `<col style="width:22%" /><col style="width:6.5%" /><col style="width:7%" />
+      <col style="width:7%" /><col style="width:7%" /><col style="width:8.5%" />
+      <col style="width:13%" /><col style="width:15%" /><col style="width:14%" />`
+        : `<col style="width:27%" /><col style="width:7.5%" /><col style="width:9.5%" />
+      <col style="width:9.5%" /><col style="width:15%" /><col style="width:17%" />
+      <col style="width:14.5%" />`
     }</colgroup>
     <thead><tr>${
       split
-        ? `<th class="h-desc">Description</th><th>G. Wt.</th><th>N. Wt.</th><th>Pcs.</th>
-      <th>Rate ₹/gm</th><th>Value</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
-        : `<th class="h-desc">Description</th><th>Weight</th><th>Pcs.</th>
-      <th>Rate ₹/gm</th><th>Value</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
+        ? `<th class="h-desc">Description</th><th>Purity</th><th>G. Wt.</th><th>Chejat Wt.</th>
+      <th>Nag Wt.</th><th>Rate ₹/gm</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
+        : `<th class="h-desc">Description</th><th>Purity</th><th>Weight</th>
+      <th>Rate ₹/gm</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
     }</tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr class="sum">
       <td></td>
+      <td></td>
       ${
         split
           ? `<td class="c">${hasGross ? estNum(sumGross, 3) : "-"}</td>
-      <td class="c">${estNum(sumWeight, 3)}</td>`
+      <td class="c">${hasChejat ? estNum(sumChejat, 3) : "-"}</td>
+      <td class="c">${hasNag ? estNum(sumNag, 3) : "-"}</td>`
           : `<td class="c">${estNum(sumWeight, 3)}</td>`
       }
-      <td></td>
-      <td></td>
       <td></td>
       <td class="num">${hasLabour ? estNum(sumLabour, 2) : "-"}</td>
       <td class="num">${hasOtherCharges ? estNum(sumOtherCharges, 2) : "-"}</td>

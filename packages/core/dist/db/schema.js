@@ -218,6 +218,13 @@ export const invoiceItems = pgTable("invoice_items", {
     purity: text("purity"),
     /** Gross-weight free-text snapshot from the product (bill G.Wt. column). */
     grossWeight: text("gross_weight"),
+    /** Bill line's nag-less weight in GRAMS — gold net-weight derivation
+     *  input, mirroring the product form (`net = gross − nag + chejat`,
+     *  `calcNetWeight`); the printed Nag Wt. column. NULL for silver/legacy. */
+    nagLessWeight: doublePrecision("nag_less_weight"),
+    /** Bill line's chejat (stone) weight in GRAMS — the other derivation
+     *  input; the printed Chejat Wt. column. NULL for silver/legacy. */
+    chejatWeight: doublePrecision("chejat_weight"),
     /** Product weight + unit snapshot — drives the bill's WEIGHT column. */
     weight: doublePrecision("weight"),
     weightUnit: text("weight_unit"),

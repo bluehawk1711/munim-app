@@ -202,6 +202,8 @@ export async function createInvoice(db, input) {
             description: item.description?.trim() || null,
             purity: item.purity?.trim() || product?.purity || null,
             grossWeight: item.grossWeight || product?.grossWeight || null,
+            nagLessWeight: item.nagLessWeight ?? null,
+            chejatWeight: item.chejatWeight ?? null,
             weight: item.weight ?? product?.weight ?? null,
             weightUnit: item.weightUnit ?? product?.weightUnit ?? null,
             quantity: item.quantity,

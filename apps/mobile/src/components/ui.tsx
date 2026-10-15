@@ -337,7 +337,8 @@ export function Button({
 type FieldProps = {
   label: string;
   value: string;
-  onChangeText: (text: string) => void;
+  /** Optional for read-only displays (derived values like the net weight). */
+  onChangeText?: (text: string) => void;
   placeholder?: string;
   keyboardType?: KeyboardTypeOptions;
   secureTextEntry?: boolean;

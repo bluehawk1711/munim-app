@@ -37,6 +37,9 @@ export function buildSampleBill(kind: SampleBillKind): BillDocument {
           weightUnit: "g",
           purity: "22K",
           grossWeight: "19.12",
+          // net = 19.12 − 0.62 + 0.15 = 18.65 (the priced weight)
+          nagLessWeight: 0.62,
+          chejatWeight: 0.15,
         quantity: 1,
         price: 165650,
         pricing: {
@@ -58,6 +61,9 @@ export function buildSampleBill(kind: SampleBillKind): BillDocument {
           weightUnit: "g",
           purity: "22K",
           grossWeight: "10.20",
+          // net = 10.20 − 6.00 + 0.65 = 4.85 (studded ring demo)
+          nagLessWeight: 6,
+          chejatWeight: 0.65,
           quantity: 2,
           price: 41150,
         },
@@ -68,6 +74,9 @@ export function buildSampleBill(kind: SampleBillKind): BillDocument {
           weightUnit: "g",
           purity: "22K",
           grossWeight: "9.78",
+          // net = 9.78 − 0.46 + 0.10 = 9.42 (the priced weight)
+          nagLessWeight: 0.46,
+          chejatWeight: 0.1,
           description: "Handcrafted filigree design",
           quantity: 1,
           price: 84900,

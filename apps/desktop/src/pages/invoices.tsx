@@ -153,6 +153,8 @@ export function InvoicesPage() {
           weightUnit: it.weightUnit,
           purity: it.purity,
           grossWeight: it.grossWeight,
+          nagLessWeight: it.nagLessWeight,
+          chejatWeight: it.chejatWeight,
           pricing: it.pricing,
           quantity: it.quantity,
           price: it.price,

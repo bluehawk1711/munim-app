@@ -30,11 +30,12 @@ export function nameWithPurity(line) {
 }
 /**
  * Estimate-template row derivations: per-gram rate, metal value, labour ₹,
- * other charges ₹ — the single "Other Charges" column printed instead of a
- * povayi-only column: nag + povayi + other summed. Legacy snapshots (saved
- * before nag/other were frozen) have them missing → 0, so the sum is just
- * their povayi — old bills render unchanged. NULL when the line froze no
- * pricing at all (manual/legacy lines).
+ * and the individual flat charges (nag / povayi / other ₹). The bill prints
+ * them ITEMIZED inside the Other Charges cell with their prefixes —
+ * `Nag: 500.00` / `Povayi: 250.00` / `Other: 150.00` — never summed on a line
+ * (the totals row adds them once). Legacy snapshots saved before nag/other
+ * were frozen have them missing → 0 (their povayi still shows). NULL when the
+ * line froze no pricing at all (manual/legacy lines).
  */
 export function estimateRowOf(line) {
     const p = line.pricing;
@@ -45,8 +46,36 @@ export function estimateRowOf(line) {
             : line.price;
     const value = p?.metalValue ?? line.price;
     const labour = p?.labourAmount ?? null;
-    const otherCharges = p == null ? null : (p.nag ?? 0) + (p.povayi ?? 0) + (p.other ?? 0);
-    return { rate, value, labour, otherCharges };
+    const charges = p == null ? null : { nag: p.nag ?? 0, povayi: p.povayi ?? 0, other: p.other ?? 0 };
+    return { rate, value, labour, charges };
+}
+/** The itemized Other Charges cell lines — one `Prefix: 0.00` entry per
+ *  non-empty charge, in the client's order (Nag, Povayi, Other). Empty → []. */
+export function estimateChargeLines(charges) {
+    if (!charges)
+        return [];
+    const parts = [];
+    if (charges.nag > 0)
+        parts.push(`Nag: ${charges.nag.toFixed(2)}`);
+    if (charges.povayi > 0)
+        parts.push(`Povayi: ${charges.povayi.toFixed(2)}`);
+    if (charges.other > 0)
+        parts.push(`Other: ${charges.other.toFixed(2)}`);
+    return parts;
+}
+/** Sum of the non-zero flat charges — the totals row's Other Charges cell. */
+export function estimateChargesTotal(charges) {
+    if (!charges)
+        return 0;
+    return (charges.nag > 0 ? charges.nag : 0) + (charges.povayi > 0 ? charges.povayi : 0) + (charges.other > 0 ? charges.other : 0);
+}
+/** Trimmed purity stamp for the estimate's Purity column (null → "-"). */
+export function purityCellOf(line) {
+    return line.purity?.trim() || null;
+}
+/** Grams for the estimate's Chejat/Nag weight columns (null → "-"). */
+export function weightCellOf(value) {
+    return value != null && value > 0 ? value.toFixed(3) : null;
 }
 /**
  * Labour method tag printed beside the Labour amount on the estimate —

@@ -72,16 +72,23 @@ export interface BillLineInput {
   sku?: string | null;
   color?: string | null;
   size?: string | null;
-  /** Metal purity stamp printed beside the name (`p:` prefix). */
+  /** Metal purity stamp — printed in the estimate's Purity column (dropdown
+   *  on the bill screens; Classic still appends it to the name). */
   purity?: string | null;
-  /** Gross-weight free text (bill G.Wt. column in the estimate template). */
+  /** Gross-weight free text (bill G. Wt. column in the estimate template). */
   grossWeight?: string | null;
+  /** Bill line's nag-less weight in GRAMS — gold net-weight derivation input
+   *  (`net = gross − nag + chejat`); the printed Nag Wt. column. */
+  nagLessWeight?: number | null;
+  /** Bill line's chejat (stone) weight in GRAMS — the other derivation
+   *  input; the printed Chejat Wt. column. */
+  chejatWeight?: number | null;
   /** Product weight + unit snapshot — display for the WEIGHT column only. */
   weight?: number | null;
   weightUnit?: string | null;
   quantity: number;
   price: number;
-  /** Frozen pricing inputs (rate/metal value/labour) — estimate columns. */
+  /** Frozen pricing inputs (rate/metal value/labour/povayi) — estimate columns. */
   pricing?: InvoiceItemPricing | null;
 }
 
@@ -155,17 +162,18 @@ export function nameWithPurity(line: BillLineInput): string {
 
 /**
  * Estimate-template row derivations: per-gram rate, metal value, labour ₹,
- * other charges ₹ — the single "Other Charges" column printed instead of a
- * povayi-only column: nag + povayi + other summed. Legacy snapshots (saved
- * before nag/other were frozen) have them missing → 0, so the sum is just
- * their povayi — old bills render unchanged. NULL when the line froze no
- * pricing at all (manual/legacy lines).
+ * and the individual flat charges (nag / povayi / other ₹). The bill prints
+ * them ITEMIZED inside the Other Charges cell with their prefixes —
+ * `Nag: 500.00` / `Povayi: 250.00` / `Other: 150.00` — never summed on a line
+ * (the totals row adds them once). Legacy snapshots saved before nag/other
+ * were frozen have them missing → 0 (their povayi still shows). NULL when the
+ * line froze no pricing at all (manual/legacy lines).
  */
 export function estimateRowOf(line: BillLineInput & { total?: number }): {
   rate: number;
   value: number;
   labour: number | null;
-  otherCharges: number | null;
+  charges: { nag: number; povayi: number; other: number } | null;
 } {
   const p = line.pricing;
   const rate =
@@ -176,9 +184,39 @@ export function estimateRowOf(line: BillLineInput & { total?: number }): {
         : line.price;
   const value = p?.metalValue ?? line.price;
   const labour = p?.labourAmount ?? null;
-  const otherCharges =
-    p == null ? null : (p.nag ?? 0) + (p.povayi ?? 0) + (p.other ?? 0);
-  return { rate, value, labour, otherCharges };
+  const charges = p == null ? null : { nag: p.nag ?? 0, povayi: p.povayi ?? 0, other: p.other ?? 0 };
+  return { rate, value, labour, charges };
+}
+
+/** The itemized Other Charges cell lines — one `Prefix: 0.00` entry per
+ *  non-empty charge, in the client's order (Nag, Povayi, Other). Empty → []. */
+export function estimateChargeLines(
+  charges: { nag: number; povayi: number; other: number } | null,
+): string[] {
+  if (!charges) return [];
+  const parts: string[] = [];
+  if (charges.nag > 0) parts.push(`Nag: ${charges.nag.toFixed(2)}`);
+  if (charges.povayi > 0) parts.push(`Povayi: ${charges.povayi.toFixed(2)}`);
+  if (charges.other > 0) parts.push(`Other: ${charges.other.toFixed(2)}`);
+  return parts;
+}
+
+/** Sum of the non-zero flat charges — the totals row's Other Charges cell. */
+export function estimateChargesTotal(
+  charges: { nag: number; povayi: number; other: number } | null,
+): number {
+  if (!charges) return 0;
+  return (charges.nag > 0 ? charges.nag : 0) + (charges.povayi > 0 ? charges.povayi : 0) + (charges.other > 0 ? charges.other : 0);
+}
+
+/** Trimmed purity stamp for the estimate's Purity column (null → "-"). */
+export function purityCellOf(line: BillLineInput): string | null {
+  return line.purity?.trim() || null;
+}
+
+/** Grams for the estimate's Chejat/Nag weight columns (null → "-"). */
+export function weightCellOf(value: number | null | undefined): string | null {
+  return value != null && value > 0 ? value.toFixed(3) : null;
 }
 
 /**

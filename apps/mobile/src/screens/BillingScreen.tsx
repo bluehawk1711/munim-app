@@ -1,18 +1,21 @@
 ﻿import React, {useMemo, useState} from 'react';
-import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, Switch, Text, TextInput, View} from 'react-native';
+import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, StyleProp, Switch, Text, TextInput, View, ViewStyle} from 'react-native';
 import * as Print from 'expo-print';
 import {ChevronDown, Search} from 'lucide-react-native';
 import {
   applyGoldBaseRate,
   buildBillDocument,
+  calcNetWeight,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
+  purityOptionsFor,
   renderBillText,
   renderBillHtml,
   resolveGoldRateTable,
   formatDate,
   swatchColor,
+  weightTextToGrams,
   type BillDocument,
   type BillTemplate,
   type BillClassicColor,
@@ -67,10 +70,16 @@ type LineState = {
   /** True once the shop edits this line's Weight — the edited weight then
    *  drives auto-pricing (and survives later rate reprices). */
   weightEdited: boolean;
-  /** Metal purity stamp ("22K") — printed beside the name in parentheses. */
+  /** Metal purity stamp ("22K") — the estimate's Purity column (dropdown). */
   purity: string;
-  /** Gross-weight free text — bill G.Wt. column. */
+  /** Gross-weight free text — bill G. Wt. column. */
   grossWeight: string;
+  /** Bill line's nag-less weight in GRAMS — gold net-weight derivation input
+   *  (net = gross − nag + chejat) + printed Nag Wt. column. */
+  nagLessWeight: string;
+  /** Bill line's chejat (stone) weight in GRAMS — the other derivation input
+   *  + printed Chejat Wt. column. */
+  chejatWeight: string;
   quantity: string;
   price: string;
   silverPercentage: string;
@@ -104,6 +113,8 @@ const emptyLine = (): LineState => ({
   weightEdited: false,
   purity: '',
   grossWeight: '',
+  nagLessWeight: '',
+  chejatWeight: '',
   quantity: '1',
   price: '0',
   silverPercentage: '100',
@@ -122,6 +133,24 @@ const parseLineNum = (raw: string): number | null => {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+/** Grams → the line field's string form ("" when the product has no value). */
+const gramsField = (grams: number | null): string => (grams == null ? '' : String(grams));
+
+/** Gold price basis from the line's OWN derivation inputs — NET grams via the
+ *  shared `calcNetWeight` (net = gross − nag + chejat; the line's nag/chejat
+ *  fields are grams). Null when gross isn't usable (or nets ≤ 0) → the caller
+ *  falls back to an edited Weight, else the product's own basis. */
+const goldNetGrams = (line: LineState): number | null => {
+  const net = calcNetWeight({
+    grossWeight: line.grossWeight,
+    nagLessWeight: line.nagLessWeight,
+    chejatWeight: line.chejatWeight,
+    weightUnit: line.weightUnit,
+    nagUnit: 'gm',
+  });
+  return net && net.grams > 0 ? net.grams : null;
 };
 
 /** The line's strip edits layered onto the pricing engine (null/undefined
@@ -320,11 +349,65 @@ function PartyPicker({
   );
 }
 
+/** Purity dropdown for a bill line — the estimate's printed Purity column.
+ *  Options come from core's shared presets (`purityOptionsFor` keeps the
+ *  line's current off-list stamp in the list too). */
+function PurityPicker({
+  value,
+  onChange,
+  style,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const styles = useThemeStyles(makeStyles);
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Pressable
+        onPress={() => setOpen(true)}
+        style={({pressed}) => [styles.partyPicker, style, pressed && {opacity: 0.7}]}
+        accessibilityRole="button"
+        accessibilityLabel={`Purity ${value || 'not set'}`}>
+        <View style={{flex: 1}}>
+          <Text style={styles.pickerLabel}>Purity</Text>
+          <Text style={styles.pickerValue}>{value || '—'}</Text>
+        </View>
+        <ChevronDown size={18} color={colors.muted} />
+      </Pressable>
+      <ModalSheet visible={open} title="Purity" onClose={() => setOpen(false)} centered scrollable>
+        <FlatList
+          data={purityOptionsFor(value)}
+          keyExtractor={item => item}
+          style={{maxHeight: 340}}
+          renderItem={({item}) => (
+            <Pressable
+              onPress={() => {
+                selectionTick();
+                onChange(item);
+                setOpen(false);
+              }}
+              style={({pressed}) => [
+                styles.pickRow,
+                item === value && {backgroundColor: colors.mutedBg},
+                pressed && {backgroundColor: colors.mutedBg},
+              ]}>
+              <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}}>{item}</Text>
+            </Pressable>
+          )}
+        />
+      </ModalSheet>
+    </>
+  );
+}
+
 /** Line-item editor shared by bill 1 and the 2-in-1 Separate bill 2. */
 function LineItemsEditor({
   lines,
   onChange,
   onWeightChange,
+  onBasisChange,
   onPricingChange,
   pricing,
   onRemove,
@@ -336,6 +419,8 @@ function LineItemsEditor({
   onChange: (index: number, patch: Partial<LineState>) => void;
   /** Weight edits re-price the line (core engine) — passed down from the screen. */
   onWeightChange?: (index: number, weight: string) => void;
+  /** Weight-basis edits (gold G. Wt. / Nag / Chejat) — re-price the line. */
+  onBasisChange?: (index: number, patch: Partial<LineState>) => void;
   /** Pricing-strip edits (Rate/Labour/Nag/Povayi/Other/Silver %) — re-price the line. */
   onPricingChange?: (index: number, patch: Partial<PricingStripFields>) => void;
   /** Live pricing view per line (metal + breakdown) — null → no strip. */
@@ -359,6 +444,15 @@ function LineItemsEditor({
             pricingView.breakdown.charges.povayi +
             pricingView.breakdown.charges.other
           : 0;
+        const isGold = line.productId
+          ? products?.find(p => p.id === line.productId)?.type === 'Gold'
+          : false;
+        // Gold's price basis (net wt) shown read-only — the derived grams, or
+        // the weight the engine actually priced when a breakdown exists.
+        const goldNet = isGold ? pricingView?.breakdown.weightGm ?? goldNetGrams(line) : null;
+        /** Basis edits (G. Wt. / Nag / Chejat) re-price via the screen. */
+        const basis = (patch: Partial<LineState>) =>
+          onBasisChange ? onBasisChange(index, patch) : onChange(index, patch);
         const isOpen = expandedIndex === index;
         const lineTotal = (Number(line.quantity) || 0) * (Number(line.price) || 0);
         const summaryName = `${line.productName || 'New item'}${line.purity.trim() ? ` p:${line.purity.trim()}` : ''}`;
@@ -422,36 +516,76 @@ function LineItemsEditor({
                     style={{flex: 2}}
                   />
                 </View>
+                {!isGold ? (
+                  <View style={styles.lineRow}>
+                    <Field
+                      label="Weight"
+                      value={line.weight}
+                      onChangeText={text =>
+                        onWeightChange ? onWeightChange(index, text) : onChange(index, {weight: text})
+                      }
+                      keyboardType="numeric"
+                      style={{flex: 1, marginRight: 8}}
+                      placeholder="0.000"
+                    />
+                    <PurityPicker value={line.purity} onChange={v => onChange(index, {purity: v})} style={{flex: 1}} />
+                  </View>
+                ) : (
+                  <View style={styles.lineRow}>
+                    <Field
+                      label="G. Wt."
+                      value={line.grossWeight}
+                      onChangeText={text => basis({grossWeight: text})}
+                      keyboardType="numeric"
+                      style={{flex: 1, marginRight: 8}}
+                      placeholder="19.12"
+                    />
+                    <PurityPicker value={line.purity} onChange={v => onChange(index, {purity: v})} style={{flex: 1}} />
+                  </View>
+                )}
                 <View style={styles.lineRow}>
+                  {isGold ? (
+                    <>
+                      <Field
+                        label="Nag Wt."
+                        value={line.nagLessWeight}
+                        onChangeText={text => basis({nagLessWeight: text})}
+                        keyboardType="numeric"
+                        style={{flex: 1, marginRight: 8}}
+                        placeholder="0.000"
+                      />
+                      <Field
+                        label="Chejat Wt."
+                        value={line.chejatWeight}
+                        onChangeText={text => basis({chejatWeight: text})}
+                        keyboardType="numeric"
+                        style={{flex: 1}}
+                        placeholder="0.000"
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <Field
+                        label="G. Wt."
+                        value={line.grossWeight}
+                        onChangeText={text => basis({grossWeight: text})}
+                        keyboardType="numeric"
+                        style={{flex: 1, marginRight: 8}}
+                        placeholder="19.12"
+                      />
+                      <View style={{flex: 1}} />
+                    </>
+                  )}
+                </View>
+                {isGold ? (
                   <Field
-                    label="Weight"
-                    value={line.weight}
-                    onChangeText={text =>
-                      onWeightChange ? onWeightChange(index, text) : onChange(index, {weight: text})
-                    }
-                    keyboardType="numeric"
-                    style={{flex: 1, marginRight: 8}}
+                    label="Net wt (derived)"
+                    value={goldNet != null ? goldNet.toFixed(3) : ''}
+                    editable={false}
+                    style={{width: '48%'}}
                     placeholder="0.000"
                   />
-                  <Field
-                    label="Purity"
-                    value={line.purity}
-                    onChangeText={text => onChange(index, {purity: text})}
-                    placeholder="22K"
-                    style={{flex: 1}}
-                  />
-                </View>
-                <View style={styles.lineRow}>
-                  <Field
-                    label="G. Wt."
-                    value={line.grossWeight}
-                    onChangeText={text => onChange(index, {grossWeight: text})}
-                    keyboardType="numeric"
-                    style={{flex: 1, marginRight: 8}}
-                    placeholder="19.12"
-                  />
-                  <View style={{flex: 2}} />
-                </View>
+                ) : null}
                 {pricingView ? (
                   <View style={styles.pricingStrip}>
                     <View style={styles.lineRow}>
@@ -735,8 +869,13 @@ export function BillingScreen() {
     const p = productsData?.products.find(x => x.id === line.productId);
     if (!p || p.priceMode !== 'auto' || (p.type !== 'Gold' && p.type !== 'Silver')) return null;
     const parsed = Number(line.weight);
-    const weight = line.weight.trim() !== '' && Number.isFinite(parsed) ? parsed : null;
-    return priceBillLineRow(p, ctx, {weight, weightUnit: line.weightUnit}, overridesFrom(line));
+    const editedWeight = line.weight.trim() !== '' && Number.isFinite(parsed) ? parsed : null;
+    // Gold prices on the DERIVED NET weight (gross − nag + chejat, grams);
+    // silver keeps the plain Weight basis. No net → weight → null (product's).
+    const net = p.type === 'Gold' ? goldNetGrams(line) : null;
+    const weight = net ?? editedWeight;
+    const weightUnit = net != null ? 'gm' : line.weightUnit;
+    return priceBillLineRow(p, ctx, {weight, weightUnit}, overridesFrom(line));
   }
 
   /** Writes a breakdown back onto the line — price always; rate when the shop
@@ -761,6 +900,14 @@ export function BillingScreen() {
       setter(prev =>
         prev.map((l, i) => (i === index ? repriceLine({...l, weight: raw, weightEdited: raw.trim() !== ''}) : l)),
       );
+    };
+  }
+
+  /** Editing a line's weight-BASIS inputs (gold: G. Wt. / Nag / Chejat — they
+   *  drive the derived net the price is computed on) re-prices that line. */
+  function makeBasisHandler(setter: (updater: (prev: LineState[]) => LineState[]) => void) {
+    return (index: number, patch: Partial<LineState>) => {
+      setter(prev => prev.map((l, i) => (i === index ? repriceLine({...l, ...patch}) : l)));
     };
   }
 
@@ -915,6 +1062,8 @@ export function BillingScreen() {
       weightEdited: false,
       purity: product?.purity ?? '',
       grossWeight: product?.grossWeight ?? '',
+      nagLessWeight: gramsField(weightTextToGrams(product?.nagLessWeight ?? null, product?.nagUnit ?? null)),
+      chejatWeight: gramsField(weightTextToGrams(product?.chejatWeight ?? null, product?.nagUnit ?? null)),
       price: product ? String(product.effectivePrice) : '',
       silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
       ratePerGram: '',
@@ -941,16 +1090,25 @@ export function BillingScreen() {
       .map(l => {
         const bd = lineBreakdown(l);
         const pricing = bd ? invoicePricingFromBreakdown(bd) : null;
+        // Gold stores the DERIVED NET weight (grams) — what it priced — plus
+        // its nag/chejat derivation inputs for their own bill columns; silver
+        // keeps the plain Weight field.
+        const isGold = l.productId
+          ? productsData?.products.find(x => x.id === l.productId)?.type === 'Gold'
+          : false;
+        const net = isGold ? goldNetGrams(l) : null;
         return {
           productId: l.productId || undefined,
           productName: l.productName.trim(),
           sku: l.sku.trim() || undefined,
           color: l.color.trim() || undefined,
           size: l.size.trim() || undefined,
-          weight: l.weight.trim() ? Number(l.weight) : undefined,
-          weightUnit: l.weight.trim() ? l.weightUnit : undefined,
+          weight: net ?? (l.weight.trim() ? Number(l.weight) : undefined),
+          weightUnit: net != null ? 'gm' : l.weight.trim() ? l.weightUnit : undefined,
           purity: l.purity.trim() || undefined,
           grossWeight: l.grossWeight.trim() || undefined,
+          nagLessWeight: isGold ? parseLineNum(l.nagLessWeight) ?? undefined : undefined,
+          chejatWeight: isGold ? parseLineNum(l.chejatWeight) ?? undefined : undefined,
           quantity: Number(l.quantity) || 0,
           price: Number(l.price) || 0,
           pricing: pricing ?? undefined,
@@ -981,6 +1139,8 @@ export function BillingScreen() {
         weightUnit: it.weightUnit,
         purity: it.purity,
         grossWeight: it.grossWeight,
+        nagLessWeight: it.nagLessWeight,
+        chejatWeight: it.chejatWeight,
         pricing: it.pricing,
         quantity: it.quantity,
         price: it.price,
@@ -1384,6 +1544,7 @@ export function BillingScreen() {
             lines={lines}
             onChange={updateLine}
             onWeightChange={makeWeightHandler(setLines)}
+            onBasisChange={makeBasisHandler(setLines)}
             onPricingChange={makePricingHandler(setLines)}
             pricing={index => (lines[index] ? pricingViewFor(lines[index]) : null)}
             onRemove={index => setLines(prev => prev.filter((_, i) => i !== index))}
@@ -1437,6 +1598,7 @@ export function BillingScreen() {
                 lines={secondLines}
                 onChange={updateSecondLine}
                 onWeightChange={makeWeightHandler(setSecondLines)}
+                onBasisChange={makeBasisHandler(setSecondLines)}
                 onPricingChange={makePricingHandler(setSecondLines)}
                 pricing={index => (secondLines[index] ? pricingViewFor(secondLines[index]) : null)}
               onRemove={index => setSecondLines(prev => prev.filter((_, i) => i !== index))}

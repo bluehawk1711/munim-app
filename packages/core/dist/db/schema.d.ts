@@ -1935,6 +1935,40 @@ export declare const invoiceItems: import("drizzle-orm/pg-core").PgTableWithColu
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        nagLessWeight: import("drizzle-orm/pg-core").PgColumn<{
+            name: "nag_less_weight";
+            tableName: "invoice_items";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        chejatWeight: import("drizzle-orm/pg-core").PgColumn<{
+            name: "chejat_weight";
+            tableName: "invoice_items";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         weight: import("drizzle-orm/pg-core").PgColumn<{
             name: "weight";
             tableName: "invoice_items";

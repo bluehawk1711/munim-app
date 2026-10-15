@@ -3,11 +3,14 @@ import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Cop
 import {
   applyGoldBaseRate,
   buildBillDocument,
+  calcNetWeight,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
   productMatchesCode,
+  purityOptionsFor,
   resolveGoldRateTable,
+  weightTextToGrams,
   type BillDocument,
   type BillShopDetails,
   type PriceBreakdown,
@@ -74,10 +77,16 @@ type LineState = {
   /** True once the shop edits this line's Weight — the edited weight then
    *  drives auto-pricing (and survives later rate reprices). */
   weightEdited: boolean;
-  /** Metal purity stamp ("22K") — printed beside the name in parentheses. */
+  /** Metal purity stamp ("22K") — the estimate's Purity column (dropdown). */
   purity: string;
-  /** Gross-weight free text — bill G.Wt. column. */
+  /** Gross-weight free text — bill G. Wt. column. */
   grossWeight: string;
+  /** Bill line's nag-less weight in GRAMS (string field) — gold net-weight
+   *  derivation input (net = gross − nag + chejat) + printed Nag Wt. column. */
+  nagLessWeight: string;
+  /** Bill line's chejat (stone) weight in GRAMS — the other derivation input
+   *  + printed Chejat Wt. column. */
+  chejatWeight: string;
   quantity: string;
   price: string;
   silverPercentage: string;
@@ -94,7 +103,7 @@ type LineState = {
 };
 
 function emptyLine(): LineState {
-  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", weight: "", weightUnit: "gm", weightEdited: false, purity: "", grossWeight: "", quantity: "1", price: "0", silverPercentage: "100", ratePerGram: "", rateEdited: false, labourType: "", labourValue: "", nag: "", povayi: "", otherCharges: "" };
+  return { productId: "", productName: "", sku: "", color: "", size: "", description: "", weight: "", weightUnit: "gm", weightEdited: false, purity: "", grossWeight: "", nagLessWeight: "", chejatWeight: "", quantity: "1", price: "0", silverPercentage: "100", ratePerGram: "", rateEdited: false, labourType: "", labourValue: "", nag: "", povayi: "", otherCharges: "" };
 }
 
 /** Raw line text → number; "" / garbage → null (= "keep the product's input"). */
@@ -103,6 +112,26 @@ function parseLineNum(raw: string): number | null {
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Grams → the line field's string form ("" when the product has no value). */
+function gramsField(grams: number | null): string {
+  return grams == null ? "" : String(grams);
+}
+
+/** Gold price basis from the line's OWN derivation inputs — NET grams via the
+ *  shared `calcNetWeight` (net = gross − nag + chejat; the bill line's nag/
+ *  chejat fields are grams). Null when gross isn't usable (or nets ≤ 0) → the
+ *  caller falls back to an edited Weight, else the product's own basis. */
+function goldNetGrams(line: LineState): number | null {
+  const net = calcNetWeight({
+    grossWeight: line.grossWeight,
+    nagLessWeight: line.nagLessWeight,
+    chejatWeight: line.chejatWeight,
+    weightUnit: line.weightUnit,
+    nagUnit: "gm",
+  });
+  return net && net.grams > 0 ? net.grams : null;
 }
 
 function settingsToShop(s: SettingsDto): BillShopDetails {
@@ -141,6 +170,8 @@ function invoiceToBillDocument(
       weightUnit: it.weightUnit,
       purity: it.purity,
       grossWeight: it.grossWeight,
+      nagLessWeight: it.nagLessWeight,
+      chejatWeight: it.chejatWeight,
       pricing: it.pricing,
       quantity: it.quantity,
       price: it.price,
@@ -269,11 +300,23 @@ export function BillingPage() {
       if (!line.productId) return null;
       const p = allProducts?.find((x) => x.id === line.productId);
       if (!p || p.priceMode !== "auto" || (p.type !== "Gold" && p.type !== "Silver")) return null;
-      const weight = line.weightEdited ? parseLineNum(line.weight) : null;
+      // Gold prices on the DERIVED NET weight (gross − nag + chejat, grams);
+      // silver keeps the plain edited-Weight basis. No net → legacy edited
+      // weight → null (the product's own basis).
+      let weight: number | null;
+      let weightUnit: "gm" | "mg";
+      if (p.type === "Gold") {
+        const net = goldNetGrams(line);
+        weight = net ?? (line.weightEdited ? parseLineNum(line.weight) : null);
+        weightUnit = net != null ? "gm" : line.weightUnit;
+      } else {
+        weight = line.weightEdited ? parseLineNum(line.weight) : null;
+        weightUnit = line.weightUnit;
+      }
       return priceBillLineRow(
         p,
         context,
-        { weight, weightUnit: line.weightUnit },
+        { weight, weightUnit },
         {
           ratePerGram: line.rateEdited ? parseLineNum(line.ratePerGram) : null,
           labourType: isLabourType(line.labourType) ? line.labourType : null,
@@ -315,6 +358,14 @@ export function BillingPage() {
       setter((prev) =>
         prev.map((l, i) => (i === index ? repriceLine({ ...l, weight: raw, weightEdited: raw.trim() !== "" }) : l)),
       );
+    };
+  }
+
+  /** Editing a line's weight-BASIS inputs (gold: G. Wt. / Nag / Chejat — they
+   *  drive the derived net the price is computed on) re-prices that line. */
+  function makeBasisHandler(setter: (updater: (prev: LineState[]) => LineState[]) => void) {
+    return (index: number, patch: Partial<LineState>) => {
+      setter((prev) => prev.map((l, i) => (i === index ? repriceLine({ ...l, ...patch }) : l)));
     };
   }
 
@@ -523,6 +574,8 @@ export function BillingPage() {
         weightUnit: found.weightUnit === "mg" ? ("mg" as const) : ("gm" as const),
         purity: found.purity ?? "",
         grossWeight: found.grossWeight ?? "",
+        nagLessWeight: gramsField(weightTextToGrams(found.nagLessWeight, found.nagUnit)),
+        chejatWeight: gramsField(weightTextToGrams(found.chejatWeight, found.nagUnit)),
         price: String(found.effectivePrice),
         silverPercentage: String(found.silverPercentage ?? 100),
       };
@@ -587,6 +640,8 @@ export function BillingPage() {
       weightEdited: false,
       purity: p.purity ?? "",
       grossWeight: p.grossWeight ?? "",
+      nagLessWeight: gramsField(weightTextToGrams(full?.nagLessWeight ?? null, full?.nagUnit ?? null)),
+      chejatWeight: gramsField(weightTextToGrams(full?.chejatWeight ?? null, full?.nagUnit ?? null)),
       price: String(p.effectivePrice ?? p.sellingPrice),
       silverPercentage: String(p.silverPercentage ?? 100),
     };
@@ -603,6 +658,11 @@ export function BillingPage() {
         // The edited line's snapshot (rate/labour/povayi) so the printed bill
         // matches the screen; omitted → server freezes from the product.
         const breakdown = l.productId ? lineBreakdown(l) : null;
+        // Gold stores the DERIVED NET weight (grams) — what it priced — plus
+        // its nag/chejat derivation inputs for their own bill columns; silver
+        // keeps the plain Weight field.
+        const isGold = l.productId ? allProducts?.find((x) => x.id === l.productId)?.type === "Gold" : false;
+        const net = isGold ? goldNetGrams(l) : null;
         return {
           productId: l.productId || undefined,
           productName: l.productName.trim(),
@@ -610,10 +670,12 @@ export function BillingPage() {
           color: l.color.trim() || undefined,
           size: l.size.trim() || undefined,
           description: l.description.trim() || undefined,
-          weight: l.weight.trim() ? Number(l.weight) : undefined,
-          weightUnit: l.weight.trim() ? l.weightUnit : undefined,
+          weight: net ?? (l.weight.trim() ? Number(l.weight) : undefined),
+          weightUnit: net != null ? "gm" : l.weight.trim() ? l.weightUnit : undefined,
           purity: l.purity.trim() || undefined,
           grossWeight: l.grossWeight.trim() || undefined,
+          nagLessWeight: isGold ? parseLineNum(l.nagLessWeight) ?? undefined : undefined,
+          chejatWeight: isGold ? parseLineNum(l.chejatWeight) ?? undefined : undefined,
           quantity: Number(l.quantity) || 0,
           price: Number(l.price) || 0,
           pricing: breakdown ? invoicePricingFromBreakdown(breakdown) ?? undefined : undefined,
@@ -952,6 +1014,7 @@ export function BillingPage() {
                     allProducts={allProducts}
                     update={updateLine}
                     onWeightChange={makeWeightHandler(setLines)}
+                    onBasisChange={makeBasisHandler(setLines)}
                     onPricingChange={(i, patch) => handlePricingChange(setLines, i, patch)}
                     pricing={(i) => (lines[i] ? pricingViewFor(lines[i]) : null)}
                     remove={(i) => setLines((prev) => prev.filter((_, x) => x !== i))}
@@ -1023,6 +1086,7 @@ export function BillingPage() {
                       allProducts={allProducts}
                       update={updateSecondLine}
                       onWeightChange={makeWeightHandler(setSecondLines)}
+                      onBasisChange={makeBasisHandler(setSecondLines)}
                       onPricingChange={(i, patch) => handlePricingChange(setSecondLines, i, patch)}
                       pricing={(i) => (secondLines[i] ? pricingViewFor(secondLines[i]) : null)}
                       remove={(i) => setSecondLines((prev) => prev.filter((_, x) => x !== i))}
@@ -1295,6 +1359,7 @@ function LineItemsEditor({
   lines,
   update,
   onWeightChange,
+  onBasisChange,
   onPricingChange,
   pricing,
   remove,
@@ -1305,6 +1370,8 @@ function LineItemsEditor({
   lines: LineState[];
   update: (i: number, patch: Partial<LineState>) => void;
   onWeightChange?: (i: number, weight: string) => void;
+  /** Weight-basis edits (gold G. Wt. / Nag / Chejat) — re-price the line. */
+  onBasisChange?: (i: number, patch: Partial<LineState>) => void;
   onPricingChange?: (i: number, patch: Partial<BillLinePricingStripValue>) => void;
   /** Live pricing view per line (metal + breakdown) — null → no strip. */
   pricing?: (i: number) => { metal: "Gold" | "Silver"; breakdown: PriceBreakdown } | null;
@@ -1318,6 +1385,12 @@ function LineItemsEditor({
       {lines.map((line, index) => {
         const pricingView = pricing?.(index) ?? null;
         const breakdown = pricingView?.breakdown;
+        const isGold = line.productId
+          ? allProducts?.find((p) => p.id === line.productId)?.type === "Gold"
+          : false;
+        // Gold's price basis (net wt) shown read-only — the derived grams, or
+        // the weight the engine actually priced when a breakdown exists.
+        const goldNet = isGold ? breakdown?.weightGm ?? goldNetGrams(line) : null;
         return (
         <div key={index} className="bg-muted/50 flex flex-wrap items-end gap-2 rounded-lg border p-3">
           <div className="min-w-56 flex-1 space-y-1.5">
@@ -1357,29 +1430,89 @@ function LineItemsEditor({
             <Label>Qty</Label>
             <Input type="number" min={1} value={line.quantity} onChange={(e) => update(index, { quantity: e.target.value })} />
           </div>
-          <div className="w-28 space-y-1.5">
-            <Label>Weight</Label>
-            <Input
-              type="number"
-              min={0}
-              step="any"
-              value={line.weight}
-              onChange={(e) => (onWeightChange ? onWeightChange(index, e.target.value) : update(index, { weight: e.target.value }))}
-              placeholder="0.000"
-            />
-          </div>
+          {!isGold && (
+            <div className="w-28 space-y-1.5">
+              <Label>Weight</Label>
+              <Input
+                type="number"
+                min={0}
+                step="any"
+                value={line.weight}
+                onChange={(e) => (onWeightChange ? onWeightChange(index, e.target.value) : update(index, { weight: e.target.value }))}
+                placeholder="0.000"
+              />
+            </div>
+          )}
           <div className="w-28 space-y-1.5">
             <Label>Price</Label>
             <Input type="number" min={0} value={line.price} onChange={(e) => update(index, { price: e.target.value })} />
           </div>
-          <div className="w-20 space-y-1.5">
+          <div className="w-24 space-y-1.5">
             <Label>Purity</Label>
-            <Input value={line.purity} onChange={(e) => update(index, { purity: e.target.value })} placeholder="22K" className="h-8 text-xs" />
+            <Select value={line.purity} onValueChange={(v) => update(index, { purity: v })}>
+              <SelectTrigger className="h-9 text-xs" aria-label="Purity">
+                <SelectValue placeholder="—" />
+              </SelectTrigger>
+              <SelectContent>
+                {purityOptionsFor(line.purity).map((opt) => (
+                  <SelectItem key={opt} value={opt}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="w-24 space-y-1.5">
             <Label>G. Wt.</Label>
-            <Input value={line.grossWeight} onChange={(e) => update(index, { grossWeight: e.target.value })} placeholder="19.12" className="h-8 text-xs" />
+            <Input
+              value={line.grossWeight}
+              onChange={(e) =>
+                onBasisChange
+                  ? onBasisChange(index, { grossWeight: e.target.value })
+                  : update(index, { grossWeight: e.target.value })
+              }
+              placeholder="19.12"
+              className="h-8 text-xs"
+            />
           </div>
+          {isGold && (
+            <>
+              <div className="w-24 space-y-1.5">
+                <Label>Nag Wt.</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={line.nagLessWeight}
+                  onChange={(e) => onBasisChange?.(index, { nagLessWeight: e.target.value })}
+                  placeholder="0.000"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="w-24 space-y-1.5">
+                <Label>Chejat Wt.</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={line.chejatWeight}
+                  onChange={(e) => onBasisChange?.(index, { chejatWeight: e.target.value })}
+                  placeholder="0.000"
+                  className="h-8 text-xs"
+                />
+              </div>
+              <div className="w-24 space-y-1.5">
+                <Label>Net wt</Label>
+                <Input
+                  value={goldNet != null ? goldNet.toFixed(3) : ""}
+                  readOnly
+                  placeholder="0.000"
+                  className="bg-muted text-muted-foreground h-8 text-xs"
+                  aria-label="Net weight (derived)"
+                />
+              </div>
+            </>
+          )}
           <Button variant="ghost" size="icon" onClick={() => remove(index)}>
             <Trash2 className="h-4 w-4" />
           </Button>
@@ -1408,6 +1541,9 @@ function LineItemsEditor({
               metalValue={breakdown?.metalValue ?? null}
               labourAmount={breakdown?.labour.amount ?? null}
               otherChargesTotal={
+                // Matches the bill's Other Charges column: all three frozen
+                // charges itemized there (Nag/Povayi/Other), summed in the
+                // totals row — the strip shows the same combined figure.
                 breakdown
                   ? breakdown.charges.nag + breakdown.charges.povayi + breakdown.charges.other
                   : null
