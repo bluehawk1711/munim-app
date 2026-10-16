@@ -195,6 +195,13 @@ export const invoiceSchema = z.object({
       // Estimate columns turned off on the New Bill screen — per metal
       // (gold grid ≠ silver field list). Omitted by older snapshots / web
       // payloads → both sides [] (nothing hidden).
+      // `.optional()` (NOT `.default(...)`) so the OUTPUT type stays
+      // optional, matching `BillTemplateSettings.hiddenColumns` — a
+      // `.default()` here would make the parsed type REQUIRED and reject
+      // every payload builder that spreads a `BillTemplateSettings`
+      // (desktop/mobile) or omits the key entirely (mobile SalesScreen).
+      // The per-metal arrays keep their inner `.default([])`: when the key
+      // IS present, a missing side still parses to [].
       hiddenColumns: z
         .object({
           gold: z
@@ -226,7 +233,7 @@ export const invoiceSchema = z.object({
             )
             .default([]),
         })
-        .default({ gold: [], silver: [] }),
+        .optional(),
     })
     .optional(),
   amountPaid: z.coerce.number().min(0).optional(),
