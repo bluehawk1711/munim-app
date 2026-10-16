@@ -4,14 +4,22 @@ import {
   estimateChargeLines,
   estimateChargesTotal,
   estimateLabourTag,
+  estimateRowHeightMm,
   estimateRowOf,
+  estimateRowStackLines,
+  estimateTotalsHeightMm,
   estimateWeightLayout,
+  estimateWeightLines,
   materialReturnedTitleOf,
   purityCellOf,
   rateRowsOf,
-  weightCellOf,
 } from "./billDocument.js";
-import type { BillDocument, BillLine, BillTemplateSettings } from "./billDocument.js";
+import type {
+  BillDocument,
+  BillLine,
+  BillTemplateSettings,
+  EstimateColumnId,
+} from "./billDocument.js";
 import { BILL_FONT_BOLD_B64, BILL_FONT_ITALIC_B64, BILL_FONT_REGULAR_B64 } from "./billFonts.js";
 import { BILL_SEAL_DATA_URI, BILL_SEAL_HEIGHT, BILL_SEAL_WIDTH } from "./billSeal.js";
 import { classicColors, ecommerceColors, type ClassicTheme } from "./billTheme.js";
@@ -81,11 +89,35 @@ function measureEcommerceBillHeight(
   doc: jsPDF,
   bill: BillDocument,
   contentWidth: number,
+  settings: BillTemplateSettings,
 ): number {
   // Letterhead (3..18) + header box (21..47) + gap + table header (51..58).
+  // Row/totals heights come from the SAME shared helpers the draw pass uses,
+  // gated on the same column visibility — the sheet frame hugs the real
+  // table even with itemized stacks or columns toggled off.
+  const split = estimateWeightLayout(bill) === "split";
+  const hidden = new Set<EstimateColumnId>(
+    split ? (settings.hiddenColumns?.gold ?? []) : (settings.hiddenColumns?.silver ?? []),
+  );
+  const visible = {
+    chejatNag: split && !hidden.has("chejatNag"),
+    otherCharges: !hidden.has("otherCharges"),
+  };
+  const descOn = !hidden.has("description");
   let tableY = 58;
-  for (const line of bill.lines) tableY += line.description ? 10 : 7;
-  const tableEnd = tableY + 7; // column-totals row
+  for (const line of bill.lines) {
+    tableY += estimateRowHeightMm(
+      descOn && !!line.description,
+      estimateRowStackLines(line, visible),
+    );
+  }
+  // Merged Chejat/Nag totals cell stacks its prefixed sums → taller row.
+  let totalsStack = 0;
+  if (visible.chejatNag) {
+    if (bill.lines.some((l) => l.chejatWeight != null && l.chejatWeight > 0)) totalsStack += 1;
+    if (bill.lines.some((l) => l.nagLessWeight != null && l.nagLessWeight > 0)) totalsStack += 1;
+  }
+  const tableEnd = tableY + estimateTotalsHeightMm(totalsStack);
   // Right-aligned adjustments: Closing Balance always; others when present.
   let adjRows = 1;
   if (bill.discount > 0) adjRows += 1;
@@ -164,7 +196,7 @@ export function generateBillPDF(
         ? pageHeight / 2 - yOffset
         : pageHeight - margin - yOffset;
     const contentH = isEcommerce
-      ? measureEcommerceBillHeight(doc, billDoc, contentWidth)
+      ? measureEcommerceBillHeight(doc, billDoc, contentWidth, settings)
       : measureClassicBillHeight(doc, billDoc, settings);
     const billHeight = Math.min(slotMax, Math.max(60, contentH));
 
@@ -282,20 +314,57 @@ function drawEcommerceBill(
     money(doc, row, x0 + tableW - 3, boxTop + 17 + i * 4.5, "right", true);
   });
 
-  // ── Estimate items table (client's column order) ────────────────────────
-  // Gold bills: Description | Purity | G. Wt. | Chejat Wt. | Nag Wt. |
-  // Rate ₹/gm | Labour | Other Charges | Amount. Chejat/Nag are the gold
-  // net-weight derivation inputs (net = gross − nag + chejat — the price
-  // basis); silver-only bills show ONE combined Weight column instead
-  // (gross/nag/chejat are gold-only at this shop). "Other Charges" prints the
-  // frozen charges ITEMIZED with their prefixes (Nag: / Povayi: / Other: —
-  // never summed on a line; the totals row adds them once). Both layouts
-  // total the same 184mm table width.
+  // ── Estimate items table (client's column order, per-bill toggles) ─────
+  // Gold bills: Description | Purity | G. Wt. | Chejat/Nag | Rate ₹/gm |
+  // Labour | Other Charges | Amount. The Chejat/Nag column MERGES the two
+  // gold net-weight derivation inputs (net = gross − nag + chejat) into one
+  // cell, itemized with prefixes exactly like Other Charges
+  // ("Chejat: 0.150" / "Nag: 0.620"). Silver-only bills show ONE combined
+  // Weight column instead (gross/nag/chejat are gold-only at this shop).
+  // Columns the operator switched off on the New Bill screen
+  // (settings.hiddenColumns) are dropped and the freed width goes to
+  // Description (else the last visible column), so the grid always spans the
+  // full tableW. Cells print the frozen values ITEMIZED with their prefixes —
+  // never summed on a line; the totals row adds them once.
   const tableTop = yOffset + 51;
   const split = estimateWeightLayout(bill) === "split";
-  const colW = split
-    ? [40, 12, 13, 13, 13, 16, 24, 28, 25]
-    : [50, 14, 17, 17, 28, 31, 27];
+  // Per-metal column toggles: the gold grid and silver grid keep their own
+  // hidden list (their field sets differ).
+  const hidden = new Set<EstimateColumnId>(
+    split ? (settings.hiddenColumns?.gold ?? []) : (settings.hiddenColumns?.silver ?? []),
+  );
+  type EstCol = { id: EstimateColumnId; w: number; header: string };
+  const baseCols: EstCol[] = split
+    ? [
+        { id: "description", w: 40, header: "Description" },
+        { id: "purity", w: 12, header: "Remark" },
+        { id: "weight", w: 13, header: "G. Wt." },
+        { id: "chejatNag", w: 24, header: "Chejat/Nag" },
+        { id: "rate", w: 16, header: "Rate ₹/gm" },
+        { id: "labour", w: 24, header: "Labour" },
+        { id: "otherCharges", w: 28, header: "Other Charges" },
+        { id: "amount", w: 27, header: "Amount (Rupees)" },
+      ]
+    : [
+        { id: "description", w: 50, header: "Description" },
+        { id: "purity", w: 14, header: "Remark" },
+        { id: "weight", w: 17, header: "Weight" },
+        { id: "rate", w: 17, header: "Rate ₹/gm" },
+        { id: "labour", w: 28, header: "Labour" },
+        { id: "otherCharges", w: 31, header: "Other Charges" },
+        { id: "amount", w: 27, header: "Amount (Rupees)" },
+      ];
+  // Never render an empty grid: everything switched off → full layout.
+  let cols = baseCols.filter((c) => !hidden.has(c.id));
+  if (cols.length === 0) cols = baseCols;
+  const slack = tableW - cols.reduce((sum, c) => sum + c.w, 0);
+  if (slack !== 0) {
+    const iAbsorb = cols.findIndex((c) => c.id === "description");
+    const j = iAbsorb >= 0 ? iAbsorb : cols.length - 1;
+    cols = cols.map((c, i) => (i === j ? { ...c, w: c.w + slack } : c));
+  }
+  const colW = cols.map((c) => c.w);
+  const headers = cols.map((c) => c.header);
   const colX: number[] = [];
   {
     let acc = x0;
@@ -304,17 +373,15 @@ function drawEcommerceBill(
       acc += w;
     }
   }
-  const headers = split
-    ? ["Description", "Purity", "G. Wt.", "Chejat Wt.", "Nag Wt.", "Rate ₹/gm", "Labour", "Other Charges", "Amount (Rupees)"]
-    : ["Description", "Purity", "Weight", "Rate ₹/gm", "Labour", "Other Charges", "Amount (Rupees)"];
-  const iPurity = 1;
-  const iWeight = 2;
-  const iChejat = split ? 3 : -1;
-  const iNag = split ? 4 : -1;
-  const iRate = split ? 5 : 3;
-  const iLabour = split ? 6 : 4;
-  const iOtherCharges = split ? 7 : 5;
-  const iAmount = split ? 8 : 6;
+  // -1 = column hidden (cells for hidden columns are skipped).
+  const iDesc = cols.findIndex((c) => c.id === "description");
+  const iPurity = cols.findIndex((c) => c.id === "purity");
+  const iWeight = cols.findIndex((c) => c.id === "weight");
+  const iChejatNag = cols.findIndex((c) => c.id === "chejatNag");
+  const iRate = cols.findIndex((c) => c.id === "rate");
+  const iLabour = cols.findIndex((c) => c.id === "labour");
+  const iOtherCharges = cols.findIndex((c) => c.id === "otherCharges");
+  const iAmount = cols.findIndex((c) => c.id === "amount");
   const lastCol = colW.length - 1;
   const gray = colors.mediumGray;
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
@@ -344,72 +411,101 @@ function drawEcommerceBill(
   bill.lines.forEach((item) => {
     rowTops.push(itemY);
     const est = estimateRowOf(item);
-    // Itemized charge lines ("Nag: 500.00" …) stack inside the Other Charges
-    // cell — the row grows 3.6mm per extra line so nothing overlaps.
+    // Itemized stacks — Other Charges ("Nag: 500.00" …) and the merged
+    // Chejat/Nag cell ("Chejat: 0.150" …) — grow the row 3.6mm per extra
+    // line (gated on the columns actually being visible) so nothing overlaps.
     const chargeLines = estimateChargeLines(est.charges);
-    const rowH = Math.max(item.description ? 10 : 7, 7 + 3.6 * (chargeLines.length - 1));
+    const weightLines = estimateWeightLines(item);
+    const stackN = estimateRowStackLines(item, {
+      chejatNag: iChejatNag >= 0,
+      otherCharges: iOtherCharges >= 0,
+    });
+    const rowH = estimateRowHeightMm(iDesc >= 0 && !!item.description, stackN);
     const baseY = itemY + 4.5;
-    // Description: the plain product name (purity moved to its own column),
-    // with the optional description under it. Shrink the font when the name
-    // would cross the next column's border.
-    const label = item.productName;
-    let nameSize = 8.5;
-    doc.setFont("notosans", "bold");
-    doc.setFontSize(nameSize);
-    const availW = colW[0]! - 4;
-    while (nameSize > 6.5 && doc.getTextWidth(label) > availW) {
-      nameSize -= 0.5;
-      doc.setFontSize(nameSize);
-    }
-    doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-    doc.text(label, colX[0]! + 2, itemY + 4);
-    if (item.description) {
-      doc.setFont("notosans", "italic");
-      doc.setFontSize(6.5);
-      doc.setTextColor(gray[0], gray[1], gray[2]);
-      doc.text(item.description, colX[0]! + 2, itemY + 8.3);
-    }
     doc.setFont("notosans", "normal");
     doc.setFontSize(8);
     doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
-    // Purity column (both layouts).
-    doc.text(cellText(purityCellOf(item)), colX[iPurity]! + colW[iPurity]! / 2, baseY, { align: "center" });
-    if (split) {
-      // Gold: G. Wt. (free text) + the nag/chejat derivation inputs (grams).
-      doc.text(item.grossWeight?.trim() || "-", colX[iWeight]! + colW[iWeight]! / 2, baseY, { align: "center" });
-      doc.text(cellText(weightCellOf(item.chejatWeight)), colX[iChejat]! + colW[iChejat]! / 2, baseY, { align: "center" });
-      doc.text(cellText(weightCellOf(item.nagLessWeight)), colX[iNag]! + colW[iNag]! / 2, baseY, { align: "center" });
-    } else {
-      // Silver-only bills: ONE combined Weight column (the priced weight,
-      // falling back to the gross text when no weight snapshot was frozen).
-      const combined = item.weight != null ? estNum(item.weight, 3) : (item.grossWeight?.trim() || "-");
-      doc.text(combined, colX[iWeight]! + colW[iWeight]! / 2, baseY, { align: "center" });
+    if (iDesc >= 0) {
+      // Description: the plain product name (purity moved to its own column),
+      // with the optional description under it. Shrink the font when the name
+      // would cross the next column's border.
+      const label = item.productName;
+      let nameSize = 8.5;
+      doc.setFont("notosans", "bold");
+      doc.setFontSize(nameSize);
+      const availW = colW[iDesc]! - 4;
+      while (nameSize > 6.5 && doc.getTextWidth(label) > availW) {
+        nameSize -= 0.5;
+        doc.setFontSize(nameSize);
+      }
+      doc.text(label, colX[iDesc]! + 2, itemY + 4);
+      if (item.description) {
+        doc.setFont("notosans", "italic");
+        doc.setFontSize(6.5);
+        doc.setTextColor(gray[0], gray[1], gray[2]);
+        doc.text(item.description, colX[iDesc]! + 2, itemY + 8.3);
+      }
+      doc.setFont("notosans", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(colors.text[0], colors.text[1], colors.text[2]);
     }
-    doc.text(estNum(est.rate, 2), colX[iRate]! + colW[iRate]! - 2, baseY, { align: "right" });
+    // Purity column (both layouts).
+    if (iPurity >= 0)
+      doc.text(cellText(purityCellOf(item)), colX[iPurity]! + colW[iPurity]! / 2, baseY, { align: "center" });
+    if (iWeight >= 0) {
+      if (split) {
+        // Gold: G. Wt. (free-text gross).
+        doc.text(item.grossWeight?.trim() || "-", colX[iWeight]! + colW[iWeight]! / 2, baseY, { align: "center" });
+      } else {
+        // Silver-only bills: ONE combined Weight column (the priced weight,
+        // falling back to the gross text when no weight snapshot was frozen).
+        const combined = item.weight != null ? estNum(item.weight, 3) : (item.grossWeight?.trim() || "-");
+        doc.text(combined, colX[iWeight]! + colW[iWeight]! / 2, baseY, { align: "center" });
+      }
+    }
+    // Merged Chejat/Nag cell — itemized prefixes, exactly like Other Charges.
+    if (iChejatNag >= 0) {
+      const cnX = colX[iChejatNag]! + colW[iChejatNag]! - 2;
+      doc.setFontSize(7.5);
+      weightLines.forEach((wl, wi) => {
+        doc.text(wl, cnX, baseY + 3.6 * wi, { align: "right" });
+      });
+      if (weightLines.length === 0) doc.text("-", cnX, baseY, { align: "right" });
+      doc.setFontSize(8);
+    }
+    if (iRate >= 0) doc.text(estNum(est.rate, 2), colX[iRate]! + colW[iRate]! - 2, baseY, { align: "right" });
     // Labour ₹ + method tag — "(fixed)" / "(11.82/gm)" / "(2.5%)" — shrunk
     // so a tagged amount still stays inside its column rules.
-    const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(item)}` : "-";
-    let labourSize = 8;
-    doc.setFontSize(labourSize);
-    while (labourSize > 6 && doc.getTextWidth(labourText) > (colW[iLabour] ?? 0) - 2) {
-      labourSize -= 0.5;
+    if (iLabour >= 0) {
+      const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(item)}` : "-";
+      let labourSize = 8;
       doc.setFontSize(labourSize);
+      while (labourSize > 6 && doc.getTextWidth(labourText) > (colW[iLabour] ?? 0) - 2) {
+        labourSize -= 0.5;
+        doc.setFontSize(labourSize);
+      }
+      doc.text(labourText, colX[iLabour]! + colW[iLabour]! - 2, baseY, { align: "right" });
+      doc.setFontSize(8);
     }
-    doc.text(labourText, colX[iLabour]! + colW[iLabour]! - 2, baseY, { align: "right" });
     // Other Charges: one "Prefix: 0.00" line per frozen charge (never summed).
-    const chargeX = colX[iOtherCharges]! + colW[iOtherCharges]! - 2;
-    doc.setFontSize(7.5);
-    chargeLines.forEach((cl, ci) => {
-      doc.text(cl, chargeX, baseY + 3.6 * ci, { align: "right" });
-    });
-    if (chargeLines.length === 0) doc.text("-", chargeX, baseY, { align: "right" });
-    doc.setFontSize(8);
-    doc.setFont("notosans", "bold");
-    doc.text(estNum(item.total, 2), colX[iAmount]! + colW[iAmount]! - 2, baseY, { align: "right" });
+    if (iOtherCharges >= 0) {
+      const chargeX = colX[iOtherCharges]! + colW[iOtherCharges]! - 2;
+      doc.setFontSize(7.5);
+      chargeLines.forEach((cl, ci) => {
+        doc.text(cl, chargeX, baseY + 3.6 * ci, { align: "right" });
+      });
+      if (chargeLines.length === 0) doc.text("-", chargeX, baseY, { align: "right" });
+      doc.setFontSize(8);
+    }
+    if (iAmount >= 0) {
+      doc.setFont("notosans", "bold");
+      doc.text(estNum(item.total, 2), colX[iAmount]! + colW[iAmount]! - 2, baseY, { align: "right" });
+      doc.setFont("notosans", "normal");
+    }
     itemY += rowH;
   });
 
-  // ── Column totals row (weights · povayi · labour · other · amount) ──────
+  // ── Column totals row (weights · labour · charges · amount) ─────────────
   const grossVals = bill.lines.map((l) => parseFloat(l.grossWeight ?? ""));
   const hasGross = grossVals.some((v) => !Number.isNaN(v));
   const sumGross = grossVals.reduce((s, v) => s + (Number.isNaN(v) ? 0 : v), 0);
@@ -425,22 +521,35 @@ function drawEcommerceBill(
   const chargeTotals = bill.lines.map((l) => estimateChargesTotal(estimateRowOf(l).charges));
   const hasOtherCharges = chargeTotals.some((v) => v > 0);
   const sumOtherCharges = chargeTotals.reduce((s, v) => s + v, 0);
+  // Merged Chejat/Nag totals cell stacks its prefixed sums (like row cells).
+  const cnTotals: string[] = [];
+  if (split && iChejatNag >= 0 && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}`);
+  if (split && iChejatNag >= 0 && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}`);
   const totalsTop = itemY;
 
   doc.setFont("notosans", "bold");
   doc.setFontSize(8);
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
-  if (split) {
-    doc.text(hasGross ? estNum(sumGross, 3) : "-", colX[iWeight]! + colW[iWeight]! / 2, totalsTop + 4.5, { align: "center" });
-    doc.text(hasChejat ? estNum(sumChejat, 3) : "-", colX[iChejat]! + colW[iChejat]! / 2, totalsTop + 4.5, { align: "center" });
-    doc.text(hasNag ? estNum(sumNag, 3) : "-", colX[iNag]! + colW[iNag]! / 2, totalsTop + 4.5, { align: "center" });
-  } else {
-    doc.text(estNum(sumWeight, 3), colX[iWeight]! + colW[iWeight]! / 2, totalsTop + 4.5, { align: "center" });
+  if (iWeight >= 0) {
+    if (split) {
+      doc.text(hasGross ? estNum(sumGross, 3) : "-", colX[iWeight]! + colW[iWeight]! / 2, totalsTop + 4.5, { align: "center" });
+    } else {
+      doc.text(estNum(sumWeight, 3), colX[iWeight]! + colW[iWeight]! / 2, totalsTop + 4.5, { align: "center" });
+    }
   }
-  doc.text(hasLabour ? estNum(sumLabour, 2) : "-", colX[iLabour]! + colW[iLabour]! - 2, totalsTop + 4.5, { align: "right" });
-  doc.text(hasOtherCharges ? estNum(sumOtherCharges, 2) : "-", colX[iOtherCharges]! + colW[iOtherCharges]! - 2, totalsTop + 4.5, { align: "right" });
-  doc.text(estNum(bill.subtotal, 2), colX[iAmount]! + colW[iAmount]! - 2, totalsTop + 4.5, { align: "right" });
-  const tableEnd = totalsTop + 7;
+  if (iChejatNag >= 0) {
+    const cnX = colX[iChejatNag]! + colW[iChejatNag]! - 2;
+    doc.setFontSize(7.5);
+    cnTotals.forEach((t, ti) => {
+      doc.text(t, cnX, totalsTop + 4.5 + 3.6 * ti, { align: "right" });
+    });
+    if (cnTotals.length === 0) doc.text("-", cnX, totalsTop + 4.5, { align: "right" });
+    doc.setFontSize(8);
+  }
+  if (iLabour >= 0) doc.text(hasLabour ? estNum(sumLabour, 2) : "-", colX[iLabour]! + colW[iLabour]! - 2, totalsTop + 4.5, { align: "right" });
+  if (iOtherCharges >= 0) doc.text(hasOtherCharges ? estNum(sumOtherCharges, 2) : "-", colX[iOtherCharges]! + colW[iOtherCharges]! - 2, totalsTop + 4.5, { align: "right" });
+  if (iAmount >= 0) doc.text(estNum(bill.subtotal, 2), colX[iAmount]! + colW[iAmount]! - 2, totalsTop + 4.5, { align: "right" });
+  const tableEnd = totalsTop + estimateTotalsHeightMm(cnTotals.length);
 
   // Full grid over the table.
   doc.setDrawColor(gray[0], gray[1], gray[2]);

@@ -15,6 +15,62 @@ export type BillStatus = "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
 export type BillTemplate = "jewellery" | "ecommerce";
 export type BillClassicColor = "red" | "yellow";
 export type BillMode = "duplicate" | "distinct";
+/** Toggleable columns of the E-commerce ESTIMATE grid. The Classic template
+ *  has its own fixed layout and ignores these. `weight` is gold's G. Wt.
+ *  column (silver's combined Weight column shares the same toggle);
+ *  `chejatNag` is the gold-only merged Chejat/Nag stack. */
+export type EstimateColumnId = "description" | "purity" | "weight" | "chejatNag" | "rate" | "labour" | "otherCharges" | "amount";
+/** Column toggles for the NEW BILL screens (desktop + mobile): gold's grid
+ *  fields with their printed headers — `purity` shows as "Remark" (the
+ *  client's term for the purity stamp column). */
+export declare const GOLD_ESTIMATE_COLUMNS: readonly [{
+    readonly id: "description";
+    readonly label: "Description";
+}, {
+    readonly id: "purity";
+    readonly label: "Remark";
+}, {
+    readonly id: "weight";
+    readonly label: "G. Wt.";
+}, {
+    readonly id: "chejatNag";
+    readonly label: "Chejat/Nag";
+}, {
+    readonly id: "rate";
+    readonly label: "Rate ₹/gm";
+}, {
+    readonly id: "labour";
+    readonly label: "Labour";
+}, {
+    readonly id: "otherCharges";
+    readonly label: "Other Charges";
+}, {
+    readonly id: "amount";
+    readonly label: "Amount";
+}];
+/** Silver's grid fields — one combined Weight column, no Chejat/Nag. */
+export declare const SILVER_ESTIMATE_COLUMNS: readonly [{
+    readonly id: "description";
+    readonly label: "Description";
+}, {
+    readonly id: "purity";
+    readonly label: "Remark";
+}, {
+    readonly id: "weight";
+    readonly label: "Weight";
+}, {
+    readonly id: "rate";
+    readonly label: "Rate ₹/gm";
+}, {
+    readonly id: "labour";
+    readonly label: "Labour";
+}, {
+    readonly id: "otherCharges";
+    readonly label: "Other Charges";
+}, {
+    readonly id: "amount";
+    readonly label: "Amount";
+}];
 export interface BillTemplateSettings {
     template: BillTemplate;
     classicColor: BillClassicColor;
@@ -28,6 +84,16 @@ export interface BillTemplateSettings {
     goldRateLine: boolean;
     /** Show the shop's silver rate row (₹/g) on the bill. */
     silverRateLine: boolean;
+    /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
+     *  column toggles — hidden from the printed bill. Gold grid and silver
+     *  grid have different fields (gold: G. Wt. + Chejat/Nag; silver: the
+     *  combined Weight), so each keeps its own list. Missing side / missing
+     *  key (old snapshots, web payloads) = every column shown. Optional so
+     *  payload builders that predate the toggles still typecheck. */
+    hiddenColumns?: {
+        gold: EstimateColumnId[];
+        silver: EstimateColumnId[];
+    };
 }
 /** Defaults for the per-bill display toggles — all ON. The template defaults
  *  to the E-commerce estimate sheet (the shop's new default bill design). */
@@ -36,6 +102,9 @@ export declare const DEFAULT_BILL_TEMPLATE_SETTINGS: BillTemplateSettings;
  * Normalize a possibly-partial settings object (e.g. settings snapshots saved
  * before the display toggles existed) into a complete BillTemplateSettings.
  * Missing toggles default ON, matching DEFAULT_BILL_TEMPLATE_SETTINGS.
+ * `hiddenColumns` deep-defaults both metals to [] (nothing hidden) — an
+ * explicitly-undefined value (payload builders spreading a partial snapshot)
+ * also lands on the empty lists.
  */
 export declare function mergeBillTemplateSettings(partial?: Partial<BillTemplateSettings> | null): BillTemplateSettings;
 export interface BillShopDetails {
@@ -155,6 +224,25 @@ export declare function estimateChargeLines(charges: {
     povayi: number;
     other: number;
 } | null): string[];
+/** The merged Chejat/Nag cell lines — `Chejat: 0.150` / `Nag: 0.620`, one per
+ *  non-empty derivation input (grams, 3 dp), itemized with prefixes exactly
+ *  like the Other Charges cell (client merged the two columns into one).
+ *  Empty → []. */
+export declare function estimateWeightLines(line: BillLineInput): string[];
+/** Tallest itemized stack in a row — the Other Charges lines vs the merged
+ *  Chejat/Nag lines — gated on which columns are actually visible (a hidden
+ *  column's stack doesn't grow the row). Shared by the PDF's draw + height
+ *  measurement so the sheet frame always hugs the real table. */
+export declare function estimateRowStackLines(line: BillLineInput, visible: {
+    chejatNag: boolean;
+    otherCharges: boolean;
+}): number;
+/** Estimate row height (mm): base 7 — 10 when the name carries a description
+ *  line under it — growing 3.6 mm per itemized stack line. */
+export declare function estimateRowHeightMm(hasDescription: boolean, stackLines: number): number;
+/** Totals-row height (mm): 7, or taller when the merged Chejat/Nag totals
+ *  cell stacks its prefixed sums ("Chejat: …" above "Nag: …"). */
+export declare function estimateTotalsHeightMm(stackLines: number): number;
 /** Sum of the non-zero flat charges — the totals row's Other Charges cell. */
 export declare function estimateChargesTotal(charges: {
     nag: number;

@@ -13,13 +13,13 @@ export type AdvanceInput = {
 };
 /** Record a new advance — GIVEN = we handed money, TAKEN = we received money. */
 export declare function createAdvance(db: DbClient, input: AdvanceInput): Promise<{
+    amount: number;
     direction: "GIVEN" | "TAKEN";
     date: Date;
     id: string;
     createdAt: Date;
     note: string | null;
     partyId: string;
-    amount: number;
     status: "OPEN" | "SETTLED";
 } | undefined>;
 export declare function listAdvances(db: DbClient, partyId?: string): Promise<{
@@ -55,13 +55,13 @@ export type PaymentInput = {
 };
 /** Record money in (received) or out (paid) — settles advances / khata. */
 export declare function recordPayment(db: DbClient, input: PaymentInput): Promise<{
+    amount: number;
     direction: "IN" | "OUT";
     date: Date;
     id: string;
     createdAt: Date;
     note: string | null;
     partyId: string | null;
-    amount: number;
     invoiceId: string | null;
     method: string | null;
 } | undefined>;

@@ -12,14 +12,20 @@ import {
   estimateLabourTag,
   estimateRowOf,
   estimateWeightLayout,
+  estimateWeightLines,
   materialReturnedTitleOf,
   mergeBillTemplateSettings,
   nameWithPurity,
   purityCellOf,
   rateRowsOf,
-  weightCellOf,
 } from "./billDocument.js";
-import type { BillClassicColor, BillDocument, BillLine, BillTemplateSettings } from "./billDocument.js";
+import type {
+  BillClassicColor,
+  BillDocument,
+  BillLine,
+  BillTemplateSettings,
+  EstimateColumnId,
+} from "./billDocument.js";
 import { BILL_FONT_BOLD_B64, BILL_FONT_ITALIC_B64, BILL_FONT_REGULAR_B64 } from "./billFonts.js";
 import { BILL_SEAL_DATA_URI } from "./billSeal.js";
 import { classicColors, ecommerceColors, rgb } from "./billTheme.js";
@@ -256,40 +262,90 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
 
   const estNum = (v: number, dp: number): string => v.toFixed(dp);
 
-  // Client's column order. Gold bills: Description | Purity | G. Wt. |
-  // Chejat Wt. | Nag Wt. | Rate ₹/gm | Labour | Other Charges | Amount —
-  // chejat/nag are the gold net-weight derivation inputs (net = gross − nag +
-  // chejat, the price basis). Silver-only bills show ONE combined Weight
-  // column instead. "Other Charges" prints the frozen charges ITEMIZED with
-  // their prefixes (Nag: / Povayi: / Other: — never summed on a line; the
-  // totals row adds them once). Widths total 100% both ways.
+  // Client's column order, with the MERGED Chejat/Nag column and per-bill
+  // column toggles (settings.hiddenColumns). Gold bills: Description |
+  // Purity | G. Wt. | Chejat/Nag | Rate ₹/gm | Labour | Other Charges |
+  // Amount — Chejat/Nag itemizes the two gold net-weight derivation inputs
+  // (net = gross − nag + chejat) with prefixes, exactly like "Other Charges"
+  // itemizes the frozen charges (never summed on a line; the totals row adds
+  // them once). Silver-only bills show ONE combined Weight column instead.
+  // Switched-off columns drop out and the freed width goes to Description
+  // (else the last visible column) so the grid always totals 100%.
   const split = estimateWeightLayout(bill) === "split";
+  // Per-metal column toggles: the gold grid and silver grid keep their own
+  // hidden list (their field sets differ).
+  const hidden = new Set<EstimateColumnId>(
+    split ? (s.hiddenColumns?.gold ?? []) : (s.hiddenColumns?.silver ?? []),
+  );
+  type EstCol = { id: EstimateColumnId; w: number; header: string };
+  const baseCols: EstCol[] = split
+    ? [
+        { id: "description", w: 22.5, header: "Description" },
+        { id: "purity", w: 6.5, header: "Remark" },
+        { id: "weight", w: 7, header: "G. Wt." },
+        { id: "chejatNag", w: 14, header: "Chejat/Nag" },
+        { id: "rate", w: 8.5, header: "Rate ₹/gm" },
+        { id: "labour", w: 13, header: "Labour" },
+        { id: "otherCharges", w: 14, header: "Other Charges" },
+        { id: "amount", w: 14.5, header: "Amount (Rupees)" },
+      ]
+    : [
+        { id: "description", w: 27, header: "Description" },
+        { id: "purity", w: 7.5, header: "Remark" },
+        { id: "weight", w: 9.5, header: "Weight" },
+        { id: "rate", w: 9.5, header: "Rate ₹/gm" },
+        { id: "labour", w: 15, header: "Labour" },
+        { id: "otherCharges", w: 17, header: "Other Charges" },
+        { id: "amount", w: 14.5, header: "Amount (Rupees)" },
+      ];
+  // Never render an empty grid: everything switched off → full layout.
+  let cols = baseCols.filter((c) => !hidden.has(c.id));
+  if (cols.length === 0) cols = baseCols;
+  const slack = 100 - cols.reduce((t, c) => t + c.w, 0);
+  if (slack !== 0) {
+    const iAbsorb = cols.findIndex((c) => c.id === "description");
+    const j = iAbsorb >= 0 ? iAbsorb : cols.length - 1;
+    cols = cols.map((c, i) => (i === j ? { ...c, w: Math.round((c.w + slack) * 100) / 100 } : c));
+  }
 
   const rows = bill.lines
     .map((l) => {
       const est = estimateRowOf(l);
-      const weightCells = split
-        ? `<td class="c">${esc(l.grossWeight?.trim() || "-")}</td>
-        <td class="c">${weightCellOf(l.chejatWeight) ?? "-"}</td>
-        <td class="c">${weightCellOf(l.nagLessWeight) ?? "-"}</td>`
-        : `<td class="c">${l.weight != null ? estNum(l.weight, 3) : esc(l.grossWeight?.trim() || "-")}</td>`;
       const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(l)}` : "-";
-      // Itemized "Nag: 500.00" / "Povayi: 250.00" / "Other: 150.00" lines.
+      // Itemized cell lines — merged Chejat/Nag ("Chejat: 0.150" / "Nag:
+      // 0.620") and Other Charges ("Nag: 500.00" / "Povayi: …" / "Other: …").
+      const weightLines = estimateWeightLines(l);
       const chargeLines = estimateChargeLines(est.charges);
-      const chargesCell = chargeLines.length
-        ? chargeLines.map((cl) => `<div>${esc(cl)}</div>`).join("")
-        : "-";
-      return `<tr>
-        <td><span class="pname">${esc(l.productName)}</span>${
-          l.description ? `<div class="pdesc">${esc(l.description)}</div>` : ""
-        }</td>
-        <td class="c">${esc(purityCellOf(l) ?? "-")}</td>
-        ${weightCells}
-        <td class="num">${estNum(est.rate, 2)}</td>
-        <td class="num">${labourText}</td>
-        <td class="num">${chargesCell}</td>
-        <td class="amt"><b>${estNum(l.total, 2)}</b></td>
-      </tr>`;
+      return `<tr>${cols
+        .map((c) => {
+          switch (c.id) {
+            case "description":
+              return `<td><span class="pname">${esc(l.productName)}</span>${
+                l.description ? `<div class="pdesc">${esc(l.description)}</div>` : ""
+              }</td>`;
+            case "purity":
+              return `<td class="c">${esc(purityCellOf(l) ?? "-")}</td>`;
+            case "weight":
+              return split
+                ? `<td class="c">${esc(l.grossWeight?.trim() || "-")}</td>`
+                : `<td class="c">${l.weight != null ? estNum(l.weight, 3) : esc(l.grossWeight?.trim() || "-")}</td>`;
+            case "chejatNag":
+              return `<td class="num">${
+                weightLines.length ? weightLines.map((wl) => `<div>${esc(wl)}</div>`).join("") : "-"
+              }</td>`;
+            case "rate":
+              return `<td class="num">${estNum(est.rate, 2)}</td>`;
+            case "labour":
+              return `<td class="num">${labourText}</td>`;
+            case "otherCharges":
+              return `<td class="num">${
+                chargeLines.length ? chargeLines.map((cl) => `<div>${esc(cl)}</div>`).join("") : "-"
+              }</td>`;
+            case "amount":
+              return `<td class="amt"><b>${estNum(l.total, 2)}</b></td>`;
+          }
+        })
+        .join("")}</tr>`;
     })
     .join("");
 
@@ -308,6 +364,11 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
   const chargeTotals = bill.lines.map((l) => estimateChargesTotal(estimateRowOf(l).charges));
   const hasOtherCharges = chargeTotals.some((v) => v > 0);
   const sumOtherCharges = chargeTotals.reduce((t, v) => t + v, 0);
+  // Merged Chejat/Nag totals cell stacks its prefixed sums (like row cells).
+  const hasCnCol = cols.some((c) => c.id === "chejatNag");
+  const cnTotals: string[] = [];
+  if (hasCnCol && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}`);
+  if (hasCnCol && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}`);
 
   const adjRows: string[] = [];
   if (bill.discount > 0) {
@@ -354,38 +415,41 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
     </div>
   </div>
   <table class="items">
-    <colgroup>${
-      split
-        ? `<col style="width:22%" /><col style="width:6.5%" /><col style="width:7%" />
-      <col style="width:7%" /><col style="width:7%" /><col style="width:8.5%" />
-      <col style="width:13%" /><col style="width:15%" /><col style="width:14%" />`
-        : `<col style="width:27%" /><col style="width:7.5%" /><col style="width:9.5%" />
-      <col style="width:9.5%" /><col style="width:15%" /><col style="width:17%" />
-      <col style="width:14.5%" />`
-    }</colgroup>
-    <thead><tr>${
-      split
-        ? `<th class="h-desc">Description</th><th>Purity</th><th>G. Wt.</th><th>Chejat Wt.</th>
-      <th>Nag Wt.</th><th>Rate ₹/gm</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
-        : `<th class="h-desc">Description</th><th>Purity</th><th>Weight</th>
-      <th>Rate ₹/gm</th><th>Labour</th><th>Other Charges</th><th class="h-amt">Amount (Rupees)</th>`
-    }</tr></thead>
+    <colgroup>${cols.map((c) => `<col style="width:${c.w}%" />`).join("")}</colgroup>
+    <thead><tr>${cols
+      .map((c, i) =>
+        i === 0
+          ? `<th class="h-desc">${c.header}</th>`
+          : i === cols.length - 1
+            ? `<th class="h-amt">${c.header}</th>`
+            : `<th>${c.header}</th>`,
+      )
+      .join("")}</tr></thead>
     <tbody>${rows}</tbody>
-    <tfoot><tr class="sum">
-      <td></td>
-      <td></td>
-      ${
-        split
-          ? `<td class="c">${hasGross ? estNum(sumGross, 3) : "-"}</td>
-      <td class="c">${hasChejat ? estNum(sumChejat, 3) : "-"}</td>
-      <td class="c">${hasNag ? estNum(sumNag, 3) : "-"}</td>`
-          : `<td class="c">${estNum(sumWeight, 3)}</td>`
-      }
-      <td></td>
-      <td class="num">${hasLabour ? estNum(sumLabour, 2) : "-"}</td>
-      <td class="num">${hasOtherCharges ? estNum(sumOtherCharges, 2) : "-"}</td>
-      <td class="amt">${estNum(bill.subtotal, 2)}</td>
-    </tr></tfoot>
+    <tfoot><tr class="sum">${cols
+      .map((c) => {
+        switch (c.id) {
+          case "description":
+          case "purity":
+          case "rate":
+            return `<td></td>`;
+          case "weight":
+            return split
+              ? `<td class="c">${hasGross ? estNum(sumGross, 3) : "-"}</td>`
+              : `<td class="c">${estNum(sumWeight, 3)}</td>`;
+          case "chejatNag":
+            return `<td class="num">${
+              cnTotals.length ? cnTotals.map((t) => `<div>${esc(t)}</div>`).join("") : "-"
+            }</td>`;
+          case "labour":
+            return `<td class="num">${hasLabour ? estNum(sumLabour, 2) : "-"}</td>`;
+          case "otherCharges":
+            return `<td class="num">${hasOtherCharges ? estNum(sumOtherCharges, 2) : "-"}</td>`;
+          case "amount":
+            return `<td class="amt">${estNum(bill.subtotal, 2)}</td>`;
+        }
+      })
+      .join("")}</tr></tfoot>
   </table>
   <table class="adj">${adjRows.join("")}</table>
   <div class="words">Rs.${esc(bill.amountInWords)}</div>

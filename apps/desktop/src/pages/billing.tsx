@@ -4,15 +4,20 @@ import {
   applyGoldBaseRate,
   buildBillDocument,
   calcNetWeight,
+  GOLD_ESTIMATE_COLUMNS,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
   productMatchesCode,
   purityOptionsFor,
+  renderBillHtml,
   resolveGoldRateTable,
+  SILVER_ESTIMATE_COLUMNS,
   weightTextToGrams,
   type BillDocument,
   type BillShopDetails,
+  type BillTemplateSettings,
+  type EstimateColumnId,
   type PriceBreakdown,
   type PricingContext,
   type ProductDto,
@@ -53,6 +58,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Switch,
   Checkbox,
   BarcodeLookupInput,
   ProductSearchSelect,
@@ -77,7 +83,7 @@ type LineState = {
   /** True once the shop edits this line's Weight — the edited weight then
    *  drives auto-pricing (and survives later rate reprices). */
   weightEdited: boolean;
-  /** Metal purity stamp ("22K") — the estimate's Purity column (dropdown). */
+  /** Metal purity stamp ("22K") — the estimate's Remark column (dropdown). */
   purity: string;
   /** Gross-weight free text — bill G. Wt. column. */
   grossWeight: string;
@@ -189,6 +195,97 @@ function invoiceToBillDocument(
   });
 }
 
+/** A4 render size at 96dpi — the bill HTML sizes itself in mm, so this box
+ *  matches the printed page exactly (794 × 1123 px). */
+const BILL_PX = { w: 794, h: 1123 };
+
+/**
+ * Scaled iframe of the shared bill HTML (`renderBillHtml` — the same markup
+ * the mobile print path prints). `fit="width"` scales to the container width
+ * inside the fixed A4-ratio frame (the sidebar card); `fit="contain"` scales
+ * the sheet to fit the whole box (the full-screen lightbox). When `onClick`
+ * is given the frame is clickable (Enter/Space too) — the user sees the bill
+ * BEFORE creating it, and clicks to enlarge.
+ */
+function BillPreviewFrame({
+  html,
+  fit = "width",
+  onClick,
+}: {
+  html: string;
+  fit?: "width" | "contain";
+  onClick?: () => void;
+}) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [scale, setScale] = useState(0.45);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const update = () => {
+      const s =
+        fit === "contain"
+          ? Math.min(el.clientWidth / BILL_PX.w, el.clientHeight / BILL_PX.h)
+          : el.clientWidth / BILL_PX.w;
+      setScale(s > 0 ? s : 0.1);
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fit, html]);
+
+  const contain = fit === "contain";
+  const frame = (
+    <iframe
+      title="Bill preview"
+      srcDoc={html}
+      scrolling="no"
+      className={
+        contain
+          ? "pointer-events-none absolute left-1/2 top-1/2 origin-center border-0"
+          : "pointer-events-none absolute left-0 top-0 origin-top-left border-0"
+      }
+      style={{
+        width: BILL_PX.w,
+        height: BILL_PX.h,
+        transform: contain ? `translate(-50%, -50%) scale(${scale})` : `scale(${scale})`,
+      }}
+    />
+  );
+
+  const boxCls = [
+    contain ? "relative h-full w-full" : "relative block aspect-[210/297] w-full",
+    "overflow-hidden rounded-lg border bg-white",
+    onClick ? "cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" : "",
+  ].join(" ");
+
+  if (!onClick) {
+    return (
+      <div ref={wrapRef} className={boxCls}>
+        {frame}
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={wrapRef}
+      role="button"
+      tabIndex={0}
+      aria-label="Enlarge bill preview"
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
+      className={boxCls}
+    >
+      {frame}
+    </div>
+  );
+}
+
 export function BillingPage() {
   const { data: settings } = useQueryState(useSettings());
   const { data: goldRates } = useQueryState(useGoldRates());
@@ -222,6 +319,28 @@ export function BillingPage() {
   const [weightAfterName, setWeightAfterName] = useState(true);
   const [goldRateLine, setGoldRateLine] = useState(true);
   const [silverRateLine, setSilverRateLine] = useState(true);
+
+  // ── Estimate column toggles — per METAL (gold grid ≠ silver field list) ─
+  const [hiddenGold, setHiddenGold] = useState<EstimateColumnId[]>([]);
+  const [hiddenSilver, setHiddenSilver] = useState<EstimateColumnId[]>([]);
+  function toggleColumn(metal: "gold" | "silver", id: EstimateColumnId) {
+    const setter = metal === "gold" ? setHiddenGold : setHiddenSilver;
+    setter((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  /** Everything the printed bill honors — template, display lines AND the
+   *  per-metal column toggles. Saved with the invoice; also drives the live
+   *  preview and both PDF download paths. */
+  const billSettings: BillTemplateSettings = {
+    template,
+    classicColor,
+    twoInOne,
+    mode,
+    weightAfterName,
+    goldRateLine,
+    silverRateLine,
+    hiddenColumns: { gold: hiddenGold, silver: hiddenSilver },
+  };
 
   // Per-bill gold base ₹/g — prefilled with the shop's rate; editing it
   // re-prices every auto-priced gold line as you type (Phase 4b).
@@ -591,6 +710,16 @@ export function BillingPage() {
 
   const [preview, setPreview] = useState<BillDocument | null>(null);
   const [secondPreview, setSecondPreview] = useState<BillDocument | null>(null);
+  // Fullscreen lightbox for the live bill preview (click the preview to open).
+  const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => {
+    if (!previewOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [previewOpen]);
 
   // ── Creation options (user-selectable per bill run) ────────────────────
   // Auto-download the PDF right after saving; mark the invoice(s) fully paid
@@ -684,6 +813,49 @@ export function BillingPage() {
       .filter((it) => it.productName && it.quantity > 0);
   }
 
+  // ── LIVE preview — the CURRENT form rendered as a bill, before saving ───
+  // Plain consts (not hooks): the editor re-renders on every keystroke anyway
+  // and the build is cheap for typical bills. `lineItems` is a hoisted
+  // function declaration, so it is visible here.
+  const liveItems = lineItems(lines);
+  const liveBill: BillDocument | null = shop
+    ? buildBillDocument({
+        billNo: "PREVIEW",
+        date,
+        customerName: customerName.trim() || "Walk-in Customer",
+        customerPhone: customerPhone.trim() || undefined,
+        customerAddress: customerAddress.trim() || undefined,
+        shop,
+        lines: liveItems.map((it) => ({
+          productName: it.productName,
+          description: it.description,
+          sku: it.sku,
+          color: it.color,
+          size: it.size,
+          weight: it.weight,
+          weightUnit: it.weightUnit,
+          purity: it.purity,
+          grossWeight: it.grossWeight,
+          nagLessWeight: it.nagLessWeight,
+          chejatWeight: it.chejatWeight,
+          pricing: it.pricing,
+          quantity: it.quantity,
+          price: it.price,
+        })),
+        discount: Number(discount) || 0,
+        deliveryCharge: Number(deliveryCharge) || 0,
+        materialReturnedWeight: materialReturnedWeight.trim() || undefined,
+        materialReturnedValue: Number(materialReturnedValue) || 0,
+        materialReturnedTitle: materialReturnedTitle.trim() || undefined,
+        amountPaid: Number(amountPaid) || 0,
+        status: "UNPAID",
+        currency: settings?.currency ?? "INR",
+        goldRate: billGoldRate ?? undefined,
+        silverRate: billSilverRate ?? undefined,
+      })
+    : null;
+  const liveHtml = liveBill ? renderBillHtml(liveBill, billSettings) : null;
+
   function resetForm() {
     setCustomerName("");
     setCustomerPhone("");
@@ -704,8 +876,10 @@ export function BillingPage() {
     setSecondDeliveryCharge("0");
     setSecondAmountPaid("0");
     setSecondLines([emptyLine()]);
-    setPreview(null);
-    setSecondPreview(null);
+    // NOTE: `preview`/`secondPreview` are intentionally NOT cleared here —
+    // they hold the LAST SAVED bill so its Download button keeps working
+    // after the form resets (clearing them here is what made the right-side
+    // preview card permanently empty). The next save replaces them.
     goldRateTouched.current = false;
     setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : "");
     setSilverTouched(false);
@@ -745,7 +919,7 @@ export function BillingPage() {
         notes: notes.trim() || undefined,
         paymentMethod: "cash" as const,
         shopDetails: shop ? toInvoiceShop(shop) : undefined,
-        templateSettings: { template, classicColor, twoInOne, mode, weightAfterName, goldRateLine, silverRateLine },
+        templateSettings: billSettings,
         goldRate: billGoldRate ?? undefined,
         silverRate: billSilverRate ?? undefined,
       };
@@ -811,14 +985,8 @@ export function BillingPage() {
       if (autoSavePdf) {
         try {
           await downloadBillPdf(doc, {
-            template,
-            twoInOne,
-            mode,
+            ...billSettings,
             secondBill: distinct ? secondPreview ?? undefined : undefined,
-            classicColor,
-            weightAfterName,
-            goldRateLine,
-            silverRateLine,
           });
         } catch (err) {
           toast.error("Bill saved, but the PDF could not be generated", {
@@ -839,14 +1007,8 @@ export function BillingPage() {
     setExporting(true);
     try {
       await downloadBillPdf(doc, {
-        template,
-        twoInOne,
-        mode,
+        ...billSettings,
         secondBill: secondPreview ?? undefined,
-        classicColor,
-        weightAfterName,
-        goldRateLine,
-        silverRateLine,
       });
       toast.success("PDF downloaded");
     } catch (err) {
@@ -890,46 +1052,6 @@ export function BillingPage() {
                   <CardTitle className="text-sm">Bill details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <BillTemplateOptions
-                    template={template}
-                    classicColor={classicColor}
-                    twoInOne={twoInOne}
-                    mode={mode}
-                    weightAfterName={weightAfterName}
-                    goldRateLine={goldRateLine}
-                    silverRateLine={silverRateLine}
-                    onWeightAfterName={(next) => {
-                      setWeightAfterName(next);
-                      toast.success(next ? "Weight column shown" : "Weight column hidden");
-                    }}
-                    onGoldRateLine={(next) => {
-                      setGoldRateLine(next);
-                      toast.success(next ? "Gold rate line shown" : "Gold rate line hidden");
-                    }}
-                    onSilverRateLine={(next) => {
-                      setSilverRateLine(next);
-                      toast.success(next ? "Silver rate line shown" : "Silver rate line hidden");
-                    }}
-                    onTemplate={(next) => {
-                      setTemplate(next);
-                      toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template");
-                    }}
-                    onClassicColor={(next) => {
-                      setClassicColor(next);
-                      toast.success(next === "red" ? "Red theme" : "Yellow theme", { description: "Bill accent color updated" });
-                    }}
-                    onTwoInOne={(next) => {
-                      setTwoInOne(next);
-                      toast.success(next ? "2-in-1 bill enabled" : "2-in-1 bill disabled");
-                    }}
-                    onMode={(next) => {
-                      setMode(next);
-                      toast.success(next === "duplicate" ? "Duplicate mode" : "Separate mode", {
-                        description: next === "duplicate" ? "Two identical bills on one page" : "Two different bills on one page",
-                      });
-                    }}
-                  />
-
                   <CustomerFields
                     name={customerName}
                     phone={customerPhone}
@@ -1151,52 +1273,127 @@ export function BillingPage() {
               </Button>
             </div>
 
-            <Card className="h-fit">
-              <CardHeader>
-                <CardTitle className="text-sm">Bill preview</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {preview ? (
-                  <>
-                    <div className="rounded-lg border p-3 text-sm">
-                      <p className="font-semibold">{preview.shop.name}</p>
-                      <p className="text-muted-foreground">{preview.billNo} · {preview.date}</p>
-                      <p className="text-muted-foreground">{preview.customerName ?? "Walk-in Customer"}</p>
-                      <SeparatorLine />
-                      {preview.lines.map((l, i) => (
-                        <p key={i} className="flex justify-between text-xs">
-                          <span className="truncate pr-2">{l.quantity} × {l.productName}</span>
-                          <span>{money(l.total)}</span>
-                        </p>
+        <div className="space-y-5">
+          <Card className="h-fit">
+            <CardHeader>
+              <CardTitle className="text-sm">Bill preview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {liveHtml ? (
+                <BillPreviewFrame html={liveHtml} onClick={() => setPreviewOpen(true)} />
+              ) : (
+                <div className="flex aspect-[210/297] w-full items-center justify-center rounded-lg border text-sm text-muted-foreground">
+                  Loading shop details for the preview…
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Live preview of the bill you are building — click it to enlarge. Updates as you type, before saving.
+              </p>
+              {preview && (
+                <>
+                  <SeparatorLine />
+                  <p className="text-xs text-muted-foreground">
+                    Saved {preview.billNo}
+                    {secondPreview && distinct ? ` + ${secondPreview.billNo}` : ""}
+                  </p>
+                  <Button className="w-full" onClick={() => exportBill(preview)} disabled={exporting}>
+                    <Download className="h-4 w-4" /> {exporting ? "Generating…" : twoInOne ? "Download 2-in-1 PDF" : "Download PDF"}
+                  </Button>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Bill style</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <BillTemplateOptions
+                template={template}
+                classicColor={classicColor}
+                twoInOne={twoInOne}
+                mode={mode}
+                weightAfterName={weightAfterName}
+                goldRateLine={goldRateLine}
+                silverRateLine={silverRateLine}
+                onWeightAfterName={(next) => {
+                  setWeightAfterName(next);
+                  toast.success(next ? "Weight column shown" : "Weight column hidden");
+                }}
+                onGoldRateLine={(next) => {
+                  setGoldRateLine(next);
+                  toast.success(next ? "Gold rate line shown" : "Gold rate line hidden");
+                }}
+                onSilverRateLine={(next) => {
+                  setSilverRateLine(next);
+                  toast.success(next ? "Silver rate line shown" : "Silver rate line hidden");
+                }}
+                onTemplate={(next) => {
+                  setTemplate(next);
+                  toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template");
+                }}
+                onClassicColor={(next) => {
+                  setClassicColor(next);
+                  toast.success(next === "red" ? "Red theme" : "Yellow theme", { description: "Bill accent color updated" });
+                }}
+                onTwoInOne={(next) => {
+                  setTwoInOne(next);
+                  toast.success(next ? "2-in-1 bill enabled" : "2-in-1 bill disabled");
+                }}
+                onMode={(next) => {
+                  setMode(next);
+                  toast.success(next === "duplicate" ? "Duplicate mode" : "Separate mode", {
+                    description: next === "duplicate" ? "Two identical bills on one page" : "Two different bills on one page",
+                  });
+                }}
+              />
+
+              <SeparatorLine />
+
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium">Bill columns</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {template === "jewellery"
+                      ? "Column toggles apply to the Modern E-commerce estimate grid — the Classic Jewellery template has its own fixed layout."
+                      : "Turn a column off to hide it from the printed bill — per metal, since gold and silver have different fields."}
+                  </p>
+                </div>
+                {template === "jewellery" ? null : (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Gold bill</p>
+                      {GOLD_ESTIMATE_COLUMNS.map((c) => (
+                        <label key={`g-${c.id}`} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-muted-foreground">{c.label}</span>
+                          <Switch
+                            checked={!hiddenGold.includes(c.id)}
+                            onCheckedChange={() => toggleColumn("gold", c.id)}
+                            aria-label={`Gold: ${c.label}`}
+                          />
+                        </label>
                       ))}
-                      <SeparatorLine />
-                      <p className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-bold">{money(preview.total)}</span></p>
-                      <p className="mt-2 text-xs italic text-muted-foreground">{preview.amountInWords}</p>
                     </div>
-                    {secondPreview && distinct && (
-                      <div className="rounded-lg border border-primary/30 p-3 text-sm">
-                        <p className="font-semibold">Bill 2 — {secondPreview.billNo}</p>
-                        <p className="text-muted-foreground">{secondPreview.customerName ?? "Walk-in Customer"}</p>
-                        <SeparatorLine />
-                        {secondPreview.lines.map((l, i) => (
-                          <p key={i} className="flex justify-between text-xs">
-                            <span className="truncate pr-2">{l.quantity} × {l.productName}</span>
-                            <span>{money(l.total)}</span>
-                          </p>
-                        ))}
-                        <SeparatorLine />
-                        <p className="flex justify-between"><span className="text-muted-foreground">Total</span><span className="font-bold">{money(secondPreview.total)}</span></p>
-                      </div>
-                    )}
-                    <Button className="w-full" onClick={() => exportBill(preview)} disabled={exporting}>
-                      <Download className="h-4 w-4" /> {exporting ? "Generating…" : twoInOne ? "Download 2-in-1 PDF" : "Download PDF"}
-                    </Button>
-                  </>
-                ) : (
-                  <p className="text-muted-foreground text-sm">Create a bill to see the shared preview here.</p>
+                    <div className="space-y-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Silver bill</p>
+                      {SILVER_ESTIMATE_COLUMNS.map((c) => (
+                        <label key={`s-${c.id}`} className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-muted-foreground">{c.label}</span>
+                          <Switch
+                            checked={!hiddenSilver.includes(c.id)}
+                            onCheckedChange={() => toggleColumn("silver", c.id)}
+                            aria-label={`Silver: ${c.label}`}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
         </div>
 
       <Dialog open={payingInvoice !== null} onOpenChange={(open) => !open && setPayingInvoice(null)}>
@@ -1219,6 +1416,32 @@ export function BillingPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Fullscreen preview lightbox — click the sidebar preview (or press
+          Enter on it) to see the current bill full size before saving. */}
+      {previewOpen && liveHtml ? (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm p-4 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Bill preview — fullscreen"
+        >
+          <div className="flex items-center justify-between pb-3">
+            <div>
+              <p className="text-sm font-semibold">Bill preview</p>
+              <p className="text-[11px] text-muted-foreground">
+                {liveBill?.billNo} · {liveBill?.date} — updates live, nothing is saved yet
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setPreviewOpen(false)}>
+              Close (Esc)
+            </Button>
+          </div>
+          <div className="min-h-0 flex-1">
+            <BillPreviewFrame html={liveHtml} fit="contain" />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1448,9 +1671,9 @@ function LineItemsEditor({
             <Input type="number" min={0} value={line.price} onChange={(e) => update(index, { price: e.target.value })} />
           </div>
           <div className="w-24 space-y-1.5">
-            <Label>Purity</Label>
+            <Label>Remark</Label>
             <Select value={line.purity} onValueChange={(v) => update(index, { purity: v })}>
-              <SelectTrigger className="h-9 text-xs" aria-label="Purity">
+              <SelectTrigger className="h-9 text-xs" aria-label="Remark">
                 <SelectValue placeholder="—" />
               </SelectTrigger>
               <SelectContent>

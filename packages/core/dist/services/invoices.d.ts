@@ -96,6 +96,8 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
     invoices: {
         items: {
             description: string | null;
+            purity: string | null;
+            weight: number | null;
             pricing: schema.InvoiceItemPricing | null;
             productId: string | null;
             productName: string;
@@ -104,11 +106,9 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
             grossWeight: string | null;
             nagLessWeight: number | null;
             chejatWeight: number | null;
-            purity: string | null;
             color: string | null;
             size: string | null;
             id: string;
-            weight: number | null;
             quantity: number;
             total: number;
             invoiceId: string;

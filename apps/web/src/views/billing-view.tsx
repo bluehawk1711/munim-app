@@ -9,7 +9,7 @@ import { useSettings } from "@/hooks/use-settings"
 import { useProducts, useSyncProductPrices } from "@/hooks/use-products"
 import { useApiClient, useGoldRates } from "@munim/query"
 import { applyGoldBaseRate, buildBillDocument, priceBillLineRow, priceProductRow, resolveGoldRateTable, type BillDocument } from "@munim/core"
-import { generateBillPDF, type BillTemplateSettings } from "@munim/core"
+import { generateBillPDF, type InvoiceFormValues } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency } from "@/lib/format"
 import { toast } from "@munim/ui"
@@ -367,8 +367,23 @@ export function BillingView() {
     }
   }
 
-  function buildSettings(): BillTemplateSettings {
-    return { template, classicColor, twoInOne, mode, weightAfterName, goldRateLine, silverRateLine }
+  // Typed against the create payload's own settings shape (the zod output
+  // type) rather than the optional-fielded snapshot model — the payload
+  // requires every key present.
+  function buildSettings(): NonNullable<InvoiceFormValues["templateSettings"]> {
+    // hiddenColumns: web has no column-toggle UI — always send the explicit
+    // all-columns default (the create payload type requires the field; the
+    // server validator defaults it too, this keeps the client honest).
+    return {
+      template,
+      classicColor,
+      twoInOne,
+      mode,
+      weightAfterName,
+      goldRateLine,
+      silverRateLine,
+      hiddenColumns: { gold: [], silver: [] },
+    }
   }
 
   /** Builds a SHARED BillDocument (core) — the same model desktop & mobile render. */

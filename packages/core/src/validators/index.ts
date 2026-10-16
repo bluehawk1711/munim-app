@@ -192,6 +192,41 @@ export const invoiceSchema = z.object({
       weightAfterName: z.boolean().default(true),
       goldRateLine: z.boolean().default(true),
       silverRateLine: z.boolean().default(true),
+      // Estimate columns turned off on the New Bill screen — per metal
+      // (gold grid ≠ silver field list). Omitted by older snapshots / web
+      // payloads → both sides [] (nothing hidden).
+      hiddenColumns: z
+        .object({
+          gold: z
+            .array(
+              z.enum([
+                "description",
+                "purity",
+                "weight",
+                "chejatNag",
+                "rate",
+                "labour",
+                "otherCharges",
+                "amount",
+              ]),
+            )
+            .default([]),
+          silver: z
+            .array(
+              z.enum([
+                "description",
+                "purity",
+                "weight",
+                "chejatNag",
+                "rate",
+                "labour",
+                "otherCharges",
+                "amount",
+              ]),
+            )
+            .default([]),
+        })
+        .default({ gold: [], silver: [] }),
     })
     .optional(),
   amountPaid: z.coerce.number().min(0).optional(),

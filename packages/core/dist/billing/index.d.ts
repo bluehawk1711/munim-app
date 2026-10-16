@@ -1,4 +1,4 @@
-export { buildBillDocument, renderBillText, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, type BillDocument, type BillLine, type BillLineInput, type BillShopDetails, type BillStatus, type BuildBillInput, type BillTemplate, type BillClassicColor, type BillMode, type BillTemplateSettings, } from "./billDocument.js";
+export { buildBillDocument, renderBillText, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, type BillDocument, type BillLine, type BillLineInput, type BillShopDetails, type BillStatus, type BuildBillInput, type BillTemplate, type BillClassicColor, type BillMode, type BillTemplateSettings, type EstimateColumnId, GOLD_ESTIMATE_COLUMNS, SILVER_ESTIMATE_COLUMNS, } from "./billDocument.js";
 export { PURITY_PRESETS, purityOptionsFor, } from "./purity.js";
 export { renderBillHtml, } from "./billHtml.js";
 export { buildSampleBill, } from "./sampleBill.js";

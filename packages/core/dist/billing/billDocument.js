@@ -1,5 +1,28 @@
 import { amountInWords } from "../utils/numberToWords.js";
 import { formatCurrency } from "../utils/format.js";
+/** Column toggles for the NEW BILL screens (desktop + mobile): gold's grid
+ *  fields with their printed headers — `purity` shows as "Remark" (the
+ *  client's term for the purity stamp column). */
+export const GOLD_ESTIMATE_COLUMNS = [
+    { id: "description", label: "Description" },
+    { id: "purity", label: "Remark" },
+    { id: "weight", label: "G. Wt." },
+    { id: "chejatNag", label: "Chejat/Nag" },
+    { id: "rate", label: "Rate ₹/gm" },
+    { id: "labour", label: "Labour" },
+    { id: "otherCharges", label: "Other Charges" },
+    { id: "amount", label: "Amount" },
+];
+/** Silver's grid fields — one combined Weight column, no Chejat/Nag. */
+export const SILVER_ESTIMATE_COLUMNS = [
+    { id: "description", label: "Description" },
+    { id: "purity", label: "Remark" },
+    { id: "weight", label: "Weight" },
+    { id: "rate", label: "Rate ₹/gm" },
+    { id: "labour", label: "Labour" },
+    { id: "otherCharges", label: "Other Charges" },
+    { id: "amount", label: "Amount" },
+];
 /** Defaults for the per-bill display toggles — all ON. The template defaults
  *  to the E-commerce estimate sheet (the shop's new default bill design). */
 export const DEFAULT_BILL_TEMPLATE_SETTINGS = {
@@ -10,14 +33,25 @@ export const DEFAULT_BILL_TEMPLATE_SETTINGS = {
     weightAfterName: true,
     goldRateLine: true,
     silverRateLine: true,
+    hiddenColumns: { gold: [], silver: [] },
 };
 /**
  * Normalize a possibly-partial settings object (e.g. settings snapshots saved
  * before the display toggles existed) into a complete BillTemplateSettings.
  * Missing toggles default ON, matching DEFAULT_BILL_TEMPLATE_SETTINGS.
+ * `hiddenColumns` deep-defaults both metals to [] (nothing hidden) — an
+ * explicitly-undefined value (payload builders spreading a partial snapshot)
+ * also lands on the empty lists.
  */
 export function mergeBillTemplateSettings(partial) {
-    return { ...DEFAULT_BILL_TEMPLATE_SETTINGS, ...partial };
+    return {
+        ...DEFAULT_BILL_TEMPLATE_SETTINGS,
+        ...partial,
+        hiddenColumns: {
+            gold: partial?.hiddenColumns?.gold ?? [],
+            silver: partial?.hiddenColumns?.silver ?? [],
+        },
+    };
 }
 /** Row label for the material-returned deduction — per-bill title or default. */
 export function materialReturnedTitleOf(bill) {
@@ -62,6 +96,35 @@ export function estimateChargeLines(charges) {
     if (charges.other > 0)
         parts.push(`Other: ${charges.other.toFixed(2)}`);
     return parts;
+}
+/** The merged Chejat/Nag cell lines — `Chejat: 0.150` / `Nag: 0.620`, one per
+ *  non-empty derivation input (grams, 3 dp), itemized with prefixes exactly
+ *  like the Other Charges cell (client merged the two columns into one).
+ *  Empty → []. */
+export function estimateWeightLines(line) {
+    const parts = [];
+    if (line.chejatWeight != null && line.chejatWeight > 0)
+        parts.push(`Chejat: ${line.chejatWeight.toFixed(3)}`);
+    if (line.nagLessWeight != null && line.nagLessWeight > 0)
+        parts.push(`Nag: ${line.nagLessWeight.toFixed(3)}`);
+    return parts;
+}
+/** Tallest itemized stack in a row — the Other Charges lines vs the merged
+ *  Chejat/Nag lines — gated on which columns are actually visible (a hidden
+ *  column's stack doesn't grow the row). Shared by the PDF's draw + height
+ *  measurement so the sheet frame always hugs the real table. */
+export function estimateRowStackLines(line, visible) {
+    return Math.max(visible.otherCharges ? estimateChargeLines(estimateRowOf(line).charges).length : 0, visible.chejatNag ? estimateWeightLines(line).length : 0);
+}
+/** Estimate row height (mm): base 7 — 10 when the name carries a description
+ *  line under it — growing 3.6 mm per itemized stack line. */
+export function estimateRowHeightMm(hasDescription, stackLines) {
+    return Math.max(hasDescription ? 10 : 7, 7 + 3.6 * (stackLines - 1));
+}
+/** Totals-row height (mm): 7, or taller when the merged Chejat/Nag totals
+ *  cell stacks its prefixed sums ("Chejat: …" above "Nag: …"). */
+export function estimateTotalsHeightMm(stackLines) {
+    return Math.max(7, 7 + 3.6 * (stackLines - 1));
 }
 /** Sum of the non-zero flat charges — the totals row's Other Charges cell. */
 export function estimateChargesTotal(charges) {

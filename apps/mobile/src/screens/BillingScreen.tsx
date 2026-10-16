@@ -6,6 +6,7 @@ import {
   applyGoldBaseRate,
   buildBillDocument,
   calcNetWeight,
+  GOLD_ESTIMATE_COLUMNS,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
@@ -13,6 +14,7 @@ import {
   renderBillText,
   renderBillHtml,
   resolveGoldRateTable,
+  SILVER_ESTIMATE_COLUMNS,
   formatDate,
   swatchColor,
   weightTextToGrams,
@@ -22,6 +24,7 @@ import {
   type BillMode,
   type BillTemplateSettings,
   type BillLinePricingOverrides,
+  type EstimateColumnId,
   type LabourType,
   type PartyDto,
   type InvoiceDto,
@@ -70,7 +73,7 @@ type LineState = {
   /** True once the shop edits this line's Weight — the edited weight then
    *  drives auto-pricing (and survives later rate reprices). */
   weightEdited: boolean;
-  /** Metal purity stamp ("22K") — the estimate's Purity column (dropdown). */
+  /** Metal purity stamp ("22K") — the estimate's Remark column (dropdown). */
   purity: string;
   /** Gross-weight free text — bill G. Wt. column. */
   grossWeight: string;
@@ -349,9 +352,10 @@ function PartyPicker({
   );
 }
 
-/** Purity dropdown for a bill line — the estimate's printed Purity column.
- *  Options come from core's shared presets (`purityOptionsFor` keeps the
- *  line's current off-list stamp in the list too). */
+/** Remark dropdown for a bill line — the estimate's printed Remark column.
+ *  (Renamed from "Purity" per the client; the value is still the metal
+ *  purity stamp, options come from core's shared presets — `purityOptionsFor`
+ *  keeps the line's current off-list stamp in the list too). */
 function PurityPicker({
   value,
   onChange,
@@ -369,14 +373,14 @@ function PurityPicker({
         onPress={() => setOpen(true)}
         style={({pressed}) => [styles.partyPicker, style, pressed && {opacity: 0.7}]}
         accessibilityRole="button"
-        accessibilityLabel={`Purity ${value || 'not set'}`}>
+        accessibilityLabel={`Remark ${value || 'not set'}`}>
         <View style={{flex: 1}}>
-          <Text style={styles.pickerLabel}>Purity</Text>
+          <Text style={styles.pickerLabel}>Remark</Text>
           <Text style={styles.pickerValue}>{value || '—'}</Text>
         </View>
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
-      <ModalSheet visible={open} title="Purity" onClose={() => setOpen(false)} centered scrollable>
+      <ModalSheet visible={open} title="Remark" onClose={() => setOpen(false)} centered scrollable>
         <FlatList
           data={purityOptionsFor(value)}
           keyExtractor={item => item}
@@ -458,7 +462,7 @@ function LineItemsEditor({
         const summaryName = `${line.productName || 'New item'}${line.purity.trim() ? ` p:${line.purity.trim()}` : ''}`;
         return (
           <View key={index} style={styles.lineBox}>
-            {/* Collapsed summary — tap to expand the inputs (Weight/Price/Purity…). */}
+            {/* Collapsed summary — tap to expand the inputs (Weight/Price/Remark…). */}
             <Pressable onPress={() => setExpandedIndex(isOpen ? null : index)}>
               <View style={styles.lineSummary}>
                 <Text style={styles.lineSummaryName} numberOfLines={1}>
@@ -777,6 +781,14 @@ export function BillingScreen() {
   const [goldRateLine, setGoldRateLine] = useState(true);
   const [silverRateLine, setSilverRateLine] = useState(true);
 
+  // ── Estimate column toggles — per METAL (gold grid ≠ silver field list) ─
+  const [hiddenGold, setHiddenGold] = useState<EstimateColumnId[]>([]);
+  const [hiddenSilver, setHiddenSilver] = useState<EstimateColumnId[]>([]);
+  const toggleColumn = (metal: 'gold' | 'silver', id: EstimateColumnId) => {
+    const setter = metal === 'gold' ? setHiddenGold : setHiddenSilver;
+    setter(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
   const {data: goldRates} = useGoldRates();
   const goldBaseRate = goldRates?.baseRatePerGram ?? null;
 
@@ -819,6 +831,7 @@ export function BillingScreen() {
     weightAfterName,
     goldRateLine,
     silverRateLine,
+    hiddenColumns: {gold: hiddenGold, silver: hiddenSilver},
   };
 
   // ── Bill 2 — only used in 2-in-1 "Separate" mode ───────────────────────
@@ -1496,6 +1509,54 @@ export function BillingScreen() {
               </View>
             </>
           ) : null}
+
+          {/* Bill columns — per-metal toggles for the estimate grid */}
+          <View style={{marginTop: 8}}>
+            <Text style={styles.switchLabel}>Bill columns</Text>
+            <Text style={styles.switchSub}>
+              {template === 'jewellery'
+                ? 'Column toggles apply to the Modern E-commerce estimate grid — the Classic Jewellery template has its own fixed layout.'
+                : 'Turn a column off to hide it from the printed bill — gold and silver have different fields.'}
+            </Text>
+          </View>
+          {template === 'jewellery' ? null : (
+            <>
+              <Text style={styles.optLabel}>Gold bill</Text>
+              {GOLD_ESTIMATE_COLUMNS.map(c => (
+                <View key={`g-${c.id}`} style={styles.switchRow}>
+                  <View style={{flex: 1, paddingRight: 12}}>
+                    <Text style={styles.switchLabel}>{c.label}</Text>
+                  </View>
+                  <Switch
+                    value={!hiddenGold.includes(c.id)}
+                    onValueChange={() => {
+                      selectionTick();
+                      toggleColumn('gold', c.id);
+                    }}
+                    trackColor={{true: colors.primary, false: colors.border}}
+                    thumbColor={colors.inverseOnSurface}
+                  />
+                </View>
+              ))}
+              <Text style={styles.optLabel}>Silver bill</Text>
+              {SILVER_ESTIMATE_COLUMNS.map(c => (
+                <View key={`s-${c.id}`} style={styles.switchRow}>
+                  <View style={{flex: 1, paddingRight: 12}}>
+                    <Text style={styles.switchLabel}>{c.label}</Text>
+                  </View>
+                  <Switch
+                    value={!hiddenSilver.includes(c.id)}
+                    onValueChange={() => {
+                      selectionTick();
+                      toggleColumn('silver', c.id);
+                    }}
+                    trackColor={{true: colors.primary, false: colors.border}}
+                    thumbColor={colors.inverseOnSurface}
+                  />
+                </View>
+              ))}
+            </>
+          )}
         </Card>
 
         <Card index={1}>

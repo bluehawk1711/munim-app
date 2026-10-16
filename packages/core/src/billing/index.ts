@@ -13,6 +13,9 @@ export {
   type BillClassicColor,
   type BillMode,
   type BillTemplateSettings,
+  type EstimateColumnId,
+  GOLD_ESTIMATE_COLUMNS,
+  SILVER_ESTIMATE_COLUMNS,
 } from "./billDocument.js";
 
 export {
