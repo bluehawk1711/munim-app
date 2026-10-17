@@ -29,6 +29,7 @@ export {
   useInvoices,
   useInvoice,
   useCreateInvoice,
+  useUpdateInvoice,
   useDeleteInvoice,
   useRecordInvoicePayment,
 } from "./use-invoices.js";

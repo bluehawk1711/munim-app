@@ -3,6 +3,7 @@ import type {
   InvoiceFilters,
   InvoiceFormValues,
   InvoicePaymentValues,
+  InvoiceUpdateValues,
   Pagination,
 } from "@munim/core";
 import type { HttpClient } from "../http.js";
@@ -20,6 +21,10 @@ export function invoices(http: HttpClient) {
     /** POST /api/invoices — mirrors core `createInvoice(db, values)`. */
     create(values: InvoiceFormValues): Promise<InvoiceDto> {
       return http.post("/api/invoices", values);
+    },
+    /** PUT /api/invoices/:id — edit a bill; mirrors core `updateInvoice`. */
+    update(id: string, values: InvoiceUpdateValues): Promise<InvoiceDto> {
+      return http.put(`/api/invoices/${id}`, values);
     },
     /** POST /api/invoices/:id/payment — mirrors core `recordInvoicePayment`. */
     recordPayment(id: string, values: InvoicePaymentValues): Promise<InvoiceDto> {

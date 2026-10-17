@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   TrendingUp,
   Eye,
+  Pencil,
 } from "lucide-react";
 import { buildBillDocument, formatDate, formatCurrency, mergeBillTemplateSettings, type BillShopDetails } from "@munim/core";
 import type { InvoiceDto, InvoiceFilters, SettingsDto } from "@munim/api-client";
@@ -92,6 +93,13 @@ export function InvoicesPage() {
 
   function openPayment(inv: InvoiceRow) {
     setPaying(inv);
+  }
+
+  /** EDIT BILL — the New Bill page in edit mode (`?edit=<id>`): same form,
+   *  pre-filled with this bill, saving PUTs it back. */
+  function openEdit(inv: InvoiceRow) {
+    setDetailTarget(null);
+    navigate(`/billing?edit=${inv.id}`);
   }
 
   async function confirmDelete() {
@@ -413,6 +421,16 @@ export function InvoicesPage() {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7"
+                        title="Edit bill"
+                        onClick={() => openEdit(inv)}
+                        aria-label={`Edit ${inv.invoiceNumber}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
                         title="Download PDF"
                         onClick={() => handleDownload(inv)}
                         disabled={exporting}
@@ -575,6 +593,10 @@ export function InvoicesPage() {
               </div>
 
               <DialogFooter>
+                <Button variant="outline" onClick={() => openEdit(detailTarget)} className="gap-1.5">
+                  <Pencil className="h-4 w-4" />
+                  Edit bill
+                </Button>
                 <Button variant="outline" onClick={() => setDetailTarget(null)}>Close</Button>
                 <Button variant="outline" onClick={() => handleDownload(detailTarget)} disabled={exporting} className="gap-1.5">
                   {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}

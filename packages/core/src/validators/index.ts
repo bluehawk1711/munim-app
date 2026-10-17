@@ -247,6 +247,15 @@ export const invoiceSchema = z.object({
 
 export type InvoiceFormValues = z.infer<typeof invoiceSchema>;
 
+/** PUT /api/invoices/:id — editing a bill re-submits the WHOLE bill (the
+ *  desktop/mobile edit screens are the create screens in edit mode), so the
+ *  update validator IS the create validator: same fields, same rules. The
+ *  service ignores the invoice number / createdAt and reconciles stock +
+ *  payments instead (see `updateInvoice` in services/invoices.ts). */
+export const invoiceUpdateSchema = invoiceSchema;
+
+export type InvoiceUpdateValues = InvoiceFormValues;
+
 export const recordPaymentSchema = z.object({
   invoiceId: z.string().min(1, "Invoice is required"),
   amount: z.coerce.number().positive("Amount must be greater than 0"),

@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Put,
   Query,
 } from "@nestjs/common";
 import {
@@ -15,13 +16,16 @@ import {
   getInvoice,
   invoicePaymentSchema,
   invoiceSchema,
+  invoiceUpdateSchema,
   listInvoices,
   recordInvoicePayment,
   serializeInvoice,
+  updateInvoice,
   type DbClient,
   type InvoiceFilters,
   type InvoiceFormValues,
   type InvoicePaymentValues,
+  type InvoiceUpdateValues,
 } from "@munim/core";
 import { DRIZZLE } from "../db/drizzle.provider.js";
 import { ZodValidationPipe } from "../common/validation.pipe.js";
@@ -82,6 +86,20 @@ export class InvoicesController {
   async create(@Body(new ZodValidationPipe(invoiceSchema)) values: InvoiceFormValues) {
     const invoice = await createInvoice(this.db, values);
     if (!invoice) throw new NotFoundException("Invoice not found after create");
+    await invalidate(this.cache, ["invoices"]);
+    return serializeInvoice(invoice);
+  }
+
+  /** PUT /api/invoices/:id — edit an existing bill. Re-submits the whole
+   *  bill; core reconciles stock (per-product delta) and the payment rows
+   *  against the new total. The invoice NUMBER is never regenerated. */
+  @Put(":id")
+  async update(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(invoiceUpdateSchema)) values: InvoiceUpdateValues,
+  ) {
+    const invoice = await updateInvoice(this.db, id, values);
+    if (!invoice) throw new NotFoundException("Invoice not found");
     await invalidate(this.cache, ["invoices"]);
     return serializeInvoice(invoice);
   }

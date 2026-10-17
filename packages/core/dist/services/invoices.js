@@ -308,6 +308,198 @@ export async function listInvoices(db, filters = {}) {
         pagination: { page, pageSize, totalCount, totalPages: Math.ceil(totalCount / pageSize) },
     };
 }
+/** Money comparisons — these columns are float8, so exact `===` on sums
+ *  of user-entered rupees would misfire on 0.1 + 0.2 style artifacts. */
+const MONEY_EPS = 0.005;
+/** Per-product quantity totals from a set of bill lines (duplicate lines for
+ *  the SAME product accumulate — a ring, a chain and two pendants of the same
+ *  SKU are three separate lines but ONE stock position). Accepts both the
+ *  input shape (`productId?: string`) and the stored row shape
+ *  (`productId: string | null`). */
+function quantitiesByProduct(items) {
+    const out = new Map();
+    for (const it of items) {
+        if (!it.productId)
+            continue;
+        out.set(it.productId, (out.get(it.productId) ?? 0) + it.quantity);
+    }
+    return out;
+}
+export async function updateInvoice(db, id, input) {
+    const existing = await getInvoice(db, id);
+    if (!existing)
+        throw new InvoiceError("Invoice not found", "NOT_FOUND", 404);
+    if (!input.items.length)
+        throw new InvoiceError("At least one line item is required", "NO_ITEMS");
+    const badQty = input.items.find((it) => !(it.quantity > 0));
+    if (badQty)
+        throw new InvoiceError(`Item "${badQty.productName}" needs a quantity of at least 1`, "BAD_QUANTITY");
+    // ── Totals — identical math to createInvoice ──────────────────────────
+    const subtotal = input.items.reduce((sum, it) => sum + it.quantity * it.price, 0);
+    const delivery = input.deliveryCharge ?? 0;
+    const discount = input.discount ?? 0;
+    const materialReturnedValue = input.materialReturnedValue ?? 0;
+    const total = Math.max(0, subtotal + delivery - discount - materialReturnedValue);
+    const settingsRow = await db.query.settings.findFirst();
+    const allowZeroTotal = settingsRow?.allowZeroTotal ?? true;
+    if (!allowZeroTotal && !(total > 0))
+        throw new InvoiceError("Invoice total must be greater than 0 — check item prices, discount and delivery charge", "ZERO_TOTAL");
+    const amountPaid = Math.min(input.amountPaid ?? 0, total);
+    // ── Stock: signed per-product delta (old lines − new lines) ──────────
+    const oldQty = quantitiesByProduct(existing.items);
+    const newQty = quantitiesByProduct(input.items);
+    const deltas = new Map();
+    for (const [pid, q] of newQty)
+        deltas.set(pid, q - (oldQty.get(pid) ?? 0));
+    for (const [pid, q] of oldQty)
+        if (!deltas.has(pid))
+            deltas.set(pid, -q);
+    // Validate every INCREASE up front — no partial write if stock is short.
+    for (const [pid, delta] of deltas) {
+        if (delta <= 0)
+            continue;
+        const product = await getProduct(db, pid);
+        if (!product)
+            throw new InvoiceError("A product on this bill no longer exists", "PRODUCT_NOT_FOUND", 404);
+        if (product.stock < delta)
+            throw new InvoiceError(`Not enough stock for "${product.name}" (${product.stock} left, need ${delta})`, "INSUFFICIENT_STOCK", 409);
+    }
+    const status = input.status ?? (amountPaid >= total && total > 0 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID");
+    const pricingContext = input.items.some((it) => it.productId)
+        ? await loadGoldPricing(db, { goldBaseRate: input.goldRate, silverBaseRate: input.silverRate })
+        : null;
+    const now = new Date();
+    const [row] = await db
+        .update(schema.invoices)
+        .set({
+        partyId: input.partyId ?? null,
+        customerName: input.customerName?.trim() || null,
+        customerPhone: input.customerPhone?.trim() || null,
+        customerAddress: input.customerAddress?.trim() || null,
+        // Keep the original bill date when the caller omits it.
+        date: input.date ? new Date(input.date) : existing.date,
+        status: status ?? "UNPAID",
+        subtotal,
+        deliveryCharge: delivery,
+        discount,
+        materialReturnedWeight: input.materialReturnedWeight?.trim() || null,
+        materialReturnedValue,
+        materialReturnedTitle: input.materialReturnedTitle?.trim() || null,
+        total,
+        amountPaid,
+        notes: input.notes?.trim() || null,
+        shopDetails: input.shopDetails ?? null,
+        templateSettings: input.templateSettings ?? null,
+        goldRate: input.goldRate && input.goldRate > 0 ? input.goldRate : null,
+        silverRate: input.silverRate && input.silverRate > 0 ? input.silverRate : null,
+        updatedAt: now,
+    })
+        .where(eq(schema.invoices.id, id))
+        .returning();
+    if (!row)
+        throw new InvoiceError("Invoice not found", "NOT_FOUND", 404);
+    // ── Lines: replace wholesale (same columns as the create path) ───────
+    // Line ids are not referenced anywhere (no FK points at invoice_items), so
+    // delete-then-insert is safe and matches how `updateOrder` rewrites lines.
+    await db.delete(schema.invoiceItems).where(eq(schema.invoiceItems.invoiceId, id));
+    for (const item of input.items) {
+        const product = item.productId ? await getProduct(db, item.productId) : undefined;
+        await db.insert(schema.invoiceItems).values({
+            invoiceId: id,
+            productId: item.productId ?? null,
+            productName: item.productName.trim(),
+            sku: item.sku || product?.sku || null,
+            color: item.color || product?.colorName || null,
+            size: item.size || product?.sizeName || null,
+            description: item.description?.trim() || null,
+            purity: item.purity?.trim() || product?.purity || null,
+            grossWeight: item.grossWeight || product?.grossWeight || null,
+            nagLessWeight: item.nagLessWeight ?? null,
+            chejatWeight: item.chejatWeight ?? null,
+            weight: item.weight ?? product?.weight ?? null,
+            weightUnit: item.weightUnit ?? product?.weightUnit ?? null,
+            quantity: item.quantity,
+            price: item.price,
+            total: item.quantity * item.price,
+            // The client-computed snapshot (bill-screen rate/labour/charge edits)
+            // wins; otherwise freeze the product's own pricing as before.
+            pricing: item.pricing ?? (product ? pricingSnapshotFor(product, pricingContext) : null),
+        });
+    }
+    // ── Stock: apply the deltas + log each movement ──────────────────────
+    for (const [pid, delta] of deltas) {
+        if (delta === 0)
+            continue;
+        const product = await getProduct(db, pid);
+        if (!product)
+            continue; // product deleted — there's no stock left to move
+        const newStock = product.stock - delta;
+        await db
+            .update(schema.products)
+            .set({ stock: newStock, updatedAt: now })
+            .where(eq(schema.products.id, pid));
+        await db.insert(schema.stockMovements).values({
+            productId: pid,
+            // +delta = more sold now; −delta = returned to the shelf.
+            type: delta > 0 ? "SALE" : "RETURN",
+            quantity: Math.abs(delta),
+            stockAfter: newStock,
+            referenceType: "invoice",
+            referenceId: id,
+            note: `Invoice ${existing.invoiceNumber} (edited)`,
+        });
+    }
+    // ── Money: keep the payment rows equal to amountPaid ─────────────────
+    const paymentRows = await db
+        .select()
+        .from(schema.payments)
+        .where(and(eq(schema.payments.invoiceId, id), eq(schema.payments.direction, "IN")))
+        .orderBy(desc(schema.payments.date), desc(schema.payments.createdAt));
+    const recorded = paymentRows.reduce((sum, p) => sum + p.amount, 0);
+    const diff = amountPaid - recorded;
+    if (diff > MONEY_EPS) {
+        await db.insert(schema.payments).values({
+            invoiceId: id,
+            partyId: input.partyId ?? null,
+            direction: "IN",
+            amount: diff,
+            method: input.paymentMethod || "cash",
+            date: now,
+            note: `Payment for ${existing.invoiceNumber} (adjusted on edit)`,
+        });
+    }
+    else if (diff < -MONEY_EPS) {
+        // Unwind the NEWEST payments first — a correction usually targets the
+        // last entry, and older rows keep their original dates intact.
+        let remaining = -diff;
+        for (const p of paymentRows) {
+            if (remaining <= MONEY_EPS)
+                break;
+            if (p.amount <= remaining + MONEY_EPS) {
+                await db.delete(schema.payments).where(eq(schema.payments.id, p.id));
+                remaining -= p.amount;
+            }
+            else {
+                await db
+                    .update(schema.payments)
+                    .set({ amount: p.amount - remaining })
+                    .where(eq(schema.payments.id, p.id));
+                remaining = 0;
+            }
+        }
+    }
+    // Re-linking the bill to another khata party moves its payments too —
+    // otherwise the OLD party's ledger would keep crediting money this bill no
+    // longer belongs to.
+    if ((input.partyId ?? null) !== existing.partyId) {
+        await db
+            .update(schema.payments)
+            .set({ partyId: input.partyId ?? null })
+            .where(eq(schema.payments.invoiceId, id));
+    }
+    await logActivity(db, "INVOICE_UPDATED", `Edited invoice ${existing.invoiceNumber} — total ${total.toLocaleString("en-IN")}, ${status}`);
+    return getInvoice(db, id);
+}
 /** Record a payment against an invoice; updates status + party money tracking. */
 export async function recordInvoicePayment(db, invoiceId, input) {
     const invoice = await getInvoice(db, invoiceId);

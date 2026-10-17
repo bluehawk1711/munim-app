@@ -150,6 +150,9 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
         totalPages: number;
     };
 }>;
+/** Edit payload — the same full bill shape the create screens send. */
+export type InvoiceUpdateInput = InvoiceInput;
+export declare function updateInvoice(db: DbClient, id: string, input: InvoiceUpdateInput): Promise<InvoiceWithItems | null>;
 /** Record a payment against an invoice; updates status + party money tracking. */
 export declare function recordInvoicePayment(db: DbClient, invoiceId: string, input: {
     amount: number;

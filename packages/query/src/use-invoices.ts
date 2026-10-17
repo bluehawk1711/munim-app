@@ -8,6 +8,7 @@ import type {
   InvoiceFilters,
   InvoiceFormValues,
   InvoicePaymentValues,
+  InvoiceUpdateValues,
 } from "@munim/core";
 import { useApiClient } from "./provider.js";
 import { qk } from "./keys.js";
@@ -51,6 +52,27 @@ export function useCreateInvoice() {
       qc.invalidateQueries({ queryKey: qk.invoices.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
       qc.invalidateQueries({ queryKey: qk.products.all });
+    },
+  });
+}
+
+/** PUT /api/invoices/:id — edit an existing bill. */
+export function useUpdateInvoice() {
+  const getClient = useApiClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, values }: { id: string; values: InvoiceUpdateValues }): Promise<InvoiceDto> => {
+      const api = await getClient();
+      return api.invoices.update(id, values);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.invoices.all });
+      qc.invalidateQueries({ queryKey: qk.dashboard });
+      // Stock moves by the per-product delta and payments are re-linked to
+      // amountPaid (possibly to a different khata party) — same fallout as a
+      // create, so the same keys are cleared.
+      qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.parties.all });
     },
   });
 }

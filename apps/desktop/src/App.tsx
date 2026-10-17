@@ -5,7 +5,7 @@ import { PinGate } from "@munim/ui";
 import { pingApiUrl } from "@/lib/api";
 import { DesktopQueryProvider } from "@/lib/query";
 import { AppShell } from "@/components/app-shell";
-import { useCurrentPath } from "@/lib/navigation";
+import { useCurrentPath, useUrlSearch } from "@/lib/navigation";
 import { DashboardPage } from "@/pages/dashboard";
 import { ProductsPage } from "@/pages/products";
 import { CatalogPage } from "@/pages/catalog";
@@ -40,7 +40,12 @@ const FALLBACK_ROUTE = ROUTES[0]!;
 
 export function App() {
   const current = useCurrentPath();
+  const search = useUrlSearch();
   const route = ROUTES.find((r) => r.path === current) ?? FALLBACK_ROUTE;
+  // `/billing?edit=<id>` is the SAME route running in edit mode — only the
+  // window title differs, so the operator can't mistake it for a new bill.
+  const title =
+    route.path === "/billing" && new URLSearchParams(search).has("edit") ? "Edit Bill" : route.title;
   return (
     <DesktopQueryProvider>
       <PinGate
@@ -52,7 +57,7 @@ export function App() {
         }}
       >
         <LazyMotion features={domMax}>
-          <AppShell current={route.path} title={route.title}>
+          <AppShell current={route.path} title={title}>
             <AnimatePresence mode="wait" initial={false}>
               <m.div
                 key={route.path}

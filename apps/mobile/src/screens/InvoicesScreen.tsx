@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import * as Print from 'expo-print';
-import {Search, Trash2, Share2} from 'lucide-react-native';
+import {Search, Trash2, Share2, Pencil} from 'lucide-react-native';
 import {
   buildBillDocument,
   formatDate,
@@ -43,6 +43,7 @@ import {
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
+import {useAppStore} from '../lib/store';
 import {savePdf} from '../lib/save-pdf';
 
 type StatusFilter = 'all' | 'PAID' | 'PARTIAL' | 'UNPAID' | 'DRAFT';
@@ -110,6 +111,12 @@ export function InvoicesScreen() {
   function openPayment(inv: InvoiceDto) {
     setPaying(inv);
     setPayAmount(String(Math.max(0, inv.total - inv.amountPaid)));
+  }
+
+  /** EDIT BILL — More → Billing in edit mode, pre-filled with this invoice. */
+  function openEdit(inv: InvoiceDto) {
+    useNavStore.getState().openEditBill(inv.id);
+    useAppStore.getState().setActiveView('more');
   }
 
   async function confirmPayment() {
@@ -300,6 +307,13 @@ export function InvoicesScreen() {
                     <Text style={{fontSize: 11, color: colors.success, fontWeight: '600'}}>Paid ✓</Text>
                   )}
                   <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                    <Pressable
+                      onPress={() => openEdit(item)}
+                      hitSlop={8}
+                      style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}]}
+                      accessibilityLabel={`Edit ${item.invoiceNumber}`}>
+                      <Pencil size={16} color={colors.primary} />
+                    </Pressable>
                     <Pressable
                       onPress={() => handleExportInvoice(item)}
                       hitSlop={8}

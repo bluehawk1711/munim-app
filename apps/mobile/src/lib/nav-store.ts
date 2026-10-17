@@ -15,8 +15,14 @@ export type InvoiceStatusFilter = 'all' | 'PAID' | 'PARTIAL' | 'UNPAID' | 'DRAFT
 type NavState = {
   moreSection: MoreSection | null;
   invoiceFilter: InvoiceStatusFilter;
+  /** Invoice id the Billing screen should open in EDIT mode (null = new bill).
+   *  Set by InvoicesScreen's Edit action; cleared on close and by any plain
+   *  `openMore`, so a "Create new bill" can never inherit a stale edit target. */
+  editingInvoiceId: string | null;
   /** Opens a More sub-screen (e.g. from Home) with an optional invoice filter. */
   openMore: (section: MoreSection, invoiceFilter?: InvoiceStatusFilter) => void;
+  /** Opens More → Billing in edit mode for one invoice. */
+  openEditBill: (invoiceId: string) => void;
   /** Back to the More list. */
   closeMore: () => void;
   setInvoiceFilter: (filter: InvoiceStatusFilter) => void;
@@ -25,8 +31,10 @@ type NavState = {
 export const useNavStore = create<NavState>(set => ({
   moreSection: null,
   invoiceFilter: 'all',
+  editingInvoiceId: null,
   openMore: (section, invoiceFilter) =>
-    set({moreSection: section, invoiceFilter: invoiceFilter ?? 'all'}),
-  closeMore: () => set({moreSection: null}),
+    set({moreSection: section, invoiceFilter: invoiceFilter ?? 'all', editingInvoiceId: null}),
+  openEditBill: invoiceId => set({moreSection: 'billing', editingInvoiceId: invoiceId}),
+  closeMore: () => set({moreSection: null, editingInvoiceId: null}),
   setInvoiceFilter: invoiceFilter => set({invoiceFilter}),
 }));

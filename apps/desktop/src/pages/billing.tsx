@@ -1,5 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy } from "lucide-react";
+import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy, ArrowLeft } from "lucide-react";
 import {
   applyGoldBaseRate,
   buildBillDocument,
@@ -28,6 +28,8 @@ import {
   useProducts,
   useParties,
   useCreateInvoice,
+  useUpdateInvoice,
+  useInvoice,
   useRecordInvoicePayment,
   useSyncProductPrices,
   useApiClient,
@@ -35,6 +37,7 @@ import {
   useGoldRates,
 } from "@munim/query";
 import { money } from "@/lib/format";
+import { navigate, useUrlSearch } from "@/lib/navigation";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { toast } from "@munim/ui";
 import { PageHeader } from "@/components/page-header";
@@ -195,6 +198,49 @@ function invoiceToBillDocument(
   });
 }
 
+/** EDIT MODE — a stored invoice row back into the editor's line state.
+ *
+ *  This is the exact inverse of `lineItems()`. Two details matter:
+ *
+ *   • The frozen pricing snapshot becomes the strip's EXPLICIT values, and the
+ *     line is marked `rateEdited` — so a rate/labour that was frozen on the
+ *     original bill STICKS instead of silently re-tracking the live bill rate.
+ *   • `weightEdited` is set, so the saved weight keeps driving auto-pricing
+ *     for silver lines instead of being replaced by the product's current one.
+ *
+ *  Gold lines store the DERIVED NET weight in `weight` (that's what priced
+ *  them) plus their nag/chejat inputs — both come back here, so the net weight
+ *  round-trips through `goldNetGrams` unchanged. */
+function invoiceToLine(it: InvoiceDto["items"][number]): LineState {
+  const p = it.pricing;
+  const frozenRate = p?.ratePerGram != null;
+  return {
+    productId: it.productId ?? "",
+    productName: it.productName,
+    sku: it.sku ?? "",
+    color: it.color ?? "",
+    size: it.size ?? "",
+    description: it.description ?? "",
+    weight: it.weight != null ? String(it.weight) : "",
+    weightUnit: it.weightUnit === "mg" ? "mg" : "gm",
+    weightEdited: true,
+    purity: it.purity ?? "",
+    grossWeight: it.grossWeight ?? "",
+    nagLessWeight: it.nagLessWeight != null ? String(it.nagLessWeight) : "",
+    chejatWeight: it.chejatWeight != null ? String(it.chejatWeight) : "",
+    quantity: String(it.quantity),
+    price: String(it.price),
+    silverPercentage: p?.silverPercentage != null ? String(p.silverPercentage) : "100",
+    ratePerGram: frozenRate ? String(p?.ratePerGram) : "",
+    rateEdited: frozenRate,
+    labourType: p?.labourType ?? "",
+    labourValue: p?.labourValue != null ? String(p.labourValue) : "",
+    nag: p?.nag != null ? String(p.nag) : "",
+    povayi: p?.povayi != null ? String(p.povayi) : "",
+    otherCharges: p?.other != null ? String(p.other) : "",
+  };
+}
+
 /** A4 render size at 96dpi — the bill HTML sizes itself in mm, so this box
  *  matches the printed page exactly (794 × 1123 px). */
 const BILL_PX = { w: 794, h: 1123 };
@@ -295,6 +341,20 @@ export function BillingPage() {
   const { data: parties } = useQueryState(useParties());
   // const { data: list, loading: loadingList } = useQueryState(useInvoices({ pageSize: 100 }));
   const createInvoice = useCreateInvoice();
+  const updateInvoice = useUpdateInvoice();
+
+  // ── EDIT MODE — `/billing?edit=<invoice id>`, opened from the invoices list
+  // (the same page in edit mode; no second 1800-line form to keep in sync).
+  // `useCurrentPath` doesn't re-render for query-only navigation, so the
+  // search string has its own subscription.
+  const search = useUrlSearch();
+  const editId = useMemo(() => new URLSearchParams(search).get("edit"), [search]);
+  const editing = editId !== null && editId !== "";
+  const { data: editInvoice, isError: editLoadFailed } = useInvoice(editId);
+  /** Set once per invoice so a background refetch can't clobber in-progress edits. */
+  const seededEditId = useRef<string | null>(null);
+  /** Same guard for the "show the SAVED bill in the Download slot" preview. */
+  const seededPreviewId = useRef<string | null>(null);
 
   // ── Bill 1 ──────────────────────────────────────────────────────────────
   const [customerName, setCustomerName] = useState("");
@@ -733,7 +793,10 @@ export function BillingPage() {
   const [recordingPayment, setRecordingPayment] = useState(false);
   const recordPayment = useRecordInvoicePayment(payingInvoice?.id ?? "");
 
-  const distinct = twoInOne && mode === "distinct";
+  // "Separate" mode creates a SECOND invoice — that only makes sense when
+  // creating. Editing works on one saved bill, so the 2-in-1 pairing UI (and
+  // the whole second-bill editor below) is off in edit mode.
+  const distinct = !editing && twoInOne && mode === "distinct";
 
   const subtotal = useMemo(
     () => lines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
@@ -886,6 +949,125 @@ export function BillingPage() {
     setSilverRateInput(shopSilverPer10g > 0 ? String(shopSilverPer10g) : "");
   }
 
+  /** EDIT MODE — a stored invoice back into every field on this form (the
+   *  inverse of what `handleCreate` submits). Bill 2 is always cleared:
+   *  an edit updates exactly ONE invoice. */
+  function seedFromInvoice(inv: InvoiceDto) {
+    setCustomerName(inv.customerName ?? "");
+    setCustomerPhone(inv.customerPhone ?? "");
+    setCustomerAddress(inv.customerAddress ?? "");
+    setPartyId(inv.partyId ?? "");
+    setDate(inv.date.slice(0, 10));
+    setNotes(inv.notes ?? "");
+    setDiscount(String(inv.discount));
+    setDeliveryCharge(String(inv.deliveryCharge));
+    setMaterialReturnedWeight(inv.materialReturnedWeight ?? "");
+    setMaterialReturnedValue(String(inv.materialReturnedValue));
+    setMaterialReturnedTitle(inv.materialReturnedTitle ?? "");
+    setAmountPaid(String(inv.amountPaid));
+    setLines(inv.items.length ? inv.items.map(invoiceToLine) : [emptyLine()]);
+
+    // Never carry a previous run's 2-in-1 partner into an edit.
+    setSecondCustomerName("");
+    setSecondCustomerPhone("");
+    setSecondCustomerAddress("");
+    setSecondPartyId("");
+    setSecondDiscount("0");
+    setSecondDeliveryCharge("0");
+    setSecondAmountPaid("0");
+    setSecondLines([emptyLine()]);
+    setSecondPreview(null);
+
+    const st = inv.templateSettings;
+    setTemplate(st?.template ?? "ecommerce");
+    setClassicColor(st?.classicColor ?? "red");
+    setTwoInOne(st?.twoInOne ?? false);
+    setMode(st?.mode ?? "duplicate");
+    setWeightAfterName(st?.weightAfterName ?? true);
+    setGoldRateLine(st?.goldRateLine ?? true);
+    setSilverRateLine(st?.silverRateLine ?? true);
+    setHiddenGold(st?.hiddenColumns?.gold ?? []);
+    setHiddenSilver(st?.hiddenColumns?.silver ?? []);
+
+    // The bill's OWN rates beat the shop default — and are marked "touched"
+    // so the two prefill effects above can't overwrite them later.
+    if (inv.goldRate != null && inv.goldRate > 0) {
+      setGoldRateInput(String(inv.goldRate));
+      goldRateTouched.current = true;
+    }
+    if (inv.silverRate != null && inv.silverRate > 0) {
+      // Stored per-gram; the field shows ₹/10g (same conversion as the shop prefill).
+      setSilverRateInput(String(Math.round(inv.silverRate * 1000) / 100));
+      setSilverTouched(true);
+    }
+  }
+
+  // Load + seed once per invoice (never on a refetch — that would wipe the
+  // operator's in-progress edits).
+  useEffect(() => {
+    if (!editing || !editInvoice || seededEditId.current === editInvoice.id) return;
+    seededEditId.current = editInvoice.id;
+    seedFromInvoice(editInvoice);
+    // `seedFromInvoice` is a per-render closure over the setters — re-running
+    // it on every render would loop, so the ref above is the source of truth.
+  }, [editing, editInvoice]);
+
+  // Put the SAVED bill in the "Download PDF" slot while editing, so the button
+  // shows what's on the server instead of the previous run's bill. The ref
+  // guard stops this from firing again after a save (the save already sets it).
+  useEffect(() => {
+    if (!editing || !editInvoice || !settings || seededPreviewId.current === editInvoice.id) return;
+    seededPreviewId.current = editInvoice.id;
+    const saved = editInvoice.shopDetails;
+    const shop = saved
+      ? { name: saved.name, address: saved.address, phones: saved.phones, email: saved.email }
+      : settingsToShop(settings);
+    setPreview(
+      invoiceToBillDocument(editInvoice, shop, settings.currency ?? "INR", {
+        gold: goldRates?.baseRatePerGram ?? null,
+        silver: settings.silverRatePerGram ?? null,
+      }),
+    );
+  }, [editing, editInvoice, settings, goldRates]);
+
+  /** Back out of edit mode: clean form, no stale preview, land on the list. */
+  function cancelEdit() {
+    seededEditId.current = null;
+    seededPreviewId.current = null;
+    resetForm();
+    setPreview(null);
+    setSecondPreview(null);
+    navigate("/invoices");
+  }
+
+  // A bill that no longer exists (deleted elsewhere, or a stale link) must not
+  // leave the operator staring at a dead, disabled form.
+  useEffect(() => {
+    if (!editing || !editLoadFailed) return;
+    toast.error("That bill could not be loaded", {
+      description: "It may have been deleted — open the bill list to pick another.",
+    });
+    seededEditId.current = null;
+    seededPreviewId.current = null;
+    resetForm();
+    setPreview(null);
+    setSecondPreview(null);
+    navigate("/invoices");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot guard.
+  }, [editing, editLoadFailed]);
+
+  // Navigating to a plain `/billing` (sidebar "New Bill", back button) must
+  // leave the seeded bill behind.
+  useEffect(() => {
+    if (editing || seededEditId.current === null) return;
+    seededEditId.current = null;
+    seededPreviewId.current = null;
+    resetForm();
+    setPreview(null);
+    setSecondPreview(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset-only effect.
+  }, [editing]);
+
   async function handleCreate() {
     const items = lineItems(lines);
     if (items.length === 0) {
@@ -923,7 +1105,9 @@ export function BillingPage() {
         goldRate: billGoldRate ?? undefined,
         silverRate: billSilverRate ?? undefined,
       };
-      const invoice = await createInvoice.mutateAsync({
+      // The SAME payload feeds both create and edit — the edit screens are the
+      // create screen in edit mode, so the whole bill is re-submitted.
+      const values = {
         ...base,
         customerName: customerName.trim(),
         customerPhone: customerPhone.trim() || undefined,
@@ -938,7 +1122,32 @@ export function BillingPage() {
         // "Mark as paid" wins over the Paid-now field — the invoice is saved
         // with its full total as paid, so it lands as PAID (not UNPAID).
         amountPaid: markPaid ? total : Number(amountPaid) || 0,
-      });
+      };
+
+      // ── EDIT: PUT the whole bill back. Core reconciles the per-product
+      //    stock delta and the payment rows; the number stays untouched. ──
+      if (editing && editInvoice) {
+        const updated = await updateInvoice.mutateAsync({ id: editInvoice.id, values });
+        const shopForPreview: BillShopDetails = updated.shopDetails
+          ? { name: updated.shopDetails.name, address: updated.shopDetails.address, phones: updated.shopDetails.phones, email: updated.shopDetails.email }
+          : shop ?? { name: "My Shop", address: null, phones: [], email: null };
+        setPreview(invoiceToBillDocument(updated, shopForPreview, settings?.currency ?? "INR", billRates));
+        toast.success(`Bill ${updated.invoiceNumber} updated`);
+        if (autoSavePdf) {
+          try {
+            await downloadBillPdf(invoiceToBillDocument(updated, shopForPreview, settings?.currency ?? "INR", billRates), billSettings);
+          } catch (err) {
+            toast.error("Bill updated, but the PDF could not be generated", {
+              description: err instanceof Error ? err.message : undefined,
+            });
+          }
+        }
+        // Stay in edit mode — the operator usually keeps tweaking, and the
+        // live preview already reflects the saved numbers.
+        return;
+      }
+
+      const invoice = await createInvoice.mutateAsync(values);
 
       const shopForPreview: BillShopDetails = invoice.shopDetails
         ? { name: invoice.shopDetails.name, address: invoice.shopDetails.address, phones: invoice.shopDetails.phones, email: invoice.shopDetails.email }
@@ -997,7 +1206,9 @@ export function BillingPage() {
 
       resetForm();
     } catch (err) {
-      toast.error("Failed to create invoice", { description: err instanceof Error ? err.message : undefined });
+      toast.error(editing ? "Failed to update bill" : "Failed to create invoice", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
       setSaving(false);
     }
@@ -1041,9 +1252,20 @@ export function BillingPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="New Bill"
-        badge="Billing"
-        subtitle="Create invoices with the same shared bill engine as web & mobile — jewellery or e-commerce templates, 2-in-1 supported."
+        title={editing && editInvoice ? "Edit bill" : "New Bill"}
+        badge={editing && editInvoice ? editInvoice.invoiceNumber : "Billing"}
+        subtitle={
+          editing && editInvoice
+            ? "Saving replaces the saved bill. Stock moves by the DIFFERENCE only, the paid amount is reconciled with the payments already recorded, and the bill number is never changed."
+            : "Create invoices with the same shared bill engine as web & mobile — jewellery or e-commerce templates, 2-in-1 supported."
+        }
+        actions={
+          editing ? (
+            <Button variant="outline" onClick={cancelEdit}>
+              <ArrowLeft className="h-4 w-4" /> Back to bills
+            </Button>
+          ) : undefined
+        }
       />
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="space-y-5 xl:col-span-2">
@@ -1249,27 +1471,41 @@ export function BillingPage() {
                       aria-label="Auto-save the bill PDF after creating the invoice"
                     />
                     <FileDown className="text-muted-foreground h-4 w-4" />
-                    <span>Auto-save the PDF after creating</span>
+                    <span>{editing ? "Auto-save the PDF after saving" : "Auto-save the PDF after creating"}</span>
                   </label>
                   <label className="flex items-center gap-2.5 text-sm">
                     <Checkbox
                       checked={markPaid}
                       onCheckedChange={setMarkPaid}
-                      aria-label="Mark the invoice as fully paid on creation"
+                      aria-label={editing ? "Set the full bill total as the paid amount" : "Mark the invoice as fully paid on creation"}
                     />
                     <CheckCircle2 className="text-muted-foreground h-4 w-4" />
                     <span>
                       Mark as paid{' '}
                       <span className="text-muted-foreground">
-                        (total {money(total)} received now{distinct ? ` · bill 2 ${money(secondTotal)}` : ""})
+                        {editing
+                          ? `(paid becomes the full ${money(total)} — the difference is recorded as a payment)`
+                          : `(total ${money(total)} received now${distinct ? ` · bill 2 ${money(secondTotal)}` : ""})`}
                       </span>
                     </span>
                   </label>
                 </CardContent>
               </Card>
 
-              <Button className="w-full" onClick={handleCreate} disabled={saving}>
-                {saving ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</> : `Create invoice — ${money(total)}${distinct ? ` + ${money(secondTotal)}` : ""}`}
+              <Button
+                className="w-full"
+                onClick={handleCreate}
+                disabled={saving || (editing && !editInvoice)}
+              >
+                {saving ? (
+                  <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Saving…</>
+                ) : editing && !editInvoice ? (
+                  <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Loading bill…</>
+                ) : editing ? (
+                  `Save changes — ${money(total)}`
+                ) : (
+                  `Create invoice — ${money(total)}${distinct ? ` + ${money(secondTotal)}` : ""}`
+                )}
               </Button>
             </div>
 
@@ -1348,6 +1584,12 @@ export function BillingPage() {
                   });
                 }}
               />
+
+              {editing && (
+                <p className="text-[11px] text-muted-foreground">
+                  2-in-1 pairs bills when CREATING. An edit always updates this single bill — its saved print style is preserved.
+                </p>
+              )}
 
               <SeparatorLine />
 
