@@ -383,14 +383,19 @@ function LoginScreen({ lock, onOpenConnectionSettings, }) {
         setEntry("");
         setError(null);
     }
-    function submitPin() {
+    function submitPin(pin) {
+        // `pin` is passed explicitly by handlePinChange: reading `entry` there
+        // would see the pre-change value (setState hasn't re-rendered yet), so the
+        // 4th digit never triggered verification — on mobile (no Enter key on the
+        // keyboard) the gate then appeared stuck.
+        const value = pin ?? entry;
         if (timerRef.current)
             return;
-        if (entry.length !== 4)
+        if (value.length !== 4)
             return;
         timerRef.current = setTimeout(() => {
             timerRef.current = null;
-            if (lock.unlock(entry)) {
+            if (lock.unlock(value)) {
                 setEntry("");
             }
             else {
@@ -408,13 +413,13 @@ function LoginScreen({ lock, onOpenConnectionSettings, }) {
         const digits = value.replace(/\D/g, "").slice(0, 4);
         setEntry(digits);
         if (digits.length === 4)
-            submitPin();
+            submitPin(digits);
     }
     const testHint = lock.isTestAccount ? "test@munim.app / 1234" : null;
     return (_jsx(GateShell, { children: step === "credentials" ? (_jsxs(_Fragment, { children: [_jsx(GateBadge, { icon: Mail }), _jsx("h1", { className: "munim-gate-item text-center text-xl font-semibold tracking-tight", style: { animationDelay: "0.09s" }, children: "Welcome back" }), _jsx("p", { className: "munim-gate-item mt-1 text-center text-sm text-muted-foreground", style: { animationDelay: "0.14s" }, children: lock.isTestAccount ? "Test account is active" : "Sign in to unlock Munim" }), _jsxs("form", { onSubmit: submitCredentials, className: "munim-gate-item mt-6 space-y-3", style: { animationDelay: "0.2s" }, children: [_jsxs("div", { className: "space-y-1.5", children: [_jsx("label", { htmlFor: "login-email", className: "text-xs font-medium text-muted-foreground", children: "Email" }), _jsx("input", { id: "login-email", type: "email", autoComplete: "username", placeholder: "you@shop.com", value: email, onChange: (e) => setEmail(e.target.value), className: GATE_INPUT_CLASS })] }), _jsxs("div", { className: "space-y-1.5", children: [_jsx("label", { htmlFor: "login-password", className: "text-xs font-medium text-muted-foreground", children: "Password" }), _jsx("input", { id: "login-password", type: "password", autoComplete: "current-password", placeholder: "\u2022\u2022\u2022\u2022", value: password, onChange: (e) => setPassword(e.target.value), className: GATE_INPUT_CLASS })] }), _jsx("div", { className: "h-5 pt-1", children: formError ? (_jsx("span", { className: "text-sm font-medium text-destructive", children: formError })) : testHint ? (_jsxs("span", { className: "text-xs text-muted-foreground", children: ["Test account \u2014 ", _jsx("span", { className: "font-semibold text-foreground", children: testHint })] })) : null }), _jsx("button", { type: "submit", className: cn(GATE_PRIMARY_BUTTON_CLASS, "cursor-pointer"), children: "Continue" })] }), _jsx("div", { className: "munim-gate-item mt-5 text-center", style: { animationDelay: "0.26s" }, children: _jsx("button", { type: "button", onClick: onOpenConnectionSettings, className: "text-muted-foreground hover:text-foreground cursor-pointer text-xs font-medium underline-offset-2 hover:underline", children: "Connection settings \u2014 change database / credentials" }) })] })) : (_jsxs(_Fragment, { children: [_jsx(GateBadge, { icon: Lock }), _jsx("h1", { className: "munim-gate-item text-center text-xl font-semibold tracking-tight", style: { animationDelay: "0.09s" }, children: "Enter your PIN" }), _jsx("p", { className: "munim-gate-item mt-1 text-center text-sm text-muted-foreground", style: { animationDelay: "0.14s" }, children: lock.isTestAccount ? "Test account PIN is 1234" : "Final security step" }), _jsxs("div", { className: "relative my-8", style: shakeKey > 0 ? { animation: "munim-pin-shake 0.4s ease" } : undefined, children: [_jsx(PinDots, { filled: entry.length }), _jsx("input", { ref: pinInputRef, autoFocus: true, type: "password", inputMode: "numeric", autoComplete: "one-time-code", maxLength: 4, value: entry, onChange: (e) => handlePinChange(e.target.value), onKeyDown: (e) => {
                                 if (e.key === "Enter")
                                     submitPin();
-                            }, "aria-label": "Enter your 4-digit PIN", className: "absolute inset-0 h-full w-full cursor-text opacity-0" })] }, shakeKey), _jsx("div", { className: "mb-5 h-5 text-center", children: error ? _jsx("span", { className: "text-sm font-medium text-destructive", children: error }) : _jsx("span", { className: "text-xs text-muted-foreground", children: "\u00A0" }) }), _jsxs("div", { className: "munim-gate-item flex items-center justify-center gap-4", style: { animationDelay: "0.2s" }, children: [_jsx("button", { type: "button", onClick: () => {
+                            }, "aria-label": "Enter your 4-digit PIN", className: "absolute inset-0 h-full w-full cursor-text opacity-0" })] }, shakeKey), _jsx("div", { className: "mb-5 h-5 text-center", children: error ? _jsx("span", { className: "text-sm font-medium text-destructive", children: error }) : _jsx("span", { className: "text-xs text-muted-foreground", children: "\u00A0" }) }), _jsx("div", { className: "munim-gate-item", style: { animationDelay: "0.2s" }, children: _jsx("button", { type: "button", onClick: () => submitPin(), disabled: entry.length !== 4, className: cn(GATE_PRIMARY_BUTTON_CLASS, "cursor-pointer"), children: "Unlock" }) }), _jsxs("div", { className: "munim-gate-item mt-5 flex items-center justify-center gap-4", style: { animationDelay: "0.26s" }, children: [_jsx("button", { type: "button", onClick: () => {
                                 setStep("credentials");
                                 setEntry("");
                                 setError(null);

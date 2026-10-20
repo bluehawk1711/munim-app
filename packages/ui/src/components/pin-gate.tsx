@@ -635,12 +635,17 @@ function LoginScreen({
     setError(null);
   }
 
-  function submitPin() {
+  function submitPin(pin?: string) {
+    // `pin` is passed explicitly by handlePinChange: reading `entry` there
+    // would see the pre-change value (setState hasn't re-rendered yet), so the
+    // 4th digit never triggered verification — on mobile (no Enter key on the
+    // keyboard) the gate then appeared stuck.
+    const value = pin ?? entry;
     if (timerRef.current) return;
-    if (entry.length !== 4) return;
+    if (value.length !== 4) return;
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
-      if (lock.unlock(entry)) {
+      if (lock.unlock(value)) {
         setEntry("");
       } else {
         setShakeKey((k) => k + 1);
@@ -656,7 +661,7 @@ function LoginScreen({
     setError(null);
     const digits = value.replace(/\D/g, "").slice(0, 4);
     setEntry(digits);
-    if (digits.length === 4) submitPin();
+    if (digits.length === 4) submitPin(digits);
   }
 
   const testHint = lock.isTestAccount ? "test@munim.app / 1234" : null;
@@ -762,7 +767,18 @@ function LoginScreen({
             {error ? <span className="text-sm font-medium text-destructive">{error}</span> : <span className="text-xs text-muted-foreground">&nbsp;</span>}
           </div>
 
-          <div className="munim-gate-item flex items-center justify-center gap-4" style={{ animationDelay: "0.2s" }}>
+          <div className="munim-gate-item" style={{ animationDelay: "0.2s" }}>
+            <button
+              type="button"
+              onClick={() => submitPin()}
+              disabled={entry.length !== 4}
+              className={cn(GATE_PRIMARY_BUTTON_CLASS, "cursor-pointer")}
+            >
+              Unlock
+            </button>
+          </div>
+
+          <div className="munim-gate-item mt-5 flex items-center justify-center gap-4" style={{ animationDelay: "0.26s" }}>
             <button
               type="button"
               onClick={() => {
