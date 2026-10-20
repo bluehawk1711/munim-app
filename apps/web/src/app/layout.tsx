@@ -1,8 +1,9 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { MotionConfig } from "motion/react";
 import "./globals.css";
 import { Providers } from "@/components/providers";
+import { ServiceWorkerRegistration } from "@/components/app/service-worker";
 import { Toaster } from "@munim/ui"
 ;
 
@@ -73,9 +74,27 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+  // PWA — /manifest.json is generated from src/app/manifest.ts; the PNG
+  // icons are derived from the desktop product icon (see public/icons/).
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Munim",
+  },
   icons: {
     icon: "/logo.svg",
+    apple: "/icons/apple-touch-icon.png",
   },
+};
+
+// themeColor lives in the viewport export (Next 14+). Values mirror the
+// default "apple" accent theme (packages/theme/src/tokens.ts).
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fcfbf8" },
+    { media: "(prefers-color-scheme: dark)", color: "#080705" },
+  ],
 };
 
 export default function RootLayout({
@@ -101,6 +120,7 @@ export default function RootLayout({
           <MotionConfig reducedMotion="user">{children}</MotionConfig>
           <Toaster position="top-right" richColors closeButton />
         </Providers>
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

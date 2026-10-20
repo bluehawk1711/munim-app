@@ -7,6 +7,7 @@
  */
 import { formatCurrency } from "../utils/format.js";
 import {
+  billKindLabel,
   estimateChargeLines,
   estimateChargesTotal,
   estimateLabourTag,
@@ -167,7 +168,7 @@ function renderClassicHtml(
       </table>`
     : "";
 
-  return `${docStart(`Bill ${bill.billNo}`, CLASSIC_CSS)}
+  return `${docStart(`${billKindLabel(bill)} ${bill.billNo}`, CLASSIC_CSS)}
 <div class="classic" style="${vars}">
   <span class="corner tl"></span><span class="corner tr"></span>
   <span class="corner bl"></span><span class="corner br"></span>
@@ -181,7 +182,7 @@ function renderClassicHtml(
   <div class="banner">Gold &amp; Silver Jewellery Experts</div>
   <div class="addr">Add: ${esc(bill.shop.address ?? "")}</div>
   <div class="divider"></div>
-  <div class="meta"><span>Bill No: ${esc(bill.billNo)}</span><span>Date: ${esc(bill.date)}</span></div>
+  <div class="meta"><span>${billKindLabel(bill)} No: ${esc(bill.billNo)}</span><span>Date: ${esc(bill.date)}</span></div>
   ${rates}
   <div class="cust">
     <div>Customer: ${esc(bill.customerName || "________________________________")}</div>
@@ -393,7 +394,7 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
     }</td></tr>`,
   );
 
-  return `${docStart(`Bill ${bill.billNo}`, ECOMMERCE_CSS)}
+  return `${docStart(`${billKindLabel(bill)} ${bill.billNo}`, ECOMMERCE_CSS)}
 <div class="ecom">
  <div class="inner">
   <div class="letterhead">

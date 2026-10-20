@@ -39,6 +39,7 @@ export {
   useCreateOrder,
   useUpdateOrder,
   useGenerateOrderBill,
+  useRecordOrderPayment,
   useDeleteOrder,
 } from "./use-orders.js";
 export { useSales, useCreateSale, useUndoSale } from "./use-sales.js";

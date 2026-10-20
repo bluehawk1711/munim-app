@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { formatCurrency } from "../utils/format.js";
 import {
+  billKindLabel,
   estimateChargeLines,
   estimateChargesTotal,
   estimateLabourTag,
@@ -725,7 +726,7 @@ function drawClassicJewelleryBill(
   doc.setTextColor(primary[0], primary[1], primary[2]);
   doc.setFontSize(12);
   doc.setFont("notosans", "bold");
-  doc.text("Bill No: " + bill.billNo, margin + 10, detailsY);
+  doc.text(`${billKindLabel(bill)} No: ` + bill.billNo, margin + 10, detailsY);
   doc.text("Date: " + bill.date, pageWidth - margin - 10, detailsY, {
     align: "right",
   });

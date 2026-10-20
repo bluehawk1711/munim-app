@@ -4,6 +4,7 @@ import type {
   OrderDto,
   OrderFilters,
   OrderFormValues,
+  OrderPaymentValues,
   OrderUpdateValues,
   Pagination,
 } from "@munim/core";
@@ -26,6 +27,10 @@ export function orders(http: HttpClient) {
     /** PATCH /api/orders/:id — edit an open order (blocked after billing). */
     update(id: string, values: OrderUpdateValues): Promise<OrderDto> {
       return http.patch(`/api/orders/${id}`, values);
+    },
+    /** POST /api/orders/:id/pay — an advance on an unbilled order. */
+    recordPayment(id: string, values: OrderPaymentValues): Promise<OrderDto> {
+      return http.post(`/api/orders/${id}/pay`, values);
     },
     /** POST /api/orders/:id/bill — quoted lines → invoice (stock checked now). */
     generateBill(id: string): Promise<BillFromOrderResult> {

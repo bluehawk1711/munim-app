@@ -357,6 +357,10 @@ export const orders = pgTable(
     deliveryCharge: doublePrecision("delivery_charge").notNull().default(0),
     discount: doublePrecision("discount").notNull().default(0),
     total: doublePrecision("total").notNull().default(0),
+    /** Advance / part-payment already collected against this order (₹).
+     *  Carried into the generated invoice as its starting `amountPaid`, so a
+     *  customer's advance is never lost between the quote and the bill. */
+    amountPaid: doublePrecision("amount_paid").notNull().default(0),
     notes: text("notes"),
     /** Set once a bill has been generated from this order. */
     invoiceId: text("invoice_id").references(() => invoices.id, { onDelete: "set null" }),

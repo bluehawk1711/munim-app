@@ -1,9 +1,11 @@
 export {
   buildBillDocument,
   renderBillText,
+  billKindLabel,
   DEFAULT_BILL_TEMPLATE_SETTINGS,
   mergeBillTemplateSettings,
   type BillDocument,
+  type BillKind,
   type BillLine,
   type BillLineInput,
   type BillShopDetails,
@@ -31,6 +33,11 @@ export {
   buildSampleBill,
 } from "./sampleBill.js";
 export type { SampleBillKind } from "./sampleBill.js";
+
+export {
+  buildOrderDocument,
+  type OrderDocumentInput,
+} from "./orderDocument.js";
 
 export {
   generateBillPDF,

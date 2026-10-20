@@ -304,6 +304,8 @@ export const orderSchema = z.object({
   items: z.array(orderItemSchema).min(1, "At least one line item is required"),
   deliveryCharge: z.coerce.number().min(0).optional(),
   discount: z.coerce.number().min(0).optional(),
+  /** Advance taken on the order (clamped to the order total in the service). */
+  amountPaid: z.coerce.number().min(0).optional(),
   notes: z.string().optional(),
 });
 
@@ -317,6 +319,14 @@ export const orderUpdateSchema = orderSchema
   });
 
 export type OrderUpdateValues = z.infer<typeof orderUpdateSchema>;
+
+/** POST /api/orders/:id/pay — an advance / part-payment on an unbilled order. */
+export const orderPaymentSchema = z.object({
+  amount: z.coerce.number().positive("Payment must be more than zero"),
+  note: z.string().optional(),
+});
+
+export type OrderPaymentValues = z.infer<typeof orderPaymentSchema>;
 
 /* ── Parties (khata) ──────────────────────────────────────────── */
 

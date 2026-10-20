@@ -12,14 +12,36 @@ import {
   XCircle,
   FileText,
   Printer,
+  Eye,
+  FileDown,
+  Loader2,
+  Pencil,
 } from "lucide-react"
-import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, RecordPaymentDialog, ConfirmDialog } from "@munim/ui"
+import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, RecordPaymentDialog, ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@munim/ui"
+import { buildBillDocument, generateBillPDF, mergeBillTemplateSettings, type BillShopDetails, type InvoiceDto } from "@munim/core"
+import { useGoldRates } from "@munim/query"
 
 import { useInvoices, useDeleteInvoice, useRecordPayment } from "@/hooks/use-invoices"
+import { useSettings, type ShopSettings } from "@/hooks/use-settings"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency, formatDate } from "@/lib/format"
 import type { Invoice } from "@/lib/types"
 import { toast } from "@munim/ui"
+
+/** Shop letterhead for a reprinted bill — same shape the bills use. */
+function settingsToShop(s: ShopSettings): BillShopDetails {
+  return { name: s.shopName, address: s.shopAddress, phones: Array.isArray(s.shopPhones) ? s.shopPhones : [], email: s.shopEmail }
+}
+
+/** Load a stored bill into the New Bill screen for editing — the URL becomes
+ *  `?view=billing&edit=<id>` (the same flow desktop and mobile use). The
+ *  `edit` param is written FIRST so the store's own `?view=` sync preserves it. */
+function openBillEditor(id: string) {
+  const url = new URL(window.location.href)
+  url.searchParams.set("edit", id)
+  window.history.pushState({}, "", url)
+  useAppStore.getState().setActiveView("billing")
+}
 
 export function InvoicesView() {
   const setView = useAppStore((s) => s.setActiveView)
@@ -33,9 +55,13 @@ export function InvoicesView() {
 
   const [paying, setPaying] = React.useState<Invoice | null>(null)
   const [deleting, setDeleting] = React.useState<Invoice | null>(null)
+  const [detail, setDetail] = React.useState<InvoiceDto | null>(null)
+  const [exporting, setExporting] = React.useState<string | null>(null)
 
   const deleteInvoice = useDeleteInvoice()
   const recordPayment = useRecordPayment(paying?.id ?? "")
+  const { data: settings } = useSettings()
+  const { data: goldRates } = useGoldRates()
 
   function openPayment(inv: Invoice) {
     setPaying(inv)
@@ -60,6 +86,64 @@ export function InvoicesView() {
       setPaying(null)
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : "Unknown error" })
+    }
+  }
+
+  async function handleDownload(inv: InvoiceDto) {
+    const shop = inv.shopDetails
+      ? { name: inv.shopDetails.name, address: inv.shopDetails.address ?? "", phones: inv.shopDetails.phones, email: inv.shopDetails.email ?? "" }
+      : settings
+        ? settingsToShop(settings)
+        : null
+    if (!shop) {
+      toast.error("Shop settings not loaded — open Settings first")
+      return
+    }
+    setExporting(inv.id)
+    try {
+      // Yield a frame so the per-row spinner paints before the synchronous
+      // jsPDF render blocks the main thread.
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      const bill = buildBillDocument({
+        billNo: inv.invoiceNumber,
+        date: inv.date,
+        customerName: inv.customerName,
+        customerPhone: inv.customerPhone,
+        customerAddress: inv.customerAddress,
+        shop,
+        lines: inv.items.map((it) => ({
+          productName: it.productName,
+          description: it.description,
+          sku: it.sku,
+          color: it.color,
+          size: it.size,
+          weight: it.weight,
+          weightUnit: it.weightUnit,
+          purity: it.purity,
+          grossWeight: it.grossWeight,
+          nagLessWeight: it.nagLessWeight,
+          chejatWeight: it.chejatWeight,
+          pricing: it.pricing,
+          quantity: it.quantity,
+          price: it.price,
+        })),
+        discount: inv.discount,
+        deliveryCharge: inv.deliveryCharge,
+        materialReturnedWeight: inv.materialReturnedWeight,
+        materialReturnedValue: inv.materialReturnedValue,
+        materialReturnedTitle: inv.materialReturnedTitle,
+        amountPaid: inv.amountPaid,
+        status: inv.status,
+        currency: settings?.currency ?? "INR",
+        goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        silverRate: inv.silverRate ?? settings?.silverRatePerGram ?? null,
+      })
+      generateBillPDF(bill, mergeBillTemplateSettings(inv.templateSettings))
+      toast.success("PDF downloaded", { description: inv.invoiceNumber })
+    } catch (err) {
+      toast.error("Could not generate PDF", { description: err instanceof Error ? err.message : "Unknown error" })
+    } finally {
+      setExporting(null)
     }
   }
 
@@ -163,6 +247,37 @@ export function InvoicesView() {
                         </p>
                       )}
                       <div className="mt-1 flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="View details"
+                          onClick={() => setDetail(inv)}
+                          aria-label={`View ${inv.invoiceNumber}`}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Edit bill"
+                          onClick={() => openBillEditor(inv.id)}
+                          aria-label={`Edit ${inv.invoiceNumber}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Download PDF"
+                          onClick={() => void handleDownload(inv)}
+                          disabled={exporting !== null}
+                          aria-label={`Download PDF ${inv.invoiceNumber}`}
+                        >
+                          {exporting === inv.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                        </Button>
                         <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => openPayment(inv)} disabled={outstanding <= 0}>
                           <IndianRupee className="h-3.5 w-3.5" /> Pay
                         </Button>
@@ -221,6 +336,116 @@ export function InvoicesView() {
         busy={deleteInvoice.isPending}
         onConfirm={() => void confirmDelete()}
       />
+
+      {/* Invoice detail dialog */}
+      <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+          {detail && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Receipt className="h-4 w-4" /> {detail.invoiceNumber}
+                </DialogTitle>
+                <DialogDescription>
+                  {formatDate(detail.date)} · <InvoiceStatusBadge status={detail.status} />
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 text-sm">
+                {/* Customer */}
+                <div className="space-y-1 rounded-lg border p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</p>
+                  <p className="font-medium">{detail.customerName || "Walk-in customer"}</p>
+                  {detail.customerPhone && <p className="text-xs text-muted-foreground">{detail.customerPhone}</p>}
+                  {detail.customerAddress && <p className="text-xs text-muted-foreground">{detail.customerAddress}</p>}
+                </div>
+
+                {/* Line items */}
+                <div className="overflow-hidden rounded-lg border">
+                  <div className="bg-muted/50 grid grid-cols-[1fr_60px_80px_90px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                    <span>Item</span>
+                    <span className="text-right">Qty</span>
+                    <span className="text-right">Price</span>
+                    <span className="text-right">Total</span>
+                  </div>
+                  <div className="divide-y">
+                    {detail.items.map((item) => (
+                      <div key={item.id} className="grid grid-cols-[1fr_60px_80px_90px] gap-2 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{item.productName}</p>
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {item.sku}{item.color ? ` · ${item.color}` : ""}{item.size ? ` · ${item.size}` : ""}
+                          </p>
+                        </div>
+                        <span className="text-right tabular-nums">{item.quantity}</span>
+                        <span className="text-right tabular-nums">{formatCurrency(item.price)}</span>
+                        <span className="text-right font-medium tabular-nums">{formatCurrency(item.total)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Totals */}
+                <div className="space-y-1.5 rounded-lg border p-3">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="tabular-nums">{formatCurrency(detail.subtotal)}</span>
+                  </div>
+                  {detail.discount > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Discount</span>
+                      <span className="tabular-nums text-red-600 dark:text-red-400">-{formatCurrency(detail.discount)}</span>
+                    </div>
+                  )}
+                  {detail.deliveryCharge > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Delivery</span>
+                      <span className="tabular-nums">+{formatCurrency(detail.deliveryCharge)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t pt-1.5 text-sm font-bold">
+                    <span>Total</span>
+                    <span className="tabular-nums">{formatCurrency(detail.total)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-muted-foreground">Paid</span>
+                    <span className="tabular-nums">{formatCurrency(detail.amountPaid)}</span>
+                  </div>
+                  {detail.total - detail.amountPaid > 0 && (
+                    <div className="flex justify-between text-xs font-medium">
+                      <span className="text-amber-600 dark:text-amber-400">Outstanding</span>
+                      <span className="tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(detail.total - detail.amountPaid)}</span>
+                    </div>
+                  )}
+                </div>
+
+                {detail.notes && (
+                  <div className="rounded-lg border p-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</p>
+                    <p className="text-xs">{detail.notes}</p>
+                  </div>
+                )}
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDetail(null)}>Close</Button>
+                <Button
+                  variant="outline"
+                  className="gap-1.5"
+                  onClick={() => openBillEditor(detail.id)}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Edit bill
+                </Button>
+                <Button onClick={() => void handleDownload(detail)} disabled={exporting !== null} className="gap-1.5">
+                  {exporting === detail.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+                  Download PDF
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

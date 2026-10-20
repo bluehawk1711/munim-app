@@ -11,9 +11,10 @@ import {
   View,
 } from 'react-native';
 import * as Print from 'expo-print';
-import {ChevronDown, Search, Share2, Trash2} from 'lucide-react-native';
+import {Banknote, ChevronDown, FileDown, Search, Share2, Trash2} from 'lucide-react-native';
 import {
   buildBillDocument,
+  buildOrderDocument,
   formatDate,
   mergeBillTemplateSettings,
   renderBillHtml,
@@ -35,6 +36,7 @@ import {
   useParties,
   useProducts,
   useQueryState,
+  useRecordOrderPayment,
   useSettings,
   useUpdateOrder,
 } from '@munim/query';
@@ -87,6 +89,7 @@ type FormState = {
   partyId: string;
   discount: string;
   delivery: string;
+  paid: string;
   notes: string;
   lines: FormLine[];
 };
@@ -117,6 +120,7 @@ const blankForm = (): FormState => ({
   partyId: '',
   discount: '',
   delivery: '',
+  paid: '0',
   notes: '',
   lines: [blankLine()],
 });
@@ -128,6 +132,7 @@ const orderToForm = (o: OrderDto): FormState => ({
   partyId: o.partyId ?? '',
   discount: String(o.discount || 0),
   delivery: String(o.deliveryCharge || 0),
+  paid: String(o.amountPaid || 0),
   notes: o.notes ?? '',
   lines: o.items.map(it => ({
     key: nextKey(),
@@ -166,6 +171,33 @@ const formTotals = (form: FormState) => {
   const discount = Number(form.discount) || 0;
   const delivery = Number(form.delivery) || 0;
   return {subtotal, discount, delivery, total: Math.max(0, subtotal - discount + delivery)};
+};
+
+/** Item names + their weights — the weight has to be readable at a glance. */
+const itemSummary = (o: OrderDto): string => {
+  const names = o.items
+    .slice(0, 2)
+    .map(it =>
+      it.weight != null
+        ? `${it.productName} (${it.weight}${it.weightUnit ?? 'gm'})`
+        : it.productName,
+    )
+    .join(', ');
+  const more = o.items.length > 2 ? ` +${o.items.length - 2} more` : '';
+  return names ? ` · ${names}${more}` : '';
+};
+
+type PaymentTone = 'muted' | 'success' | 'warning';
+
+/** How much the party paid vs. how much is still to come. */
+const paymentLine = (o: OrderDto): {text: string; tone: PaymentTone} => {
+  if (o.amountPaid <= 0) {
+    return {text: 'Nothing received yet', tone: 'muted'};
+  }
+  if (o.paymentStatus === 'PAID') {
+    return {text: `Paid ${money(o.amountPaid)} · settled`, tone: 'success'};
+  }
+  return {text: `Paid ${money(o.amountPaid)} · ${money(o.dueAmount)} due`, tone: 'warning'};
 };
 
 /** Product picker — pick from the catalog to quote a line. Out-of-stock
@@ -423,7 +455,13 @@ export function OrdersScreen() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [exporting, setExporting] = useState<OrderDto | null>(null);
 
+  const [paying, setPaying] = useState<OrderDto | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [payBusy, setPayBusy] = useState(false);
+  const recordPayment = useRecordOrderPayment();
+
   const totals = useMemo(() => formTotals(form), [form]);
+  const paidAmount = Number(form.paid) || 0;
   const summary = useMemo(() => {
     const open = orders.filter(o => o.status === 'OPEN');
     return {
@@ -501,6 +539,8 @@ export function OrdersScreen() {
       items,
       discount: Number(form.discount) || 0,
       deliveryCharge: Number(form.delivery) || 0,
+      // Advance taken at the counter — it rides into the bill when billed.
+      amountPaid: Number(form.paid) || 0,
       notes: form.notes.trim() || undefined,
     };
     setFormBusy(true);
@@ -562,6 +602,30 @@ export function OrdersScreen() {
     }
   }
 
+  /** OPEN order with a balance → small sheet prefilled with what's still due. */
+  function openPayment(o: OrderDto) {
+    setPaying(o);
+    setPayAmount(String(o.dueAmount));
+  }
+
+  async function confirmPayment() {
+    if (!paying) return;
+    const amount = Number(payAmount);
+    if (!amount || amount <= 0) return;
+    setPayBusy(true);
+    try {
+      const updated = await recordPayment.mutateAsync({id: paying.id, values: {amount}});
+      successFeedback(
+        `Payment recorded — ${money(updated.amountPaid)} received, ${money(updated.dueAmount)} still due`,
+      );
+      setPaying(null);
+    } catch {
+      errorFeedback('Failed to record payment');
+    } finally {
+      setPayBusy(false);
+    }
+  }
+
   /** COMPLETED order → load its invoice and print/save the bill PDF. */
   async function shareInvoice(o: OrderDto) {
     if (!o.invoiceId || !settings) return;
@@ -610,6 +674,30 @@ export function OrdersScreen() {
     }
   }
 
+  /** ANY status → the estimate print: the SAME sheet the bill uses, headed
+   *  "Estimate" and carrying the quoted total, what the party paid and
+   *  what's still due. Orders carry no template settings of their own. */
+  async function printEstimate(o: OrderDto) {
+    if (!settings) return;
+    setExporting(o);
+    try {
+      const shop = {
+        name: settings.shopName,
+        address: settings.shopAddress ?? '',
+        phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [],
+        email: settings.shopEmail ?? '',
+      };
+      const doc = buildOrderDocument(o, shop, {currency: settings.currency ?? 'INR'});
+      const html = renderBillHtml(doc, mergeBillTemplateSettings({}));
+      const {uri} = await Print.printToFileAsync({html, base64: false});
+      await savePdf(uri, o.orderNumber);
+    } catch {
+      // user cancelled or print failed
+    } finally {
+      setExporting(null);
+    }
+  }
+
   const badgeTone = (s: OrderDto['status']): 'success' | 'warning' | 'muted' =>
     s === 'COMPLETED' ? 'success' : s === 'OPEN' ? 'warning' : 'muted';
   const badgeLabel = (s: OrderDto['status']): string =>
@@ -637,7 +725,7 @@ export function OrdersScreen() {
                   <TextInput
                     value={search}
                     onChangeText={setSearchFilter}
-                    placeholder="Search order #, customer…"
+                    placeholder="Search order #, customer or item…"
                     placeholderTextColor={colors.inputPlaceholder}
                     style={styles.searchInput}
                     autoCapitalize="none"
@@ -695,6 +783,13 @@ export function OrdersScreen() {
           contentContainerStyle={{paddingBottom: 40}}
           renderItem={({item, index}) => {
             const exportingThis = exporting?.id === item.id;
+            const pay = paymentLine(item);
+            const payToneStyle =
+              pay.tone === 'success'
+                ? styles.payLineSuccess
+                : pay.tone === 'warning'
+                  ? styles.payLineWarning
+                  : null;
             return (
               <Card index={index}>
                 <View style={styles.row}>
@@ -707,12 +802,36 @@ export function OrdersScreen() {
                     <Text style={styles.meta}>
                       {formatDate(item.date)} · {item.items.length} item
                       {item.items.length !== 1 ? 's' : ''}
-                      {item.items[0]?.productName ? ` · ${item.items[0].productName}` : ''}
+                      {itemSummary(item)}
                     </Text>
                   </View>
                   <View style={styles.rowRight}>
                     <Text style={styles.total}>{money(item.total)}</Text>
+                    <Text style={[styles.payLine, payToneStyle]}>{pay.text}</Text>
                     <View style={styles.rowActions}>
+                      <Pressable
+                        onPress={() => {
+                          printEstimate(item);
+                        }}
+                        hitSlop={8}
+                        disabled={exportingThis}
+                        style={({pressed}) => [
+                          styles.iconBtn,
+                          pressed && {opacity: 0.5},
+                          exportingThis && {opacity: 0.4},
+                        ]}
+                        accessibilityLabel={`Print the estimate for ${item.orderNumber}`}>
+                        <FileDown size={16} color={colors.primary} />
+                      </Pressable>
+                      {item.status === 'OPEN' && item.dueAmount > 0 ? (
+                        <Pressable
+                          onPress={() => openPayment(item)}
+                          hitSlop={8}
+                          style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.5}]}
+                          accessibilityLabel={`Record a payment on ${item.orderNumber}`}>
+                          <Banknote size={16} color={colors.primary} />
+                        </Pressable>
+                      ) : null}
                       {item.status === 'COMPLETED' && item.invoiceId ? (
                         <Pressable
                           onPress={() => void shareInvoice(item)}
@@ -853,6 +972,16 @@ export function OrdersScreen() {
           />
         </View>
         <Field
+          label="Received now (₹)"
+          value={form.paid}
+          onChangeText={text => setField('paid', text)}
+          keyboardType="numeric"
+          style={styles.paidField}
+        />
+        <Text style={styles.fieldHint}>
+          Advance — carried into the bill when you bill this order
+        </Text>
+        <Field
           label="Notes"
           value={form.notes}
           onChangeText={text => setField('notes', text)}
@@ -876,11 +1005,25 @@ export function OrdersScreen() {
             </View>
           ) : null}
           <View style={[styles.totalLine, styles.totalGrand]}>
-            <Text style={[styles.totalLabel, {fontWeight: '700', color: colors.text}]}>
-              Quoted total
-            </Text>
+            <Text style={[styles.totalLabel, styles.totalStrongLabel]}>Quoted total</Text>
             <Text style={styles.totalGrandValue}>{money(totals.total)}</Text>
           </View>
+          {paidAmount > 0 ? (
+            <>
+              <View style={styles.totalLine}>
+                <Text style={styles.totalLabel}>Received now</Text>
+                <Text style={[styles.totalValue, {color: colors.success}]}>
+                  -{money(paidAmount)}
+                </Text>
+              </View>
+              <View style={[styles.totalLine, styles.totalGrand]}>
+                <Text style={[styles.totalLabel, styles.totalStrongLabel]}>Balance due</Text>
+                <Text style={styles.totalGrandValue}>
+                  {money(Math.max(0, totals.total - paidAmount))}
+                </Text>
+              </View>
+            </>
+          ) : null}
         </View>
         <Button
           title={formBusy ? 'Saving…' : editing ? 'Save changes' : 'Create order'}
@@ -974,6 +1117,46 @@ export function OrdersScreen() {
           loading={deleteBusy}
         />
       </ModalSheet>
+
+      {/* Record payment — advance / part-payment on an unbilled order */}
+      <ModalSheet
+        visible={!!paying}
+        title={paying ? `Record payment — ${paying.orderNumber}` : ''}
+        onClose={() => setPaying(null)}
+        dismissable={!payBusy}
+        centered>
+        {paying ? (
+          <>
+            <Text style={styles.sheetNote}>
+              {paying.orderNumber} · {paying.customerName || 'Walk-in customer'}
+            </Text>
+            <View style={styles.paySummary}>
+              <View style={styles.payCol}>
+                <Text style={styles.payLabel}>Total</Text>
+                <Text style={styles.payValue}>{money(paying.total)}</Text>
+              </View>
+              <View style={styles.payCol}>
+                <Text style={styles.payLabel}>Already paid</Text>
+                <Text style={styles.payValue}>{money(paying.amountPaid)}</Text>
+              </View>
+            </View>
+            <Field
+              label="Amount (₹)"
+              value={payAmount}
+              onChangeText={setPayAmount}
+              keyboardType="numeric"
+            />
+            <Button
+              title={payBusy ? 'Saving…' : 'Confirm payment'}
+              onPress={() => {
+                confirmPayment();
+              }}
+              loading={payBusy}
+              disabled={!Number(payAmount) || Number(payAmount) <= 0}
+            />
+          </>
+        ) : null}
+      </ModalSheet>
     </Screen>
   );
 }
@@ -1011,6 +1194,9 @@ const makeStyles = () =>
     meta: {fontSize: 11, color: colors.muted, marginTop: 2},
     rowRight: {alignItems: 'flex-end', gap: 6, marginTop: 2},
     total: {fontSize: 15, fontWeight: '700', color: colors.text},
+    payLine: {fontSize: 11, color: colors.muted},
+    payLineSuccess: {color: colors.success, fontWeight: '600'},
+    payLineWarning: {color: colors.warning, fontWeight: '600'},
     rowActions: {flexDirection: 'row', alignItems: 'center', gap: 6},
     smallBtn: {paddingVertical: 6, paddingHorizontal: 10},
     iconBtn: {
@@ -1084,6 +1270,8 @@ const makeStyles = () =>
       marginTop: 6,
     },
     sheetNote: {fontSize: 12, color: colors.muted, lineHeight: 18, marginBottom: 14},
+    paidField: {marginBottom: 4},
+    fieldHint: {fontSize: 11, color: colors.muted, lineHeight: 16, marginBottom: 12},
     totalsBox: {
       backgroundColor: colors.mutedSoft,
       borderRadius: 12,
@@ -1097,6 +1285,7 @@ const makeStyles = () =>
     totalLabel: {fontSize: 12, color: colors.muted, fontWeight: '600'},
     totalValue: {fontSize: 13, color: colors.text, fontWeight: '600'},
     totalGrand: {borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 8, marginTop: 2},
+    totalStrongLabel: {fontWeight: '700', color: colors.text},
     totalGrandValue: {fontSize: 16, color: colors.text, fontWeight: '800'},
     confirmBox: {
       backgroundColor: colors.mutedSoft,
@@ -1108,4 +1297,12 @@ const makeStyles = () =>
       gap: 6,
     },
     confirmNote: {fontSize: 13, color: colors.muted, lineHeight: 19, marginBottom: 14},
+    paySummary: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 12,
+    },
+    payCol: {flex: 1},
+    payLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
+    payValue: {fontSize: 17, fontWeight: '700', color: colors.text, marginTop: 2},
   });

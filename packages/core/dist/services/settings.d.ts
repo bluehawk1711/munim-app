@@ -28,6 +28,7 @@ export type ShopSettingsInput = {
 /** Fetches settings, creating the singleton row on first use. */
 export declare function getSettings(db: DbClient): Promise<{
     mode: string;
+    currency: string;
     shopName: string;
     id: string;
     updatedAt: Date;
@@ -36,7 +37,6 @@ export declare function getSettings(db: DbClient): Promise<{
     shopAddress: string | null;
     shopPhones: string[];
     shopEmail: string | null;
-    currency: string;
     defaultTemplate: Record<string, unknown>;
     theme: string;
     allowZeroTotal: boolean;

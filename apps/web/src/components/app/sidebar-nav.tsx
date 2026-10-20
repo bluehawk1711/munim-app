@@ -18,14 +18,17 @@ import {
 import { useAppStore, type ViewKey } from "@/store/view-store"
 import { cn } from "@/lib/utils"
 
+/** One destination in the sidebar (and every other nav surface). */
+export type NavItem = {
+  key: ViewKey
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  description: string
+}
+
 const NAV_SECTIONS: {
   label: string
-  items: {
-    key: ViewKey
-    label: string
-    icon: React.ComponentType<{ className?: string }>
-    description: string
-  }[]
+  items: NavItem[]
 }[] = [
   {
     label: "Overview",
@@ -71,6 +74,10 @@ const NAV_SECTIONS: {
     ],
   },
 ]
+
+/** Every destination, flattened — shared by the sidebar, the mobile nav sheet
+ *  and the bottom tab bar (single source of truth for nav order + labels). */
+export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((section) => section.items)
 
 export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
   const activeView = useAppStore((s) => s.activeView)

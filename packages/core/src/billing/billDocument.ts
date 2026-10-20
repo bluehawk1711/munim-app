@@ -157,8 +157,21 @@ export interface BillLine extends BillLineInput {
   total: number;
 }
 
+/** What the printed document IS: a normal invoice, or a quotation/estimate
+ *  drawn straight from an order. Only the header wording changes — the
+ *  numbers, columns and paid/balance block are identical, because an estimate
+ *  is a bill the customer hasn't settled yet. */
+export type BillKind = "invoice" | "quotation";
+
+/** Header word for the printed document — "Bill" or "Estimate". */
+export function billKindLabel(bill: Pick<BillDocument, "kind">): string {
+  return bill.kind === "quotation" ? "Estimate" : "Bill";
+}
+
 export interface BillDocument {
   billNo: string;
+  /** invoice | quotation — see `billKindLabel`. */
+  kind: BillKind;
   /** ISO date (yyyy-mm-dd) */
   date: string;
   customerName: string | null;
@@ -189,6 +202,8 @@ export interface BillDocument {
 
 export interface BuildBillInput {
   billNo: string;
+  /** Defaults to "invoice" — set "quotation" for an order/estimate print. */
+  kind?: BillKind;
   date?: string | Date;
   customerName?: string | null;
   customerPhone?: string | null;
@@ -412,6 +427,7 @@ export function buildBillDocument(input: BuildBillInput): BillDocument {
 
   return {
     billNo: input.billNo,
+    kind: input.kind ?? "invoice",
     date,
     customerName: input.customerName?.trim() || null,
     customerPhone: input.customerPhone?.trim() || null,

@@ -11,6 +11,7 @@ import {
   useUpdateOrder,
   useDeleteOrder,
   useGenerateOrderBill,
+  useRecordOrderPayment,
 } from "@munim/query"
 
 export {
@@ -20,4 +21,5 @@ export {
   useUpdateOrder,
   useDeleteOrder,
   useGenerateOrderBill,
+  useRecordOrderPayment,
 }

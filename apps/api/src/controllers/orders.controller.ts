@@ -16,14 +16,17 @@ import {
   generateBillFromOrder,
   getOrder,
   listOrders,
+  orderPaymentSchema,
   orderSchema,
   orderUpdateSchema,
+  recordOrderPayment,
   serializeInvoice,
   serializeOrder,
   updateOrder,
   type DbClient,
   type OrderFilters,
   type OrderFormValues,
+  type OrderPaymentValues,
   type OrderUpdateValues,
 } from "@munim/core";
 import { DRIZZLE } from "../db/drizzle.provider.js";
@@ -95,6 +98,18 @@ export class OrdersController {
     @Body(new ZodValidationPipe(orderUpdateSchema)) values: OrderUpdateValues,
   ) {
     const order = await updateOrder(this.db, id, values);
+    await invalidate(this.cache, ["orders"]);
+    return serializeOrder(order);
+  }
+
+  /** POST /api/orders/:id/pay — an advance on an UNBILLED order. Blocked once
+   *  billed: from then on the money belongs to the invoice. */
+  @Post(":id/pay")
+  async recordPayment(
+    @Param("id") id: string,
+    @Body(new ZodValidationPipe(orderPaymentSchema)) values: OrderPaymentValues,
+  ) {
+    const order = await recordOrderPayment(this.db, id, values);
     await invalidate(this.cache, ["orders"]);
     return serializeOrder(order);
   }

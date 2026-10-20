@@ -179,7 +179,24 @@ export type OrderDto = Omit<Order, "date" | "createdAt" | "updatedAt"> & {
   createdAt: string;
   updatedAt: string;
   items: OrderItemDto[];
+  /** Still to be collected — `total − amountPaid`, never stored. */
+  dueAmount: number;
+  /** Derived from total vs amountPaid; orders keep their own OPEN/CLOSED
+   *  lifecycle, so this rides alongside it rather than replacing it. */
+  paymentStatus: OrderPaymentStatus;
 };
+
+/** Derived money state of an order — computed, never stored. */
+export type OrderPaymentStatus = "PAID" | "PARTIAL" | "UNPAID";
+
+export function orderPaymentStatusOf(order: { total: number; amountPaid: number }): OrderPaymentStatus {
+  if (order.total > 0 && order.amountPaid >= order.total) return "PAID";
+  return order.amountPaid > 0 ? "PARTIAL" : "UNPAID";
+}
+
+function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
 
 export function serializeOrder(order: Order & { items: OrderItem[] }): OrderDto {
   return {
@@ -188,6 +205,8 @@ export function serializeOrder(order: Order & { items: OrderItem[] }): OrderDto 
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
     items: (order.items ?? []).map((i) => ({ ...i })),
+    dueAmount: round2(Math.max(0, order.total - order.amountPaid)),
+    paymentStatus: orderPaymentStatusOf(order),
   };
 }
 

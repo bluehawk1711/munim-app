@@ -10,11 +10,12 @@ import {
   useInvoices,
   useInvoice,
   useCreateInvoice,
+  useUpdateInvoice,
   useDeleteInvoice,
   useRecordInvoicePayment,
 } from "@munim/query"
 
-export { useInvoices, useInvoice, useCreateInvoice, useDeleteInvoice }
+export { useInvoices, useInvoice, useCreateInvoice, useUpdateInvoice, useDeleteInvoice }
 export { useRecordInvoicePayment as useRecordPayment }
 
 /** The shared create-invoice input — same shape web's billing view already builds. */

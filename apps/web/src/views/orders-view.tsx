@@ -11,8 +11,18 @@ import {
   Trash2,
   Loader2,
   Copy,
+  Banknote,
+  FileDown,
 } from "lucide-react"
-import type { OrderDto, OrderFormValues, OrderItemValues } from "@munim/core"
+import {
+  buildOrderDocument,
+  generateBillPDF,
+  mergeBillTemplateSettings,
+  type BillShopDetails,
+  type OrderDto,
+  type OrderFormValues,
+  type OrderItemValues,
+} from "@munim/core"
 import { useApiClient } from "@munim/query"
 import {
   Button,
@@ -33,6 +43,7 @@ import {
   DialogHeader,
   DialogTitle,
   OrderStatusBadge,
+  RecordPaymentDialog,
   ConfirmDialog,
   ProductSearchSelect,
   BarcodeLookupInput,
@@ -46,10 +57,13 @@ import {
   useUpdateOrder,
   useDeleteOrder,
   useGenerateOrderBill,
+  useRecordOrderPayment,
 } from "@/hooks/use-orders"
 import { useProducts } from "@/hooks/use-products"
 import { useParties } from "@/hooks/use-parties"
+import { useSettings, type ShopSettings } from "@/hooks/use-settings"
 import { useAppStore } from "@/store/view-store"
+import { CameraScanButton } from "@/components/camera-scan-button"
 import { formatCurrency, formatDate } from "@/lib/format"
 
 type OrderRow = OrderDto
@@ -81,6 +95,7 @@ type FormState = {
   partyId: string
   discount: string
   delivery: string
+  paid: string
   notes: string
   lines: FormLine[]
 }
@@ -108,6 +123,7 @@ function blankForm(): FormState {
     partyId: "",
     discount: "",
     delivery: "",
+    paid: "0",
     notes: "",
     lines: [blankLine()],
   }
@@ -121,6 +137,7 @@ function orderToForm(o: OrderRow): FormState {
     partyId: o.partyId ?? "",
     discount: String(o.discount || 0),
     delivery: String(o.deliveryCharge || 0),
+    paid: String(o.amountPaid || 0),
     notes: o.notes ?? "",
     lines: o.items.map((it) => ({
       key: nextKey(),
@@ -162,6 +179,50 @@ function formTotals(form: FormState) {
   const delivery = Number(form.delivery) || 0
   const total = Math.max(0, subtotal - discount + delivery)
   return { subtotal, discount, delivery, total }
+}
+
+/* ── Estimate printing + collection display ───────────────────── */
+
+/** Shop letterhead for a printed estimate — same shape the bills use. */
+function shopFor(settings: ShopSettings | undefined | null): BillShopDetails {
+  return {
+    name: settings?.shopName || "My Shop",
+    address: settings?.shopAddress ?? null,
+    phones: Array.isArray(settings?.shopPhones) ? settings.shopPhones : [],
+    email: settings?.shopEmail ?? null,
+  }
+}
+
+/** Item names + their weights — the weight has to be readable at a glance. */
+function itemSummary(o: OrderRow): string {
+  const names = o.items
+    .slice(0, 2)
+    .map((it) =>
+      it.weight != null
+        ? `${it.productName} (${it.weight}${it.weightUnit ?? "gm"})`
+        : it.productName
+    )
+    .join(", ")
+  const more = o.items.length > 2 ? ` +${o.items.length - 2} more` : ""
+  return names ? ` · ${names}${more}` : ""
+}
+
+/** How much the party paid vs. how much is still to come. */
+function OrderPaymentLine({ order }: { order: OrderRow }) {
+  if (order.amountPaid <= 0) {
+    return <p className="text-[11px] text-muted-foreground tabular-nums">Nothing received yet</p>
+  }
+  const settled = order.paymentStatus === "PAID"
+  return (
+    <p
+      className={`text-[11px] tabular-nums ${
+        settled ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"
+      }`}
+    >
+      Paid {formatCurrency(order.amountPaid)}
+      {settled ? " · settled" : ` · ${formatCurrency(order.dueAmount)} due`}
+    </p>
+  )
 }
 
 /* ── Create / edit form ───────────────────────────────────────── */
@@ -266,6 +327,8 @@ function OrderFormDialog({
       items,
       discount: Number(form.discount) || 0,
       deliveryCharge: Number(form.delivery) || 0,
+      // Advance taken at the counter — it rides into the bill when billed.
+      amountPaid: Number(form.paid) || 0,
       notes: form.notes.trim() || undefined,
     }
     try {
@@ -353,11 +416,14 @@ function OrderFormDialog({
                 Quoted prices carry into the bill as-is
               </span>
             </div>
-            <BarcodeLookupInput
-              onLookup={handleBarcodeAdd}
-              placeholder="Scan barcode or type SKU to add a line"
-              className="sm:max-w-[320px]"
-            />
+            <div className="flex items-center gap-2">
+              <BarcodeLookupInput
+                onLookup={handleBarcodeAdd}
+                placeholder="Scan barcode or type SKU to add a line"
+                className="flex-1 sm:max-w-[320px]"
+              />
+              <CameraScanButton onDetected={handleBarcodeAdd} label="Scan barcode to add a line" />
+            </div>
             <div className="space-y-2">
               {form.lines.map((line, index) => (
                 <div
@@ -463,6 +529,19 @@ function OrderFormDialog({
               />
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="of-paid">Received now (₹)</Label>
+              <Input
+                id="of-paid"
+                type="number"
+                min={0}
+                value={form.paid}
+                onChange={(e) => setField("paid", e.target.value)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Advance — carried into the bill when you bill this order
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="of-notes">Notes</Label>
               <Input
                 id="of-notes"
@@ -495,6 +574,22 @@ function OrderFormDialog({
               <span className="font-semibold">Quoted total</span>
               <span className="font-bold tabular-nums">{formatCurrency(totals.total)}</span>
             </p>
+            {(Number(form.paid) || 0) > 0 && (
+              <>
+                <p className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Received now</span>
+                  <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
+                    -{formatCurrency(Number(form.paid) || 0)}
+                  </span>
+                </p>
+                <p className="flex justify-between border-t pt-1.5">
+                  <span className="font-semibold">Balance due</span>
+                  <span className="font-bold tabular-nums">
+                    {formatCurrency(Math.max(0, totals.total - (Number(form.paid) || 0)))}
+                  </span>
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -526,6 +621,7 @@ export function OrdersView() {
   const [billing, setBilling] = React.useState<OrderRow | null>(null)
   const [cancelling, setCancelling] = React.useState<OrderRow | null>(null)
   const [deleting, setDeleting] = React.useState<OrderRow | null>(null)
+  const [paying, setPaying] = React.useState<OrderRow | null>(null)
 
   const { data, isLoading } = useOrders({ search, status, page, pageSize: 15 })
   const orders = React.useMemo(() => data?.orders ?? [], [data])
@@ -535,9 +631,49 @@ export function OrdersView() {
   const updateOrder = useUpdateOrder()
   const deleteOrder = useDeleteOrder()
   const generateBill = useGenerateOrderBill()
+  const recordPayment = useRecordOrderPayment()
+  const { data: settings } = useSettings()
 
   const openOrders = orders.filter((o) => o.status === "OPEN")
   const openValue = openOrders.reduce((s, o) => s + o.total, 0)
+  // Advances still owed on the orders currently listed.
+  const stillDue = openOrders.reduce((s, o) => s + o.dueAmount, 0)
+
+  /** The estimate print — the SAME sheet the bill uses, headed "Estimate" and
+   *  carrying the quoted total, what the party paid and what's still due. */
+  function printEstimate(o: OrderRow) {
+    try {
+      const doc = buildOrderDocument(o, shopFor(settings), {
+        currency: settings?.currency ?? "INR",
+      })
+      generateBillPDF(doc, mergeBillTemplateSettings({}))
+      toast.success("Estimate downloaded", {
+        description: `${o.orderNumber} — shows the quoted total, paid and balance.`,
+      })
+    } catch (err) {
+      toast.error("Could not print the estimate", {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    }
+  }
+
+  async function confirmPayment(amount: number) {
+    if (!paying) return
+    try {
+      const updated = await recordPayment.mutateAsync({
+        id: paying.id,
+        values: { amount },
+      })
+      toast.success("Payment recorded", {
+        description: `${paying.orderNumber} — ${formatCurrency(updated.amountPaid)} received, ${formatCurrency(updated.dueAmount)} still due.`,
+      })
+      setPaying(null)
+    } catch (err) {
+      toast.error("Could not record the payment", {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    }
+  }
 
   function openCreate() {
     setEditing(null)
@@ -608,9 +744,9 @@ export function OrdersView() {
                 setSearch(e.target.value)
                 setPage(1)
               }}
-              placeholder="Search order #, customer…"
+              placeholder="Search order #, customer or item…"
               className="h-9 pl-9"
-              aria-label="Search orders"
+              aria-label="Search orders by number, customer or item name"
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
@@ -639,7 +775,7 @@ export function OrdersView() {
       </div>
 
       {/* Summary strip */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryTile
           label="Open quoted value"
           value={formatCurrency(openValue)}
@@ -647,10 +783,17 @@ export function OrdersView() {
           size="sm"
         />
         <SummaryTile
+          label="Still to collect"
+          value={formatCurrency(stillDue)}
+          icon={Banknote}
+          accent="amber"
+          size="sm"
+        />
+        <SummaryTile
           label="Open orders"
           value={String(openOrders.length)}
           icon={Receipt}
-          accent="amber"
+          accent="emerald"
           size="sm"
         />
         <SummaryTile
@@ -712,12 +855,13 @@ export function OrdersView() {
                       <p className="text-xs text-muted-foreground">
                         {formatDate(o.date)} · {o.items.length} item
                         {o.items.length !== 1 ? "s" : ""}
-                        {o.items[0]?.productName ? ` · ${o.items[0].productName}` : ""}
+                        {itemSummary(o)}
                       </p>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-0.5">
                     <p className="text-sm font-semibold tabular-nums">{formatCurrency(o.total)}</p>
+                    <OrderPaymentLine order={o} />
                     <div className="mt-1 flex items-center gap-1">
                       <Button
                         variant="ghost"
@@ -728,6 +872,28 @@ export function OrdersView() {
                       >
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Print estimate"
+                        aria-label={`Print the estimate for ${o.orderNumber}`}
+                        onClick={() => printEstimate(o)}
+                      >
+                        <FileDown className="h-3.5 w-3.5" />
+                      </Button>
+                      {o.status === "OPEN" && o.dueAmount > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Record payment"
+                          aria-label={`Record a payment on ${o.orderNumber}`}
+                          onClick={() => setPaying(o)}
+                        >
+                          <Banknote className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       {o.status === "OPEN" && (
                         <>
                           <Button
@@ -901,6 +1067,24 @@ export function OrdersView() {
                     <span>Quoted total</span>
                     <span className="tabular-nums">{formatCurrency(detail.total)}</span>
                   </div>
+                  {detail.amountPaid > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Received</span>
+                      <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
+                        -{formatCurrency(detail.amountPaid)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t pt-1.5 text-sm font-bold">
+                    <span>{detail.dueAmount > 0 ? "Balance due" : "Settled in full"}</span>
+                    <span
+                      className={`tabular-nums ${
+                        detail.dueAmount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+                      }`}
+                    >
+                      {formatCurrency(detail.dueAmount)}
+                    </span>
+                  </div>
                 </div>
 
                 {detail.notes && (
@@ -918,6 +1102,25 @@ export function OrdersView() {
                   Close
                 </Button>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => printEstimate(detail)}
+                  >
+                    <FileDown className="h-3.5 w-3.5" /> Print estimate
+                  </Button>
+                  {detail.status === "OPEN" && detail.dueAmount > 0 && (
+                    <Button
+                      variant="outline"
+                      className="gap-1.5"
+                      onClick={() => {
+                        setDetail(null)
+                        setPaying(detail)
+                      }}
+                    >
+                      <Banknote className="h-3.5 w-3.5" /> Record payment
+                    </Button>
+                  )}
                   {detail.status === "OPEN" && (
                     <>
                       <Button variant="outline" className="gap-1.5" onClick={() => openEdit(detail)}>
@@ -989,10 +1192,27 @@ export function OrdersView() {
                       {formatCurrency(billing.total)}
                     </span>
                   </p>
+                  {billing.amountPaid > 0 && (
+                    <>
+                      <p className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Already received</span>
+                        <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(billing.amountPaid)}
+                        </span>
+                      </p>
+                      <p className="flex justify-between text-xs font-semibold">
+                        <span>Balance due on the bill</span>
+                        <span className="tabular-nums">{formatCurrency(billing.dueAmount)}</span>
+                      </p>
+                    </>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Quoted prices are carried into the bill as-is. If any item is out of stock the
-                  billing fails and the order stays open.
+                  Quoted prices are carried into the bill as-is
+                  {billing.amountPaid > 0
+                    ? ", and so is the advance you already took — the bill opens as already part-paid."
+                    : ". "}
+                  If any item is out of stock the billing fails and the order stays open.
                 </p>
               </div>
 
@@ -1044,6 +1264,26 @@ export function OrdersView() {
         confirmLabel="Delete"
         busy={deleteOrder.isPending}
         onConfirm={() => void confirmDelete()}
+      />
+
+      {/* Record payment — advance / part-payment on an unbilled order */}
+      <RecordPaymentDialog
+        key={paying?.id ?? "closed"}
+        open={!!paying}
+        onOpenChange={(open) => !open && setPaying(null)}
+        invoice={
+          paying
+            ? {
+                id: paying.id,
+                invoiceNumber: paying.orderNumber,
+                customerName: paying.customerName,
+                total: paying.total,
+                amountPaid: paying.amountPaid,
+              }
+            : null
+        }
+        busy={recordPayment.isPending}
+        onConfirm={(amount) => void confirmPayment(amount)}
       />
     </div>
   )

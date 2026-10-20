@@ -13,7 +13,7 @@
  * Numbers are 4-char codes (`ORD-7K2M`, see `generateOrderNumber`); bills
  * generated from an order get a normal `INV-4CHAR` number.
  */
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, exists, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { generateOrderNumber } from "../utils/codes.js";
@@ -50,6 +50,8 @@ export type OrderInput = {
   items: OrderItemInput[];
   deliveryCharge?: number;
   discount?: number;
+  /** Advance / part-payment taken on the order (clamped to the total). */
+  amountPaid?: number;
   notes?: string;
 };
 
@@ -63,6 +65,8 @@ export type OrderUpdateInput = {
   items?: OrderItemInput[];
   deliveryCharge?: number;
   discount?: number;
+  /** Advance / part-payment (clamped to the recomputed total). */
+  amountPaid?: number;
   notes?: string;
   status?: schema.Order["status"];
 };
@@ -78,6 +82,15 @@ function totalsOf(items: OrderItemInput[], delivery: number, discount: number) {
   return { subtotal, total: Math.max(0, subtotal + delivery - discount) };
 }
 
+function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+/** Money collected can never exceed what the order is actually worth. */
+function clampPaid(amountPaid: number, total: number): number {
+  return round2(Math.min(Math.max(0, amountPaid), total));
+}
+
 export async function createOrder(db: DbClient, input: OrderInput) {
   validateItems(input.items);
   const delivery = input.deliveryCharge ?? 0;
@@ -88,6 +101,9 @@ export async function createOrder(db: DbClient, input: OrderInput) {
     const r = await db.select({ id: schema.orders.id }).from(schema.orders).where(eq(schema.orders.orderNumber, num));
     return r.length > 0;
   });
+
+  // Advance taken at the counter — carried into the bill when it's generated.
+  const amountPaid = clampPaid(input.amountPaid ?? 0, total);
 
   const [order] = await db
     .insert(schema.orders)
@@ -102,6 +118,7 @@ export async function createOrder(db: DbClient, input: OrderInput) {
       deliveryCharge: delivery,
       discount,
       total,
+      amountPaid,
       notes: input.notes?.trim() || null,
     })
     .returning();
@@ -127,7 +144,9 @@ export async function createOrder(db: DbClient, input: OrderInput) {
   await logActivity(
     db,
     "ORDER_CREATED",
-    `Created order ${orderNumber} — ${total.toLocaleString("en-IN")}${input.customerName ? ` for ${input.customerName}` : ""}`,
+    `Created order ${orderNumber} — ${total.toLocaleString("en-IN")}${input.customerName ? ` for ${input.customerName}` : ""}${
+      amountPaid > 0 ? ` · ${amountPaid.toLocaleString("en-IN")} received` : ""
+    }`,
   );
   return getOrder(db, order.id);
 }
@@ -161,11 +180,25 @@ export async function listOrders(db: DbClient, filters: OrderFilters = {}) {
   if (search) {
     // Prefix-insensitive: `ilike %7K2M%` matches both the bare code and
     // the stored `ORD-7K2M` (full "ORD-7K2M" also matches).
+    // Orders are ALSO found by WHAT was ordered — at the counter "any order
+    // for a chain?" comes up far more often than a 4-char code does.
+    const term = `%${search}%`;
     conditions.push(
       or(
-        ilike(schema.orders.orderNumber, `%${search}%`),
-        ilike(schema.orders.customerName, `%${search}%`),
-        ilike(schema.orders.customerPhone, `%${search}%`),
+        ilike(schema.orders.orderNumber, term),
+        ilike(schema.orders.customerName, term),
+        ilike(schema.orders.customerPhone, term),
+        exists(
+          db
+            .select({ id: schema.orderItems.id })
+            .from(schema.orderItems)
+            .where(
+              and(
+                eq(schema.orderItems.orderId, schema.orders.id),
+                or(ilike(schema.orderItems.productName, term), ilike(schema.orderItems.sku, term)),
+              ),
+            ),
+        ),
       ),
     );
   }
@@ -244,6 +277,8 @@ export async function updateOrder(db: DbClient, id: string, input: OrderUpdateIn
   const delivery = input.deliveryCharge ?? existing.deliveryCharge;
   const discount = input.discount ?? existing.discount;
   const { subtotal, total } = totalsOf(items, delivery, discount);
+  // Re-clamp: rewriting the lines can shrink the total below what's collected.
+  const amountPaid = clampPaid(input.amountPaid ?? existing.amountPaid, total);
 
   await db
     .update(schema.orders)
@@ -259,6 +294,7 @@ export async function updateOrder(db: DbClient, id: string, input: OrderUpdateIn
       discount,
       subtotal,
       total,
+      amountPaid,
       updatedAt: new Date(),
     })
     .where(eq(schema.orders.id, id));
@@ -288,6 +324,56 @@ export async function updateOrder(db: DbClient, id: string, input: OrderUpdateIn
   return updated;
 }
 
+export type OrderPaymentInput = {
+  /** Money received against the order (₹) — added to what's already in. */
+  amount: number;
+  note?: string;
+};
+
+/**
+ * Record an advance / part-payment on an order.
+ *
+ * Orders keep a single running `amountPaid` (no per-payment ledger), which is
+ * all the counter needs to answer "paid how much, still due how much". Once
+ * the order is billed the money belongs to the INVOICE, so payments here are
+ * blocked from that point on — otherwise the two figures would drift apart.
+ */
+export async function recordOrderPayment(db: DbClient, orderId: string, input: OrderPaymentInput) {
+  const existing = await getOrder(db, orderId);
+  if (!existing) throw new OrderError("Order not found", "NOT_FOUND", 404);
+  if (existing.invoiceId) {
+    throw new OrderError("This order was already billed — record the payment on the invoice", "ALREADY_BILLED", 409);
+  }
+  if (existing.status === "CANCELLED") throw new OrderError("This order was cancelled", "CANCELLED", 409);
+
+  const amount = round2(input.amount);
+  if (!(amount > 0)) throw new OrderError("Payment must be more than zero", "BAD_AMOUNT");
+
+  const already = existing.amountPaid;
+  const next = clampPaid(already + amount, existing.total);
+  const credited = round2(next - already);
+  if (!(credited > 0)) {
+    throw new OrderError("That order is already settled in full", "ALREADY_SETTLED", 409);
+  }
+
+  await db
+    .update(schema.orders)
+    .set({ amountPaid: next, updatedAt: new Date() })
+    .where(eq(schema.orders.id, orderId));
+
+  await logActivity(
+    db,
+    "ORDER_PAYMENT",
+    `Received ${credited.toLocaleString("en-IN")} on order ${existing.orderNumber}${
+      input.note ? ` — ${input.note}` : ""
+    }`,
+  );
+
+  const updated = await getOrder(db, orderId);
+  if (!updated) throw new OrderError("Order not found after payment", "NOT_FOUND", 404);
+  return updated;
+}
+
 export async function deleteOrder(db: DbClient, id: string) {
   const existing = await getOrder(db, id);
   if (!existing) throw new OrderError("Order not found", "NOT_FOUND", 404);
@@ -306,7 +392,9 @@ export type OrderBilledResult = { invoice: InvoiceWithItems; order: OrderWithIte
 /**
  * Generate the bill for an order: maps the quoted lines into a fresh
  * invoice (`INV-4CHAR`, stock checked at THIS moment), links it back and
- * marks the order COMPLETED. Quoted prices are honored as-is.
+ * marks the order COMPLETED. Quoted prices are honored as-is, and any
+ * advance already collected on the order becomes the invoice's opening
+ * `amountPaid`.
  */
 export async function generateBillFromOrder(db: DbClient, orderId: string): Promise<OrderBilledResult> {
   const order = await getOrder(db, orderId);
@@ -335,8 +423,11 @@ export async function generateBillFromOrder(db: DbClient, orderId: string): Prom
     })),
     deliveryCharge: order.deliveryCharge,
     discount: order.discount,
+    // The customer's advance rides along — createInvoice derives the invoice's
+    // PAID/PARTIAL/UNPAID status from it and records the matching payment row
+    // (against the same khata party), so nothing is collected twice or lost.
+    amountPaid: order.amountPaid,
     notes: order.notes ?? undefined,
-    status: "UNPAID",
   });
   if (!invoice) throw new OrderError("Failed to generate the bill", "BILL_FAILED", 500);
 

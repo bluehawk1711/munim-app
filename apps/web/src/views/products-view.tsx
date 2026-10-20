@@ -44,6 +44,7 @@ import { ProductsTable } from "@/components/products/products-table"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
+import { CameraScanButton } from "@/components/camera-scan-button"
 import { setPendingSellProduct } from "@/lib/pending-sell"
 import { useProducts, useBackfillBarcodes, useSyncProductPrices } from "@/hooks/use-products"
 import { useApiClient } from "@munim/query"
@@ -374,11 +375,15 @@ export function ProductsView() {
               />
             </div>
             {/* Scanner-friendly input: USB barcode scanners type here + Enter. */}
-            <BarcodeLookupInput
-              onLookup={handleBarcodeLookup}
-              className="w-full sm:max-w-[240px]"
-              autoFocus={false}
-            />
+            <div className="flex items-center gap-2">
+              <BarcodeLookupInput
+                onLookup={handleBarcodeLookup}
+                className="w-full sm:max-w-[240px]"
+                autoFocus={false}
+              />
+              {/* Camera scan — mobile's scan-to-act on a phone/laptop camera. */}
+              <CameraScanButton onDetected={handleBarcodeLookup} label="Scan barcode" />
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
             <Select value={color} onValueChange={changeColor}>

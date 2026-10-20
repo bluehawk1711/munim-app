@@ -2289,6 +2289,23 @@ export declare const orders: import("drizzle-orm/pg-core").PgTableWithColumns<{
             identity: undefined;
             generated: undefined;
         }, {}, {}>;
+        amountPaid: import("drizzle-orm/pg-core").PgColumn<{
+            name: "amount_paid";
+            tableName: "orders";
+            dataType: "number";
+            columnType: "PgDoublePrecision";
+            data: number;
+            driverParam: string | number;
+            notNull: true;
+            hasDefault: true;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: undefined;
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
         notes: import("drizzle-orm/pg-core").PgColumn<{
             name: "notes";
             tableName: "orders";

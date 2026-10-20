@@ -8,6 +8,7 @@ import type {
   OrderDto,
   OrderFilters,
   OrderFormValues,
+  OrderPaymentValues,
   OrderUpdateValues,
 } from "@munim/core";
 import { useApiClient } from "./provider.js";
@@ -72,6 +73,29 @@ export function useUpdateOrder() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.orders.all });
+    },
+  });
+}
+
+/** POST /api/orders/:id/pay — an advance / part-payment on an UNBILLED order.
+ *  Once the order is billed the money belongs to the invoice instead. */
+export function useRecordOrderPayment() {
+  const getClient = useApiClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      values,
+    }: {
+      id: string;
+      values: OrderPaymentValues;
+    }): Promise<OrderDto> => {
+      const api = await getClient();
+      return api.orders.recordPayment(id, values);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.orders.all });
+      qc.invalidateQueries({ queryKey: qk.dashboard });
     },
   });
 }

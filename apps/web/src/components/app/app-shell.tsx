@@ -4,6 +4,7 @@ import * as React from "react"
 import { AnimatePresence, LazyMotion, domMax } from "motion/react"
 import * as m from "motion/react-m"
 import { SidebarNav, SidebarHeader, SidebarFooter } from "@/components/app/sidebar-nav"
+import { BottomNav } from "@/components/app/bottom-nav"
 import { AppTopbar } from "@/components/app/app-topbar"
 import { SellProductDialog } from "@/components/sales/sell-product-dialog"
 import { DashboardView } from "@/views/dashboard-view"
@@ -79,7 +80,7 @@ export function AppShell() {
         {/* Main column */}
         <div className="flex min-w-0 flex-1 flex-col">
           <AppTopbar />
-          <main className="flex-1 p-4 lg:p-6" id="main-content">
+          <main className="flex-1 p-4 pb-24 lg:p-6 lg:pb-6" id="main-content">
             <React.Suspense
               fallback={
                 <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
@@ -95,7 +96,8 @@ export function AppShell() {
               <ActiveView />
             </React.Suspense>
           </main>
-          <footer className="mt-auto border-t bg-background px-4 py-3 lg:px-6">
+          {/* Desktop-only footer — the bottom tab bar owns that space under lg. */}
+          <footer className="mt-auto hidden border-t bg-background px-4 py-3 lg:block lg:px-6">
             <div className="flex flex-col items-center justify-between gap-2 text-xs text-muted-foreground sm:flex-row">
               <p>
                 © {new Date().getFullYear()} Munim — Stock, Billing &amp; Khata Management
@@ -108,6 +110,7 @@ export function AppShell() {
           </footer>
         </div>
       </div>
+      <BottomNav />
       <SellProductDialog />
     </div>
     </LazyMotion>

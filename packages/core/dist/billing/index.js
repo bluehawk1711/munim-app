@@ -1,7 +1,8 @@
-export { buildBillDocument, renderBillText, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, GOLD_ESTIMATE_COLUMNS, SILVER_ESTIMATE_COLUMNS, } from "./billDocument.js";
+export { buildBillDocument, renderBillText, billKindLabel, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, GOLD_ESTIMATE_COLUMNS, SILVER_ESTIMATE_COLUMNS, } from "./billDocument.js";
 export { PURITY_PRESETS, purityOptionsFor, } from "./purity.js";
 export { renderBillHtml, } from "./billHtml.js";
 export { buildSampleBill, } from "./sampleBill.js";
+export { buildOrderDocument, } from "./orderDocument.js";
 export { generateBillPDF, } from "./generateBillPdf.js";
 export { defaultJobLetterData, formatJoiningDate, jobLetterFromStored, renderJobLetterHtml, } from "./jobLetterDocument.js";
 export { buildProductLabel, buildSilverPriceLine, formatLabelLabour, renderLabelMarkup, renderLabelSheetHtml, renderLabelText, LABEL_WIDTH_MM, LABEL_HEIGHT_MM, } from "./labelDocument.js";

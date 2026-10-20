@@ -53,6 +53,10 @@ export function mergeBillTemplateSettings(partial) {
         },
     };
 }
+/** Header word for the printed document — "Bill" or "Estimate". */
+export function billKindLabel(bill) {
+    return bill.kind === "quotation" ? "Estimate" : "Bill";
+}
 /** Row label for the material-returned deduction — per-bill title or default. */
 export function materialReturnedTitleOf(bill) {
     return bill.materialReturnedTitle?.trim() || "Material Returned";
@@ -227,6 +231,7 @@ export function buildBillDocument(input) {
     const date = `${rawDate.getFullYear()}-${String(rawDate.getMonth() + 1).padStart(2, "0")}-${String(rawDate.getDate()).padStart(2, "0")}`;
     return {
         billNo: input.billNo,
+        kind: input.kind ?? "invoice",
         date,
         customerName: input.customerName?.trim() || null,
         customerPhone: input.customerPhone?.trim() || null,
