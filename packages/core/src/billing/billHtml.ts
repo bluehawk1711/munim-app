@@ -11,14 +11,17 @@ import {
   estimateChargeLines,
   estimateChargesTotal,
   estimateLabourTag,
+  estimateNetWeightTotal,
   estimateRowOf,
   estimateWeightLayout,
   estimateWeightLines,
   materialReturnedTitleOf,
   mergeBillTemplateSettings,
   nameWithPurity,
+  netWeightCellOf,
   purityCellOf,
   rateRowsOf,
+  receiptLabelOf,
 } from "./billDocument.js";
 import type {
   BillClassicColor,
@@ -281,14 +284,15 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
   type EstCol = { id: EstimateColumnId; w: number; header: string };
   const baseCols: EstCol[] = split
     ? [
-        { id: "description", w: 22.5, header: "Description" },
-        { id: "purity", w: 6.5, header: "Remark" },
-        { id: "weight", w: 7, header: "G. Wt." },
-        { id: "chejatNag", w: 14, header: "Chejat/Nag" },
-        { id: "rate", w: 8.5, header: "Rate ₹/gm" },
+        { id: "description", w: 20, header: "Description" },
+        { id: "purity", w: 6, header: "Remark" },
+        { id: "weight", w: 6.5, header: "G. Wt." },
+        { id: "netWeight", w: 6.5, header: "N. Wt." },
+        { id: "chejatNag", w: 13, header: "Chejat/Nag" },
+        { id: "rate", w: 8, header: "Rate ₹/gm" },
         { id: "labour", w: 13, header: "Labour" },
-        { id: "otherCharges", w: 14, header: "Other Charges" },
-        { id: "amount", w: 14.5, header: "Amount (Rupees)" },
+        { id: "otherCharges", w: 13.5, header: "Other Charges" },
+        { id: "amount", w: 13.5, header: "Amount (Rupees)" },
       ]
     : [
         { id: "description", w: 27, header: "Description" },
@@ -313,9 +317,9 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
     .map((l) => {
       const est = estimateRowOf(l);
       const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(l)}` : "-";
-      // Itemized cell lines — merged Chejat/Nag ("Chejat: 0.150" / "Nag:
-      // 0.620") and Other Charges ("Nag: 500.00" / "Povayi: …" / "Other: …").
-      const weightLines = estimateWeightLines(l);
+      // Itemized cell lines — merged Chejat/Nag ("Chejat: 0.150 +" / "Nag:
+      // 0.620 −") and Other Charges ("Nag: 500.00" / "Povayi: …" / "Other: …").
+      const weightLines = estimateWeightLines(l, s.signSuffix);
       const chargeLines = estimateChargeLines(est.charges);
       return `<tr>${cols
         .map((c) => {
@@ -330,6 +334,8 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
               return split
                 ? `<td class="c">${esc(l.grossWeight?.trim() || "-")}</td>`
                 : `<td class="c">${l.weight != null ? estNum(l.weight, 3) : esc(l.grossWeight?.trim() || "-")}</td>`;
+            case "netWeight":
+              return `<td class="c">${esc(netWeightCellOf(l) ?? "-")}</td>`;
             case "chejatNag":
               return `<td class="num">${
                 weightLines.length ? weightLines.map((wl) => `<div>${esc(wl)}</div>`).join("") : "-"
@@ -368,8 +374,9 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
   // Merged Chejat/Nag totals cell stacks its prefixed sums (like row cells).
   const hasCnCol = cols.some((c) => c.id === "chejatNag");
   const cnTotals: string[] = [];
-  if (hasCnCol && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}`);
-  if (hasCnCol && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}`);
+  if (hasCnCol && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}${s.signSuffix ? " +" : ""}`);
+  if (hasCnCol && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${s.signSuffix ? " −" : ""}`);
+  const sumNet = cols.some((c) => c.id === "netWeight") ? estimateNetWeightTotal(bill.lines) : null;
 
   const adjRows: string[] = [];
   if (bill.discount > 0) {
@@ -386,7 +393,7 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
     adjRows.push(`<tr><td>Delivery:</td><td class="v">+ ${estNum(bill.deliveryCharge, 2)}</td></tr>`);
   }
   if (bill.amountPaid > 0) {
-    adjRows.push(`<tr><td>RECEIPT CASH:</td><td class="v">- ${estNum(bill.amountPaid, 2)}</td></tr>`);
+    adjRows.push(`<tr><td>${esc(receiptLabelOf(bill))}</td><td class="v">- ${estNum(bill.amountPaid, 2)}</td></tr>`);
   }
   adjRows.push(
     `<tr class="closing"><td>Closing Balance:</td><td class="v">${
@@ -438,6 +445,8 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
             return split
               ? `<td class="c">${hasGross ? estNum(sumGross, 3) : "-"}</td>`
               : `<td class="c">${estNum(sumWeight, 3)}</td>`;
+          case "netWeight":
+            return `<td class="c">${sumNet != null ? estNum(sumNet, 3) : "-"}</td>`;
           case "chejatNag":
             return `<td class="num">${
               cnTotals.length ? cnTotals.map((t) => `<div>${esc(t)}</div>`).join("") : "-"

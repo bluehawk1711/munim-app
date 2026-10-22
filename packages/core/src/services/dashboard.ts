@@ -297,6 +297,21 @@ export type ReportRow = {
   profit: number;
 };
 
+/** One day's section of the day-wise Daily Sales report — a header (the day
+ *  and what it did) plus the products sold THAT day. Only `daily` fills this;
+ *  every other report type returns []. */
+export type ReportDayGroup = {
+  /** ISO date (yyyy-mm-dd). */
+  day: string;
+  /** Human day label — "20 Oct 2026". */
+  label: string;
+  /** Invoices raised that day (a day with sales has ≥ 1). */
+  invoices: number;
+  daySoldQuantity: number;
+  dayRevenue: number;
+  rows: ReportRow[];
+};
+
 export async function getReport(db: DbClient, type: ReportType, startDate?: string, endDate?: string) {
   const now = new Date();
   let periodStart: Date;
@@ -374,6 +389,69 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
     .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId));
 
   const productById = new Map(allProducts.map((p) => [p.id, p]));
+
+  // ── Day-wise aggregation (Daily Sales only) ────────────────────────────
+  // One section per DATE with the products sold that day — the shop asked to
+  // see, day by day, what is actually selling. Rows merge by productId (same
+  // rename-safe rule as the flat report above); stock/weight/profit come from
+  // the CURRENT product like everywhere else.
+  const dayGroups: ReportDayGroup[] = [];
+  if (type === "daily") {
+    const dayRows = await db
+      .select({
+        day: sql<string>`to_char(${schema.invoices.date}, 'YYYY-MM-DD')`.as("day"),
+        productId: schema.invoiceItems.productId,
+        productName: schema.invoiceItems.productName,
+        invoices: sql<number>`count(distinct ${schema.invoices.id})::float8`.as("invoices"),
+        soldQuantity: sql<number>`coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`.as("sold_quantity"),
+        revenue: sql<number>`coalesce(sum(${schema.invoiceItems.total}),0)::float8`.as("revenue"),
+      })
+      .from(schema.invoiceItems)
+      .innerJoin(schema.invoices, eq(schema.invoices.id, schema.invoiceItems.invoiceId))
+      .where(and(gte(schema.invoices.date, periodStart), lte(schema.invoices.date, periodEnd)))
+      .groupBy(sql`to_char(${schema.invoices.date}, 'YYYY-MM-DD')`, schema.invoiceItems.productId, schema.invoiceItems.productName)
+      .orderBy(sql`to_char(${schema.invoices.date}, 'YYYY-MM-DD')`);
+
+    const byDay = new Map<string, { rows: Map<string, ReportRow>; invoices: number }>();
+    for (const r of dayRows) {
+      const entry = byDay.get(r.day) ?? { rows: new Map<string, ReportRow>(), invoices: 0 };
+      byDay.set(r.day, entry);
+      entry.invoices += r.invoices;
+      const p = r.productId ? productById.get(r.productId) : undefined;
+      const existing = r.productId ? entry.rows.get(r.productId) : undefined;
+      // Deleted products (no current row) still count — key by the snapshot
+      // name so they never collide.
+      const key = r.productId ?? `name:${r.productName}`;
+      const soldWeight = p?.weight != null ? r.soldQuantity * p.weight : 0;
+      const soldQuantity = (existing?.soldQuantity ?? 0) + r.soldQuantity;
+      const revenue = (existing?.revenue ?? 0) + r.revenue;
+      entry.rows.set(key, {
+        productId: r.productId,
+        productName: existing?.productName ?? p?.name ?? r.productName,
+        sku: p?.sku ?? null,
+        color: p?.colorName ?? null,
+        size: p?.sizeName ?? null,
+        stock: p?.stock ?? 0,
+        weight: p?.weight ?? null,
+        weightUnit: p?.weightUnit ?? "gm",
+        soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
+        soldQuantity,
+        revenue,
+        profit: revenue - soldQuantity * (p?.purchasePrice ?? 0),
+      });
+    }
+    for (const [day, entry] of [...byDay.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+      const rows = [...entry.rows.values()].sort((a, b) => b.revenue - a.revenue);
+      dayGroups.push({
+        day,
+        label: new Date(`${day}T00:00:00`).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }),
+        invoices: entry.invoices,
+        daySoldQuantity: rows.reduce((s, r) => s + r.soldQuantity, 0),
+        dayRevenue: rows.reduce((s, r) => s + r.revenue, 0),
+        rows,
+      });
+    }
+  }
 
   let reportRows: ReportRow[] = [];
   if (type === "stock" || type === "low_stock") {
@@ -458,6 +536,8 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
     generatedAt: now.toISOString(),
     periodLabel,
     rows: reportRows,
+    /** Day sections — populated for `daily` only (see `ReportDayGroup`). */
+    days: dayGroups,
     totals,
   };
 }
@@ -465,23 +545,29 @@ export async function getReport(db: DbClient, type: ReportType, startDate?: stri
 /**
  * Serializes a report into RFC-4180 CSV (quoted, escaped, CRLF line endings).
  * Shared by web, desktop AND mobile so every platform exports the same file.
+ * Day-wise reports (Daily Sales) emit one row per product per DAY with a
+ * leading Date column; flat reports keep the classic columns.
  */
 export function reportToCsv(report: {
   title: string;
   rows: ReportRow[];
+  days?: ReportDayGroup[];
   totals: { stock: number; soldQuantity: number; soldWeight: number; revenue: number; profit: number };
 }): string {
-  const header = ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit"];
+  const dayWise = (report.days?.length ?? 0) > 0;
+  const header = dayWise
+    ? ["Date", "Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit"]
+    : ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit"];
+  const quote = (v: string | number): string => `"${String(v).replace(/"/g, '""')}"`;
+  const rowCells = (r: ReportRow, date = ""): string =>
+    [...(dayWise ? [date] : []), r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, Math.round(r.soldWeight * 1000) / 1000, r.revenue, r.profit]
+      .map(quote)
+      .join(",");
   const lines = [
     header.join(","),
-    ...report.rows.map((r) =>
-      [r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, Math.round(r.soldWeight * 1000) / 1000, r.revenue, r.profit]
-        .map((v) => {
-          const s = String(v);
-          return `"${s.replace(/"/g, '""')}"`;
-        })
-        .join(","),
-    ),
+    ...(dayWise
+      ? (report.days ?? []).flatMap((d) => d.rows.map((r) => rowCells(r, d.day)))
+      : report.rows.map((r) => rowCells(r))),
   ];
   return lines.join("\r\n");
 }

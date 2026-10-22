@@ -206,7 +206,10 @@ export type InvoiceInput = {
   silverRate?: number;
   /** initial payment received */
   amountPaid?: number;
+  /** How the advance was paid — "cash" | "online" (free text for legacy). */
   paymentMethod?: string;
+  /** Optional reference note for that payment (UPI ref, txn id…). */
+  paymentNote?: string;
   status?: "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
 };
 
@@ -331,7 +334,7 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       direction: "IN",
       amount: amountPaid,
       method: input.paymentMethod || "cash",
-      note: `Payment for ${invoiceNumber}`,
+      note: input.paymentNote?.trim() || `Payment for ${invoiceNumber}`,
     });
   }
 
@@ -354,6 +357,19 @@ export async function getInvoice(db: DbClient, id: string): Promise<InvoiceWithI
     .where(eq(schema.invoiceItems.invoiceId, id))
     .orderBy(schema.invoiceItems.id);
   return { ...invoice[0], items };
+}
+
+/**
+ * The money rows recorded against an invoice (oldest first) — the invoice
+ * detail's Payments section: how much was paid, when, and HOW (cash/online
+ * via `payments.method`, plus the reference note).
+ */
+export async function listInvoicePayments(db: DbClient, invoiceId: string): Promise<schema.Payment[]> {
+  return db
+    .select()
+    .from(schema.payments)
+    .where(and(eq(schema.payments.invoiceId, invoiceId), eq(schema.payments.direction, "IN")))
+    .orderBy(schema.payments.date, schema.payments.createdAt);
 }
 
 export type InvoiceFilters = {
@@ -616,7 +632,7 @@ export async function updateInvoice(db: DbClient, id: string, input: InvoiceUpda
       amount: diff,
       method: input.paymentMethod || "cash",
       date: now,
-      note: `Payment for ${existing.invoiceNumber} (adjusted on edit)`,
+      note: input.paymentNote?.trim() || `Payment for ${existing.invoiceNumber} (adjusted on edit)`,
     });
   } else if (diff < -MONEY_EPS) {
     // Unwind the NEWEST payments first — a correction usually targets the

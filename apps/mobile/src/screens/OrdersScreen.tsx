@@ -662,6 +662,8 @@ export function OrdersScreen() {
         status: inv.status,
         currency: settings.currency ?? 'INR',
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+        goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings.silverRatePerGram ?? null,
       });
       const html = renderBillHtml(doc, mergeBillTemplateSettings(inv.templateSettings));
@@ -687,7 +689,13 @@ export function OrdersScreen() {
         phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [],
         email: settings.shopEmail ?? '',
       };
-      const doc = buildOrderDocument(o, shop, {currency: settings.currency ?? 'INR'});
+      const doc = buildOrderDocument(o, shop, {
+        currency: settings.currency ?? 'INR',
+        // Rate of the day + its purity — an order is quoted AT today's rate.
+        goldRate: goldRates?.baseRatePerGram ?? null,
+        goldRateKarat: goldRates?.baseKarat ?? null,
+        silverRate: settings.silverRatePerGram ?? null,
+      });
       const html = renderBillHtml(doc, mergeBillTemplateSettings({}));
       const {uri} = await Print.printToFileAsync({html, base64: false});
       await savePdf(uri, o.orderNumber);

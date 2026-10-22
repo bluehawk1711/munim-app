@@ -5,6 +5,7 @@ import {
   estimateChargeLines,
   estimateChargesTotal,
   estimateLabourTag,
+  estimateNetWeightTotal,
   estimateRowHeightMm,
   estimateRowOf,
   estimateRowStackLines,
@@ -12,8 +13,10 @@ import {
   estimateWeightLayout,
   estimateWeightLines,
   materialReturnedTitleOf,
+  netWeightCellOf,
   purityCellOf,
   rateRowsOf,
+  receiptLabelOf,
 } from "./billDocument.js";
 import type {
   BillDocument,
@@ -312,7 +315,9 @@ function drawEcommerceBill(
   rateRowsOf(bill, settings).forEach((row, i) => {
     doc.setFontSize(7);
     doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-    money(doc, row, x0 + tableW - 3, boxTop + 17 + i * 4.5, "right", true);
+    // Starts at +15 so a gold bill's rate + purity ("24 carat") + a silver
+    // rate row (mixed-metal bills) all fit inside the 26mm header box.
+    money(doc, row, x0 + tableW - 3, boxTop + 15 + i * 4.5, "right", true);
   });
 
   // ── Estimate items table (client's column order, per-bill toggles) ─────
@@ -337,13 +342,16 @@ function drawEcommerceBill(
   type EstCol = { id: EstimateColumnId; w: number; header: string };
   const baseCols: EstCol[] = split
     ? [
-        { id: "description", w: 40, header: "Description" },
-        { id: "purity", w: 12, header: "Remark" },
-        { id: "weight", w: 13, header: "G. Wt." },
-        { id: "chejatNag", w: 24, header: "Chejat/Nag" },
-        { id: "rate", w: 16, header: "Rate ₹/gm" },
-        { id: "labour", w: 24, header: "Labour" },
-        { id: "otherCharges", w: 28, header: "Other Charges" },
+        // Widths sum to tableW (184mm) so the grid spans the sheet exactly —
+        // the new N. Wt. column was carved out of the neighbours.
+        { id: "description", w: 36, header: "Description" },
+        { id: "purity", w: 11, header: "Remark" },
+        { id: "weight", w: 12, header: "G. Wt." },
+        { id: "netWeight", w: 12, header: "N. Wt." },
+        { id: "chejatNag", w: 22, header: "Chejat/Nag" },
+        { id: "rate", w: 15, header: "Rate ₹/gm" },
+        { id: "labour", w: 22, header: "Labour" },
+        { id: "otherCharges", w: 27, header: "Other Charges" },
         { id: "amount", w: 27, header: "Amount (Rupees)" },
       ]
     : [
@@ -378,6 +386,7 @@ function drawEcommerceBill(
   const iDesc = cols.findIndex((c) => c.id === "description");
   const iPurity = cols.findIndex((c) => c.id === "purity");
   const iWeight = cols.findIndex((c) => c.id === "weight");
+  const iNetWeight = cols.findIndex((c) => c.id === "netWeight");
   const iChejatNag = cols.findIndex((c) => c.id === "chejatNag");
   const iRate = cols.findIndex((c) => c.id === "rate");
   const iLabour = cols.findIndex((c) => c.id === "labour");
@@ -416,7 +425,7 @@ function drawEcommerceBill(
     // Chejat/Nag cell ("Chejat: 0.150" …) — grow the row 3.6mm per extra
     // line (gated on the columns actually being visible) so nothing overlaps.
     const chargeLines = estimateChargeLines(est.charges);
-    const weightLines = estimateWeightLines(item);
+    const weightLines = estimateWeightLines(item, settings.signSuffix);
     const stackN = estimateRowStackLines(item, {
       chejatNag: iChejatNag >= 0,
       otherCharges: iOtherCharges >= 0,
@@ -463,6 +472,10 @@ function drawEcommerceBill(
         const combined = item.weight != null ? estNum(item.weight, 3) : (item.grossWeight?.trim() || "-");
         doc.text(combined, colX[iWeight]! + colW[iWeight]! / 2, baseY, { align: "center" });
       }
+    }
+    // N. Wt. — net = gross − nag + chejat (shared derivation, gold grid only).
+    if (iNetWeight >= 0) {
+      doc.text(cellText(netWeightCellOf(item)), colX[iNetWeight]! + colW[iNetWeight]! / 2, baseY, { align: "center" });
     }
     // Merged Chejat/Nag cell — itemized prefixes, exactly like Other Charges.
     if (iChejatNag >= 0) {
@@ -524,8 +537,9 @@ function drawEcommerceBill(
   const sumOtherCharges = chargeTotals.reduce((s, v) => s + v, 0);
   // Merged Chejat/Nag totals cell stacks its prefixed sums (like row cells).
   const cnTotals: string[] = [];
-  if (split && iChejatNag >= 0 && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}`);
-  if (split && iChejatNag >= 0 && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}`);
+  if (split && iChejatNag >= 0 && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}${settings.signSuffix ? " +" : ""}`);
+  if (split && iChejatNag >= 0 && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${settings.signSuffix ? " −" : ""}`);
+  const sumNet = split && iNetWeight >= 0 ? estimateNetWeightTotal(bill.lines) : null;
   const totalsTop = itemY;
 
   doc.setFont("notosans", "bold");
@@ -537,6 +551,9 @@ function drawEcommerceBill(
     } else {
       doc.text(estNum(sumWeight, 3), colX[iWeight]! + colW[iWeight]! / 2, totalsTop + 4.5, { align: "center" });
     }
+  }
+  if (iNetWeight >= 0) {
+    doc.text(sumNet != null ? estNum(sumNet, 3) : "-", colX[iNetWeight]! + colW[iNetWeight]! / 2, totalsTop + 4.5, { align: "center" });
   }
   if (iChejatNag >= 0) {
     const cnX = colX[iChejatNag]! + colW[iChejatNag]! - 2;
@@ -586,7 +603,7 @@ function drawEcommerceBill(
     adjRow(`${matLabel}:`, `- ${estNum(bill.materialReturnedValue, 2)}`);
   }
   if (deliveryCharge > 0) adjRow("Delivery:", `+ ${estNum(deliveryCharge, 2)}`);
-  if (bill.amountPaid > 0) adjRow("RECEIPT CASH:", `- ${estNum(bill.amountPaid, 2)}`);
+  if (bill.amountPaid > 0) adjRow(receiptLabelOf(bill), `- ${estNum(bill.amountPaid, 2)}`);
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   adjRow("Closing Balance:", bill.dueAmount > 0 ? estNum(bill.dueAmount, 2) : "NIL", true);
 

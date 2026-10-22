@@ -75,7 +75,10 @@ export type InvoiceInput = {
     silverRate?: number;
     /** initial payment received */
     amountPaid?: number;
+    /** How the advance was paid — "cash" | "online" (free text for legacy). */
     paymentMethod?: string;
+    /** Optional reference note for that payment (UPI ref, txn id…). */
+    paymentNote?: string;
     status?: "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
 };
 export declare function createInvoice(db: DbClient, input: InvoiceInput): Promise<InvoiceWithItems | null>;
@@ -83,6 +86,12 @@ export type InvoiceWithItems = schema.Invoice & {
     items: schema.InvoiceItem[];
 };
 export declare function getInvoice(db: DbClient, id: string): Promise<InvoiceWithItems | null>;
+/**
+ * The money rows recorded against an invoice (oldest first) — the invoice
+ * detail's Payments section: how much was paid, when, and HOW (cash/online
+ * via `payments.method`, plus the reference note).
+ */
+export declare function listInvoicePayments(db: DbClient, invoiceId: string): Promise<schema.Payment[]>;
 export type InvoiceFilters = {
     search?: string;
     status?: "DRAFT" | "UNPAID" | "PARTIAL" | "PAID" | "all";
@@ -95,15 +104,16 @@ export type InvoiceFilters = {
 export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Promise<{
     invoices: {
         items: {
+            price: number;
+            weight: number | null;
+            weightUnit: string | null;
             description: string | null;
             purity: string | null;
-            weight: number | null;
             total: number;
             pricing: schema.InvoiceItemPricing | null;
             productId: string | null;
             productName: string;
             sku: string | null;
-            weightUnit: string | null;
             grossWeight: string | null;
             nagLessWeight: number | null;
             chejatWeight: number | null;
@@ -112,7 +122,6 @@ export declare function listInvoices(db: DbClient, filters?: InvoiceFilters): Pr
             id: string;
             quantity: number;
             invoiceId: string;
-            price: number;
         }[];
         id: string;
         invoiceNumber: string;

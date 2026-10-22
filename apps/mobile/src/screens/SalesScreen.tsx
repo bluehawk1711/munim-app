@@ -85,6 +85,8 @@ export function SalesScreen() {
   const [weightAfterName, setWeightAfterName] = useState(true);
   const [goldRateLine, setGoldRateLine] = useState(true);
   const [silverRateLine, setSilverRateLine] = useState(true);
+  // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
+  const [signSuffix, setSignSuffix] = useState(true);
 
   const {data: goldRates} = useGoldRates();
   const goldBaseRate = goldRates?.baseRatePerGram ?? null;
@@ -127,6 +129,7 @@ export function SalesScreen() {
     weightAfterName,
     goldRateLine,
     silverRateLine,
+    signSuffix,
   };
 
   // Barcode scanner
@@ -382,6 +385,8 @@ export function SalesScreen() {
         amountPaid: invoice.amountPaid,
         status: invoice.status,
         goldRate: invoice.goldRate ?? goldBaseRate,
+        // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+        goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: invoice.silverRate ?? settings?.silverRatePerGram ?? null,
       });
       const html = renderBillHtml(doc, billTemplateSettings);
@@ -530,6 +535,19 @@ export function SalesScreen() {
             <Switch
               value={silverRateLine}
               onValueChange={value => { selectionTick(); setSilverRateLine(value); }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.card}
+            />
+          </View>
+
+          <View style={styles.toggleRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.toggleLabel}>Chejat/Nag signs</Text>
+              <Text style={{fontSize: typography.caption, color: colors.muted}}>Print "Chejat: 0.100 +" / "Nag: 0.200 −"</Text>
+            </View>
+            <Switch
+              value={signSuffix}
+              onValueChange={value => { selectionTick(); setSignSuffix(value); }}
               trackColor={{true: colors.primary, false: colors.border}}
               thumbColor={colors.card}
             />

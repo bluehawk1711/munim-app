@@ -120,7 +120,7 @@ function invoiceToBillDocument(
   inv: InvoiceDto,
   shop: BillShopDetails,
   currency: string,
-  rates?: { gold?: number | null; silver?: number | null },
+  rates?: { gold?: number | null; silver?: number | null; karat?: number | null },
 ) {
   return buildBillDocument({
     billNo: inv.invoiceNumber,
@@ -154,6 +154,8 @@ function invoiceToBillDocument(
     status: inv.status,
     currency,
     goldRate: inv.goldRate ?? rates?.gold ?? null,
+    // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+    goldRateKarat: rates?.karat ?? null,
     silverRate: inv.silverRate ?? rates?.silver ?? null,
   });
 }
@@ -192,6 +194,7 @@ export function DashboardPage() {
         invoiceToBillDocument(inv, shop, settings?.currency ?? "INR", {
           gold: goldRates?.baseRatePerGram ?? null,
           silver: settings?.silverRatePerGram ?? null,
+          karat: goldRates?.baseKarat ?? null,
         }),
         mergeBillTemplateSettings(inv.templateSettings),
       );

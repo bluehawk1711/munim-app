@@ -452,6 +452,56 @@ export function ReportsPage() {
             </div>
           ) : (
             <>
+              {/* Day-wise Daily Sales — one section per DATE with that day's
+                  products, invoice count and takings (core fills `days` for
+                  the daily report only; other types keep the flat table). */}
+              {(report.days?.length ?? 0) > 0 ? (
+                <div className="divide-y">
+                  {report.days.map((d) => (
+                    <div key={d.day} className="p-4">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-semibold">{d.label}</p>
+                          <p className="text-muted-foreground text-[11px]">
+                            {d.invoices} invoice{d.invoices !== 1 ? "s" : ""} · {d.daySoldQuantity} sold
+                          </p>
+                        </div>
+                        <p className="text-sm font-bold tabular-nums">{money(d.dayRevenue)}</p>
+                      </div>
+                      <div className="overflow-hidden rounded-lg border">
+                        <div className="bg-muted/40 grid grid-cols-[1fr_70px_90px_100px_90px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                          <span>Product</span>
+                          <span className="text-right">Qty</span>
+                          <span className="text-right">Wt</span>
+                          <span className="text-right">Revenue</span>
+                          <span className="text-right">Stock</span>
+                        </div>
+                        <div className="divide-y">
+                          {d.rows.length === 0 ? (
+                            <p className="text-muted-foreground px-3 py-4 text-center text-xs">No sales this day.</p>
+                          ) : (
+                            d.rows.map((r) => (
+                              <div
+                                key={`${d.day}-${r.sku ?? "n"}-${r.productId ?? r.productName}`}
+                                className="hover:bg-muted/30 grid grid-cols-[1fr_70px_90px_100px_90px] gap-2 px-3 py-2 text-sm"
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium">{r.productName}</p>
+                                  <p className="text-muted-foreground truncate text-[11px]">{r.sku}</p>
+                                </div>
+                                <span className="text-right tabular-nums">{r.soldQuantity}</span>
+                                <span className="text-right tabular-nums">{r.soldWeight > 0 ? formatWeight(r.soldWeight, r.weightUnit) : "—"}</span>
+                                <span className="text-right font-semibold tabular-nums">{money(r.revenue)}</span>
+                                <span className="text-right tabular-nums">{r.stock}</span>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/40">
@@ -498,6 +548,7 @@ export function ReportsPage() {
                   )}
                 </TableBody>
               </Table>
+              )}
 
               {totals && report.rows.length > 0 && (
                 <>

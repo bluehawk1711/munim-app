@@ -693,7 +693,7 @@ export declare const products: import("drizzle-orm/pg-core").PgTableWithColumns<
             tableName: "products";
             dataType: "string";
             columnType: "PgText";
-            data: "PER_GRAM" | "FIXED" | "PERCENT";
+            data: "PERCENT" | "FIXED" | "PER_GRAM";
             driverParam: string;
             notNull: true;
             hasDefault: true;
@@ -3096,7 +3096,7 @@ export declare const settings: import("drizzle-orm/pg-core").PgTableWithColumns<
             tableName: "settings";
             dataType: "string";
             columnType: "PgText";
-            data: "PER_GRAM" | "FIXED" | "PERCENT";
+            data: "PERCENT" | "FIXED" | "PER_GRAM";
             driverParam: string;
             notNull: true;
             hasDefault: true;

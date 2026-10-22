@@ -20,6 +20,8 @@ import {
   listInvoices,
   recordInvoicePayment,
   serializeInvoice,
+  serializePayment,
+  listInvoicePayments,
   updateInvoice,
   type DbClient,
   type InvoiceFilters,
@@ -102,6 +104,16 @@ export class InvoicesController {
     if (!invoice) throw new NotFoundException("Invoice not found");
     await invalidate(this.cache, ["invoices"]);
     return serializeInvoice(invoice);
+  }
+
+  /** GET /api/invoices/:id/payments — the invoice's payment history (how
+   *  much was paid, when, cash or online). Small payload, cached briefly. */
+  @Get(":id/payments")
+  async payments(@Param("id") id: string) {
+    const rows = await this.cache.cacheAside(cacheKeys.invoicePayments(id), CACHE_TTL.detail, () =>
+      listInvoicePayments(this.db, id),
+    );
+    return rows.map((p) => serializePayment(p));
   }
 
   @Post(":id/payment")

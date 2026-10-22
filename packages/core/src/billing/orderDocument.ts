@@ -43,15 +43,23 @@ export interface OrderDocumentInput {
   }>;
   discount?: number;
   deliveryCharge?: number;
-  /** Advance already collected — prints as RECEIPT CASH / Closing Balance. */
+  /** Advance already collected — prints as CASH ADVANCE / Closing Balance. */
   amountPaid?: number;
 }
 
-/** Build the printable quotation for an order. */
+/** Build the printable quotation for an order. Rates come from the shop's
+ *  CURRENT rate table — an order is priced at the day's rate when it's
+ *  printed (the "rate of the day" line), unlike an invoice which freezes its
+ *  own rate. `goldRateKarat` stamps the purity under the gold rate row. */
 export function buildOrderDocument(
   input: OrderDocumentInput,
   shop: BillShopDetails,
-  options: { currency?: string } = {},
+  options: {
+    currency?: string;
+    goldRate?: number | null;
+    silverRate?: number | null;
+    goldRateKarat?: number | null;
+  } = {},
 ): BillDocument {
   return buildBillDocument({
     kind: "quotation",
@@ -76,5 +84,8 @@ export function buildOrderDocument(
     deliveryCharge: input.deliveryCharge,
     amountPaid: input.amountPaid,
     currency: options.currency,
+    goldRate: options.goldRate ?? null,
+    goldRateKarat: options.goldRateKarat ?? null,
+    silverRate: options.silverRate ?? null,
   });
 }

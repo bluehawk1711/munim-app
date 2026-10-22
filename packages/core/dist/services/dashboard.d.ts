@@ -80,12 +80,28 @@ export type ReportRow = {
     revenue: number;
     profit: number;
 };
+/** One day's section of the day-wise Daily Sales report — a header (the day
+ *  and what it did) plus the products sold THAT day. Only `daily` fills this;
+ *  every other report type returns []. */
+export type ReportDayGroup = {
+    /** ISO date (yyyy-mm-dd). */
+    day: string;
+    /** Human day label — "20 Oct 2026". */
+    label: string;
+    /** Invoices raised that day (a day with sales has ≥ 1). */
+    invoices: number;
+    daySoldQuantity: number;
+    dayRevenue: number;
+    rows: ReportRow[];
+};
 export declare function getReport(db: DbClient, type: ReportType, startDate?: string, endDate?: string): Promise<{
     type: ReportType;
     title: string;
     generatedAt: string;
     periodLabel: string;
     rows: ReportRow[];
+    /** Day sections — populated for `daily` only (see `ReportDayGroup`). */
+    days: ReportDayGroup[];
     totals: {
         stock: number;
         soldQuantity: number;
@@ -97,10 +113,13 @@ export declare function getReport(db: DbClient, type: ReportType, startDate?: st
 /**
  * Serializes a report into RFC-4180 CSV (quoted, escaped, CRLF line endings).
  * Shared by web, desktop AND mobile so every platform exports the same file.
+ * Day-wise reports (Daily Sales) emit one row per product per DAY with a
+ * leading Date column; flat reports keep the classic columns.
  */
 export declare function reportToCsv(report: {
     title: string;
     rows: ReportRow[];
+    days?: ReportDayGroup[];
     totals: {
         stock: number;
         soldQuantity: number;

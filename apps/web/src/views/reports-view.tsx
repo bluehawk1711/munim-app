@@ -210,6 +210,53 @@ export function ReportsView() {
               </div>
             ) : report ? (
               <>
+                {/* Day-wise Daily Sales — one section per DATE with that day's
+                    products, invoice count and takings (core `getReport`
+                    fills `days` for the daily report only). */}
+                {(report.days?.length ?? 0) > 0 ? (
+                  <div className="divide-y">
+                    {report.days.map((d) => (
+                      <div key={d.day} className="p-4">
+                        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold">{d.label}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {d.invoices} invoice{d.invoices !== 1 ? "s" : ""} · {formatNumber(d.daySoldQuantity)} sold
+                            </p>
+                          </div>
+                          <p className="text-sm font-bold tabular-nums">{formatCurrency(d.dayRevenue)}</p>
+                        </div>
+                        <div className="overflow-hidden rounded-lg border">
+                          <div className="bg-muted/40 grid grid-cols-[1fr_60px_80px_90px_90px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
+                            <span>Product</span>
+                            <span className="text-right">Qty</span>
+                            <span className="text-right">Wt</span>
+                            <span className="text-right">Revenue</span>
+                            <span className="text-right">Stock</span>
+                          </div>
+                          <div className="divide-y">
+                            {d.rows.length === 0 ? (
+                              <p className="px-3 py-4 text-center text-xs text-muted-foreground">No sales this day.</p>
+                            ) : (
+                              d.rows.map((r) => (
+                                <div key={`${d.day}-${r.sku ?? "n"}-${r.productId ?? r.productName}`} className="grid grid-cols-[1fr_60px_80px_90px_90px] gap-2 px-3 py-2 text-sm hover:bg-muted/30">
+                                  <div className="min-w-0">
+                                    <p className="truncate font-medium">{r.productName}</p>
+                                    <p className="truncate text-[11px] text-muted-foreground">{r.sku}</p>
+                                  </div>
+                                  <span className="text-right tabular-nums">{formatNumber(r.soldQuantity)}</span>
+                                  <span className="text-right tabular-nums">{r.soldWeight > 0 ? formatWeight(r.soldWeight, r.weightUnit) : "—"}</span>
+                                  <span className="text-right font-semibold tabular-nums">{formatCurrency(r.revenue)}</span>
+                                  <span className="text-right tabular-nums">{formatNumber(r.stock)}</span>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -248,6 +295,7 @@ export function ReportsView() {
                     </TableBody>
                   </Table>
                 </div>
+                )}
 
                 {report.rows.length > 0 && (
                   <>

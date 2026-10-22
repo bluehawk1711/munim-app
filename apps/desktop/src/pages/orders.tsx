@@ -643,12 +643,16 @@ export function OrdersPage() {
 
   /** The estimate print — the SAME sheet the bill uses, headed "Estimate" and
    *  carrying the quoted total, what the party paid and what's still due.
-   *  `downloadBillPdf` delegates to core's shared `generateBillPDF` — the same
-   *  renderer the billing page uses. */
+   *  The day's rate (and its purity, "24 carat") prints under the date — an
+   *  order is quoted AT the rate of the day. `downloadBillPdf` delegates to
+   *  core's shared `generateBillPDF` — the same renderer billing uses. */
   async function printEstimate(o: OrderRow) {
     try {
       const doc = buildOrderDocument(o, shopFor(settings), {
         currency: settings?.currency ?? "INR",
+        goldRate: goldRates?.baseRatePerGram ?? null,
+        goldRateKarat: goldRates?.baseKarat ?? null,
+        silverRate: settings?.silverRatePerGram ?? null,
       });
       await downloadBillPdf(doc, mergeBillTemplateSettings({}));
       toast.success("Estimate downloaded", {
@@ -661,13 +665,13 @@ export function OrdersPage() {
     }
   }
 
-  async function confirmPayment(amount: number) {
+  async function confirmPayment(submit: { amount: number; note: string }) {
     if (!paying) return;
     setSaving(true);
     try {
       const updated = await recordPayment.mutateAsync({
         id: paying.id,
-        values: { amount },
+        values: { amount: submit.amount, note: submit.note || undefined },
       });
       toast.success("Payment recorded", {
         description: `${paying.orderNumber} — ${formatCurrency(updated.amountPaid)} received, ${formatCurrency(updated.dueAmount)} still due.`,
@@ -1327,7 +1331,7 @@ export function OrdersPage() {
             : null
         }
         busy={saving}
-        onConfirm={(amount) => void confirmPayment(amount)}
+        onConfirm={(submit) => void confirmPayment(submit)}
       />
     </div>
   );

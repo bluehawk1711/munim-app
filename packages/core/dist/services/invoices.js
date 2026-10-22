@@ -238,7 +238,7 @@ export async function createInvoice(db, input) {
             direction: "IN",
             amount: amountPaid,
             method: input.paymentMethod || "cash",
-            note: `Payment for ${invoiceNumber}`,
+            note: input.paymentNote?.trim() || `Payment for ${invoiceNumber}`,
         });
     }
     await logActivity(db, "INVOICE_CREATED", `Created invoice ${invoiceNumber} — ${total.toLocaleString("en-IN")}${input.customerName ? ` for ${input.customerName}` : ""}`);
@@ -254,6 +254,18 @@ export async function getInvoice(db, id) {
         .where(eq(schema.invoiceItems.invoiceId, id))
         .orderBy(schema.invoiceItems.id);
     return { ...invoice[0], items };
+}
+/**
+ * The money rows recorded against an invoice (oldest first) — the invoice
+ * detail's Payments section: how much was paid, when, and HOW (cash/online
+ * via `payments.method`, plus the reference note).
+ */
+export async function listInvoicePayments(db, invoiceId) {
+    return db
+        .select()
+        .from(schema.payments)
+        .where(and(eq(schema.payments.invoiceId, invoiceId), eq(schema.payments.direction, "IN")))
+        .orderBy(schema.payments.date, schema.payments.createdAt);
 }
 export async function listInvoices(db, filters = {}) {
     const search = filters.search?.trim() || "";
@@ -465,7 +477,7 @@ export async function updateInvoice(db, id, input) {
             amount: diff,
             method: input.paymentMethod || "cash",
             date: now,
-            note: `Payment for ${existing.invoiceNumber} (adjusted on edit)`,
+            note: input.paymentNote?.trim() || `Payment for ${existing.invoiceNumber} (adjusted on edit)`,
         });
     }
     else if (diff < -MONEY_EPS) {

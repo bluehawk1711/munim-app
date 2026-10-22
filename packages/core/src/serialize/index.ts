@@ -21,7 +21,7 @@ import type {
   ActivityLog,
   Settings,
 } from "../db/schema.js";
-import type { DashboardStats, ReportRow, ReportType } from "../services/dashboard.js";
+import type { DashboardStats, ReportDayGroup, ReportRow, ReportType } from "../services/dashboard.js";
 import type { LedgerLine } from "../services/parties.js";
 import type {
   CategoryBreakdown,
@@ -339,6 +339,8 @@ export type ReportDto = {
   generatedAt: string;
   periodLabel: string;
   rows: ReportRow[];
+  /** Day sections — non-empty for the Daily Sales report only. */
+  days: ReportDayGroup[];
   totals: {
     stock: number;
     soldQuantity: number;

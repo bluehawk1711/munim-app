@@ -1,4 +1,4 @@
-export { buildBillDocument, renderBillText, billKindLabel, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, GOLD_ESTIMATE_COLUMNS, SILVER_ESTIMATE_COLUMNS, } from "./billDocument.js";
+export { buildBillDocument, renderBillText, billKindLabel, estimateNetWeightTotal, estimateWeightLines, netWeightCellOf, receiptLabelOf, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, GOLD_ESTIMATE_COLUMNS, SILVER_ESTIMATE_COLUMNS, } from "./billDocument.js";
 export { PURITY_PRESETS, purityOptionsFor, } from "./purity.js";
 export { renderBillHtml, } from "./billHtml.js";
 export { buildSampleBill, } from "./sampleBill.js";

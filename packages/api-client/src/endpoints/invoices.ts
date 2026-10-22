@@ -5,6 +5,7 @@ import type {
   InvoicePaymentValues,
   InvoiceUpdateValues,
   Pagination,
+  PaymentDto,
 } from "@munim/core";
 import type { HttpClient } from "../http.js";
 
@@ -29,6 +30,10 @@ export function invoices(http: HttpClient) {
     /** POST /api/invoices/:id/payment — mirrors core `recordInvoicePayment`. */
     recordPayment(id: string, values: InvoicePaymentValues): Promise<InvoiceDto> {
       return http.post(`/api/invoices/${id}/payment`, values);
+    },
+    /** GET /api/invoices/:id/payments — payment history (cash/online + note). */
+    payments(id: string): Promise<PaymentDto[]> {
+      return http.get(`/api/invoices/${id}/payments`);
     },
     /** DELETE /api/invoices/:id — restores stock (core `deleteInvoice`). */
     remove(id: string): Promise<{ success: boolean }> {

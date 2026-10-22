@@ -18,8 +18,9 @@ export type BillMode = "duplicate" | "distinct";
 /** Toggleable columns of the E-commerce ESTIMATE grid. The Classic template
  *  has its own fixed layout and ignores these. `weight` is gold's G. Wt.
  *  column (silver's combined Weight column shares the same toggle);
+ *  `netWeight` is gold's N. Wt. column (net = gross − nag + chejat);
  *  `chejatNag` is the gold-only merged Chejat/Nag stack. */
-export type EstimateColumnId = "description" | "purity" | "weight" | "chejatNag" | "rate" | "labour" | "otherCharges" | "amount";
+export type EstimateColumnId = "description" | "purity" | "weight" | "netWeight" | "chejatNag" | "rate" | "labour" | "otherCharges" | "amount";
 /** Column toggles for the NEW BILL screens (desktop + mobile): gold's grid
  *  fields with their printed headers — `purity` shows as "Remark" (the
  *  client's term for the purity stamp column). */
@@ -32,6 +33,9 @@ export declare const GOLD_ESTIMATE_COLUMNS: readonly [{
 }, {
     readonly id: "weight";
     readonly label: "G. Wt.";
+}, {
+    readonly id: "netWeight";
+    readonly label: "N. Wt.";
 }, {
     readonly id: "chejatNag";
     readonly label: "Chejat/Nag";
@@ -84,6 +88,10 @@ export interface BillTemplateSettings {
     goldRateLine: boolean;
     /** Show the shop's silver rate row (₹/g) on the bill. */
     silverRateLine: boolean;
+    /** Chejat/Nag cell signs — ON prints `Chejat: 0.100 +` / `Nag: 0.200 −`
+     *  (chejat adds to the net weight, nag less subtracts); OFF keeps the
+     *  plain `Chejat: 0.100` / `Nag: 0.200` labels. */
+    signSuffix: boolean;
     /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
      *  column toggles — hidden from the printed bill. Gold grid and silver
      *  grid have different fields (gold: G. Wt. + Chejat/Nag; silver: the
@@ -177,6 +185,9 @@ export interface BillDocument {
     currency: string;
     /** Shop's gold rate (₹/g) at build time — drives the gold rate row. */
     goldRate: number | null;
+    /** Purity of `goldRate` (e.g. 24 → "24 carat") — printed under the gold
+     *  rate row. null → no purity line (legacy bills / rates never stamped). */
+    goldRateKarat: number | null;
     /** Shop's silver rate (₹/g) at build time — drives the silver rate row. */
     silverRate: number | null;
 }
@@ -201,10 +212,16 @@ export interface BuildBillInput {
     currency?: string;
     /** Shop rates (₹/g) to print as rate rows; omitted → rows hidden. */
     goldRate?: number | null;
+    /** Purity stamp for the gold rate row — the shop's base karat. */
+    goldRateKarat?: number | null;
     silverRate?: number | null;
 }
 /** Row label for the material-returned deduction — per-bill title or default. */
 export declare function materialReturnedTitleOf(bill: BillDocument): string;
+/** Adjustments-block label for the advance already collected — orders print
+ *  "CASH ADVANCE:" (the client's term for an order advance); invoices keep
+ *  the classic "RECEIPT CASH:". */
+export declare function receiptLabelOf(bill: Pick<BillDocument, "kind">): string;
 /** Product name with the purity stamp in parentheses (`(22K)`) beside it. */
 export declare function nameWithPurity(line: BillLineInput): string;
 /**
@@ -235,11 +252,25 @@ export declare function estimateChargeLines(charges: {
     povayi: number;
     other: number;
 } | null): string[];
-/** The merged Chejat/Nag cell lines — `Chejat: 0.150` / `Nag: 0.620`, one per
- *  non-empty derivation input (grams, 3 dp), itemized with prefixes exactly
- *  like the Other Charges cell (client merged the two columns into one).
- *  Empty → []. */
-export declare function estimateWeightLines(line: BillLineInput): string[];
+/** The merged Chejat/Nag cell lines — `Chejat: 0.150 +` / `Nag: 0.620 −`,
+ *  one per non-empty derivation input (grams, 3 dp), itemized with prefixes
+ *  exactly like the Other Charges cell (client merged the two columns into
+ *  one). `signs` appends the direction marker — chejat ADDS to the net
+ *  weight, nag less SUBTRACTS from it — and is driven by the per-bill
+ *  `signSuffix` toggle (off → the plain labels). Empty → []. */
+export declare function estimateWeightLines(line: BillLineInput, signs?: boolean): string[];
+/**
+ * The estimate's N. Wt. cell — net = gross − nag + chejat, the SAME
+ * derivation the gold price uses (`calcNetWeight`), evaluated on the frozen
+ * bill-line values: `grossWeight` free text parsed as grams, `nagLessWeight`
+ * / `chejatWeight` already stored in grams. Lines without a parseable gross
+ * fall back to the priced `weight` (gold invoices freeze the derived NET
+ * there, order lines freeze the product weight) minus any frozen nag/chejat.
+ * Empty / non-positive → null (prints "-").
+ */
+export declare function netWeightCellOf(line: BillLineInput): string | null;
+/** Sum of the parseable per-line net weights — the N. Wt. totals cell. */
+export declare function estimateNetWeightTotal(lines: readonly BillLineInput[]): number | null;
 /** Tallest itemized stack in a row — the Other Charges lines vs the merged
  *  Chejat/Nag lines — gated on which columns are actually visible (a hidden
  *  column's stack doesn't grow the row). Shared by the PDF's draw + height

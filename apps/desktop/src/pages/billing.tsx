@@ -4,7 +4,6 @@ import {
   applyGoldBaseRate,
   buildBillDocument,
   calcNetWeight,
-  GOLD_ESTIMATE_COLUMNS,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
@@ -12,7 +11,6 @@ import {
   purityOptionsFor,
   renderBillHtml,
   resolveGoldRateTable,
-  SILVER_ESTIMATE_COLUMNS,
   weightTextToGrams,
   type BillDocument,
   type BillShopDetails,
@@ -50,18 +48,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Switch,
   Checkbox,
   BarcodeLookupInput,
   ProductSearchSelect,
@@ -69,6 +60,8 @@ import {
   type BillLinePricingStripValue,
   type ProductOption,
   BillTemplateOptions,
+  EstimateColumnToggles,
+  RecordPaymentDialog,
   type BillTemplate,
   type BillClassicColor,
   type BillMode,
@@ -160,7 +153,7 @@ function invoiceToBillDocument(
   inv: InvoiceDto,
   shop: BillShopDetails,
   currency: string,
-  rates?: { gold?: number | null; silver?: number | null },
+  rates?: { gold?: number | null; silver?: number | null; karat?: number | null },
 ): BillDocument {
   return buildBillDocument({
     billNo: inv.invoiceNumber,
@@ -194,6 +187,8 @@ function invoiceToBillDocument(
     status: inv.status,
     currency,
     goldRate: inv.goldRate ?? rates?.gold ?? null,
+    // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+    goldRateKarat: rates?.karat ?? null,
     silverRate: inv.silverRate ?? rates?.silver ?? null,
   });
 }
@@ -335,7 +330,7 @@ function BillPreviewFrame({
 export function BillingPage() {
   const { data: settings } = useQueryState(useSettings());
   const { data: goldRates } = useQueryState(useGoldRates());
-  const billRates = { gold: goldRates?.baseRatePerGram ?? null, silver: settings?.silverRatePerGram ?? null };
+  const billRates = { gold: goldRates?.baseRatePerGram ?? null, silver: settings?.silverRatePerGram ?? null, karat: goldRates?.baseKarat ?? null };
   const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
   const allProducts = allProductsData?.products;
   const { data: parties } = useQueryState(useParties());
@@ -379,6 +374,11 @@ export function BillingPage() {
   const [weightAfterName, setWeightAfterName] = useState(true);
   const [goldRateLine, setGoldRateLine] = useState(true);
   const [silverRateLine, setSilverRateLine] = useState(true);
+  // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
+  const [signSuffix, setSignSuffix] = useState(true);
+  // How the advance is coming in — Cash / Online + optional reference note.
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
+  const [paymentNote, setPaymentNote] = useState("");
 
   // ── Estimate column toggles — per METAL (gold grid ≠ silver field list) ─
   const [hiddenGold, setHiddenGold] = useState<EstimateColumnId[]>([]);
@@ -399,6 +399,7 @@ export function BillingPage() {
     weightAfterName,
     goldRateLine,
     silverRateLine,
+    signSuffix,
     hiddenColumns: { gold: hiddenGold, silver: hiddenSilver },
   };
 
@@ -789,7 +790,7 @@ export function BillingPage() {
   const [markPaid, setMarkPaid] = useState(false);
 
   const [payingInvoice, setPayingInvoice] = useState<InvoiceDto | null>(null);
-  const [payAmount, setPayAmount] = useState("");
+  // payAmount removed — the shared RecordPaymentDialog owns the amount now.
   const [recordingPayment, setRecordingPayment] = useState(false);
   const recordPayment = useRecordInvoicePayment(payingInvoice?.id ?? "");
 
@@ -914,6 +915,7 @@ export function BillingPage() {
         status: "UNPAID",
         currency: settings?.currency ?? "INR",
         goldRate: billGoldRate ?? undefined,
+        goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: billSilverRate ?? undefined,
       })
     : null;
@@ -986,6 +988,7 @@ export function BillingPage() {
     setWeightAfterName(st?.weightAfterName ?? true);
     setGoldRateLine(st?.goldRateLine ?? true);
     setSilverRateLine(st?.silverRateLine ?? true);
+    setSignSuffix(st?.signSuffix ?? true);
     setHiddenGold(st?.hiddenColumns?.gold ?? []);
     setHiddenSilver(st?.hiddenColumns?.silver ?? []);
 
@@ -1099,7 +1102,9 @@ export function BillingPage() {
       const base = {
         date,
         notes: notes.trim() || undefined,
-        paymentMethod: "cash" as const,
+        // How the advance came in — Cash / Online + the optional reference.
+        paymentMethod,
+        paymentNote: paymentNote.trim() || undefined,
         shopDetails: shop ? toInvoiceShop(shop) : undefined,
         templateSettings: billSettings,
         goldRate: billGoldRate ?? undefined,
@@ -1229,19 +1234,19 @@ export function BillingPage() {
     }
   }
 
-  async function handleRecordPayment() {
+  async function handleRecordPayment(submit: { amount: number; method: "cash" | "online"; note: string }) {
     if (!payingInvoice) return;
-    const amount = Number(payAmount);
-    if (!amount || amount <= 0) {
-      toast.error("Enter a positive amount");
-      return;
-    }
     setRecordingPayment(true);
     try {
-      await recordPayment.mutateAsync({ amount, method: "cash" });
-      toast.success("Payment recorded");
+      await recordPayment.mutateAsync({
+        amount: submit.amount,
+        method: submit.method,
+        note: submit.note || undefined,
+      });
+      toast.success("Payment recorded", {
+        description: `${money(submit.amount)} received · ${submit.method === "online" ? "Online" : "Cash"}`,
+      });
       setPayingInvoice(null);
-      setPayAmount("");
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : undefined });
     } finally {
@@ -1375,6 +1380,37 @@ export function BillingPage() {
                     onPaid={setAmountPaid}
                     idPrefix="b"
                   />
+                  {/* How the advance is coming in — Cash / Online + the
+                      optional reference (printed in the Payments trail). */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <span className="text-xs font-medium">Paid via</span>
+                      <div role="radiogroup" aria-label="Paid via" className="grid grid-cols-2 overflow-hidden rounded-lg border text-xs font-medium">
+                        {([["cash", "Cash"], ["online", "Online"]] as const).map(([value, label]) => (
+                          <button
+                            key={value}
+                            type="button"
+                            role="radio"
+                            aria-checked={paymentMethod === value}
+                            onClick={() => setPaymentMethod(value)}
+                            className={`py-1.5 transition-colors ${paymentMethod === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"} ${value === "online" ? "border-l" : ""}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="b-payment-note">Payment note (optional)</Label>
+                      <Input
+                        id="b-payment-note"
+                        value={paymentNote}
+                        maxLength={120}
+                        onChange={(e) => setPaymentNote(e.target.value)}
+                        placeholder={paymentMethod === "online" ? "UPI id / transaction no." : "e.g. cash in hand"}
+                      />
+                    </div>
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
           <Label htmlFor="b-mr-title">Material returned title</Label>
@@ -1553,6 +1589,11 @@ export function BillingPage() {
                 weightAfterName={weightAfterName}
                 goldRateLine={goldRateLine}
                 silverRateLine={silverRateLine}
+                signSuffix={signSuffix}
+                onSignSuffix={(next) => {
+                  setSignSuffix(next);
+                  toast.success(next ? "Chejat/Nag signs shown" : "Chejat/Nag signs hidden");
+                }}
                 onWeightAfterName={(next) => {
                   setWeightAfterName(next);
                   toast.success(next ? "Weight column shown" : "Weight column hidden");
@@ -1593,71 +1634,37 @@ export function BillingPage() {
 
               <SeparatorLine />
 
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm font-medium">Bill columns</p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {template === "jewellery"
-                      ? "Column toggles apply to the Modern E-commerce estimate grid — the Classic Jewellery template has its own fixed layout."
-                      : "Turn a column off to hide it from the printed bill — per metal, since gold and silver have different fields."}
-                  </p>
-                </div>
-                {template === "jewellery" ? null : (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Gold bill</p>
-                      {GOLD_ESTIMATE_COLUMNS.map((c) => (
-                        <label key={`g-${c.id}`} className="flex items-center justify-between gap-2 text-xs">
-                          <span className="text-muted-foreground">{c.label}</span>
-                          <Switch
-                            checked={!hiddenGold.includes(c.id)}
-                            onCheckedChange={() => toggleColumn("gold", c.id)}
-                            aria-label={`Gold: ${c.label}`}
-                          />
-                        </label>
-                      ))}
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Silver bill</p>
-                      {SILVER_ESTIMATE_COLUMNS.map((c) => (
-                        <label key={`s-${c.id}`} className="flex items-center justify-between gap-2 text-xs">
-                          <span className="text-muted-foreground">{c.label}</span>
-                          <Switch
-                            checked={!hiddenSilver.includes(c.id)}
-                            onCheckedChange={() => toggleColumn("silver", c.id)}
-                            aria-label={`Silver: ${c.label}`}
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <EstimateColumnToggles
+                template={template}
+                hiddenGold={hiddenGold}
+                hiddenSilver={hiddenSilver}
+                onToggle={toggleColumn}
+              />
             </CardContent>
           </Card>
         </div>
         </div>
 
-      <Dialog open={payingInvoice !== null} onOpenChange={(open) => !open && setPayingInvoice(null)}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Record payment — {payingInvoice?.invoiceNumber}</DialogTitle>
-            <DialogDescription>
-              Outstanding: {payingInvoice ? money(payingInvoice.total - payingInvoice.amountPaid) : ""}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-1.5">
-            <Label htmlFor="pay-amount">Amount</Label>
-            <Input id="pay-amount" type="number" min={0} value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayingInvoice(null)}>Cancel</Button>
-            <Button onClick={handleRecordPayment} disabled={recordingPayment}>
-              {recordingPayment ? <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Recording…</> : "Record payment"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Shared record-payment dialog — Cash/Online + note, same as the
+          invoice list's flow. Keyed so the amount resets per invoice. */}
+      <RecordPaymentDialog
+        key={payingInvoice?.id ?? "closed"}
+        open={payingInvoice !== null}
+        onOpenChange={(open) => !open && setPayingInvoice(null)}
+        invoice={
+          payingInvoice
+            ? {
+                id: payingInvoice.id,
+                invoiceNumber: payingInvoice.invoiceNumber,
+                customerName: payingInvoice.customerName,
+                total: payingInvoice.total,
+                amountPaid: payingInvoice.amountPaid,
+              }
+            : null
+        }
+        busy={recordingPayment}
+        onConfirm={(submit) => void handleRecordPayment(submit)}
+      />
 
       {/* Fullscreen preview lightbox — click the sidebar preview (or press
           Enter on it) to see the current bill full size before saving. */}

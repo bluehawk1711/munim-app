@@ -31,6 +31,7 @@ export const qk = {
     list: (filters: InvoiceFilters) =>
       ["invoices", "list", filters] as const,
     detail: (id: string) => ["invoices", "detail", id] as const,
+    payments: (id: string) => ["invoices", "payments", id] as const,
   },
 
   orders: {

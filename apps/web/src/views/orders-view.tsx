@@ -23,7 +23,7 @@ import {
   type OrderFormValues,
   type OrderItemValues,
 } from "@munim/core"
-import { useApiClient } from "@munim/query"
+import { useApiClient, useGoldRates } from "@munim/query"
 import {
   Button,
   Input,
@@ -49,6 +49,7 @@ import {
   BarcodeLookupInput,
   SummaryTile,
   type ProductOption,
+  type RecordPaymentSubmit,
   toast,
 } from "@munim/ui"
 import {
@@ -633,6 +634,7 @@ export function OrdersView() {
   const generateBill = useGenerateOrderBill()
   const recordPayment = useRecordOrderPayment()
   const { data: settings } = useSettings()
+  const { data: goldRates } = useGoldRates()
 
   const openOrders = orders.filter((o) => o.status === "OPEN")
   const openValue = openOrders.reduce((s, o) => s + o.total, 0)
@@ -640,11 +642,16 @@ export function OrdersView() {
   const stillDue = openOrders.reduce((s, o) => s + o.dueAmount, 0)
 
   /** The estimate print — the SAME sheet the bill uses, headed "Estimate" and
-   *  carrying the quoted total, what the party paid and what's still due. */
+   *  carrying the quoted total, what the party paid and what's still due.
+   *  The day's rate (and its purity, "24 carat") prints under the date — an
+   *  order is quoted AT the rate of the day. */
   function printEstimate(o: OrderRow) {
     try {
       const doc = buildOrderDocument(o, shopFor(settings), {
         currency: settings?.currency ?? "INR",
+        goldRate: goldRates?.baseRatePerGram ?? null,
+        goldRateKarat: goldRates?.baseKarat ?? null,
+        silverRate: settings?.silverRatePerGram ?? null,
       })
       generateBillPDF(doc, mergeBillTemplateSettings({}))
       toast.success("Estimate downloaded", {
@@ -657,12 +664,12 @@ export function OrdersView() {
     }
   }
 
-  async function confirmPayment(amount: number) {
+  async function confirmPayment(submit: RecordPaymentSubmit) {
     if (!paying) return
     try {
       const updated = await recordPayment.mutateAsync({
         id: paying.id,
-        values: { amount },
+        values: { amount: submit.amount, note: submit.note || undefined },
       })
       toast.success("Payment recorded", {
         description: `${paying.orderNumber} — ${formatCurrency(updated.amountPaid)} received, ${formatCurrency(updated.dueAmount)} still due.`,

@@ -9,6 +9,7 @@ import type {
   InvoiceFormValues,
   InvoicePaymentValues,
   InvoiceUpdateValues,
+  PaymentDto,
 } from "@munim/core";
 import { useApiClient } from "./provider.js";
 import { qk } from "./keys.js";
@@ -36,6 +37,19 @@ export function useInvoice(id: string | null) {
       return api.invoices.get(id ?? "");
     },
     enabled: !!id,
+  });
+}
+
+/** GET /api/invoices/:id/payments — payment history (amount, method, note). */
+export function useInvoicePayments(invoiceId: string | null) {
+  const getClient = useApiClient();
+  return useQuery({
+    queryKey: qk.invoices.payments(invoiceId ?? ""),
+    queryFn: async (): Promise<PaymentDto[]> => {
+      const api = await getClient();
+      return api.invoices.payments(invoiceId ?? "");
+    },
+    enabled: !!invoiceId,
   });
 }
 

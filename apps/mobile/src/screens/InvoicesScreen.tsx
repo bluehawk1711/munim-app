@@ -58,6 +58,30 @@ const STATUS_CHIPS: {key: StatusFilter; label: string}[] = [
 
 const PAGE_SIZE = 15;
 
+/** Orders-style money line under an invoice row: "Paid ₹5,000/- · ₹7,200/-
+ *  due" (warning) or the green tick "Paid ₹12,200/- · settled" once fully
+ *  received — the same presentation the orders list uses. */
+function PaymentLine({total, amountPaid}: {total: number; amountPaid: number}) {
+  const styles = useThemeStyles(makeStyles);
+  const paid = Math.min(Math.max(0, amountPaid), total);
+  const due = Math.max(0, total - paid);
+  if (paid <= 0) {
+    return <Text style={styles.payLine}>Nothing received yet</Text>;
+  }
+  const settled = due <= 0;
+  return (
+    <Text
+      style={[
+        styles.payLine,
+        settled ? styles.payLineSuccess : styles.payLineWarning,
+      ]}>
+      {settled ? '✓ ' : ''}
+      {`Paid ${money(paid)}`}
+      {settled ? ' · settled' : ` · ${money(due)} due`}
+    </Text>
+  );
+}
+
 export function InvoicesScreen() {
   const styles = useThemeStyles(makeStyles);
   const [search, setSearch] = useState('');
@@ -191,6 +215,8 @@ export function InvoicesScreen() {
         status: inv.status,
         currency: settings.currency ?? 'INR',
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+        goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings.silverRatePerGram ?? null,
       });
       const html = renderBillHtml(doc, mergeBillTemplateSettings(inv.templateSettings));
@@ -299,13 +325,9 @@ export function InvoicesScreen() {
                 </View>
                 <View style={{alignItems: 'flex-end', gap: 6, marginTop: 2}}>
                   <Text style={styles.total}>{money(item.total)}</Text>
-                  {outstanding > 0 ? (
-                    <Text style={{fontSize: 11, color: colors.warning, fontWeight: '600'}}>
-                      Due: {money(outstanding)}
-                    </Text>
-                  ) : (
-                    <Text style={{fontSize: 11, color: colors.success, fontWeight: '600'}}>Paid ✓</Text>
-                  )}
+                  {/* Orders-style money line — Paid ₹5,000/- · ₹7,200/- due,
+                      or the green tick once fully settled. */}
+                  <PaymentLine total={item.total} amountPaid={item.amountPaid} />
                   <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
                     <Pressable
                       onPress={() => openEdit(item)}
@@ -456,6 +478,10 @@ const makeStyles = () =>
     name: {fontSize: 15, fontWeight: '600', color: colors.text, marginTop: 3},
     meta: {fontSize: 11, color: colors.muted, marginTop: 2},
     total: {fontSize: 15, fontWeight: '700', color: colors.text},
+    // Orders-style money line (Paid / due / settled tick)
+    payLine: {fontSize: 11, color: colors.muted, fontWeight: '600'},
+    payLineSuccess: {fontSize: 11, color: colors.success, fontWeight: '600'},
+    payLineWarning: {fontSize: 11, color: colors.warning, fontWeight: '600'},
     exportBtn: {
       width: 32,
       height: 32,

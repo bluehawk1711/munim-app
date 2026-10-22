@@ -17,11 +17,11 @@ import {
   Loader2,
   Pencil,
 } from "lucide-react"
-import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, RecordPaymentDialog, ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@munim/ui"
+import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, InvoicePaymentLine, RecordPaymentDialog, ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, type RecordPaymentSubmit } from "@munim/ui"
 import { buildBillDocument, generateBillPDF, mergeBillTemplateSettings, type BillShopDetails, type InvoiceDto } from "@munim/core"
 import { useGoldRates } from "@munim/query"
 
-import { useInvoices, useDeleteInvoice, useRecordPayment } from "@/hooks/use-invoices"
+import { useInvoices, useDeleteInvoice, useRecordPayment, useInvoicePayments } from "@/hooks/use-invoices"
 import { useSettings, type ShopSettings } from "@/hooks/use-settings"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency, formatDate } from "@/lib/format"
@@ -32,6 +32,16 @@ import { toast } from "@munim/ui"
 function settingsToShop(s: ShopSettings): BillShopDetails {
   return { name: s.shopName, address: s.shopAddress, phones: Array.isArray(s.shopPhones) ? s.shopPhones : [], email: s.shopEmail }
 }
+
+/** Invoice status pills — All / Paid / Partial / Unpaid / Draft (the Partial
+ *  pill surfaces bills with an advance received but balance still due). */
+const INVOICE_STATUS_PILLS = [
+  { kind: "all" as const, label: "All" },
+  { kind: "PAID" as const, label: "Paid" },
+  { kind: "PARTIAL" as const, label: "Partial" },
+  { kind: "UNPAID" as const, label: "Unpaid" },
+  { kind: "DRAFT" as const, label: "Draft" },
+] as const
 
 /** Load a stored bill into the New Bill screen for editing — the URL becomes
  *  `?view=billing&edit=<id>` (the same flow desktop and mobile use). The
@@ -62,6 +72,8 @@ export function InvoicesView() {
   const recordPayment = useRecordPayment(paying?.id ?? "")
   const { data: settings } = useSettings()
   const { data: goldRates } = useGoldRates()
+  // Payment trail for the open detail dialog — how much, when, cash/online.
+  const { data: detailPayments } = useInvoicePayments(detail?.id ?? null)
 
   function openPayment(inv: Invoice) {
     setPaying(inv)
@@ -78,11 +90,17 @@ export function InvoicesView() {
     }
   }
 
-  async function confirmPayment(amount: number) {
+  async function confirmPayment(submit: RecordPaymentSubmit) {
     if (!paying) return
     try {
-      await recordPayment.mutateAsync({ amount, method: "cash" })
-      toast.success("Payment recorded", { description: `${formatCurrency(amount)} received` })
+      await recordPayment.mutateAsync({
+        amount: submit.amount,
+        method: submit.method,
+        note: submit.note || undefined,
+      })
+      toast.success("Payment recorded", {
+        description: `${formatCurrency(submit.amount)} received · ${submit.method === "online" ? "Online" : "Cash"}`,
+      })
       setPaying(null)
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : "Unknown error" })
@@ -136,6 +154,9 @@ export function InvoicesView() {
         status: inv.status,
         currency: settings?.currency ?? "INR",
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        // Purity of the quoted rate — the "24 carat" line (current base karat;
+        // no column exists to freeze it per-bill, same fallback the rate uses).
+        goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings?.silverRatePerGram ?? null,
       })
       generateBillPDF(bill, mergeBillTemplateSettings(inv.templateSettings))
@@ -162,19 +183,27 @@ export function InvoicesView() {
               aria-label="Search invoices"
             />
           </div>
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
-            <Select value={status} onValueChange={(v) => { setStatus(v as typeof status); setPage(1) }}>
-              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by status">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                <SelectItem value="PAID">Paid</SelectItem>
-                <SelectItem value="PARTIAL">Partially paid</SelectItem>
-                <SelectItem value="UNPAID">Unpaid</SelectItem>
-                <SelectItem value="DRAFT">Draft</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Status pills — same style as Orders / desktop: a Partial pill so
+              advance-received bills are one tap away. */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {INVOICE_STATUS_PILLS.map((pill) => {
+              const active = status === pill.kind
+              return (
+                <button
+                  key={pill.kind}
+                  type="button"
+                  onClick={() => { setStatus(pill.kind); setPage(1) }}
+                  className={
+                    "inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors " +
+                    (active
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground")
+                  }
+                >
+                  {pill.label}
+                </button>
+              )
+            })}
           </div>
         </div>
         <Button onClick={() => setView("billing")} className="h-9 gap-1.5">
@@ -237,15 +266,9 @@ export function InvoicesView() {
                     </div>
                     <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-0.5">
                       <p className="text-sm font-semibold tabular-nums">{formatCurrency(inv.total)}</p>
-                      {outstanding > 0 ? (
-                        <p className="text-xs text-amber-600 dark:text-amber-400">
-                          Due: {formatCurrency(outstanding)}
-                        </p>
-                      ) : (
-                        <p className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" /> Paid
-                        </p>
-                      )}
+                      {/* Orders-style money line — Paid ₹5,000/- · ₹7,200/- due,
+                          or the green tick once fully settled. */}
+                      <InvoicePaymentLine total={inv.total} amountPaid={inv.amountPaid} />
                       <div className="mt-1 flex items-center gap-1">
                         <Button
                           variant="ghost"
@@ -423,6 +446,31 @@ export function InvoicesView() {
                   <div className="rounded-lg border p-3">
                     <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</p>
                     <p className="text-xs">{detail.notes}</p>
+                  </div>
+                )}
+
+                {/* Payments — the full trail: how much, when, and HOW (cash/online). */}
+                {(detailPayments?.length ?? 0) > 0 && (
+                  <div className="rounded-lg border p-3">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payments</p>
+                    <div className="space-y-1.5">
+                      {detailPayments?.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium capitalize">
+                              {formatCurrency(p.amount)}
+                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                                {p.method || "cash"}
+                              </span>
+                            </p>
+                            {p.note && p.note !== `Payment for ${detail.invoiceNumber}` && (
+                              <p className="truncate text-[11px] text-muted-foreground">{p.note}</p>
+                            )}
+                          </div>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(p.date)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

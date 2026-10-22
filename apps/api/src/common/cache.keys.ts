@@ -41,6 +41,7 @@ export const cacheKeys = {
   report: (q: Record<string, unknown>) => `reports:${hashFilters(q)}`,
   invoicesList: (f: Record<string, unknown>) => `invoices:list:${hashFilters(f)}`,
   invoice: (id: string) => `invoices:get:${id}`,
+  invoicePayments: (id: string) => `invoices:payments:${id}`,
   ordersList: (f: Record<string, unknown>) => `orders:list:${hashFilters(f)}`,
   order: (id: string) => `orders:get:${id}`,
   salesList: (f: Record<string, unknown>) => `sales:list:${hashFilters(f)}`,

@@ -126,6 +126,75 @@ export function ReportsScreen() {
     return list;
   }, [report, sortKey]);
 
+  // Day-wise Daily Sales — core fills `days` for the daily report only; the
+  // flat list stays for every other type.
+  const dayGroups = report?.days?.length ? report.days : null;
+
+  // One itemized record card — reused by the flat list AND the per-day
+  // Daily Sales sections.
+  const renderRecord = (
+    r: (typeof rows)[number],
+    key: string,
+    index: number,
+  ) => {
+    const marginPct = r.revenue > 0 ? Math.round((r.profit / r.revenue) * 100) : 0;
+    const avgPerUnit =
+      r.soldQuantity > 0 ? Math.round(r.revenue / r.soldQuantity) : null;
+    return (
+      <Card key={key} index={index} style={styles.recordCard}>
+        <View style={styles.recordTop}>
+          <View style={styles.recordMain}>
+            <Text style={styles.recordName} numberOfLines={1}>
+              {r.productName}
+            </Text>
+            <Text style={styles.recordMeta} numberOfLines={1}>
+              {[
+                r.color || null,
+                r.size || null,
+                r.weight != null ? formatWeight(r.weight, r.weightUnit) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          </View>
+          <Text style={styles.recordRevenue}>{formatCurrency(r.revenue)}</Text>
+        </View>
+
+        <View style={styles.recordMid}>
+          <Text style={styles.recordSold}>
+            {r.soldQuantity} sold ·{' '}
+            {r.stock <= 0 ? (
+              <Text style={{color: colors.danger, fontWeight: '700'}}>0 in stock</Text>
+            ) : (
+              `${r.stock} in stock`
+            )}
+          </Text>
+          {avgPerUnit != null ? (
+            <Text style={styles.recordAvg}>
+              Avg {formatCurrency(avgPerUnit)} / pc
+            </Text>
+          ) : null}
+        </View>
+
+        <View style={styles.recordBottom}>
+          <Text style={styles.recordCost}>
+            Cost basis {formatCurrency(r.revenue - r.profit)}
+          </Text>
+          <Text
+            style={[
+              styles.recordProfit,
+              {color: r.profit < 0 ? colors.danger : colors.success},
+            ]}>
+            {r.profit < 0
+              ? `Profit ${formatCurrency(r.profit)}`
+              : `Profit +${formatCurrency(r.profit)}`}
+            {' '}({marginPct}%)
+          </Text>
+        </View>
+      </Card>
+    );
+  };
+
   const margin =
     report && report.totals.revenue > 0
       ? (report.totals.profit / report.totals.revenue) * 100
@@ -269,7 +338,33 @@ export function ReportsScreen() {
               </Card>
             ) : null}
 
-            {/* Itemized records */}
+            {/* Itemized records — day-wise Daily Sales shows one section per
+                DATE with that day's products + takings; other types keep the
+                flat sortable list. */}
+            {dayGroups ? (
+              dayGroups.map((d, di) => (
+                <View key={d.day}>
+                  <View style={styles.dayHeader}>
+                    <View style={{flex: 1, paddingRight: 8}}>
+                      <Text style={styles.sectionTitle}>{d.label}</Text>
+                      <Text style={styles.sectionCount}>
+                        {d.invoices} invoice{d.invoices !== 1 ? 's' : ''} ·{' '}
+                        {d.daySoldQuantity} sold
+                      </Text>
+                    </View>
+                    <Text style={styles.dayRevenue}>{money(d.dayRevenue)}</Text>
+                  </View>
+                  {d.rows.length === 0 ? (
+                    <Empty text="No sales this day" />
+                  ) : (
+                    d.rows.map((r, i) =>
+                      renderRecord(r, `${d.day}-${r.sku ?? 'n'}-${i}`, di * 100 + i),
+                    )
+                  )}
+                </View>
+              ))
+            ) : (
+              <>
             <View style={styles.sectionRow}>
               <Text style={styles.sectionTitle}>Itemized Records</Text>
               <Text style={styles.sectionCount}>{report.rows.length} Products</Text>
@@ -298,65 +393,9 @@ export function ReportsScreen() {
             {rows.length === 0 ? (
               <Empty text="No data for this report in the selected period" />
             ) : (
-              rows.map((r, i) => {
-                const marginPct =
-                  r.revenue > 0 ? Math.round((r.profit / r.revenue) * 100) : 0;
-                const avgPerUnit =
-                  r.soldQuantity > 0 ? Math.round(r.revenue / r.soldQuantity) : null;
-                return (
-                  <Card key={`${r.productId ?? 'x'}-${i}`} index={i} style={styles.recordCard}>
-                    <View style={styles.recordTop}>
-                      <View style={styles.recordMain}>
-                        <Text style={styles.recordName} numberOfLines={1}>
-                          {r.productName}
-                        </Text>
-                        <Text style={styles.recordMeta} numberOfLines={1}>
-                          {[
-                            r.color || null,
-                            r.size || null,
-                            r.weight != null ? formatWeight(r.weight, r.weightUnit) : null,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </Text>
-                      </View>
-                      <Text style={styles.recordRevenue}>{formatCurrency(r.revenue)}</Text>
-                    </View>
-
-                    <View style={styles.recordMid}>
-                      <Text style={styles.recordSold}>
-                        {r.soldQuantity} sold ·{' '}
-                        {r.stock <= 0 ? (
-                          <Text style={{color: colors.danger, fontWeight: '700'}}>0 in stock</Text>
-                        ) : (
-                          `${r.stock} in stock`
-                        )}
-                      </Text>
-                      {avgPerUnit != null ? (
-                        <Text style={styles.recordAvg}>
-                          Avg {formatCurrency(avgPerUnit)} / pc
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <View style={styles.recordBottom}>
-                      <Text style={styles.recordCost}>
-                        Cost basis {formatCurrency(r.revenue - r.profit)}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.recordProfit,
-                          {color: r.profit < 0 ? colors.danger : colors.success},
-                        ]}>
-                        {r.profit < 0
-                          ? `Profit ${formatCurrency(r.profit)}`
-                          : `Profit +${formatCurrency(r.profit)}`}
-                        {' '}({marginPct}%)
-                      </Text>
-                    </View>
-                  </Card>
-                );
-              })
+              rows.map((r, i) => renderRecord(r, `${r.productId ?? 'x'}-${i}`, i))
+            )}
+              </>
             )}
 
             {/* Totals strip */}
@@ -582,6 +621,20 @@ const makeStyles = () =>
       fontSize: rs(11),
       fontWeight: '700',
       color: colors.muted,
+    },
+    // Day-wise Daily Sales — one header per date (label + takings)
+    dayHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: spacing.sm,
+      marginBottom: rs(6),
+      paddingHorizontal: CARD_MARGIN,
+    },
+    dayRevenue: {
+      fontSize: rs(14),
+      fontWeight: '800',
+      color: colors.success,
     },
     sortRow: {
       flexDirection: 'row',

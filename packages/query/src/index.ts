@@ -28,6 +28,7 @@ export {
 export {
   useInvoices,
   useInvoice,
+  useInvoicePayments,
   useCreateInvoice,
   useUpdateInvoice,
   useDeleteInvoice,

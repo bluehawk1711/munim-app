@@ -9,6 +9,10 @@
  * initialised to the outstanding balance, so parents don't duplicate the
  * total/paid/outstanding math.
  *
+ * The payment is recorded HOW it was received — a Cash / Online toggle plus
+ * an optional reference note (UPI id / txn number / "cash in hand"), so the
+ * invoice detail can later show the full payment trail.
+ *
  * Parent contract: render <RecordPaymentDialog key={paying?.id ?? "closed"} …>
  * so the amount resets when a different invoice is opened.
  */
@@ -17,6 +21,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "./button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
+import { cn } from "../lib/utils";
 import { formatMoney } from "../lib/format";
 
 export type PaymentTarget = {
@@ -25,6 +30,17 @@ export type PaymentTarget = {
   customerName: string | null;
   total: number;
   amountPaid: number;
+};
+
+/** How the money came in — stored on `payments.method` (free text in the DB
+ *  so legacy rows keep their old values). */
+export type PaymentMethod = "cash" | "online";
+
+export type RecordPaymentSubmit = {
+  amount: number;
+  method: PaymentMethod;
+  /** Optional reference (UPI id / txn no. / note) — trimmed; "" when blank. */
+  note: string;
 };
 
 export function RecordPaymentDialog({
@@ -38,7 +54,7 @@ export function RecordPaymentDialog({
   onOpenChange: (open: boolean) => void;
   invoice: PaymentTarget | null;
   busy?: boolean;
-  onConfirm: (amount: number) => void;
+  onConfirm: (submit: RecordPaymentSubmit) => void;
 }) {
   // Keyed remount (parent passes key={invoice?.id}) makes this initializer run
   // with the freshly opened invoice — the amount always starts at the
@@ -46,6 +62,8 @@ export function RecordPaymentDialog({
   const [amount, setAmount] = React.useState<number>(() =>
     invoice ? Math.max(0, invoice.total - invoice.amountPaid) : 0,
   );
+  const [method, setMethod] = React.useState<PaymentMethod>("cash");
+  const [note, setNote] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
 
   function submit(e: React.FormEvent) {
@@ -56,7 +74,7 @@ export function RecordPaymentDialog({
       return;
     }
     setError(null);
-    onConfirm(amount);
+    onConfirm({ amount, method, note: note.trim() });
   }
 
   return (
@@ -97,6 +115,51 @@ export function RecordPaymentDialog({
                 autoFocus
               />
               {error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
+            </div>
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium">Paid via</span>
+              <div
+                role="radiogroup"
+                aria-label="Paid via"
+                className="grid grid-cols-2 overflow-hidden rounded-lg border text-xs font-medium"
+              >
+                {(
+                  [
+                    ["cash", "Cash"],
+                    ["online", "Online"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={method === value}
+                    onClick={() => setMethod(value)}
+                    className={cn(
+                      "py-2 transition-colors",
+                      method === value
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background text-muted-foreground hover:bg-muted",
+                      value === "online" && "border-l",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="record-payment-note" className="text-xs font-medium">
+                Note <span className="font-normal text-muted-foreground">(optional — UPI ref, txn no.)</span>
+              </label>
+              <Input
+                id="record-payment-note"
+                value={note}
+                maxLength={120}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={method === "online" ? "UPI id / transaction no." : "e.g. cash in hand"}
+                className="h-9"
+              />
             </div>
           </div>
           <DialogFooter>

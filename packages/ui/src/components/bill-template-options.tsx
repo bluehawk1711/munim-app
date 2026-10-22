@@ -4,7 +4,8 @@
  * Shared bill template options — the exact same controls in the web and
  * desktop bill forms, so the two apps stay seamless: template (Classic
  * Jewellery / Modern E-commerce), classic accent color (red / yellow with a
- * swatch), the 2-in-1 toggle and its Duplicate / Separate mode select.
+ * swatch), the 2-in-1 toggle and its Duplicate / Separate mode select, plus
+ * the per-bill display toggles (Weight column, rate rows, Chejat/Nag signs).
  *
  * Purely presentational — callers own state and can add their own toasts on
  * change (web + desktop both use sonner).
@@ -28,6 +29,7 @@ export function BillTemplateOptions({
   weightAfterName,
   goldRateLine,
   silverRateLine,
+  signSuffix,
   onTemplate,
   onClassicColor,
   onTwoInOne,
@@ -35,6 +37,7 @@ export function BillTemplateOptions({
   onWeightAfterName,
   onGoldRateLine,
   onSilverRateLine,
+  onSignSuffix,
   className,
 }: {
   template: BillTemplate;
@@ -44,6 +47,8 @@ export function BillTemplateOptions({
   weightAfterName: boolean;
   goldRateLine: boolean;
   silverRateLine: boolean;
+  /** Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −". */
+  signSuffix: boolean;
   onTemplate: (t: BillTemplate) => void;
   onClassicColor: (c: BillClassicColor) => void;
   onTwoInOne: (on: boolean) => void;
@@ -51,6 +56,7 @@ export function BillTemplateOptions({
   onWeightAfterName: (on: boolean) => void;
   onGoldRateLine: (on: boolean) => void;
   onSilverRateLine: (on: boolean) => void;
+  onSignSuffix: (on: boolean) => void;
   className?: string;
 }) {
   return (
@@ -141,6 +147,18 @@ export function BillTemplateOptions({
           Silver rate line
         </label>
       </div>
+
+      {template === "ecommerce" && (
+        <div className="flex items-center gap-2">
+          <Switch checked={signSuffix} onCheckedChange={onSignSuffix} aria-label="Chejat/Nag signs" />
+          <label
+            className="cursor-pointer text-xs font-medium text-muted-foreground select-none"
+            onClick={() => onSignSuffix(!signSuffix)}
+          >
+            Chejat/Nag signs
+          </label>
+        </div>
+      )}
     </div>
   );
 }

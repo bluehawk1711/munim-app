@@ -192,6 +192,9 @@ export const invoiceSchema = z.object({
       weightAfterName: z.boolean().default(true),
       goldRateLine: z.boolean().default(true),
       silverRateLine: z.boolean().default(true),
+      // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag:
+      // 0.200 −". Default ON (client's ask); old snapshots parse to true.
+      signSuffix: z.boolean().default(true),
       // Estimate columns turned off on the New Bill screen — per metal
       // (gold grid ≠ silver field list). Omitted by older snapshots / web
       // payloads → both sides [] (nothing hidden).
@@ -210,6 +213,7 @@ export const invoiceSchema = z.object({
                 "description",
                 "purity",
                 "weight",
+                "netWeight",
                 "chejatNag",
                 "rate",
                 "labour",
@@ -224,6 +228,7 @@ export const invoiceSchema = z.object({
                 "description",
                 "purity",
                 "weight",
+                "netWeight",
                 "chejatNag",
                 "rate",
                 "labour",
@@ -238,7 +243,9 @@ export const invoiceSchema = z.object({
     .optional(),
   amountPaid: z.coerce.number().min(0).optional(),
   paymentMethod: z.string().optional(),
-  // Gold base ₹/gram this bill was created at — reprints must show THIS rate,
+  // Optional reference for the advance (UPI ref / txn id / "cash hand").
+  paymentNote: z.string().max(120).optional(),
+  // Gold ₹/gram this bill was created at — reprints must show THIS rate,
   // not whatever today's shop rate happens to be. Optional (older bills: null).
   goldRate: z.coerce.number().min(0).optional(),
   // Silver ₹/gram this bill was created at (bill-level override). Optional.

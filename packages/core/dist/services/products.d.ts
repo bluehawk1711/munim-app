@@ -155,7 +155,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         povayiRate: number | null;
         otherCharges: number | null;
         goldKarat: number | null;
-        labourType: "PER_GRAM" | "FIXED" | "PERCENT";
+        labourType: "PERCENT" | "FIXED" | "PER_GRAM";
         labourValue: number | null;
         priceMode: "auto" | "manual";
         notes: string | null;
@@ -204,7 +204,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -301,7 +301,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -343,7 +343,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -392,7 +392,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -451,7 +451,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;
@@ -502,7 +502,7 @@ export declare function findProductByCode(db: DbClient, code: string): Promise<{
     povayiRate: number | null;
     otherCharges: number | null;
     goldKarat: number | null;
-    labourType: "PER_GRAM" | "FIXED" | "PERCENT";
+    labourType: "PERCENT" | "FIXED" | "PER_GRAM";
     labourValue: number | null;
     priceMode: "auto" | "manual";
     notes: string | null;

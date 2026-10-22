@@ -832,6 +832,11 @@ export function BillingScreen() {
   const [weightAfterName, setWeightAfterName] = useState(true);
   const [goldRateLine, setGoldRateLine] = useState(true);
   const [silverRateLine, setSilverRateLine] = useState(true);
+  // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
+  const [signSuffix, setSignSuffix] = useState(true);
+  // How the advance is coming in — Cash / Online + optional reference note.
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash');
+  const [paymentNote, setPaymentNote] = useState('');
 
   // ── Estimate column toggles — per METAL (gold grid ≠ silver field list) ─
   const [hiddenGold, setHiddenGold] = useState<EstimateColumnId[]>([]);
@@ -883,6 +888,7 @@ export function BillingScreen() {
     weightAfterName,
     goldRateLine,
     silverRateLine,
+    signSuffix,
     hiddenColumns: {gold: hiddenGold, silver: hiddenSilver},
   };
 
@@ -1221,6 +1227,8 @@ export function BillingScreen() {
       status: invoice.status,
       currency: settings?.currency ?? 'INR',
       goldRate: invoice.goldRate ?? goldBaseRate,
+      // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+      goldRateKarat: goldRates?.baseKarat ?? null,
       silverRate: invoice.silverRate ?? settings?.silverRatePerGram ?? null,
     });
   }
@@ -1298,6 +1306,7 @@ export function BillingScreen() {
     setWeightAfterName(st?.weightAfterName ?? true);
     setGoldRateLine(st?.goldRateLine ?? true);
     setSilverRateLine(st?.silverRateLine ?? true);
+    setSignSuffix(st?.signSuffix ?? true);
     setHiddenGold(st?.hiddenColumns?.gold ?? []);
     setHiddenSilver(st?.hiddenColumns?.silver ?? []);
 
@@ -1402,7 +1411,9 @@ export function BillingScreen() {
         materialReturnedValue: Number(materialReturnedValue) || 0,
         materialReturnedTitle: materialReturnedTitle.trim() || undefined,
         amountPaid: Number(paid) || 0,
-        paymentMethod: 'cash',
+        // How the advance came in — Cash / Online + the optional reference.
+        paymentMethod,
+        paymentNote: paymentNote.trim() || undefined,
         shopDetails: shop,
         templateSettings,
       };
@@ -1437,7 +1448,9 @@ export function BillingScreen() {
             materialReturnedValue: Number(secondMaterialReturnedValue) || 0,
             materialReturnedTitle: secondMaterialReturnedTitle.trim() || undefined,
             amountPaid: Number(secondPaid) || 0,
-            paymentMethod: 'cash',
+            // Same Cash/Online choice as Bill 1 (one advance, two prints).
+            paymentMethod,
+            paymentNote: paymentNote.trim() || undefined,
             shopDetails: shop,
             templateSettings,
           });
@@ -1673,6 +1686,22 @@ export function BillingScreen() {
             />
           </View>
 
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Chejat/Nag signs</Text>
+              <Text style={styles.switchSub}>Print "Chejat: 0.100 +" / "Nag: 0.200 −"</Text>
+            </View>
+            <Switch
+              value={signSuffix}
+              onValueChange={value => {
+                selectionTick();
+                setSignSuffix(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
+
           {!editing && twoInOne ? (
             <>
               <Text style={styles.optLabel}>Mode</Text>
@@ -1809,6 +1838,39 @@ export function BillingScreen() {
             <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
             <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" />
           <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="numeric" />
+          {/* How the advance is coming in — Cash / Online + optional note
+              (recorded on the payment, shown in the invoice's Payments trail). */}
+          <View>
+            <Text style={styles.optLabel}>Paid via</Text>
+            <View style={styles.segmentRow}>
+              {(['cash', 'online'] as const).map(m => (
+                <Pressable
+                  key={m}
+                  accessibilityRole="button"
+                  accessibilityLabel={m === 'cash' ? 'Cash payment' : 'Online payment'}
+                  onPress={() => {
+                    selectionTick();
+                    setPaymentMethod(m);
+                  }}
+                  style={({pressed}) => [
+                    styles.segment,
+                    paymentMethod === m && styles.segmentActive,
+                    pressed && {opacity: 0.75},
+                  ]}>
+                  <Text style={[styles.segmentText, paymentMethod === m && styles.segmentTextActive]}>
+                    {m === 'cash' ? 'Cash' : 'Online'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <Field
+            label="Payment note (optional)"
+            value={paymentNote}
+            onChangeText={setPaymentNote}
+            placeholder={paymentMethod === 'online' ? 'UPI id / transaction no.' : 'e.g. cash in hand'}
+            maxLength={120}
+          />
           <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
           <TotalsBlock
             styles={styles}

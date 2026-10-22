@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt, RefreshCw, Copy, FileDown, CheckCircle2 } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Checkbox, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, BillLinePricingStrip, ProductSearchSelect, BarcodeLookupInput, type BillLinePricingStripValue, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, Checkbox, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, BillLinePricingStrip, EstimateColumnToggles, ProductSearchSelect, BarcodeLookupInput, type BillLinePricingStripValue, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
 import { useCreateInvoice, useInvoice, useUpdateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
@@ -18,6 +18,7 @@ import {
   resolveGoldRateTable,
   weightTextToGrams,
   type BillDocument,
+  type EstimateColumnId,
   type InvoiceDto,
   type PriceBreakdown,
 } from "@munim/core"
@@ -208,6 +209,15 @@ export function BillingView() {
   const [weightAfterName, setWeightAfterName] = React.useState(true)
   const [goldRateLine, setGoldRateLine] = React.useState(true)
   const [silverRateLine, setSilverRateLine] = React.useState(true)
+  // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
+  const [signSuffix, setSignSuffix] = React.useState(true)
+  // Estimate columns turned off on THIS bill (per metal) — saved with the
+  // bill so reprints match what the shop chose to show.
+  const [hiddenGold, setHiddenGold] = React.useState<EstimateColumnId[]>([])
+  const [hiddenSilver, setHiddenSilver] = React.useState<EstimateColumnId[]>([])
+  // How the advance is coming in — Cash / Online + optional reference note.
+  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "online">("cash")
+  const [paymentNote, setPaymentNote] = React.useState("")
 
   // Per-bill gold base ₹/g — prefilled with the shop's rate; editing it
   // re-prices every auto-priced gold line as you type (Phase 4b).
@@ -605,9 +615,6 @@ export function BillingView() {
   // type) rather than the optional-fielded snapshot model — the payload
   // requires every key present.
   function buildSettings(): NonNullable<InvoiceFormValues["templateSettings"]> {
-    // hiddenColumns: web has no column-toggle UI — always send the explicit
-    // all-columns default (the create payload type requires the field; the
-    // server validator defaults it too, this keeps the client honest).
     return {
       template,
       classicColor,
@@ -616,7 +623,8 @@ export function BillingView() {
       weightAfterName,
       goldRateLine,
       silverRateLine,
-      hiddenColumns: { gold: [], silver: [] },
+      signSuffix,
+      hiddenColumns: { gold: hiddenGold, silver: hiddenSilver },
     }
   }
 
@@ -677,6 +685,9 @@ export function BillingView() {
       amountPaid: opts.amountPaid,
       currency: "INR",
       goldRate: billGoldRate,
+      // Purity of the quoted rate — printed as the "24 carat" line under the
+      // gold rate row (shop's base karat; unset → no purity line).
+      goldRateKarat: goldRates?.baseKarat ?? null,
       silverRate: billSilverRate ?? shopSilverPerGram ?? null,
     })
   }
@@ -772,7 +783,9 @@ export function BillingView() {
       customerAddress,
       date,
       notes,
-      paymentMethod: "cash" as const,
+      // How the advance came in — Cash / Online, plus the optional reference.
+      paymentMethod,
+      paymentNote: paymentNote.trim() || undefined,
       shopDetails: {
         name: shop.shopName,
         address: shop.shopAddress ?? "",
@@ -914,6 +927,9 @@ export function BillingView() {
     setWeightAfterName(st?.weightAfterName ?? true)
     setGoldRateLine(st?.goldRateLine ?? true)
     setSilverRateLine(st?.silverRateLine ?? true)
+    setSignSuffix(st?.signSuffix ?? true)
+    setHiddenGold(st?.hiddenColumns?.gold ?? [])
+    setHiddenSilver(st?.hiddenColumns?.silver ?? [])
 
     // The bill's OWN rates beat the shop default — and are marked "touched"
     // so the two prefill effects above can't overwrite them later.
@@ -994,6 +1010,11 @@ export function BillingView() {
               weightAfterName={weightAfterName}
               goldRateLine={goldRateLine}
               silverRateLine={silverRateLine}
+              signSuffix={signSuffix}
+              onSignSuffix={(next) => {
+                setSignSuffix(next)
+                toast.success(next ? "Chejat/Nag signs shown" : "Chejat/Nag signs hidden")
+              }}
               onWeightAfterName={(next) => {
                 setWeightAfterName(next)
                 toast.success(next ? "Weight column shown" : "Weight column hidden")
@@ -1030,6 +1051,18 @@ export function BillingView() {
               }}
             />
           </div>
+
+          {/* Estimate column visibility — same toggles desktop shows, so the
+              printed grid can be trimmed per metal. */}
+          <EstimateColumnToggles
+            template={template}
+            hiddenGold={hiddenGold}
+            hiddenSilver={hiddenSilver}
+            onToggle={(metal, column) => {
+              const setter = metal === "gold" ? setHiddenGold : setHiddenSilver
+              setter((prev) => (prev.includes(column) ? prev.filter((c) => c !== column) : [...prev, column]))
+            }}
+          />
 
           <Separator />
 
@@ -1277,6 +1310,29 @@ export function BillingView() {
             <div className="space-y-1.5">
               <Label className="text-xs">Amount paid now (₹)</Label>
               <Input type="number" min={0} value={amountPaid || ""} onChange={(e) => setAmountPaid(Number(e.target.value))} className="h-9" />
+              {/* How the advance is coming in — printed on the invoice's
+                  Payments trail (Cash / Online + optional reference). */}
+              <div role="radiogroup" aria-label="Paid via" className="grid grid-cols-2 overflow-hidden rounded-lg border text-xs font-medium">
+                {([["cash", "Cash"], ["online", "Online"]] as const).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={paymentMethod === value}
+                    onClick={() => setPaymentMethod(value)}
+                    className={`py-1.5 transition-colors ${paymentMethod === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"} ${value === "online" ? "border-l" : ""}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <Input
+                value={paymentNote}
+                maxLength={120}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                placeholder={paymentMethod === "online" ? "UPI id / transaction no. (optional)" : "Note (optional)"}
+                className="h-9"
+              />
             </div>
           </CardContent>
         </Card>

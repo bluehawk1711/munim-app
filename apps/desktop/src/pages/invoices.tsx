@@ -20,6 +20,7 @@ import {
   useInvoices,
   useDeleteInvoice,
   useRecordInvoicePayment,
+  useInvoicePayments,
   useSettings,
   useQueryState,
   useGoldRates,
@@ -46,6 +47,8 @@ import {
   DialogHeader,
   DialogTitle,
   InvoiceStatusBadge,
+  InvoicePaymentLine,
+  type RecordPaymentSubmit,
   RecordPaymentDialog,
   ConfirmDialog,
 } from "@munim/ui";
@@ -55,13 +58,14 @@ type InvoiceRow = InvoiceDto;
 const STATUS_PILLS = [
   { kind: "all" as const, label: "All Invoices" },
   { kind: "PAID" as const, label: "Paid" },
+  { kind: "PARTIAL" as const, label: "Partial" },
   { kind: "UNPAID" as const, label: "Unpaid / Drafts" },
 ] as const;
 
 export function InvoicesPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<InvoiceFilters["status"]>("all");
-  const [pillFilter, setPillFilter] = useState<"all" | "PAID" | "UNPAID">("all");
+  const [pillFilter, setPillFilter] = useState<"all" | "PAID" | "PARTIAL" | "UNPAID">("all");
   const [page, setPage] = useState(1);
 
   const { data, loading, refetching } = useQueryState(
@@ -88,6 +92,8 @@ export function InvoicesPage() {
   const [saving, setSaving] = useState(false);
   const deleteInvoice = useDeleteInvoice();
   const recordPayment = useRecordInvoicePayment(paying?.id ?? "");
+  // Payment trail for the open detail dialog — how much, when, cash/online.
+  const { data: detailPayments } = useInvoicePayments(detailTarget?.id ?? null);
   const { data: settings } = useQueryState(useSettings());
   const { data: goldRates } = useQueryState(useGoldRates());
 
@@ -116,12 +122,18 @@ export function InvoicesPage() {
     }
   }
 
-  async function confirmPayment(amount: number) {
+  async function confirmPayment(submit: RecordPaymentSubmit) {
     if (!paying) return;
     setSaving(true);
     try {
-      await recordPayment.mutateAsync({ amount, method: "cash" });
-      toast.success("Payment recorded", { description: `${formatCurrency(amount)} received` });
+      await recordPayment.mutateAsync({
+        amount: submit.amount,
+        method: submit.method,
+        note: submit.note || undefined,
+      });
+      toast.success("Payment recorded", {
+        description: `${formatCurrency(submit.amount)} received · ${submit.method === "online" ? "Online" : "Cash"}`,
+      });
       setPaying(null);
     } catch (err) {
       toast.error("Payment failed", { description: err instanceof Error ? err.message : undefined });
@@ -176,6 +188,8 @@ export function InvoicesPage() {
         status: inv.status,
         currency: settings?.currency ?? "INR",
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+        goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings?.silverRatePerGram ?? null,
       });
       await downloadBillPdf(bill, mergeBillTemplateSettings(inv.templateSettings));
@@ -193,13 +207,16 @@ export function InvoicesPage() {
   const avgValue = invoices.length > 0 ? totalValue / invoices.length : 0;
 
   const paidCount = invoices.filter((i) => i.status === "PAID").length;
-  const unpaidCount = invoices.filter((i) => i.status === "UNPAID" || i.status === "DRAFT" || i.status === "PARTIAL").length;
+  // Partial bills get their OWN pill (an advance was received, balance due).
+  const partialCount = invoices.filter((i) => i.status === "PARTIAL").length;
+  const unpaidCount = invoices.filter((i) => i.status === "UNPAID" || i.status === "DRAFT").length;
 
   const pillCounts = useMemo(() => ({
     all: pagination?.totalCount ?? invoices.length,
     PAID: paidCount,
+    PARTIAL: partialCount,
     UNPAID: unpaidCount,
-  }), [pagination, invoices.length, paidCount, unpaidCount]);
+  }), [pagination, invoices.length, paidCount, partialCount, unpaidCount]);
 
   return (
     <div className="space-y-4">
@@ -264,7 +281,7 @@ export function InvoicesPage() {
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">Avg Bill Value</p>
               <p className="truncate text-lg font-semibold tabular-nums">{formatCurrency(avgValue)}</p>
-              <p className="text-[11px] text-muted-foreground">{paidCount} paid · {unpaidCount} pending</p>
+              <p className="text-[11px] text-muted-foreground">{paidCount} paid · {unpaidCount + partialCount} pending</p>
             </div>
           </CardContent>
         </Card>
@@ -396,9 +413,11 @@ export function InvoicesPage() {
                       )}
                     </div>
 
-                    {/* Amount */}
+                    {/* Amount — Orders-style money line: Paid ₹5,000/- · due,
+                        or the green tick once fully settled. */}
                     <div className="text-right">
                       <p className="text-sm font-semibold tabular-nums">{formatCurrency(inv.total)}</p>
+                      <InvoicePaymentLine total={inv.total} amountPaid={inv.amountPaid} className="justify-end" />
                     </div>
 
                     {/* Status */}
@@ -484,7 +503,7 @@ export function InvoicesPage() {
         onOpenChange={(open) => !open && setPaying(null)}
         invoice={paying}
         busy={saving}
-        onConfirm={(amount) => void confirmPayment(amount)}
+        onConfirm={(submit) => void confirmPayment(submit)}
       />
 
       {/* Delete dialog */}
@@ -588,6 +607,31 @@ export function InvoicesPage() {
                   <div className="rounded-lg border p-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Notes</p>
                     <p className="text-xs">{detailTarget.notes}</p>
+                  </div>
+                )}
+
+                {/* Payments — the full trail: how much, when, and HOW (cash/online). */}
+                {(detailPayments?.length ?? 0) > 0 && (
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Payments</p>
+                    <div className="space-y-1.5">
+                      {detailPayments?.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium capitalize">
+                              {formatCurrency(p.amount)}
+                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                                {p.method || "cash"}
+                              </span>
+                            </p>
+                            {p.note && p.note !== `Payment for ${detailTarget.invoiceNumber}` && (
+                              <p className="truncate text-[11px] text-muted-foreground">{p.note}</p>
+                            )}
+                          </div>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(p.date)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
