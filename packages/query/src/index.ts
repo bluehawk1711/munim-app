@@ -37,6 +37,7 @@ export {
 export {
   useOrders,
   useOrder,
+  useOrderPayments,
   useCreateOrder,
   useUpdateOrder,
   useGenerateOrderBill,

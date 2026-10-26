@@ -195,6 +195,12 @@ export const invoiceSchema = z.object({
       // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag:
       // 0.200 −". Default ON (client's ask); old snapshots parse to true.
       signSuffix: z.boolean().default(true),
+      // Purity line under the gold rate row — omitted by older snapshots /
+      // payload builders → undefined, and mergeBillTemplateSettings lands
+      // on "base" (legacy base-karat line). `.optional()` (NOT `.default`)
+      // so the OUTPUT type stays optional, matching the model field.
+      goldRateKaratMode: z.enum(["off", "base", "product", "custom"]).optional(),
+      goldRateKaratText: z.string().max(80).optional(),
       // Estimate columns turned off on the New Bill screen — per metal
       // (gold grid ≠ silver field list). Omitted by older snapshots / web
       // payloads → both sides [] (nothing hidden).
@@ -242,7 +248,7 @@ export const invoiceSchema = z.object({
     })
     .optional(),
   amountPaid: z.coerce.number().min(0).optional(),
-  paymentMethod: z.string().optional(),
+  paymentMethod: z.string().max(40).optional(),
   // Optional reference for the advance (UPI ref / txn id / "cash hand").
   paymentNote: z.string().max(120).optional(),
   // Gold ₹/gram this bill was created at — reprints must show THIS rate,
@@ -330,6 +336,8 @@ export type OrderUpdateValues = z.infer<typeof orderUpdateSchema>;
 /** POST /api/orders/:id/pay — an advance / part-payment on an unbilled order. */
 export const orderPaymentSchema = z.object({
   amount: z.coerce.number().positive("Payment must be more than zero"),
+  /** How it was paid — free text (backend keeps legacy values working). */
+  method: z.string().max(40).optional(),
   note: z.string().optional(),
 });
 

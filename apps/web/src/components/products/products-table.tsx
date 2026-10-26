@@ -153,11 +153,22 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
       {
         accessorKey: "weight",
         header: "Weight",
-        cell: ({ row }) => (
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {formatWeight(row.original.weight, row.original.weightUnit)}
-          </span>
-        ),
+        cell: ({ row }) => {
+          const p = row.original
+          // For gold products, show net weight if available
+          if (p.type === "Gold" && p.netWeight != null) {
+            return (
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {p.netWeight} (net)
+              </span>
+            )
+          }
+          return (
+            <span className="text-xs text-muted-foreground tabular-nums">
+              {formatWeight(p.weight, p.weightUnit)}
+            </span>
+          )
+        },
       },
       {
         accessorKey: "size",

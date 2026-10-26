@@ -9,9 +9,10 @@
  * initialised to the outstanding balance, so parents don't duplicate the
  * total/paid/outstanding math.
  *
- * The payment is recorded HOW it was received — a Cash / Online toggle plus
- * an optional reference note (UPI id / txn number / "cash in hand"), so the
- * invoice detail can later show the full payment trail.
+ * The payment is recorded HOW it was received — a preset method picker
+ * (Cash / UPI / Card / Cheque / Bank transfer / Custom…) plus an optional
+ * reference note (UPI id / txn number / "cash in hand"), so the invoice
+ * detail can later show the full payment trail.
  *
  * Parent contract: render <RecordPaymentDialog key={paying?.id ?? "closed"} …>
  * so the amount resets when a different invoice is opened.
@@ -21,7 +22,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "./button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
-import { cn } from "../lib/utils";
+import { PaymentMethodPicker } from "./payment-method-picker";
 import { formatMoney } from "../lib/format";
 
 export type PaymentTarget = {
@@ -33,8 +34,8 @@ export type PaymentTarget = {
 };
 
 /** How the money came in — stored on `payments.method` (free text in the DB
- *  so legacy rows keep their old values). */
-export type PaymentMethod = "cash" | "online";
+ *  so legacy rows keep their old values; a preset id or custom text). */
+export type PaymentMethod = string;
 
 export type RecordPaymentSubmit = {
   amount: number;
@@ -116,38 +117,7 @@ export function RecordPaymentDialog({
               />
               {error ? <p className="text-xs font-medium text-destructive">{error}</p> : null}
             </div>
-            <div className="space-y-1.5">
-              <span className="text-xs font-medium">Paid via</span>
-              <div
-                role="radiogroup"
-                aria-label="Paid via"
-                className="grid grid-cols-2 overflow-hidden rounded-lg border text-xs font-medium"
-              >
-                {(
-                  [
-                    ["cash", "Cash"],
-                    ["online", "Online"],
-                  ] as const
-                ).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    role="radio"
-                    aria-checked={method === value}
-                    onClick={() => setMethod(value)}
-                    className={cn(
-                      "py-2 transition-colors",
-                      method === value
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-background text-muted-foreground hover:bg-muted",
-                      value === "online" && "border-l",
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            </div>
+            <PaymentMethodPicker label="Paid via" value={method} onChange={setMethod} />
             <div className="space-y-1.5">
               <label htmlFor="record-payment-note" className="text-xs font-medium">
                 Note <span className="font-normal text-muted-foreground">(optional — UPI ref, txn no.)</span>
@@ -157,7 +127,7 @@ export function RecordPaymentDialog({
                 value={note}
                 maxLength={120}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder={method === "online" ? "UPI id / transaction no." : "e.g. cash in hand"}
+                placeholder={method === "online" || (method && method !== "cash") ? "UPI id / txn no." : "e.g. cash in hand"}
                 className="h-9"
               />
             </div>

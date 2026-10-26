@@ -52,6 +52,10 @@ export type OrderInput = {
   discount?: number;
   /** Advance / part-payment taken on the order (clamped to the total). */
   amountPaid?: number;
+  /** How the advance was paid (cash / upi / card / cheque / bank / free text). */
+  paymentMethod?: string;
+  /** Optional reference for the advance (UPI ref / txn no.). */
+  paymentNote?: string;
   notes?: string;
 };
 
@@ -138,6 +142,19 @@ export async function createOrder(db: DbClient, input: OrderInput) {
       quantity: item.quantity,
       price: item.price,
       total: item.quantity * item.price,
+    });
+  }
+
+  // Advance taken at the counter gets a ledger row too — the order's payment
+  // trail is complete from the very first rupee, not just from later parts.
+  if (amountPaid > 0) {
+    await db.insert(schema.payments).values({
+      orderId: order.id,
+      partyId: input.partyId ?? null,
+      direction: "IN",
+      amount: amountPaid,
+      method: input.paymentMethod?.trim() || "cash",
+      note: input.paymentNote?.trim() || null,
     });
   }
 
@@ -327,6 +344,8 @@ export async function updateOrder(db: DbClient, id: string, input: OrderUpdateIn
 export type OrderPaymentInput = {
   /** Money received against the order (₹) — added to what's already in. */
   amount: number;
+  /** How it was paid (cash / upi / card / cheque / bank / free text). */
+  method?: string;
   note?: string;
 };
 
@@ -361,6 +380,17 @@ export async function recordOrderPayment(db: DbClient, orderId: string, input: O
     .set({ amountPaid: next, updatedAt: new Date() })
     .where(eq(schema.orders.id, orderId));
 
+  // Ledger row — same `payments` table the invoice trail uses, so every app
+  // can render the order's full payment history (amount · method · note · date).
+  await db.insert(schema.payments).values({
+    orderId,
+    partyId: existing.partyId,
+    direction: "IN",
+    amount: credited,
+    method: input.method?.trim() || "cash",
+    note: input.note?.trim() || null,
+  });
+
   await logActivity(
     db,
     "ORDER_PAYMENT",
@@ -372,6 +402,15 @@ export async function recordOrderPayment(db: DbClient, orderId: string, input: O
   const updated = await getOrder(db, orderId);
   if (!updated) throw new OrderError("Order not found after payment", "NOT_FOUND", 404);
   return updated;
+}
+
+/** The order's payment trail — advances & part-payments, newest last. */
+export async function listOrderPayments(db: DbClient, orderId: string): Promise<schema.Payment[]> {
+  return db
+    .select()
+    .from(schema.payments)
+    .where(and(eq(schema.payments.orderId, orderId), eq(schema.payments.direction, "IN")))
+    .orderBy(schema.payments.date, schema.payments.createdAt);
 }
 
 export async function deleteOrder(db: DbClient, id: string) {

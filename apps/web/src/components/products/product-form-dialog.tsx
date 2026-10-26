@@ -529,25 +529,27 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="weight">Weight</Label>
-            <div className="flex gap-2">
-              <Input id="weight" type="number" step="0.1" min={0} placeholder="e.g. 24.5" {...form.register("weight")} className="flex-1" />
-              <Select value={form.watch("weightUnit") ?? "gm"} onValueChange={(v) => form.setValue("weightUnit", v as "mg" | "gm")}>
-                <SelectTrigger className="w-[80px]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gm">gm</SelectItem>
-                  <SelectItem value="mg">mg</SelectItem>
-                </SelectContent>
-              </Select>
+          {form.watch("type") !== "Gold" && (
+            <div className="space-y-2">
+              <Label htmlFor="weight">Weight</Label>
+              <div className="flex gap-2">
+                <Input id="weight" type="number" step="0.1" min={0} placeholder="e.g. 24.5" {...form.register("weight")} className="flex-1" />
+                <Select value={form.watch("weightUnit") ?? "gm"} onValueChange={(v) => form.setValue("weightUnit", v as "mg" | "gm")}>
+                  <SelectTrigger className="w-[80px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gm">gm</SelectItem>
+                    <SelectItem value="mg">mg</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Used for stock weight calculations & label printing</p>
+              {form.formState.errors.weight && (
+                <p className="text-xs text-destructive">{form.formState.errors.weight.message}</p>
+              )}
             </div>
-            <p className="text-[11px] text-muted-foreground">Used for stock weight calculations &amp; label printing</p>
-            {form.formState.errors.weight && (
-              <p className="text-xs text-destructive">{form.formState.errors.weight.message}</p>
-            )}
-          </div>
+          )}
 
           {form.watch("type") !== "Silver" && (
             <>
@@ -858,7 +860,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
                   <p className="text-[11px] text-muted-foreground">
                     Shop silver rate: ₹{silverRatePerGram.toFixed(2)}/g
                     {silverRatePerGram > 0 ? "" : " (not set — set it in Settings)"} — edit it in
-                    Settings → Rates &amp; labour; blank product rates follow it.
+                    Settings → Rates & labour; blank product rates follow it.
                   </p>
                 </div>
               )}

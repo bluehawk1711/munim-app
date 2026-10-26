@@ -1,4 +1,5 @@
 import type { InvoiceItemPricing } from "../db/schema.js";
+import { type GoldKarat } from "../pricing/gold.js";
 /**
  * Shared bill/invoice generation — THE single source of truth used by all
  * three apps (web, desktop, mobile). Every app builds the SAME bill from the
@@ -15,6 +16,14 @@ export type BillStatus = "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
 export type BillTemplate = "jewellery" | "ecommerce";
 export type BillClassicColor = "red" | "yellow";
 export type BillMode = "duplicate" | "distinct";
+/** What prints under the "Gold rate: ₹X per gm" row (and what the bill
+ *  form's rate badge shows) — the purity of the quoted rate:
+ *    "off"     → no purity line at all;
+ *    "base"    → the shop's base karat ("22 carat" — the original behaviour);
+ *    "product" → the bill's first gold line's karat (the selected product's
+ *                karat, exactly what the gold-product badge shows);
+ *    "custom"  → the operator's own text (`goldRateKaratText`). */
+export type GoldRateKaratMode = "off" | "base" | "product" | "custom";
 /** Toggleable columns of the E-commerce ESTIMATE grid. The Classic template
  *  has its own fixed layout and ignores these. `weight` is gold's G. Wt.
  *  column (silver's combined Weight column shares the same toggle);
@@ -92,6 +101,13 @@ export interface BillTemplateSettings {
      *  (chejat adds to the net weight, nag less subtracts); OFF keeps the
      *  plain `Chejat: 0.100` / `Nag: 0.200` labels. */
     signSuffix: boolean;
+    /** Purity line under the gold rate row (see `GoldRateKaratMode`).
+     *  Optional so pre-toggle snapshots and partial payload builders still
+     *  typecheck — `mergeBillTemplateSettings` defaults it to "base"
+     *  (legacy: print the shop base karat, hide when unset). */
+    goldRateKaratMode?: GoldRateKaratMode;
+    /** Free text for mode "custom" (e.g. "22K hallmark"). Ignored otherwise. */
+    goldRateKaratText?: string;
     /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
      *  column toggles — hidden from the printed bill. Gold grid and silver
      *  grid have different fields (gold: G. Wt. + Chejat/Nag; silver: the
@@ -310,6 +326,25 @@ export declare function estimateLabourTag(line: BillLineInput): string;
  */
 export declare function estimateWeightLayout(bill: BillDocument): "split" | "combined";
 /**
+ * Karat of the bill's FIRST gold line that carries one — the "selected
+ * product's karat" the client wants under the gold rate. Pass 1 reads the
+ * frozen pricing snapshot (the product's karat at sale time, then its
+ * purity stamp); pass 2 covers unpriced manual/legacy lines, where only
+ * the stamp can say (silver stamps like "925" never parse as a gold
+ * karat). null when nothing resolves.
+ */
+export declare function firstGoldKarat(lines: readonly {
+    pricing?: InvoiceItemPricing | null;
+    purity?: string | null;
+}[]): GoldKarat | null;
+/**
+ * The purity line under the "Gold rate: ₹X per gm" row, per the template's
+ * `goldRateKaratMode` — THE one resolver, shared by the PDF/HTML rate rows,
+ * the share text and the bill-form badge so every surface agrees.
+ * Returns null when nothing should print.
+ */
+export declare function goldRateKaratLine(bill: BillDocument, settings: BillTemplateSettings): string | null;
+/**
  * Shop rate rows gated by the per-bill toggles, present rate values AND the
  * metals the bill actually contains (a silver-only bill never prints the
  * gold rate, and vice versa). Rates state their unit — per gm.
@@ -320,7 +355,8 @@ export declare function buildBillDocument(input: BuildBillInput): BillDocument;
 /**
  * Plain-text render of a bill — the platform-agnostic export that works in
  * every app (copy/share/print). Richer renders (jsPDF, HTML) should consume
- * BillDocument and keep the same numbers.
+ * BillDocument and keep the same numbers. `settings` drives the gold-rate
+ * purity line (omitted → the defaults, i.e. the legacy base-karat line).
  */
-export declare function renderBillText(bill: BillDocument): string;
+export declare function renderBillText(bill: BillDocument, settings?: BillTemplateSettings): string;
 //# sourceMappingURL=billDocument.d.ts.map

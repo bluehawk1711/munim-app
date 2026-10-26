@@ -1,21 +1,24 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy, ArrowLeft } from "lucide-react";
 import {
   applyGoldBaseRate,
   buildBillDocument,
   calcNetWeight,
+  firstGoldKarat,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
   productMatchesCode,
   purityOptionsFor,
   renderBillHtml,
+  paymentMethodLabel,
   resolveGoldRateTable,
   weightTextToGrams,
   type BillDocument,
   type BillShopDetails,
   type BillTemplateSettings,
   type EstimateColumnId,
+  type GoldRateKaratMode,
   type PriceBreakdown,
   type PricingContext,
   type ProductDto,
@@ -62,6 +65,7 @@ import {
   BillTemplateOptions,
   EstimateColumnToggles,
   RecordPaymentDialog,
+  PaymentMethodPicker,
   type BillTemplate,
   type BillClassicColor,
   type BillMode,
@@ -376,8 +380,12 @@ export function BillingPage() {
   const [silverRateLine, setSilverRateLine] = useState(true);
   // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
   const [signSuffix, setSignSuffix] = useState(true);
+  // Purity line under the gold rate row — shop base / this bill's product
+  // karat / custom text / nothing (see GoldRateKaratMode).
+  const [goldRateKaratMode, setGoldRateKaratMode] = useState<GoldRateKaratMode>("base");
+  const [goldRateKaratText, setGoldRateKaratText] = useState("");
   // How the advance is coming in — Cash / Online + optional reference note.
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "online">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [paymentNote, setPaymentNote] = useState("");
 
   // ── Estimate column toggles — per METAL (gold grid ≠ silver field list) ─
@@ -400,6 +408,8 @@ export function BillingPage() {
     goldRateLine,
     silverRateLine,
     signSuffix,
+    goldRateKaratMode,
+    goldRateKaratText,
     hiddenColumns: { gold: hiddenGold, silver: hiddenSilver },
   };
 
@@ -530,6 +540,27 @@ export function BillingPage() {
     (line: LineState): LineState => applyBreakdown(line, breakdownFor(line, billPricingContext)),
     [breakdownFor, billPricingContext],
   );
+
+  /** Badge text for the gold-rate purity line — the form-side twin of core's
+   *  `goldRateKaratLine`: off → nothing; custom → the operator's text;
+   *  product → the first gold line's karat (the selected product's);
+   *  base → the shop base karat. */
+  function rateKaratBadge(): string | null {
+    if (goldRateKaratMode === "off") return null;
+    if (goldRateKaratMode === "custom") return goldRateKaratText.trim() || null;
+    if (goldRateKaratMode === "product") {
+      const karat = firstGoldKarat(
+        lines
+          .filter((l) => l.productName.trim())
+          .map((l) => {
+            const breakdown = lineBreakdown(l);
+            return { pricing: breakdown ? invoicePricingFromBreakdown(breakdown) : null, purity: l.purity || null };
+          }),
+      );
+      return karat != null && karat > 0 ? `${karat}K` : null;
+    }
+    return goldRates?.baseKarat && goldRates.baseKarat > 0 ? `Base ${goldRates.baseKarat}K` : null;
+  }
 
   /** Editing a line's Weight re-prices that line (clearing it reverts to the
    *  product's own weight basis). */
@@ -989,6 +1020,8 @@ export function BillingPage() {
     setGoldRateLine(st?.goldRateLine ?? true);
     setSilverRateLine(st?.silverRateLine ?? true);
     setSignSuffix(st?.signSuffix ?? true);
+    setGoldRateKaratMode(st?.goldRateKaratMode ?? "base");
+    setGoldRateKaratText(st?.goldRateKaratText ?? "");
     setHiddenGold(st?.hiddenColumns?.gold ?? []);
     setHiddenSilver(st?.hiddenColumns?.silver ?? []);
 
@@ -1234,7 +1267,7 @@ export function BillingPage() {
     }
   }
 
-  async function handleRecordPayment(submit: { amount: number; method: "cash" | "online"; note: string }) {
+  async function handleRecordPayment(submit: { amount: number; method: string; note: string }) {
     if (!payingInvoice) return;
     setRecordingPayment(true);
     try {
@@ -1244,7 +1277,7 @@ export function BillingPage() {
         note: submit.note || undefined,
       });
       toast.success("Payment recorded", {
-        description: `${money(submit.amount)} received · ${submit.method === "online" ? "Online" : "Cash"}`,
+        description: `${money(submit.amount)} received · ${paymentMethodLabel(submit.method)}`,
       });
       setPayingInvoice(null);
     } catch (err) {
@@ -1253,6 +1286,8 @@ export function BillingPage() {
       setRecordingPayment(false);
     }
   }
+
+  const rateKaratBadgeText = rateKaratBadge();
 
   return (
     <div className="space-y-5">
@@ -1308,7 +1343,14 @@ export function BillingPage() {
                         onChange={(e) => handleGoldRateChange(e.target.value)}
                         placeholder={goldBaseRate != null ? String(goldBaseRate) : "—"}
                       />
-                      <p className="text-muted-foreground text-[11px]">Editing re-prices gold lines on this bill.</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-muted-foreground text-[11px]">Editing re-prices gold lines on this bill.</p>
+                        {rateKaratBadgeText && (
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                            {rateKaratBadgeText}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="b-silver-rate">Silver rate (₹/10g)</Label>
@@ -1380,26 +1422,10 @@ export function BillingPage() {
                     onPaid={setAmountPaid}
                     idPrefix="b"
                   />
-                  {/* How the advance is coming in — Cash / Online + the
-                      optional reference (printed in the Payments trail). */}
+                  {/* How the advance is coming in — preset method or Custom
+                      + the optional reference (printed in the Payments trail). */}
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <span className="text-xs font-medium">Paid via</span>
-                      <div role="radiogroup" aria-label="Paid via" className="grid grid-cols-2 overflow-hidden rounded-lg border text-xs font-medium">
-                        {([["cash", "Cash"], ["online", "Online"]] as const).map(([value, label]) => (
-                          <button
-                            key={value}
-                            type="button"
-                            role="radio"
-                            aria-checked={paymentMethod === value}
-                            onClick={() => setPaymentMethod(value)}
-                            className={`py-1.5 transition-colors ${paymentMethod === value ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-muted"} ${value === "online" ? "border-l" : ""}`}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                    <PaymentMethodPicker label="Paid via" value={paymentMethod} onChange={setPaymentMethod} />
                     <div className="space-y-1.5">
                       <Label htmlFor="b-payment-note">Payment note (optional)</Label>
                       <Input
@@ -1407,7 +1433,7 @@ export function BillingPage() {
                         value={paymentNote}
                         maxLength={120}
                         onChange={(e) => setPaymentNote(e.target.value)}
-                        placeholder={paymentMethod === "online" ? "UPI id / transaction no." : "e.g. cash in hand"}
+                        placeholder={paymentMethod === "online" || (paymentMethod && paymentMethod !== "cash") ? "UPI id / transaction no." : "e.g. cash in hand"}
                       />
                     </div>
                   </div>
@@ -1590,6 +1616,15 @@ export function BillingPage() {
                 goldRateLine={goldRateLine}
                 silverRateLine={silverRateLine}
                 signSuffix={signSuffix}
+                goldRateKaratMode={goldRateKaratMode}
+                goldRateKaratText={goldRateKaratText}
+                onGoldRateKaratMode={(next) => {
+                  setGoldRateKaratMode(next);
+                  toast.success(
+                    `Karat line: ${next === "off" ? "hidden" : next === "base" ? "shop base" : next === "product" ? "product's karat" : "custom text"}`,
+                  );
+                }}
+                onGoldRateKaratText={setGoldRateKaratText}
                 onSignSuffix={(next) => {
                   setSignSuffix(next);
                   toast.success(next ? "Chejat/Nag signs shown" : "Chejat/Nag signs hidden");

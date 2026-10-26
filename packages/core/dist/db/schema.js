@@ -294,11 +294,14 @@ export const orderItems = pgTable("order_items", {
     price: doublePrecision("price").notNull().default(0),
     total: doublePrecision("total").notNull().default(0),
 }, (t) => [index("order_items_order_idx").on(t.orderId)]);
-/** Money moving in or out — against a party and/or an invoice. */
+/** Money moving in or out — against a party, an invoice and/or an order.
+ *  Order advances land here too (`orderId` set, no invoiceId) so every app
+ *  can show one full payment trail per order just like per invoice. */
 export const payments = pgTable("payments", {
     id: id(),
     partyId: text("party_id").references(() => parties.id, { onDelete: "cascade" }),
     invoiceId: text("invoice_id").references(() => invoices.id, { onDelete: "cascade" }),
+    orderId: text("order_id").references(() => orders.id, { onDelete: "cascade" }),
     /** IN = money received, OUT = money paid out. */
     direction: text("direction", { enum: ["IN", "OUT"] }).notNull(),
     amount: doublePrecision("amount").notNull(),
@@ -309,6 +312,7 @@ export const payments = pgTable("payments", {
 }, (t) => [
     index("payments_party_idx").on(t.partyId),
     index("payments_invoice_idx").on(t.invoiceId),
+    index("payments_order_idx").on(t.orderId),
     index("payments_date_idx").on(t.date),
 ]);
 /* ────────────────────────────────────────────────────────────────

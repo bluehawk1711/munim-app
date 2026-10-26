@@ -2607,7 +2607,9 @@ export declare const orderItems: import("drizzle-orm/pg-core").PgTableWithColumn
     };
     dialect: "pg";
 }>;
-/** Money moving in or out — against a party and/or an invoice. */
+/** Money moving in or out — against a party, an invoice and/or an order.
+ *  Order advances land here too (`orderId` set, no invoiceId) so every app
+ *  can show one full payment trail per order just like per invoice. */
 export declare const payments: import("drizzle-orm/pg-core").PgTableWithColumns<{
     name: "payments";
     schema: undefined;
@@ -2648,6 +2650,23 @@ export declare const payments: import("drizzle-orm/pg-core").PgTableWithColumns<
         }, {}, {}>;
         invoiceId: import("drizzle-orm/pg-core").PgColumn<{
             name: "invoice_id";
+            tableName: "payments";
+            dataType: "string";
+            columnType: "PgText";
+            data: string;
+            driverParam: string;
+            notNull: false;
+            hasDefault: false;
+            isPrimaryKey: false;
+            isAutoincrement: false;
+            hasRuntimeDefault: false;
+            enumValues: [string, ...string[]];
+            baseColumn: never;
+            identity: undefined;
+            generated: undefined;
+        }, {}, {}>;
+        orderId: import("drizzle-orm/pg-core").PgColumn<{
+            name: "order_id";
             tableName: "payments";
             dataType: "string";
             columnType: "PgText";

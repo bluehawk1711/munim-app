@@ -153,7 +153,13 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
             <Text style={styles.variantText} numberOfLines={1}>
               {[
                 variantBits || null,
-                item.weight != null ? `${formatWeight(item.weight, item.weightUnit)}` : null,
+                // Gold shows the DERIVED net weight when present (what pricing
+                // uses) — same "(net)" display as the web + desktop listings.
+                item.type === 'Gold' && item.netWeight != null
+                  ? `${item.netWeight} (net)`
+                  : item.weight != null
+                    ? `${formatWeight(item.weight, item.weightUnit)}`
+                    : null,
               ]
                 .filter(Boolean)
                 .join('  ·  ')}

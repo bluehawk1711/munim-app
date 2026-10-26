@@ -47,6 +47,13 @@ export {
   type BarcodeSvgOptions,
 } from "./utils/barcode.js";
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
+export {
+  PAYMENT_METHOD_PRESETS,
+  CUSTOM_PAYMENT_METHOD,
+  paymentMethodLabel,
+  isPresetPaymentMethod,
+  type PaymentMethodId,
+} from "./utils/paymentMethods.js";
 export { newId } from "./utils/id.js";
 export { swatchColor } from "./utils/swatch.js";
 export {

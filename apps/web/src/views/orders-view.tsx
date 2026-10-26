@@ -18,6 +18,7 @@ import {
   buildOrderDocument,
   generateBillPDF,
   mergeBillTemplateSettings,
+  paymentMethodLabel,
   type BillShopDetails,
   type OrderDto,
   type OrderFormValues,
@@ -54,6 +55,7 @@ import {
 } from "@munim/ui"
 import {
   useOrders,
+  useOrderPayments,
   useCreateOrder,
   useUpdateOrder,
   useDeleteOrder,
@@ -623,6 +625,7 @@ export function OrdersView() {
   const [cancelling, setCancelling] = React.useState<OrderRow | null>(null)
   const [deleting, setDeleting] = React.useState<OrderRow | null>(null)
   const [paying, setPaying] = React.useState<OrderRow | null>(null)
+  const { data: orderPayments } = useOrderPayments(detail?.id ?? null)
 
   const { data, isLoading } = useOrders({ search, status, page, pageSize: 15 })
   const orders = React.useMemo(() => data?.orders ?? [], [data])
@@ -669,10 +672,10 @@ export function OrdersView() {
     try {
       const updated = await recordPayment.mutateAsync({
         id: paying.id,
-        values: { amount: submit.amount, note: submit.note || undefined },
+        values: { amount: submit.amount, method: submit.method, note: submit.note || undefined },
       })
       toast.success("Payment recorded", {
-        description: `${paying.orderNumber} — ${formatCurrency(updated.amountPaid)} received, ${formatCurrency(updated.dueAmount)} still due.`,
+        description: `${paying.orderNumber} — ${formatCurrency(updated.amountPaid)} received via ${paymentMethodLabel(submit.method)}, ${formatCurrency(updated.dueAmount)} still due.`,
       })
       setPaying(null)
     } catch (err) {
@@ -1094,6 +1097,29 @@ export function OrdersView() {
                   </div>
                 </div>
 
+                {/* Payments — the full trail: advance(s) with amount, method, note, date. */}
+                {(orderPayments?.length ?? 0) > 0 && (
+                  <div className="rounded-lg border p-3">
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payments</p>
+                    <div className="space-y-1.5">
+                      {orderPayments?.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
+                          <div className="min-w-0">
+                            <p className="font-medium">
+                              {formatCurrency(p.amount)}
+                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                                {paymentMethodLabel(p.method)}
+                              </span>
+                            </p>
+                            {p.note && <p className="truncate text-[11px] text-muted-foreground">{p.note}</p>}
+                          </div>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(p.date)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {detail.notes && (
                   <div className="rounded-lg border p-3">
                     <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -1290,7 +1316,7 @@ export function OrdersView() {
             : null
         }
         busy={recordPayment.isPending}
-        onConfirm={(amount) => void confirmPayment(amount)}
+        onConfirm={(submit) => void confirmPayment(submit)}
       />
     </div>
   )

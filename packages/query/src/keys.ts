@@ -38,6 +38,7 @@ export const qk = {
     all: ["orders"] as const,
     list: (filters: OrderFilters) => ["orders", "list", filters] as const,
     detail: (id: string) => ["orders", "detail", id] as const,
+    payments: (id: string) => ["orders", "payments", id] as const,
   },
 
   sales: {

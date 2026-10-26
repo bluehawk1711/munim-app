@@ -11,12 +11,15 @@ import {
   View,
 } from 'react-native';
 import * as Print from 'expo-print';
-import {Banknote, ChevronDown, FileDown, Search, Share2, Trash2} from 'lucide-react-native';
+import {Banknote, ChevronDown, FileDown, History, Search, Share2, Trash2} from 'lucide-react-native';
 import {
   buildBillDocument,
   buildOrderDocument,
+  CUSTOM_PAYMENT_METHOD,
   formatDate,
   mergeBillTemplateSettings,
+  PAYMENT_METHOD_PRESETS,
+  paymentMethodLabel,
   renderBillHtml,
   type InvoiceDto,
   type OrderDto,
@@ -32,6 +35,7 @@ import {
   useDeleteOrder,
   useGenerateOrderBill,
   useGoldRates,
+  useOrderPayments,
   useOrders,
   useParties,
   useProducts,
@@ -457,8 +461,13 @@ export function OrdersScreen() {
 
   const [paying, setPaying] = useState<OrderDto | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState<string>('cash');
+  const [payNote, setPayNote] = useState('');
   const [payBusy, setPayBusy] = useState(false);
   const recordPayment = useRecordOrderPayment();
+  /** Payment-history sheet — the full trail for one order. */
+  const [payHistory, setPayHistory] = useState<OrderDto | null>(null);
+  const {data: historyRows} = useOrderPayments(payHistory?.id ?? null);
 
   const totals = useMemo(() => formTotals(form), [form]);
   const paidAmount = Number(form.paid) || 0;
@@ -606,6 +615,8 @@ export function OrdersScreen() {
   function openPayment(o: OrderDto) {
     setPaying(o);
     setPayAmount(String(o.dueAmount));
+    setPayMethod('cash');
+    setPayNote('');
   }
 
   async function confirmPayment() {
@@ -614,7 +625,14 @@ export function OrdersScreen() {
     if (!amount || amount <= 0) return;
     setPayBusy(true);
     try {
-      const updated = await recordPayment.mutateAsync({id: paying.id, values: {amount}});
+      const updated = await recordPayment.mutateAsync({
+        id: paying.id,
+        values: {
+          amount,
+          method: payMethod || 'cash',
+          note: payNote.trim() || undefined,
+        },
+      });
       successFeedback(
         `Payment recorded — ${money(updated.amountPaid)} received, ${money(updated.dueAmount)} still due`,
       );
@@ -838,6 +856,15 @@ export function OrdersScreen() {
                           style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.5}]}
                           accessibilityLabel={`Record a payment on ${item.orderNumber}`}>
                           <Banknote size={16} color={colors.primary} />
+                        </Pressable>
+                      ) : null}
+                      {item.amountPaid > 0 ? (
+                        <Pressable
+                          onPress={() => setPayHistory(item)}
+                          hitSlop={8}
+                          style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.5}]}
+                          accessibilityLabel={`Payment history for ${item.orderNumber}`}>
+                          <History size={16} color={colors.primary} />
                         </Pressable>
                       ) : null}
                       {item.status === 'COMPLETED' && item.invoiceId ? (
@@ -1126,6 +1153,44 @@ export function OrdersScreen() {
         />
       </ModalSheet>
 
+      {/* Payment history — the full trail (amount · method · note · date) */}
+      <ModalSheet
+        visible={!!payHistory}
+        title={payHistory ? `Payments — ${payHistory.orderNumber}` : ''}
+        onClose={() => setPayHistory(null)}
+        dismissable
+        centered
+        scrollable>
+        {payHistory ? (
+          (historyRows?.length ?? 0) > 0 ? (
+            <View style={{gap: 8}}>
+              <Text style={styles.sheetNote}>
+                {money(payHistory.amountPaid)} received of {money(payHistory.total)} ·{' '}
+                {money(payHistory.dueAmount)} due
+              </Text>
+              {historyRows?.map(p => (
+                <View key={p.id} style={styles.historyRow}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.historyAmount}>
+                      {money(p.amount)}{' '}
+                      <Text style={styles.historyMethod}>{paymentMethodLabel(p.method)}</Text>
+                    </Text>
+                    {p.note ? <Text style={styles.historyNote}>{p.note}</Text> : null}
+                  </View>
+                  <Text style={styles.historyDate}>{formatDate(p.date)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.sheetNote}>
+              {payHistory.amountPaid > 0
+                ? `${money(payHistory.amountPaid)} was received before payment history tracking — new payments will list here.`
+                : 'No payments recorded yet.'}
+            </Text>
+          )
+        ) : null}
+      </ModalSheet>
+
       {/* Record payment — advance / part-payment on an unbilled order */}
       <ModalSheet
         visible={!!paying}
@@ -1153,6 +1218,48 @@ export function OrdersScreen() {
               value={payAmount}
               onChangeText={setPayAmount}
               keyboardType="numeric"
+            />
+            <View style={styles.payMethodWrap}>
+              <Text style={styles.payLabel}>Paid via</Text>
+              <View style={styles.payMethodRow}>
+                {[...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})), {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'}].map(m => {
+                  const customActive = m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === payMethod);
+                  const active = payMethod === m.id || customActive;
+                  return (
+                    <Pressable
+                      key={m.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Pay by ${m.label}`}
+                      onPress={() => {
+                        selectionTick();
+                        setPayMethod(m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
+                      }}
+                      style={({pressed}) => [
+                        styles.payMethodChip,
+                        active && styles.payMethodChipActive,
+                        pressed && {opacity: 0.75},
+                      ]}>
+                      <Text style={[styles.payMethodText, active && styles.payMethodTextActive]}>{m.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {!PAYMENT_METHOD_PRESETS.some(p => p.id === payMethod) ? (
+                <Field
+                  label="Custom method"
+                  value={payMethod}
+                  onChangeText={setPayMethod}
+                  placeholder="e.g. Paytm, cheque no…"
+                  maxLength={40}
+                />
+              ) : null}
+            </View>
+            <Field
+              label="Note (optional)"
+              value={payNote}
+              onChangeText={setPayNote}
+              placeholder="UPI id / txn no. / cash in hand"
+              maxLength={120}
             />
             <Button
               title={payBusy ? 'Saving…' : 'Confirm payment'}
@@ -1313,4 +1420,42 @@ const makeStyles = () =>
     payCol: {flex: 1},
     payLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
     payValue: {fontSize: 17, fontWeight: '700', color: colors.text, marginTop: 2},
+    payMethodWrap: {marginBottom: 12, gap: 6},
+    payMethodRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 6},
+    payMethodChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    payMethodChipActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    payMethodText: {fontSize: 12, fontWeight: '600', color: colors.muted},
+    payMethodTextActive: {color: colors.onPrimary ?? '#fff'},
+    historyRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    historyAmount: {fontSize: 14, fontWeight: '700' as const, color: colors.text},
+    historyMethod: {
+      fontSize: 10,
+      fontWeight: '700' as const,
+      color: colors.primary,
+      backgroundColor: colors.mutedSoft,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      overflow: 'hidden' as const,
+      textTransform: 'uppercase' as const,
+    },
+    historyNote: {fontSize: 11, color: colors.muted, marginTop: 2},
+    historyDate: {fontSize: 11, color: colors.muted},
   });

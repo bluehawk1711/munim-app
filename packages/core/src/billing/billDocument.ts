@@ -2,6 +2,7 @@ import { amountInWords } from "../utils/numberToWords.js";
 import { formatCurrency } from "../utils/format.js";
 import type { InvoiceItemPricing } from "../db/schema.js";
 import { weightTextToGrams } from "../pricing/product.js";
+import { karatFromPurity, toGoldKarat, type GoldKarat } from "../pricing/gold.js";
 
 /**
  * Shared bill/invoice generation — THE single source of truth used by all
@@ -21,6 +22,15 @@ export type BillStatus = "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
 export type BillTemplate = "jewellery" | "ecommerce";
 export type BillClassicColor = "red" | "yellow";
 export type BillMode = "duplicate" | "distinct";
+
+/** What prints under the "Gold rate: ₹X per gm" row (and what the bill
+ *  form's rate badge shows) — the purity of the quoted rate:
+ *    "off"     → no purity line at all;
+ *    "base"    → the shop's base karat ("22 carat" — the original behaviour);
+ *    "product" → the bill's first gold line's karat (the selected product's
+ *                karat, exactly what the gold-product badge shows);
+ *    "custom"  → the operator's own text (`goldRateKaratText`). */
+export type GoldRateKaratMode = "off" | "base" | "product" | "custom";
 
 /** Toggleable columns of the E-commerce ESTIMATE grid. The Classic template
  *  has its own fixed layout and ignores these. `weight` is gold's G. Wt.
@@ -81,6 +91,13 @@ export interface BillTemplateSettings {
    *  (chejat adds to the net weight, nag less subtracts); OFF keeps the
    *  plain `Chejat: 0.100` / `Nag: 0.200` labels. */
   signSuffix: boolean;
+  /** Purity line under the gold rate row (see `GoldRateKaratMode`).
+   *  Optional so pre-toggle snapshots and partial payload builders still
+   *  typecheck — `mergeBillTemplateSettings` defaults it to "base"
+   *  (legacy: print the shop base karat, hide when unset). */
+  goldRateKaratMode?: GoldRateKaratMode;
+  /** Free text for mode "custom" (e.g. "22K hallmark"). Ignored otherwise. */
+  goldRateKaratText?: string;
   /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
    *  column toggles — hidden from the printed bill. Gold grid and silver
    *  grid have different fields (gold: G. Wt. + Chejat/Nag; silver: the
@@ -104,6 +121,8 @@ export const DEFAULT_BILL_TEMPLATE_SETTINGS: BillTemplateSettings = {
   goldRateLine: true,
   silverRateLine: true,
   signSuffix: true,
+  goldRateKaratMode: "base",
+  goldRateKaratText: "",
   hiddenColumns: { gold: [], silver: [] },
 };
 
@@ -121,6 +140,10 @@ export function mergeBillTemplateSettings(
   return {
     ...DEFAULT_BILL_TEMPLATE_SETTINGS,
     ...partial,
+    // Explicit undefined (payload builders spreading a partial snapshot)
+    // must land on the defaults, not on `undefined`.
+    goldRateKaratMode: partial?.goldRateKaratMode ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratMode,
+    goldRateKaratText: partial?.goldRateKaratText ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratText,
     hiddenColumns: {
       gold: partial?.hiddenColumns?.gold ?? [],
       silver: partial?.hiddenColumns?.silver ?? [],
@@ -437,6 +460,51 @@ export function estimateWeightLayout(bill: BillDocument): "split" | "combined" {
 }
 
 /**
+ * Karat of the bill's FIRST gold line that carries one — the "selected
+ * product's karat" the client wants under the gold rate. Pass 1 reads the
+ * frozen pricing snapshot (the product's karat at sale time, then its
+ * purity stamp); pass 2 covers unpriced manual/legacy lines, where only
+ * the stamp can say (silver stamps like "925" never parse as a gold
+ * karat). null when nothing resolves.
+ */
+export function firstGoldKarat(
+  lines: readonly { pricing?: InvoiceItemPricing | null; purity?: string | null }[],
+): GoldKarat | null {
+  for (const line of lines) {
+    if (line.pricing?.metal !== "Gold") continue;
+    const karat = toGoldKarat(line.pricing.karat) ?? karatFromPurity(line.purity);
+    if (karat !== null && karat > 0) return karat;
+  }
+  for (const line of lines) {
+    if (line.pricing != null) continue;
+    const karat = karatFromPurity(line.purity);
+    if (karat !== null && karat > 0) return karat;
+  }
+  return null;
+}
+
+/**
+ * The purity line under the "Gold rate: ₹X per gm" row, per the template's
+ * `goldRateKaratMode` — THE one resolver, shared by the PDF/HTML rate rows,
+ * the share text and the bill-form badge so every surface agrees.
+ * Returns null when nothing should print.
+ */
+export function goldRateKaratLine(
+  bill: BillDocument,
+  settings: BillTemplateSettings,
+): string | null {
+  const mode = settings.goldRateKaratMode ?? "base";
+  if (mode === "off") return null;
+  if (mode === "custom") return settings.goldRateKaratText?.trim() || null;
+  if (mode === "product") {
+    const karat = firstGoldKarat(bill.lines);
+    return karat !== null && karat > 0 ? `${karat} carat` : null;
+  }
+  // "base" — the shop's quoted-rate purity; unset → no line (legacy bills).
+  return bill.goldRateKarat != null && bill.goldRateKarat > 0 ? `${bill.goldRateKarat} carat` : null;
+}
+
+/**
  * Shop rate rows gated by the per-bill toggles, present rate values AND the
  * metals the bill actually contains (a silver-only bill never prints the
  * gold rate, and vice versa). Rates state their unit — per gm.
@@ -447,10 +515,9 @@ export function rateRowsOf(bill: BillDocument, settings: BillTemplateSettings): 
   const rows: string[] = [];
   if (settings.goldRateLine && bill.goldRate != null && bill.goldRate > 0 && (!anyMetal || gold)) {
     rows.push(`Gold rate: ${formatCurrency(bill.goldRate)} per gm`);
-    // Purity of the quoted rate — printed directly under it ("24 carat").
-    if (bill.goldRateKarat != null && bill.goldRateKarat > 0) {
-      rows.push(`${bill.goldRateKarat} carat`);
-    }
+    // Purity of the quoted rate — printed directly under it ("22 carat").
+    const purity = goldRateKaratLine(bill, settings);
+    if (purity) rows.push(purity);
   }
   if (settings.silverRateLine && bill.silverRate != null && bill.silverRate > 0 && (!anyMetal || silver)) {
     rows.push(`Silver rate: ${formatCurrency(bill.silverRate)} per gm`);
@@ -514,14 +581,18 @@ export function buildBillDocument(input: BuildBillInput): BillDocument {
 /**
  * Plain-text render of a bill — the platform-agnostic export that works in
  * every app (copy/share/print). Richer renders (jsPDF, HTML) should consume
- * BillDocument and keep the same numbers.
+ * BillDocument and keep the same numbers. `settings` drives the gold-rate
+ * purity line (omitted → the defaults, i.e. the legacy base-karat line).
  */
-export function renderBillText(bill: BillDocument): string {
+export function renderBillText(bill: BillDocument, settings?: BillTemplateSettings): string {
   const currency = bill.currency === "INR" ? "₹" : `${bill.currency} `;
   const metals = declaredMetals(bill);
   const anyMetal = metals.gold || metals.silver;
   const showGoldRate = bill.goldRate != null && bill.goldRate > 0 && (!anyMetal || metals.gold);
   const showSilverRate = bill.silverRate != null && bill.silverRate > 0 && (!anyMetal || metals.silver);
+  const goldPurity = showGoldRate
+    ? goldRateKaratLine(bill, settings ?? DEFAULT_BILL_TEMPLATE_SETTINGS)
+    : null;
   const lines = [
     bill.shop.name,
     bill.shop.address ?? "",
@@ -529,7 +600,7 @@ export function renderBillText(bill: BillDocument): string {
     "",
     `BILL NO: ${bill.billNo}        DATE: ${bill.date}`,
     showGoldRate ? `Gold rate:   ${currency}${bill.goldRate?.toFixed(2)} per gm` : "",
-    showGoldRate && bill.goldRateKarat != null && bill.goldRateKarat > 0 ? `${bill.goldRateKarat} carat` : "",
+    goldPurity ?? "",
     showSilverRate ? `Silver rate: ${currency}${bill.silverRate?.toFixed(2)} per gm` : "",
     `Customer: ${bill.customerName ?? ""}${bill.customerPhone ? ` (${bill.customerPhone})` : ""}`,
     "",

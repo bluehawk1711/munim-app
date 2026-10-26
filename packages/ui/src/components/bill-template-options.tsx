@@ -5,21 +5,31 @@
  * desktop bill forms, so the two apps stay seamless: template (Classic
  * Jewellery / Modern E-commerce), classic accent color (red / yellow with a
  * swatch), the 2-in-1 toggle and its Duplicate / Separate mode select, plus
- * the per-bill display toggles (Weight column, rate rows, Chejat/Nag signs).
+ * the per-bill display toggles (Weight column, rate rows, gold-rate karat
+ * line with its show/source/custom-text options, Chejat/Nag signs).
  *
  * Purely presentational — callers own state and can add their own toasts on
  * change (web + desktop both use sonner).
  */
 import * as React from "react";
 import { cn } from "../lib/utils";
+import { Input } from "./input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 import { Switch } from "./switch";
 // The template settings model lives in @munim/core (the global model all three
 // apps share) — imported here AND re-exported so the existing
 // `from "@munim/ui"` imports in web + desktop keep working while mobile types
 // from core directly.
-import type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings } from "@munim/core";
-export type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings } from "@munim/core";
+import type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings, GoldRateKaratMode } from "@munim/core";
+export type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings, GoldRateKaratMode } from "@munim/core";
+
+/** Labels for the gold-rate purity line modes — one place so web/desktop match. */
+const GOLD_RATE_KARAT_LABELS: Record<GoldRateKaratMode, string> = {
+  off: "No karat line",
+  base: "Shop base karat",
+  product: "Product's karat",
+  custom: "Custom text…",
+};
 
 export function BillTemplateOptions({
   template,
@@ -30,6 +40,8 @@ export function BillTemplateOptions({
   goldRateLine,
   silverRateLine,
   signSuffix,
+  goldRateKaratMode,
+  goldRateKaratText,
   onTemplate,
   onClassicColor,
   onTwoInOne,
@@ -38,6 +50,8 @@ export function BillTemplateOptions({
   onGoldRateLine,
   onSilverRateLine,
   onSignSuffix,
+  onGoldRateKaratMode,
+  onGoldRateKaratText,
   className,
 }: {
   template: BillTemplate;
@@ -49,6 +63,10 @@ export function BillTemplateOptions({
   silverRateLine: boolean;
   /** Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −". */
   signSuffix: boolean;
+  /** What prints under the gold rate row — see `GoldRateKaratMode`. */
+  goldRateKaratMode: GoldRateKaratMode;
+  /** Free text for mode "custom". */
+  goldRateKaratText: string;
   onTemplate: (t: BillTemplate) => void;
   onClassicColor: (c: BillClassicColor) => void;
   onTwoInOne: (on: boolean) => void;
@@ -57,6 +75,8 @@ export function BillTemplateOptions({
   onGoldRateLine: (on: boolean) => void;
   onSilverRateLine: (on: boolean) => void;
   onSignSuffix: (on: boolean) => void;
+  onGoldRateKaratMode: (m: GoldRateKaratMode) => void;
+  onGoldRateKaratText: (t: string) => void;
   className?: string;
 }) {
   return (
@@ -137,6 +157,36 @@ export function BillTemplateOptions({
           Gold rate line
         </label>
       </div>
+
+      {/* Purity under the gold rate row — shown only while the row itself is
+          on. "Product's karat" prints the bill's first gold line's karat
+          (the selected product's), "Custom text…" lets the shop word it. */}
+      {goldRateLine && (
+        <>
+          <Select value={goldRateKaratMode} onValueChange={(v) => onGoldRateKaratMode(v as GoldRateKaratMode)}>
+            <SelectTrigger className="h-8 w-[152px] text-xs" aria-label="Karat line under gold rate">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(Object.keys(GOLD_RATE_KARAT_LABELS) as GoldRateKaratMode[]).map((mode) => (
+                <SelectItem key={mode} value={mode}>
+                  {GOLD_RATE_KARAT_LABELS[mode]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {goldRateKaratMode === "custom" && (
+            <Input
+              value={goldRateKaratText}
+              onChange={(e) => onGoldRateKaratText(e.target.value)}
+              placeholder="e.g. 22K hallmark"
+              maxLength={80}
+              className="h-8 w-[140px] text-xs"
+              aria-label="Custom karat text"
+            />
+          )}
+        </>
+      )}
 
       <div className="flex items-center gap-2">
         <Switch checked={silverRateLine} onCheckedChange={onSilverRateLine} aria-label="Silver rate line" />

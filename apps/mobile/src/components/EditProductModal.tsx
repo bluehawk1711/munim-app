@@ -427,19 +427,23 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             )}
           </>
         )}
-        <View style={{flexDirection: 'row', gap: spacing.sm}}>
-          <View style={{flex: 1}}>
-            <Field label="Weight" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder={weightUnit === 'gm' ? 'e.g. 24.5' : 'e.g. 24500'} />
+        {/* Gold prices on the derived NET weight — the plain Weight input is a
+            non-gold concept (same rule as web + desktop: hidden for Gold). */}
+        {type !== 'Gold' && (
+          <View style={{flexDirection: 'row', gap: spacing.sm}}>
+            <View style={{flex: 1}}>
+              <Field label="Weight" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder={weightUnit === 'gm' ? 'e.g. 24.5' : 'e.g. 24500'} />
+            </View>
+            <View style={{width: 70}}>
+              <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Unit</Text>
+              <Pressable
+                onPress={() => setWeightUnit(u => u === 'gm' ? 'mg' : 'gm')}
+                style={{height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center'}}>
+                <Text style={{fontSize: 14, fontWeight: '700', color: colors.primary}}>{weightUnit}</Text>
+              </Pressable>
+            </View>
           </View>
-          <View style={{width: 70}}>
-            <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Unit</Text>
-            <Pressable
-              onPress={() => setWeightUnit(u => u === 'gm' ? 'mg' : 'gm')}
-              style={{height: 44, borderRadius: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card, alignItems: 'center', justifyContent: 'center'}}>
-              <Text style={{fontSize: 14, fontWeight: '700', color: colors.primary}}>{weightUnit}</Text>
-            </Pressable>
-          </View>
-        </View>
+        )}
         {type !== 'Silver' && (
           <>
             <Field

@@ -108,6 +108,15 @@ const makeStyles = () =>
       textAlignVertical: 'top' as const,
       paddingTop: spacing.md,
     },
+    /** Row wrapper so a Field can show a trailing element beside its input. */
+    inputRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: spacing.sm,
+    },
+    inputFlex: {
+      flex: 1,
+    },
     select: {
       borderWidth: 1,
       borderColor: colors.border,
@@ -345,6 +354,8 @@ type FieldProps = {
   maxLength?: number;
   multiline?: boolean;
   editable?: boolean;
+  /** Node rendered inline at the right of the input (e.g. the gold-rate karat badge). */
+  rightElement?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -358,25 +369,29 @@ export function Field({
   maxLength,
   multiline,
   editable = true,
+  rightElement,
   style,
 }: FieldProps) {
   const styles = useThemeStyles(makeStyles);
   return (
     <View style={[styles.field, style]}>
       <Text style={styles.label}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
-        maxLength={maxLength}
-        multiline={multiline}
-        editable={editable}
-        style={[styles.input, multiline && styles.inputMultiline]}
-        placeholderTextColor={colors.inputPlaceholder}
-        autoCapitalize={multiline ? 'sentences' : 'none'}
-      />
+      <View style={styles.inputRow}>
+        <TextInput
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          keyboardType={keyboardType}
+          secureTextEntry={secureTextEntry}
+          maxLength={maxLength}
+          multiline={multiline}
+          editable={editable}
+          style={[styles.input, multiline && styles.inputMultiline, rightElement ? styles.inputFlex : null]}
+          placeholderTextColor={colors.inputPlaceholder}
+          autoCapitalize={multiline ? 'sentences' : 'none'}
+        />
+        {rightElement ?? null}
+      </View>
     </View>
   );
 }

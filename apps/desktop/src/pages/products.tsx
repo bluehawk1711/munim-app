@@ -1328,7 +1328,11 @@ export function ProductsPage() {
                       {p.purity ? <div className="font-medium">Purity {p.purity}</div> : null}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      <div>{formatWeight(p.weight ?? 0, p.weightUnit)}</div>
+                      {p.type === "Gold" && p.netWeight != null ? (
+                        <div>{p.netWeight} (net)</div>
+                      ) : (
+                        <div>{formatWeight(p.weight ?? 0, p.weightUnit)}</div>
+                      )}
                       <div className="text-[11px]">per piece</div>
                     </TableCell>
                     <TableCell>
@@ -1548,28 +1552,30 @@ export function ProductsPage() {
               </p>
             </div>
 
-            {/* Row 6: Weight + Purity */}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="p-weight">Weight</Label>
-                <div className="flex gap-2">
-                  <Input id="p-weight" type="number" min={0} step="0.1" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} placeholder="e.g. 24.5" className="flex-1" />
-                  <Select value={form.weightUnit} onValueChange={(v) => setForm({ ...form, weightUnit: v as "mg" | "gm" })}>
-                    <SelectTrigger className="w-[72px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="gm">gm</SelectItem>
-                      <SelectItem value="mg">mg</SelectItem>
-                    </SelectContent>
-                  </Select>
+            {/* Row 6: Weight + Purity (hidden for Gold — parity with EditProductModal) */}
+            {form.type !== "Gold" && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-weight">Weight</Label>
+                  <div className="flex gap-2">
+                    <Input id="p-weight" type="number" min={0} step="0.1" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} placeholder="e.g. 24.5" className="flex-1" />
+                    <Select value={form.weightUnit} onValueChange={(v) => setForm({ ...form, weightUnit: v as "mg" | "gm" })}>
+                      <SelectTrigger className="w-[72px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="gm">gm</SelectItem>
+                        <SelectItem value="mg">mg</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="p-purity">Purity</Label>
+                  <Input id="p-purity" value={form.purity} onChange={(e) => setForm({ ...form, purity: e.target.value })} placeholder="e.g. 24K / 925" maxLength={20} />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="p-purity">Purity</Label>
-                <Input id="p-purity" value={form.purity} onChange={(e) => setForm({ ...form, purity: e.target.value })} placeholder="e.g. 24K / 925" maxLength={20} />
-              </div>
-            </div>
+            )}
 
-            {(form.type === "Gold" || form.type === "Silver") && (
+            {form.type !== "Silver" && (
               <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold">

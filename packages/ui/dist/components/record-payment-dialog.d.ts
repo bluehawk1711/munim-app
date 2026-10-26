@@ -7,9 +7,10 @@
  * initialised to the outstanding balance, so parents don't duplicate the
  * total/paid/outstanding math.
  *
- * The payment is recorded HOW it was received — a Cash / Online toggle plus
- * an optional reference note (UPI id / txn number / "cash in hand"), so the
- * invoice detail can later show the full payment trail.
+ * The payment is recorded HOW it was received — a preset method picker
+ * (Cash / UPI / Card / Cheque / Bank transfer / Custom…) plus an optional
+ * reference note (UPI id / txn number / "cash in hand"), so the invoice
+ * detail can later show the full payment trail.
  *
  * Parent contract: render <RecordPaymentDialog key={paying?.id ?? "closed"} …>
  * so the amount resets when a different invoice is opened.
@@ -23,8 +24,8 @@ export type PaymentTarget = {
     amountPaid: number;
 };
 /** How the money came in — stored on `payments.method` (free text in the DB
- *  so legacy rows keep their old values). */
-export type PaymentMethod = "cash" | "online";
+ *  so legacy rows keep their old values; a preset id or custom text). */
+export type PaymentMethod = string;
 export type RecordPaymentSubmit = {
     amount: number;
     method: PaymentMethod;

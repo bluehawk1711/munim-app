@@ -4,6 +4,8 @@ export {
   billKindLabel,
   estimateNetWeightTotal,
   estimateWeightLines,
+  firstGoldKarat,
+  goldRateKaratLine,
   netWeightCellOf,
   receiptLabelOf,
   DEFAULT_BILL_TEMPLATE_SETTINGS,
@@ -20,6 +22,7 @@ export {
   type BillMode,
   type BillTemplateSettings,
   type EstimateColumnId,
+  type GoldRateKaratMode,
   GOLD_ESTIMATE_COLUMNS,
   SILVER_ESTIMATE_COLUMNS,
 } from "./billDocument.js";

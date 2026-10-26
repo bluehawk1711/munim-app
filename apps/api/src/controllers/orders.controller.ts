@@ -15,6 +15,7 @@ import {
   deleteOrder,
   generateBillFromOrder,
   getOrder,
+  listOrderPayments,
   listOrders,
   orderPaymentSchema,
   orderSchema,
@@ -22,6 +23,7 @@ import {
   recordOrderPayment,
   serializeInvoice,
   serializeOrder,
+  serializePayment,
   updateOrder,
   type DbClient,
   type OrderFilters,
@@ -100,6 +102,16 @@ export class OrdersController {
     const order = await updateOrder(this.db, id, values);
     await invalidate(this.cache, ["orders"]);
     return serializeOrder(order);
+  }
+
+  /** GET /api/orders/:id/payments — the order's payment trail (advances and
+   *  part-payments: amount, method, note, date). Mirrors the invoice one. */
+  @Get(":id/payments")
+  async payments(@Param("id") id: string) {
+    const rows = await this.cache.cacheAside(cacheKeys.orderPayments(id), CACHE_TTL.detail, () =>
+      listOrderPayments(this.db, id),
+    );
+    return rows.map((p) => serializePayment(p));
   }
 
   /** POST /api/orders/:id/pay — an advance on an UNBILLED order. Blocked once
