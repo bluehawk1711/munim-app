@@ -1,8 +1,8 @@
 export { buildBillDocument, renderBillText, billKindLabel, estimateNetWeightTotal, estimateWeightLines, firstGoldKarat, goldRateKaratLine, netWeightCellOf, receiptLabelOf, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, type BillDocument, type BillKind, type BillLine, type BillLineInput, type BillShopDetails, type BillStatus, type BuildBillInput, type BillTemplate, type BillClassicColor, type BillMode, type BillTemplateSettings, type EstimateColumnId, type GoldRateKaratMode, GOLD_ESTIMATE_COLUMNS, SILVER_ESTIMATE_COLUMNS, } from "./billDocument.js";
 export { PURITY_PRESETS, purityOptionsFor, } from "./purity.js";
 export { renderBillHtml, } from "./billHtml.js";
-export { buildSampleBill, } from "./sampleBill.js";
-export type { SampleBillKind } from "./sampleBill.js";
+export { buildSampleBill, SAMPLE_BILL_VARIANTS, } from "./sampleBill.js";
+export type { SampleBillKind, SampleBillVariant } from "./sampleBill.js";
 export { buildOrderDocument, type OrderDocumentInput, } from "./orderDocument.js";
 export { generateBillPDF, } from "./generateBillPdf.js";
 export { defaultJobLetterData, formatJoiningDate, jobLetterFromStored, renderJobLetterHtml, type JobLetterCompanyFallback, type JobLetterData, type JobLetterRowLike, } from "./jobLetterDocument.js";

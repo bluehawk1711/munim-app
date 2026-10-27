@@ -231,8 +231,12 @@ export const invoiceSchema = z.object({
       // payload builders → undefined, and mergeBillTemplateSettings lands
       // on "base" (legacy base-karat line). `.optional()` (NOT `.default`)
       // so the OUTPUT type stays optional, matching the model field.
-      goldRateKaratMode: z.enum(["off", "base", "product", "custom"]).optional(),
+      goldRateKaratMode: z.enum(["off", "base", "product", "karat", "custom"]).optional(),
       goldRateKaratText: z.string().max(80).optional(),
+      // Picked karat for mode "karat" (1–24) — the dropdown value shown under
+      // the gold rate row. Older snapshots omit it → undefined, and
+      // mergeBillTemplateSettings lands on the 22 default.
+      goldRateKaratValue: z.number().int().min(1).max(24).optional(),
       // Estimate columns turned off on the New Bill screen — per metal
       // (gold grid ≠ silver field list). Omitted by older snapshots / web
       // payloads → both sides [] (nothing hidden).

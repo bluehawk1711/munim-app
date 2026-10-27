@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy, ArrowLeft, TriangleAlert } from "lucide-react";
 import {
   applyGoldBaseRate,
   buildBillDocument,
   calcNetWeight,
+  evaluateConfigHealth,
   firstGoldKarat,
   invoicePricingFromBreakdown,
   isLabourType,
@@ -384,6 +385,11 @@ export function BillingPage() {
   // karat / custom text / nothing (see GoldRateKaratMode).
   const [goldRateKaratMode, setGoldRateKaratMode] = useState<GoldRateKaratMode>("base");
   const [goldRateKaratText, setGoldRateKaratText] = useState("");
+  // Karat PICKED in the dropdown (mode "karat") — prints under the gold rate
+  // even when neither the product nor the shop has a karat set.
+  const [goldRateKaratValue, setGoldRateKaratValue] = useState(22);
+  // Inline missing-field errors appear once a create attempt fails.
+  const [showErrors, setShowErrors] = useState(false);
   // How the advance is coming in — Cash / Online + optional reference note.
   const [paymentMethod, setPaymentMethod] = useState<string>("cash");
   const [paymentNote, setPaymentNote] = useState("");
@@ -410,6 +416,7 @@ export function BillingPage() {
     signSuffix,
     goldRateKaratMode,
     goldRateKaratText,
+    goldRateKaratValue,
     hiddenColumns: { gold: hiddenGold, silver: hiddenSilver },
   };
 
@@ -544,10 +551,11 @@ export function BillingPage() {
   /** Badge text for the gold-rate purity line — the form-side twin of core's
    *  `goldRateKaratLine`: off → nothing; custom → the operator's text;
    *  product → the first gold line's karat (the selected product's);
-   *  base → the shop base karat. */
+   *  karat → the picked dropdown value; base → the shop base karat. */
   function rateKaratBadge(): string | null {
     if (goldRateKaratMode === "off") return null;
     if (goldRateKaratMode === "custom") return goldRateKaratText.trim() || null;
+    if (goldRateKaratMode === "karat") return `${goldRateKaratValue}K`;
     if (goldRateKaratMode === "product") {
       const karat = firstGoldKarat(
         lines
@@ -952,6 +960,52 @@ export function BillingPage() {
     : null;
   const liveHtml = liveBill ? renderBillHtml(liveBill, billSettings) : null;
 
+  // ── MISSING-FIELD WARNINGS ───────────────────────────────────────────────
+  // Everything this bill still needs, recomputed on every render so the
+  // inline hints stay live. A failed create attempt flips `showErrors`,
+  // which paints them under the offending fields AND lists them in the toast
+  // — nothing fails silently anymore.
+  const secondDraftItems = distinct ? lineItems(secondLines) : [];
+  const missingFields: { key: string; message: string }[] = [];
+  if (liveItems.length === 0) {
+    missingFields.push({ key: "items", message: "Add at least one line item." });
+  }
+  const badPriceIndex = liveItems.findIndex((it) => !(it.price > 0));
+  if (badPriceIndex >= 0) {
+    const name = liveItems[badPriceIndex]?.productName ?? `#${badPriceIndex + 1}`;
+    missingFields.push({ key: "price", message: `“${name}” needs a price above ₹0.` });
+  }
+  if (!customerName.trim()) {
+    missingFields.push({ key: "customer", message: "Customer name is required." });
+  }
+  if (distinct) {
+    if (secondDraftItems.length === 0) {
+      missingFields.push({ key: "second-items", message: "Bill 2 needs at least one line item." });
+    }
+    if (!secondCustomerName.trim()) {
+      missingFields.push({ key: "second-customer", message: "Second bill customer name is required." });
+    }
+  }
+  /** First message for a field key — `null` hides that inline hint. */
+  function fieldError(key: string): string | null {
+    if (!showErrors) return null;
+    return missingFields.find((m) => m.key === key)?.message ?? null;
+  }
+
+  // ── CONFIG WARNINGS — settings that are still empty, surfaced right on
+  //    the bill form (the Settings → Health page shows the full list). ──────
+  const configIssues = evaluateConfigHealth({
+    shopName: settings?.shopName,
+    shopAddress: settings?.shopAddress,
+    shopPhones: settings?.shopPhones,
+    goldBaseKarat: goldRates?.baseKarat ?? null,
+    goldBaseRatePerGram: goldRates?.baseRatePerGram ?? null,
+    quotedKarats: goldRates?.rates?.filter((r) => r.isCustom && r.ratePerGram > 0).length ?? null,
+    silverRatePerGram: settings?.silverRatePerGram ?? 0,
+    defaultLabourType: settings?.defaultLabourType ?? null,
+    defaultLabourValue: settings?.defaultLabourValue ?? 0,
+  }).filter((check) => check.severity !== "ok");
+
   function resetForm() {
     setCustomerName("");
     setCustomerPhone("");
@@ -980,6 +1034,7 @@ export function BillingPage() {
     setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : "");
     setSilverTouched(false);
     setSilverRateInput(shopSilverPer10g > 0 ? String(shopSilverPer10g) : "");
+    setShowErrors(false);
   }
 
   /** EDIT MODE — a stored invoice back into every field on this form (the
@@ -1022,6 +1077,7 @@ export function BillingPage() {
     setSignSuffix(st?.signSuffix ?? true);
     setGoldRateKaratMode(st?.goldRateKaratMode ?? "base");
     setGoldRateKaratText(st?.goldRateKaratText ?? "");
+    setGoldRateKaratValue(st?.goldRateKaratValue ?? 22);
     setHiddenGold(st?.hiddenColumns?.gold ?? []);
     setHiddenSilver(st?.hiddenColumns?.silver ?? []);
 
@@ -1105,31 +1161,20 @@ export function BillingPage() {
   }, [editing]);
 
   async function handleCreate() {
-    const items = lineItems(lines);
-    if (items.length === 0) {
-      toast.error("Add at least one line item");
+    // Validate FIRST and surface every missing field inline (plus in the
+    // toast) so the operator can see at a glance what is still missing.
+    setShowErrors(true);
+    if (missingFields.length > 0) {
+      toast.error(
+        missingFields.length === 1
+          ? "1 field still needs attention"
+          : `${missingFields.length} fields still need attention`,
+        { description: missingFields.map((m) => m.message).join(" ") },
+      );
       return;
-    }
-    if (distinct && lineItems(secondLines).length === 0) {
-      toast.error("Add at least one line item to the second bill");
-      return;
-    }
-    if (!customerName.trim()) {
-      toast.error("Customer name is required");
-      return;
-    }
-    if (distinct && !secondCustomerName.trim()) {
-      toast.error("Second bill customer name is required");
-      return;
-    }
-    if (distinct) {
-      const secondItems = lineItems(secondLines);
-      if (secondItems.length === 0) {
-        toast.error("Bill 2 needs at least one line item");
-        return;
-      }
     }
 
+    const items = liveItems;
     setSaving(true);
     try {
       const base = {
@@ -1309,6 +1354,29 @@ export function BillingPage() {
       />
       <div className="grid gap-5 xl:grid-cols-3">
         <div className="space-y-5 xl:col-span-2">
+              {/* Config warnings — the settings that are still empty, right
+                  where they bite. The full checklist lives in Settings →
+                  Health; only non-OK rows show here. */}
+              {configIssues.length > 0 && (
+                <Card className="border-amber-500/50 bg-amber-500/5">
+                  <CardContent className="space-y-2.5 py-4">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-amber-600 dark:text-amber-500">
+                      <TriangleAlert className="h-4 w-4 shrink-0" />
+                      Setup incomplete — {configIssues.length} setting{configIssues.length === 1 ? "" : "s"} still missing
+                    </div>
+                    <ul className="space-y-1.5">
+                      {configIssues.map((check) => (
+                        <li key={check.id} className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{check.title}.</span> {check.detail}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button variant="outline" size="sm" onClick={() => navigate("/settings?section=health")}>
+                      Open Settings → Health
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-sm">Bill details</CardTitle>
@@ -1325,6 +1393,7 @@ export function BillingPage() {
                     onAddress={setCustomerAddress}
                     onParty={setPartyId}
                     idPrefix="b"
+                    error={fieldError("customer")}
                   />
 
                   <div className="grid gap-3 sm:grid-cols-3">
@@ -1412,6 +1481,12 @@ export function BillingPage() {
                     add={() => setLines((prev) => [...prev, emptyLine()])}
                     pick={(i, p) => pickProduct(i, p, "first")}
                   />
+                  {fieldError("items") && (
+                    <p className="text-xs font-medium text-destructive">{fieldError("items")}</p>
+                  )}
+                  {fieldError("price") && (
+                    <p className="text-xs font-medium text-destructive">{fieldError("price")}</p>
+                  )}
                   <SeparatorLine />
                   <AdjustmentFields
                     discount={discount}
@@ -1478,6 +1553,7 @@ export function BillingPage() {
                       onAddress={setSecondCustomerAddress}
                       onParty={setSecondPartyId}
                       idPrefix="sb"
+                      error={fieldError("second-customer")}
                     />
                     <div className="space-y-1.5">
                       <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
@@ -1499,6 +1575,9 @@ export function BillingPage() {
                       add={() => setSecondLines((prev) => [...prev, emptyLine()])}
                       pick={(i, p) => pickProduct(i, p, "second")}
                     />
+                    {fieldError("second-items") && (
+                      <p className="text-xs font-medium text-destructive">{fieldError("second-items")}</p>
+                    )}
                     <SeparatorLine />
                     <AdjustmentFields
                       discount={secondDiscount}
@@ -1618,10 +1697,26 @@ export function BillingPage() {
                 signSuffix={signSuffix}
                 goldRateKaratMode={goldRateKaratMode}
                 goldRateKaratText={goldRateKaratText}
+                karatPicker
+                goldRateKaratValue={goldRateKaratValue}
+                onGoldRateKaratValue={(next) => {
+                  setGoldRateKaratValue(next);
+                  toast.success(`Karat line: ${next}K picked`);
+                }}
                 onGoldRateKaratMode={(next) => {
                   setGoldRateKaratMode(next);
                   toast.success(
-                    `Karat line: ${next === "off" ? "hidden" : next === "base" ? "shop base" : next === "product" ? "product's karat" : "custom text"}`,
+                    `Karat line: ${
+                      next === "off"
+                        ? "hidden"
+                        : next === "base"
+                          ? "shop base"
+                          : next === "product"
+                            ? "product's karat"
+                            : next === "karat"
+                              ? `${goldRateKaratValue}K picked`
+                              : "custom text"
+                    }`,
                   );
                 }}
                 onGoldRateKaratText={setGoldRateKaratText}
@@ -1744,6 +1839,7 @@ function CustomerFields({
   onAddress,
   onParty,
   idPrefix,
+  error,
 }: {
   name: string;
   phone: string;
@@ -1755,6 +1851,8 @@ function CustomerFields({
   onAddress: (v: string) => void;
   onParty: (v: string) => void;
   idPrefix: string;
+  /** Missing-field message shown under the Customer input (red). */
+  error?: string | null;
 }) {
   function pickParty(id: string) {
     onParty(id);
@@ -1769,7 +1867,14 @@ function CustomerFields({
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-cust`}>Customer</Label>
-        <Input id={`${idPrefix}-cust`} value={name} onChange={(e) => onName(e.target.value)} />
+        <Input
+          id={`${idPrefix}-cust`}
+          value={name}
+          onChange={(e) => onName(e.target.value)}
+          aria-invalid={error ? true : undefined}
+          className={error ? "border-destructive focus-visible:ring-destructive/40" : undefined}
+        />
+        {error && <p className="text-[11px] font-medium text-destructive">{error}</p>}
       </div>
       <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-phone`}>Phone</Label>

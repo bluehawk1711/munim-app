@@ -6,13 +6,18 @@
  * the per-bill display toggles (Weight column, rate rows, gold-rate karat
  * line with its show/source/custom-text options, Chejat/Nag signs).
  *
+ * `karatPicker` opts the caller into the extra "Pick a karat…" source — a
+ * second dropdown (24K…9K) that prints the chosen karat under the gold rate
+ * even when neither the product nor the shop has one set. Off by default so
+ * existing callers keep the original four sources unchanged.
+ *
  * Purely presentational — callers own state and can add their own toasts on
  * change (web + desktop both use sonner).
  */
 import * as React from "react";
 import type { BillTemplate, BillClassicColor, BillMode, GoldRateKaratMode } from "@munim/core";
 export type { BillTemplate, BillClassicColor, BillMode, BillTemplateSettings, GoldRateKaratMode } from "@munim/core";
-export declare function BillTemplateOptions({ template, classicColor, twoInOne, mode, weightAfterName, goldRateLine, silverRateLine, signSuffix, goldRateKaratMode, goldRateKaratText, onTemplate, onClassicColor, onTwoInOne, onMode, onWeightAfterName, onGoldRateLine, onSilverRateLine, onSignSuffix, onGoldRateKaratMode, onGoldRateKaratText, className, }: {
+export declare function BillTemplateOptions({ template, classicColor, twoInOne, mode, weightAfterName, goldRateLine, silverRateLine, signSuffix, goldRateKaratMode, goldRateKaratText, karatPicker, goldRateKaratValue, onGoldRateKaratValue, onTemplate, onClassicColor, onTwoInOne, onMode, onWeightAfterName, onGoldRateLine, onSilverRateLine, onSignSuffix, onGoldRateKaratMode, onGoldRateKaratText, className, }: {
     template: BillTemplate;
     classicColor: BillClassicColor;
     twoInOne: boolean;
@@ -26,6 +31,11 @@ export declare function BillTemplateOptions({ template, classicColor, twoInOne, 
     goldRateKaratMode: GoldRateKaratMode;
     /** Free text for mode "custom". */
     goldRateKaratText: string;
+    /** Show the extra "Pick a karat…" source + its 24K…9K dropdown. */
+    karatPicker?: boolean;
+    /** Picked karat (1–24) for mode "karat" — defaults to 22 when unset. */
+    goldRateKaratValue?: number;
+    onGoldRateKaratValue?: (v: number) => void;
     onTemplate: (t: BillTemplate) => void;
     onClassicColor: (c: BillClassicColor) => void;
     onTwoInOne: (on: boolean) => void;

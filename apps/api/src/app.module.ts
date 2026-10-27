@@ -1,6 +1,5 @@
 import { Module } from "@nestjs/common";
 import { APP_FILTER, APP_GUARD } from "@nestjs/core";
-import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { ApiKeyGuard } from "./auth/api-key.guard.js";
 import { GlobalExceptionFilter } from "./common/exception.filter.js";
 import { drizzleProvider } from "./db/drizzle.provider.js";
@@ -23,14 +22,12 @@ import { UploadController } from "./controllers/upload.controller.js";
 
 @Module({
   imports: [
-    ThrottlerModule.forRoot([
-      {
-        // Per-IP limit; per-API-key protection is enforced at the controller
-        // level where the key is known (see README/perf notes).
-        ttl: 60_000,
-        limit: 600,
-      },
-    ]),
+    // NOTE: NO rate limiting (throttler) on purpose. A Munim shop is ONE
+    // network — every counter staff member, tablet and the billing desktop
+    // share the shop's single public IP, so a per-IP request limit would
+    // throttle the WHOLE shop (600 req/min is a few busy billing seconds
+    // across a handful of devices). Abuse protection comes from the
+    // per-platform API-key guard below instead of request throttling.
   ],
   controllers: [
     HealthController,
@@ -53,7 +50,6 @@ import { UploadController } from "./controllers/upload.controller.js";
     drizzleProvider,
     CacheService,
     { provide: APP_GUARD, useClass: ApiKeyGuard },
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
 })

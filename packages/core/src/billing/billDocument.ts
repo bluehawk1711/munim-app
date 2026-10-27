@@ -29,8 +29,11 @@ export type BillMode = "duplicate" | "distinct";
  *    "base"    → the shop's base karat ("22 carat" — the original behaviour);
  *    "product" → the bill's first gold line's karat (the selected product's
  *                karat, exactly what the gold-product badge shows);
+ *    "karat"   → the karat the operator picked in the dropdown
+ *                (`goldRateKaratValue`) — works even when neither the
+ *                product nor the shop has a karat set;
  *    "custom"  → the operator's own text (`goldRateKaratText`). */
-export type GoldRateKaratMode = "off" | "base" | "product" | "custom";
+export type GoldRateKaratMode = "off" | "base" | "product" | "karat" | "custom";
 
 /** Toggleable columns of the E-commerce ESTIMATE grid. The Classic template
  *  has its own fixed layout and ignores these. `weight` is gold's G. Wt.
@@ -98,6 +101,10 @@ export interface BillTemplateSettings {
   goldRateKaratMode?: GoldRateKaratMode;
   /** Free text for mode "custom" (e.g. "22K hallmark"). Ignored otherwise. */
   goldRateKaratText?: string;
+  /** Picked karat (1–24) for mode "karat" — the number printed under the
+   *  gold rate row (e.g. `22 carat`). Ignored otherwise. Optional so older
+   *  snapshots / payload builders still typecheck. */
+  goldRateKaratValue?: number;
   /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
    *  column toggles — hidden from the printed bill. Gold grid and silver
    *  grid have different fields (gold: G. Wt. + Chejat/Nag; silver: the
@@ -123,6 +130,7 @@ export const DEFAULT_BILL_TEMPLATE_SETTINGS: BillTemplateSettings = {
   signSuffix: true,
   goldRateKaratMode: "base",
   goldRateKaratText: "",
+  goldRateKaratValue: 22,
   hiddenColumns: { gold: [], silver: [] },
 };
 
@@ -144,6 +152,7 @@ export function mergeBillTemplateSettings(
     // must land on the defaults, not on `undefined`.
     goldRateKaratMode: partial?.goldRateKaratMode ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratMode,
     goldRateKaratText: partial?.goldRateKaratText ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratText,
+    goldRateKaratValue: partial?.goldRateKaratValue ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratValue,
     hiddenColumns: {
       gold: partial?.hiddenColumns?.gold ?? [],
       silver: partial?.hiddenColumns?.silver ?? [],
@@ -499,6 +508,14 @@ export function goldRateKaratLine(
   if (mode === "product") {
     const karat = firstGoldKarat(bill.lines);
     return karat !== null && karat > 0 ? `${karat} carat` : null;
+  }
+  if (mode === "karat") {
+    // Explicit dropdown pick — shown even when neither the product nor the
+    // shop quoted a karat. Out-of-range / unset → nothing (defensive).
+    const picked = settings.goldRateKaratValue;
+    return picked != null && Number.isFinite(picked) && picked >= 1 && picked <= 24
+      ? `${Math.round(picked)} carat`
+      : null;
   }
   // "base" — the shop's quoted-rate purity; unset → no line (legacy bills).
   return bill.goldRateKarat != null && bill.goldRateKarat > 0 ? `${bill.goldRateKarat} carat` : null;

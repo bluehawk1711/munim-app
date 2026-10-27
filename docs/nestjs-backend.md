@@ -74,7 +74,7 @@ packages/core/             ← gains: server db factory, validators, serializers
 apps/api/
 ├── src/
 │   ├── main.ts                 # Fastify bootstrap, helmet, compression, CORS, shutdown hooks
-│   ├── app.module.ts           # ConfigModule, CacheModule (Upstash), ThrottlerModule
+│   ├── app.module.ts           # ConfigModule, CacheModule (Upstash); NO rate limiting (see note)
 │   ├── config/
 │   │   └── env.ts              # validated env: DATABASE_URL, API_KEY_* , UPSTASH_*, CORS_ORIGINS
 │   ├── db/
@@ -245,7 +245,11 @@ means "no change"), keeping `ShopSettingsInput` untouched.
 - **Helmet** security headers; **CORS** restricted to configured origins
   (`CORS_ORIGINS` env — the web app origin; desktop/mobile native fetch don't
   need CORS, desktop Tauri fetch is Rust-side).
-- **Throttler** (`@nestjs/throttler`) — e.g. 300 req/min per API key, burst 30.
+- **No rate limiting (deliberate)** — every Munim shop runs ONE network:
+  counter staff, tablets and the billing desktop all share the shop's single
+  public IP, so a per-IP/per-key request cap would throttle the whole shop
+  during a billing rush. Abuse protection comes from the per-platform
+  **API-key guard** instead (`@nestjs/throttler` was removed).
 - **pino** logging (`nestjs-pino`) — JSON logs, request IDs, low overhead.
 - **Global exception filter** — `{ error: string, status: number }` shape, no
   stack leaks to clients; **ValidationPipe** with shared zod schemas.

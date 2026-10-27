@@ -39,6 +39,7 @@ export const DEFAULT_BILL_TEMPLATE_SETTINGS = {
     signSuffix: true,
     goldRateKaratMode: "base",
     goldRateKaratText: "",
+    goldRateKaratValue: 22,
     hiddenColumns: { gold: [], silver: [] },
 };
 /**
@@ -57,6 +58,7 @@ export function mergeBillTemplateSettings(partial) {
         // must land on the defaults, not on `undefined`.
         goldRateKaratMode: partial?.goldRateKaratMode ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratMode,
         goldRateKaratText: partial?.goldRateKaratText ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratText,
+        goldRateKaratValue: partial?.goldRateKaratValue ?? DEFAULT_BILL_TEMPLATE_SETTINGS.goldRateKaratValue,
         hiddenColumns: {
             gold: partial?.hiddenColumns?.gold ?? [],
             silver: partial?.hiddenColumns?.silver ?? [],
@@ -281,6 +283,14 @@ export function goldRateKaratLine(bill, settings) {
     if (mode === "product") {
         const karat = firstGoldKarat(bill.lines);
         return karat !== null && karat > 0 ? `${karat} carat` : null;
+    }
+    if (mode === "karat") {
+        // Explicit dropdown pick — shown even when neither the product nor the
+        // shop quoted a karat. Out-of-range / unset → nothing (defensive).
+        const picked = settings.goldRateKaratValue;
+        return picked != null && Number.isFinite(picked) && picked >= 1 && picked <= 24
+            ? `${Math.round(picked)} carat`
+            : null;
     }
     // "base" — the shop's quoted-rate purity; unset → no line (legacy bills).
     return bill.goldRateKarat != null && bill.goldRateKarat > 0 ? `${bill.goldRateKarat} carat` : null;

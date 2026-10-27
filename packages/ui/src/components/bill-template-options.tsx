@@ -8,6 +8,11 @@
  * the per-bill display toggles (Weight column, rate rows, gold-rate karat
  * line with its show/source/custom-text options, Chejat/Nag signs).
  *
+ * `karatPicker` opts the caller into the extra "Pick a karat…" source — a
+ * second dropdown (24K…9K) that prints the chosen karat under the gold rate
+ * even when neither the product nor the shop has one set. Off by default so
+ * existing callers keep the original four sources unchanged.
+ *
  * Purely presentational — callers own state and can add their own toasts on
  * change (web + desktop both use sonner).
  */
@@ -28,8 +33,12 @@ const GOLD_RATE_KARAT_LABELS: Record<GoldRateKaratMode, string> = {
   off: "No karat line",
   base: "Shop base karat",
   product: "Product's karat",
+  karat: "Pick a karat…",
   custom: "Custom text…",
 };
+
+/** Karat choices for the picker — 24K down to 9K (the usable jewellery range). */
+const KARAT_CHOICES: readonly number[] = Array.from({ length: 16 }, (_, i) => 24 - i);
 
 export function BillTemplateOptions({
   template,
@@ -42,6 +51,9 @@ export function BillTemplateOptions({
   signSuffix,
   goldRateKaratMode,
   goldRateKaratText,
+  karatPicker,
+  goldRateKaratValue,
+  onGoldRateKaratValue,
   onTemplate,
   onClassicColor,
   onTwoInOne,
@@ -67,6 +79,11 @@ export function BillTemplateOptions({
   goldRateKaratMode: GoldRateKaratMode;
   /** Free text for mode "custom". */
   goldRateKaratText: string;
+  /** Show the extra "Pick a karat…" source + its 24K…9K dropdown. */
+  karatPicker?: boolean;
+  /** Picked karat (1–24) for mode "karat" — defaults to 22 when unset. */
+  goldRateKaratValue?: number;
+  onGoldRateKaratValue?: (v: number) => void;
   onTemplate: (t: BillTemplate) => void;
   onClassicColor: (c: BillClassicColor) => void;
   onTwoInOne: (on: boolean) => void;
@@ -168,13 +185,34 @@ export function BillTemplateOptions({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.keys(GOLD_RATE_KARAT_LABELS) as GoldRateKaratMode[]).map((mode) => (
+              {(Object.keys(GOLD_RATE_KARAT_LABELS) as GoldRateKaratMode[])
+                // The picked-karat source is opt-in — callers that don't pass
+                // `karatPicker` keep the original four options.
+                .filter((mode) => karatPicker || mode !== "karat")
+                .map((mode) => (
                 <SelectItem key={mode} value={mode}>
                   {GOLD_RATE_KARAT_LABELS[mode]}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+          {goldRateKaratMode === "karat" && (
+            <Select
+              value={String(goldRateKaratValue ?? 22)}
+              onValueChange={(v) => onGoldRateKaratValue?.(Number(v))}
+            >
+              <SelectTrigger className="h-8 w-[104px] text-xs" aria-label="Karat on gold rate line">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {KARAT_CHOICES.map((k) => (
+                  <SelectItem key={k} value={String(k)}>
+                    {k}K
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {goldRateKaratMode === "custom" && (
             <Input
               value={goldRateKaratText}

@@ -81,5 +81,6 @@ export * from "./services/advances.js";
 export * from "./services/jobLetters.js";
 export * from "./services/settings.js";
 export * from "./services/goldRates.js";
+export * from "./services/health.js";
 export * from "./services/dashboard.js";
 export { logActivity } from "./services/activity.js";

@@ -138,8 +138,10 @@ to the exact same functions. Zero business-logic duplication.
   fallback in dev (Phase 2 landed; `node-cache` rejected as
   unmaintained/in-memory-only, and the originally-planned `upstash-redis`
   store was unpublished).
-- **Perf:** Fastify adapter, compression, helmet, throttler, pg.Pool (kills the
-  per-query TLS handshake of SQL-over-HTTP), pino.
+- **Perf:** Fastify adapter, compression, helmet, pg.Pool (kills the
+  per-query TLS handshake of SQL-over-HTTP), pino. **No rate limiting on
+  purpose** — one shop = one shared network/IP, throttling would cap the whole
+  shop; the per-platform API-key guard is the abuse protection.
 - **Validation/serialization:** moved into `packages/core` (`validators/` +
   `serialize/`) so API and web share one schema + one Date→JSON shape; the
   `serialize/` module also exports the explicit `*Dto` wire types.
