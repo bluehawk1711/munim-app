@@ -190,7 +190,7 @@ export const SAMPLE_BILL_VARIANTS: readonly SampleBillVariant[] = [
   {
     id: "gold-karat-line",
     label: "Gold · Estimate + picked karat line",
-    hint: "Shows the manually picked karat under the gold rate",
+    hint: "Shows the manually picked karat next to the gold rate",
     kind: "gold",
     settings: { template: "ecommerce", goldRateKaratMode: "karat", goldRateKaratValue: 22 },
   },

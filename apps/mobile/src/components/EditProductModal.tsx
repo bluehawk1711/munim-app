@@ -117,6 +117,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
+  const [subCategory, setSubCategory] = useState('');
   const [article, setArticle] = useState('');
   const {data: articlesCatalog} = useQueryState(useArticles());
   const articleOptions = (articlesCatalog ?? []).map(a => ({label: a.name, value: a.name}));
@@ -147,6 +148,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [sizePickerOpen, setSizePickerOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [subCategoryPickerOpen, setSubCategoryPickerOpen] = useState(false);
   const [articlePickerOpen, setArticlePickerOpen] = useState(false);
   const [karatPickerOpen, setKaratPickerOpen] = useState(false);
   const [goldModePickerOpen, setGoldModePickerOpen] = useState(false);
@@ -205,6 +207,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       setColor(product.color);
       setSize(product.size);
       setCategory(product.category ?? '');
+      setSubCategory(product.subCategory ?? '');
       setArticle(product.article ?? '');
       setWeight(product.weight != null ? String(product.weight) : '');
       setWeightUnit(product.weightUnit === 'mg' ? 'mg' : 'gm');
@@ -233,6 +236,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       setColor('');
       setSize('');
       setCategory('');
+      setSubCategory('');
       setWeight('');
       setWeightUnit('gm');
       setGrossWeight('');
@@ -336,6 +340,8 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         color: color.trim() || undefined,
         size: size.trim() || 'Standard',
         category: category.trim() || undefined,
+        // Always sent: "" clears it ("No sub-category"), a name resolves.
+        subCategory: subCategory.trim(),
         // Always sent: "" clears the article, a name resolves find-or-create.
         article: article.trim(),
         weight: weight.trim() ? Math.max(0, Number(weight) || 0) : undefined,
@@ -415,25 +421,15 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             <SelectField label="Color" value={color} placeholder="Select color (optional)" onPress={() => setColorPickerOpen(true)} />
             <SelectField label="Size" value={size} placeholder="Select size (optional)" onPress={() => setSizePickerOpen(true)} />
             <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
-            <SelectField label="Article" value={article} placeholder="Select article (optional)" onPress={() => setArticlePickerOpen(true)} />
-            {type === 'Silver' && catalogCategories.length > 0 && (
-              <View style={{marginBottom: spacing.sm}}>
-                <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Silver sub-category</Text>
-                <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs}}>
-                  {catalogCategories.map(c => {
-                    const active = category === c.value;
-                    return (
-                      <Pressable
-                        key={c.value}
-                        onPress={() => setCategory(active ? '' : c.value)}
-                        style={{paddingVertical: 6, paddingHorizontal: spacing.sm, borderRadius: radii.full, borderWidth: 1, borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primary : colors.card}}>
-                        <Text style={{fontSize: 12, fontWeight: active ? '700' : '500', color: active ? colors.inverseOnSurface : colors.text}}>{c.label}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
+            {type === 'Silver' && (
+              <SelectField
+                label="Silver sub-category"
+                value={subCategory}
+                placeholder="Select sub-category (optional)"
+                onPress={() => setSubCategoryPickerOpen(true)}
+              />
             )}
+            <SelectField label="Article" value={article} placeholder="Select article (optional)" onPress={() => setArticlePickerOpen(true)} />
           </>
         )}
         {/* Gold prices on the derived NET weight — the plain Weight input is a
@@ -441,7 +437,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         {type !== 'Gold' && (
           <View style={{flexDirection: 'row', gap: spacing.sm}}>
             <View style={{flex: 1}}>
-              <Field label="Weight" value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder={weightUnit === 'gm' ? 'e.g. 24.5' : 'e.g. 24500'} />
+              <Field label="Weight" value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder={weightUnit === 'gm' ? 'e.g. 24.5' : 'e.g. 24500'} />
             </View>
             <View style={{width: 70}}>
               <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Unit</Text>
@@ -517,7 +513,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
               />
             )}
             {type === 'Silver' && (
-              <Field label="Silver %" value={silverPercentage} onChangeText={setSilverPercentage} keyboardType="numeric" placeholder="e.g. 90" />
+              <Field label="Silver %" value={silverPercentage} onChangeText={setSilverPercentage} keyboardType="decimal-pad" placeholder="e.g. 90" />
             )}
             <SelectField
               label="Pricing"
@@ -546,10 +542,10 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             />
             <View style={{flexDirection: 'row', gap: spacing.sm}}>
               <View style={{flex: 1}}>
-                <Field label="Povayi rate (₹)" value={povayiRate} onChangeText={setPovayiRate} keyboardType="numeric" placeholder="e.g. 10" />
+                <Field label="Povayi rate (₹)" value={povayiRate} onChangeText={setPovayiRate} keyboardType="decimal-pad" placeholder="e.g. 10" />
               </View>
               <View style={{flex: 1}}>
-                <Field label="Other charges (₹)" value={otherCharges} onChangeText={setOtherCharges} keyboardType="numeric" placeholder="e.g. 25" />
+                <Field label="Other charges (₹)" value={otherCharges} onChangeText={setOtherCharges} keyboardType="decimal-pad" placeholder="e.g. 25" />
               </View>
             </View>
             <Text style={styles.goldPreview}>
@@ -572,7 +568,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
                   label="Product silver rate (₹ per gram)"
                   value={silverProductRate}
                   onChangeText={setSilverProductRate}
-                  keyboardType="numeric"
+                  keyboardType="decimal-pad"
                   placeholder={silverRatePerGram > 0 ? `e.g. ${silverRatePerGram}` : 'e.g. 95'}
                 />
                 <Text style={styles.goldPreview}>
@@ -586,16 +582,16 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
           </View>
         )}
         {!isBillMode && (
-          <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="numeric" />
+          <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="decimal-pad" />
         )}
-        <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="numeric" />
+        <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="decimal-pad" />
         <Field
           label={priceMode === 'auto' && (type === 'Gold' || type === 'Silver') ? 'Sell price — calculated' : 'Sell price'}
           value={
             priceMode === 'auto' && metalPreview?.source === 'auto' ? String(metalPreview.price) : sell
           }
           onChangeText={setSell}
-          keyboardType="numeric"
+          keyboardType="decimal-pad"
           editable={!(priceMode === 'auto' && (type === 'Gold' || type === 'Silver'))}
         />
         <Button title={saving ? 'Saving…' : isEdit ? 'Save changes' : 'Save product'} onPress={handleSave} loading={saving} />
@@ -640,6 +636,17 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         ))}
         <Pressable onPress={() => { setCategory(''); setCategoryPickerOpen(false); }} style={{paddingVertical: spacing.md}}>
           <Text style={{fontSize: typography.body, color: colors.muted}}>Clear category</Text>
+        </Pressable>
+      </ModalSheet>
+
+      <ModalSheet visible={subCategoryPickerOpen} title="Select silver sub-category" onClose={() => setSubCategoryPickerOpen(false)} centered scrollable>
+        {catalogCategories.map(c => (
+          <Pressable key={c.value} onPress={() => { setSubCategory(c.value); setSubCategoryPickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
+            <Text style={{fontSize: typography.body, color: c.value === subCategory ? colors.primary : colors.text, fontWeight: c.value === subCategory ? '700' : '400'}}>{c.label}</Text>
+          </Pressable>
+        ))}
+        <Pressable onPress={() => { setSubCategory(''); setSubCategoryPickerOpen(false); }} style={{paddingVertical: spacing.md}}>
+          <Text style={{fontSize: typography.body, color: colors.muted}}>No sub-category</Text>
         </Pressable>
       </ModalSheet>
 

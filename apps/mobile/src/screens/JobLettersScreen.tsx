@@ -112,13 +112,13 @@ export function JobLettersScreen() {
         <Field label="Employee address" value={empAddr} onChangeText={setEmpAddr} placeholder="Full address" />
         <Field label="Position" value={position} onChangeText={setPosition} />
         <Field label="Joining date" value={joinDate} onChangeText={setJoinDate} placeholder="e.g. 2025-01-15" />
-        <Field label="Monthly salary" value={salary} onChangeText={setSalary} keyboardType="numeric" />
+        <Field label="Monthly salary" value={salary} onChangeText={setSalary} keyboardType="decimal-pad" />
         <Field label="Working hours" value={hoursDesc} onChangeText={setHoursDesc} placeholder="e.g. 9 hours per day" />
         <Field label="Hours from" value={hoursFrom} onChangeText={setHoursFrom} placeholder="e.g. 09:00 AM" />
         <Field label="Hours to" value={hoursTo} onChangeText={setHoursTo} placeholder="e.g. 06:00 PM" />
         <Field label="Weekly off 1" value={off1} onChangeText={setOff1} placeholder="e.g. Sunday" />
         <Field label="Weekly off 2" value={off2} onChangeText={setOff2} placeholder="e.g. Saturday (optional)" />
-        <Field label="Probation months" value={probation} onChangeText={setProbation} keyboardType="numeric" />
+        <Field label="Probation months" value={probation} onChangeText={setProbation} keyboardType="number-pad" />
         <Field label="Additional tasks" value={tasks} onChangeText={setTasks} multiline placeholder="Any additional tasks…" />
         <Field label="Notes" value={notes} onChangeText={setNotes} multiline placeholder="Internal notes…" />
         <Button title={saving ? 'Saving…' : 'Save'} onPress={handleSave} loading={saving} />

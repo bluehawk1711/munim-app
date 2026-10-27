@@ -434,13 +434,13 @@ export function PartiesScreen() {
 
       {/* Advance — centered modal */}
       <ModalSheet visible={advanceOpen} title={direction === 'GIVEN' ? 'Advance given' : 'Advance taken'} onClose={() => setAdvanceOpen(false)} dismissable={!saving} centered>
-        <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
+        <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
         <Button title={saving ? 'Saving…' : 'Save advance'} onPress={handleAdvance} loading={saving} />
       </ModalSheet>
 
       {/* Payment — centered modal */}
       <ModalSheet visible={paymentOpen} title={paymentDirection === 'IN' ? 'Money in' : 'Money out'} onClose={() => setPaymentOpen(false)} dismissable={!saving} centered>
-        <Field label="Amount" value={paymentAmount} onChangeText={setPaymentAmount} keyboardType="numeric" />
+        <Field label="Amount" value={paymentAmount} onChangeText={setPaymentAmount} keyboardType="decimal-pad" />
         <Button title={saving ? 'Recording…' : 'Record payment'} onPress={handlePayment} loading={saving} />
       </ModalSheet>
     </Screen>

@@ -60,6 +60,8 @@ export declare function buildProductLabel(product: {
     colorName?: string | null;
     sizeName?: string | null;
     categoryName?: string | null;
+    /** Second category (silver sub-category) — printed in place of the main one. */
+    subCategoryName?: string | null;
 }, shop?: LabelShop): ProductLabel;
 /** Formats the labour (making) charge for a label — "₹500" (FIXED),
  *  "₹50/g" (PER_GRAM), "10%" (PERCENT). "" when absent/zero. */

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt, RefreshCw, Copy, FileDown, CheckCircle2 } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Checkbox, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, BillLinePricingStrip, EstimateColumnToggles, ProductSearchSelect, BarcodeLookupInput, PaymentMethodPicker, type BillLinePricingStripValue, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
+import { Button, Input, NumberInput, Label, Card, CardContent, Checkbox, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, BillLinePricingStrip, EstimateColumnToggles, ProductSearchSelect, BarcodeLookupInput, PaymentMethodPicker, type BillLinePricingStripValue, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
 import { useCreateInvoice, useInvoice, useUpdateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
@@ -714,7 +714,7 @@ export function BillingView() {
       amountPaid: opts.amountPaid,
       currency: "INR",
       goldRate: billGoldRate,
-      // Purity of the quoted rate — printed as the "24 carat" line under the
+      // Purity of the quoted rate — printed as the "24K" suffix on the
       // gold rate row (shop's base karat; unset → no purity line).
       goldRateKarat: goldRates?.baseKarat ?? null,
       silverRate: billSilverRate ?? shopSilverPerGram ?? null,
@@ -1280,7 +1280,7 @@ export function BillingView() {
                   <div className="space-y-2">
                     <div className="space-y-1.5">
                       <Label className="text-xs">Amount paid now (₹)</Label>
-                      <Input type="number" min={0} value={secondAmountPaid || ""} onChange={(e) => setSecondAmountPaid(Number(e.target.value))} className="h-9" />
+                      <NumberInput min={0} value={secondAmountPaid} onValueChange={(v) => setSecondAmountPaid(v ?? 0)} className="h-9" />
                     </div>
                   </div>
                 </div>
@@ -1351,12 +1351,12 @@ export function BillingView() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Material returned value (₹)</Label>
-                <Input type="number" min={0} value={materialReturnedValue || ""} onChange={(e) => setMaterialReturnedValue(Number(e.target.value))} className="h-9" />
+                <NumberInput min={0} value={materialReturnedValue} onValueChange={(v) => setMaterialReturnedValue(v ?? 0)} className="h-9" />
               </div>
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Amount paid now (₹)</Label>
-              <Input type="number" min={0} value={amountPaid || ""} onChange={(e) => setAmountPaid(Number(e.target.value))} className="h-9" />
+              <NumberInput min={0} value={amountPaid} onValueChange={(v) => setAmountPaid(v ?? 0)} className="h-9" />
               {/* How the advance is coming in — printed on the invoice's
                   Payments trail (preset method or Custom + optional reference). */}
               <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />
@@ -1606,15 +1606,13 @@ function BillItemsCard({
                     className="h-8 text-xs"
                   />
                   <div className="flex gap-1.5">
-                    <Input
-                      type="number"
+                    <NumberInput
                       min={0}
-                      step="any"
-                      value={item.weight ?? ""}
-                      onChange={(e) =>
+                      value={item.weight}
+                      onValueChange={(value) =>
                         onWeightChange
-                          ? onWeightChange(idx, e.target.value)
-                          : updateItem(idx, { weight: e.target.value === "" ? null : Number(e.target.value) })
+                          ? onWeightChange(idx, value == null ? "" : String(value))
+                          : updateItem(idx, { weight: value })
                       }
                       placeholder="Weight"
                       className="h-8 text-xs"
@@ -1685,12 +1683,11 @@ function BillItemsCard({
                     if (selectedProduct?.type !== "Silver") return null
                     return (
                       <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
+                        <NumberInput
                           min={0}
                           max={100}
                           value={item.silverPercentage ?? 100}
-                          onChange={(e) => updateItem(idx, { silverPercentage: Number(e.target.value) || 100 })}
+                          onValueChange={(value) => updateItem(idx, { silverPercentage: value ?? 100 })}
                           className="h-8 w-20 text-xs"
                           placeholder="Silver %"
                         />
@@ -1701,18 +1698,16 @@ function BillItemsCard({
                     )
                   })()}
                 </div>
-                <Input
-                  type="number"
+                <NumberInput
                   min={0}
-                  value={item.quantity || ""}
-                  onChange={(e) => updateItem(idx, { quantity: Number(e.target.value) })}
+                  value={item.quantity || null}
+                  onValueChange={(value) => updateItem(idx, { quantity: value ?? 0 })}
                   className="h-9 text-center"
                 />
-                <Input
-                  type="number"
+                <NumberInput
                   min={0}
-                  value={item.price || ""}
-                  onChange={(e) => updateItem(idx, { price: Number(e.target.value) })}
+                  value={item.price || null}
+                  onValueChange={(value) => updateItem(idx, { price: value ?? 0 })}
                   className="h-9 text-center"
                 />
                 <div className="flex items-center justify-between sm:justify-end">
@@ -1777,11 +1772,11 @@ function BillItemsCard({
               <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Delivery charge (₹)</Label>
-                  <Input type="number" min={0} value={charges.delivery || ""} onChange={(e) => charges!.onDelivery(Number(e.target.value))} className="h-9" />
+                  <NumberInput min={0} value={charges.delivery} onValueChange={(v) => charges!.onDelivery(v ?? 0)} className="h-9" />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Discount (₹)</Label>
-                  <Input type="number" min={0} value={charges.discount || ""} onChange={(e) => charges!.onDiscount(Number(e.target.value))} className="h-9" />
+                  <NumberInput min={0} value={charges.discount} onValueChange={(v) => charges!.onDiscount(v ?? 0)} className="h-9" />
                 </div>
                 <div className="bg-muted/40 min-w-48 rounded-lg border p-2.5 text-xs">
                   <Row label="Subtotal" value={formatCurrency(charges.subtotal)} />

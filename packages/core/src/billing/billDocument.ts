@@ -23,10 +23,10 @@ export type BillTemplate = "jewellery" | "ecommerce";
 export type BillClassicColor = "red" | "yellow";
 export type BillMode = "duplicate" | "distinct";
 
-/** What prints under the "Gold rate: ₹X per gm" row (and what the bill
+/** What suffixes the "Gold rate: ₹X per gm" row (and what the bill
  *  form's rate badge shows) — the purity of the quoted rate:
- *    "off"     → no purity line at all;
- *    "base"    → the shop's base karat ("22 carat" — the original behaviour);
+ *    "off"     → no karat suffix at all;
+ *    "base"    → the shop's base karat ("22K" — the original behaviour);
  *    "product" → the bill's first gold line's karat (the selected product's
  *                karat, exactly what the gold-product badge shows);
  *    "karat"   → the karat the operator picked in the dropdown
@@ -102,7 +102,7 @@ export interface BillTemplateSettings {
   /** Free text for mode "custom" (e.g. "22K hallmark"). Ignored otherwise. */
   goldRateKaratText?: string;
   /** Picked karat (1–24) for mode "karat" — the number printed under the
-   *  gold rate row (e.g. `22 carat`). Ignored otherwise. Optional so older
+   *  gold rate row (e.g. `22K`). Ignored otherwise. Optional so older
    *  snapshots / payload builders still typecheck. */
   goldRateKaratValue?: number;
   /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
@@ -237,8 +237,8 @@ export interface BillDocument {
   currency: string;
   /** Shop's gold rate (₹/g) at build time — drives the gold rate row. */
   goldRate: number | null;
-  /** Purity of `goldRate` (e.g. 24 → "24 carat") — printed under the gold
-   *  rate row. null → no purity line (legacy bills / rates never stamped). */
+  /** Purity of `goldRate` (e.g. 24 → "24K") — printed as a suffix on the
+   *  gold rate row. null → no suffix (legacy bills / rates never stamped). */
   goldRateKarat: number | null;
   /** Shop's silver rate (₹/g) at build time — drives the silver rate row. */
   silverRate: number | null;
@@ -493,7 +493,7 @@ export function firstGoldKarat(
 }
 
 /**
- * The purity line under the "Gold rate: ₹X per gm" row, per the template's
+ * The karat suffix on the "Gold rate: ₹X per gm" row, per the template's
  * `goldRateKaratMode` — THE one resolver, shared by the PDF/HTML rate rows,
  * the share text and the bill-form badge so every surface agrees.
  * Returns null when nothing should print.
@@ -507,18 +507,18 @@ export function goldRateKaratLine(
   if (mode === "custom") return settings.goldRateKaratText?.trim() || null;
   if (mode === "product") {
     const karat = firstGoldKarat(bill.lines);
-    return karat !== null && karat > 0 ? `${karat} carat` : null;
+    return karat !== null && karat > 0 ? `${karat}K` : null;
   }
   if (mode === "karat") {
     // Explicit dropdown pick — shown even when neither the product nor the
     // shop quoted a karat. Out-of-range / unset → nothing (defensive).
     const picked = settings.goldRateKaratValue;
     return picked != null && Number.isFinite(picked) && picked >= 1 && picked <= 24
-      ? `${Math.round(picked)} carat`
+      ? `${Math.round(picked)}K`
       : null;
   }
-  // "base" — the shop's quoted-rate purity; unset → no line (legacy bills).
-  return bill.goldRateKarat != null && bill.goldRateKarat > 0 ? `${bill.goldRateKarat} carat` : null;
+  // "base" — the shop's quoted-rate purity; unset → no suffix (legacy bills).
+  return bill.goldRateKarat != null && bill.goldRateKarat > 0 ? `${bill.goldRateKarat}K` : null;
 }
 
 /**
@@ -531,10 +531,11 @@ export function rateRowsOf(bill: BillDocument, settings: BillTemplateSettings): 
   const anyMetal = gold || silver;
   const rows: string[] = [];
   if (settings.goldRateLine && bill.goldRate != null && bill.goldRate > 0 && (!anyMetal || gold)) {
-    rows.push(`Gold rate: ${formatCurrency(bill.goldRate)} per gm`);
-    // Purity of the quoted rate — printed directly under it ("22 carat").
-    const purity = goldRateKaratLine(bill, settings);
-    if (purity) rows.push(purity);
+    // Karat rides on the same row — "Gold rate: ₹8,405.50 per gm (22K)".
+    const karat = goldRateKaratLine(bill, settings);
+    rows.push(
+      `Gold rate: ${formatCurrency(bill.goldRate)} per gm${karat ? ` (${karat})` : ""}`,
+    );
   }
   if (settings.silverRateLine && bill.silverRate != null && bill.silverRate > 0 && (!anyMetal || silver)) {
     rows.push(`Silver rate: ${formatCurrency(bill.silverRate)} per gm`);
@@ -599,7 +600,7 @@ export function buildBillDocument(input: BuildBillInput): BillDocument {
  * Plain-text render of a bill — the platform-agnostic export that works in
  * every app (copy/share/print). Richer renders (jsPDF, HTML) should consume
  * BillDocument and keep the same numbers. `settings` drives the gold-rate
- * purity line (omitted → the defaults, i.e. the legacy base-karat line).
+ * rate row's karat suffix (omitted → the defaults, i.e. the legacy base karat).
  */
 export function renderBillText(bill: BillDocument, settings?: BillTemplateSettings): string {
   const currency = bill.currency === "INR" ? "₹" : `${bill.currency} `;
@@ -607,7 +608,7 @@ export function renderBillText(bill: BillDocument, settings?: BillTemplateSettin
   const anyMetal = metals.gold || metals.silver;
   const showGoldRate = bill.goldRate != null && bill.goldRate > 0 && (!anyMetal || metals.gold);
   const showSilverRate = bill.silverRate != null && bill.silverRate > 0 && (!anyMetal || metals.silver);
-  const goldPurity = showGoldRate
+  const goldKarat = showGoldRate
     ? goldRateKaratLine(bill, settings ?? DEFAULT_BILL_TEMPLATE_SETTINGS)
     : null;
   const lines = [
@@ -616,8 +617,9 @@ export function renderBillText(bill: BillDocument, settings?: BillTemplateSettin
     `Ph: ${bill.shop.phones.join(", ")}${bill.shop.email ? ` | ${bill.shop.email}` : ""}`,
     "",
     `BILL NO: ${bill.billNo}        DATE: ${bill.date}`,
-    showGoldRate ? `Gold rate:   ${currency}${bill.goldRate?.toFixed(2)} per gm` : "",
-    goldPurity ?? "",
+    showGoldRate
+      ? `Gold rate:   ${currency}${bill.goldRate?.toFixed(2)} per gm${goldKarat ? ` (${goldKarat})` : ""}`
+      : "",
     showSilverRate ? `Silver rate: ${currency}${bill.silverRate?.toFixed(2)} per gm` : "",
     `Customer: ${bill.customerName ?? ""}${bill.customerPhone ? ` (${bill.customerPhone})` : ""}`,
     "",

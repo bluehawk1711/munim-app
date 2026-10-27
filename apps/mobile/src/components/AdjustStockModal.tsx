@@ -48,7 +48,7 @@ export function AdjustStockModal({visible, onClose, onSaved, product}: AdjustSto
 
   return (
     <ModalSheet visible={visible} title={`Adjust stock — ${product?.name ?? ''}`} onClose={onClose} dismissable={!busy} centered scrollable>
-      <Field label="Quantity (+/−)" value={adjustQty} onChangeText={setAdjustQty} keyboardType="numeric" placeholder="e.g. 10 or -2" />
+      <Field label="Quantity (+/−)" value={adjustQty} onChangeText={setAdjustQty} keyboardType="decimal-pad" placeholder="e.g. 10 or -2" />
       <Field label="Reason (optional)" value={adjustReason} onChangeText={setAdjustReason} multiline placeholder="e.g. Restocked, damaged…" />
       <Button title="Adjust" onPress={handleAdjust} loading={busy} />
     </ModalSheet>

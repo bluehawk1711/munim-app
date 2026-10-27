@@ -646,7 +646,7 @@ export function OrdersPage() {
 
   /** The estimate print — the SAME sheet the bill uses, headed "Estimate" and
    *  carrying the quoted total, what the party paid and what's still due.
-   *  The day's rate (and its purity, "24 carat") prints under the date — an
+   *  The day's rate (and its karat, e.g. "24K") prints on the rate row — an
    *  order is quoted AT the rate of the day. `downloadBillPdf` delegates to
    *  core's shared `generateBillPDF` — the same renderer billing uses. */
   async function printEstimate(o: OrderRow) {

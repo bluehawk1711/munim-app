@@ -12,7 +12,7 @@ import * as React from "react";
 import { Loader2, Plus } from "lucide-react";
 import { Button } from "./button";
 import { Card, CardContent } from "./card";
-import { Input } from "./input";
+import { NumberInput } from "./number-input";
 import { Label } from "./label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
@@ -69,11 +69,10 @@ export function QuickAdvanceRecord({
         </div>
         <div className="flex-1 space-y-1.5">
           <Label className="text-xs">Amount (₹)</Label>
-          <Input
-            type="number"
+          <NumberInput
             min={0}
-            value={amount || ""}
-            onChange={(e) => onAmountChange(Number(e.target.value))}
+            value={amount || null}
+            onValueChange={(value) => onAmountChange(value ?? 0)}
             className="h-9"
           />
         </div>

@@ -513,7 +513,7 @@ export function LabourField({
             value={value}
             onChangeText={onValueChange}
             editable={editable}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             placeholder={placeholder}
             placeholderTextColor={colors.inputPlaceholder}
             style={[styles.input, !editable && {opacity: 0.6}]}

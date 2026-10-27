@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { FileText, Zap, Loader2, Save, History, Trash2 } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, Separator, Badge } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, Separator, Badge, NumberInput } from "@munim/ui"
 
 
 
@@ -139,7 +139,7 @@ export function JobLetterView() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Monthly salary (₹)</Label>
-                <Input type="number" min={0} value={form.monthlySalary || ""} onChange={(e) => set("monthlySalary", Number(e.target.value))} className="h-9" />
+                <NumberInput min={0} value={form.monthlySalary || null} onValueChange={(value) => set("monthlySalary", value ?? 0)} className="h-9" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Probation (months)</Label>

@@ -167,6 +167,12 @@ export const products = pgTable(
     colorId: text("color_id").references(() => colors.id, { onDelete: "set null" }),
     sizeId: text("size_id").references(() => sizes.id, { onDelete: "set null" }),
     categoryId: text("category_id").references(() => categories.id, { onDelete: "set null" }),
+    /** SECOND category slot — the shop's sub-classification (silver
+     *  sub-categories like "92.5 Stock"). Same `categories` catalog as
+     *  `categoryId`, stored separately so picking a sub-category no longer
+     *  overwrites the main category (the old chip row wrote both into one
+     *  column). */
+    subCategoryId: text("sub_category_id").references(() => categories.id, { onDelete: "set null" }),
     articleId: text("article_id").references(() => articles.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -177,6 +183,7 @@ export const products = pgTable(
     index("products_color_idx").on(t.colorId),
     index("products_size_idx").on(t.sizeId),
     index("products_category_idx").on(t.categoryId),
+    index("products_subcategory_idx").on(t.subCategoryId),
     index("products_article_idx").on(t.articleId),
   ],
 );

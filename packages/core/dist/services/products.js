@@ -388,6 +388,7 @@ const PRODUCT_SELECT = {
     colorId: schema.products.colorId,
     sizeId: schema.products.sizeId,
     categoryId: schema.products.categoryId,
+    subCategoryId: schema.products.subCategoryId,
     articleId: schema.products.articleId,
     createdAt: schema.products.createdAt,
     updatedAt: schema.products.updatedAt,
@@ -439,6 +440,7 @@ export async function listProducts(db, filters = {}) {
             colorName: sql `${schema.colors.name}`.as("color_name"),
             sizeName: sql `${schema.sizes.name}`.as("size_name"),
             categoryName: sql `${schema.categories.name}`.as("category_name"),
+            subCategoryName: sql `(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
             articleName: sql `${schema.articles.name}`.as("article_name"),
         })
             .from(schema.products)
@@ -468,6 +470,7 @@ export async function getProduct(db, id) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        subCategoryName: sql `(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
         articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)
@@ -485,6 +488,7 @@ export async function listAllProducts(db) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        subCategoryName: sql `(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
         articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)
@@ -529,7 +533,7 @@ function normalizeLabourType(value) {
     return value === "FIXED" || value === "PER_GRAM" ? value : "PERCENT";
 }
 export async function createProduct(db, input) {
-    const [sku, barcode, colorId, sizeId, categoryId, articleId] = await Promise.all([
+    const [sku, barcode, colorId, sizeId, categoryId, subCategoryId, articleId] = await Promise.all([
         generateSku(async (sku) => {
             const r = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.sku, sku));
             return r.length > 0;
@@ -547,6 +551,7 @@ export async function createProduct(db, input) {
         input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
         resolveSizeId(db, input.size),
         input.category ? resolveCategoryId(db, input.category) : Promise.resolve(null),
+        input.subCategory ? resolveCategoryId(db, input.subCategory) : Promise.resolve(null),
         input.article ? resolveArticleId(db, input.article) : Promise.resolve(null),
     ]);
     const [product] = await db
@@ -582,6 +587,7 @@ export async function createProduct(db, input) {
         colorId,
         sizeId,
         categoryId,
+        subCategoryId,
         articleId,
     })
         .returning();
@@ -604,11 +610,16 @@ export async function updateProduct(db, id, input) {
     const existing = await getProduct(db, id);
     if (!existing)
         throw new ProductError("Product not found", "NOT_FOUND", 404);
-    const [colorId, sizeId, categoryId, articleId] = await Promise.all([
+    const [colorId, sizeId, categoryId, subCategoryId, articleId] = await Promise.all([
         // Empty/absent color clears it; a real value resolves (or creates) the color.
         input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
         resolveSizeId(db, input.size),
         input.category ? resolveCategoryId(db, input.category) : Promise.resolve(existing.categoryId),
+        // undefined → keep (forms that don't ship a sub-category must not wipe
+        // it); ""/whitespace → clear ("No sub-category"); a name resolves.
+        input.subCategory === undefined
+            ? Promise.resolve(existing.subCategoryId)
+            : resolveCategoryId(db, input.subCategory),
         // undefined → keep (forms that omit the field must not wipe it);
         // ""/whitespace → clear ("No article"); a name resolves find-or-create.
         input.article === undefined
@@ -675,6 +686,7 @@ export async function updateProduct(db, id, input) {
         colorId,
         sizeId,
         categoryId,
+        subCategoryId,
         articleId,
         updatedAt: new Date(),
     })
@@ -827,6 +839,7 @@ export async function findProductByBarcode(db, barcode) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        subCategoryName: sql `(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
         articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)
@@ -858,6 +871,7 @@ export async function findProductByCode(db, code) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        subCategoryName: sql `(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
         articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)

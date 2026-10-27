@@ -26,6 +26,7 @@ export * from "./components/dialog.js";
 export * from "./components/dropdown-menu.js";
 export * from "./components/force-theme-transition.js";
 export * from "./components/input.js";
+export * from "./components/number-input.js";
 export * from "./components/estimate-column-toggles.js";
 export * from "./components/invoice-payment-line.js";
 export * from "./components/invoice-status-badge.js";

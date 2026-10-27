@@ -227,6 +227,8 @@ export type ProductWithMeta = schema.Product & {
   colorName: string | null;
   sizeName: string | null;
   categoryName: string | null;
+  /** SECOND category slot — the shop's sub-classification name. */
+  subCategoryName: string | null;
   articleName: string | null;
 } & ProductComputedPricing;
 
@@ -497,6 +499,7 @@ const PRODUCT_SELECT = {
   colorId: schema.products.colorId,
   sizeId: schema.products.sizeId,
   categoryId: schema.products.categoryId,
+  subCategoryId: schema.products.subCategoryId,
   articleId: schema.products.articleId,
   createdAt: schema.products.createdAt,
   updatedAt: schema.products.updatedAt,
@@ -554,6 +557,7 @@ export async function listProducts(db: DbClient, filters: ProductFilters = {}) {
         colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
         sizeName: sql<string | null>`${schema.sizes.name}`.as("size_name"),
         categoryName: sql<string | null>`${schema.categories.name}`.as("category_name"),
+        subCategoryName: sql<string | null>`(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
         articleName: sql<string | null>`${schema.articles.name}`.as("article_name"),
       })
       .from(schema.products)
@@ -585,6 +589,7 @@ export async function getProduct(db: DbClient, id: string) {
       colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
       sizeName: sql<string | null>`${schema.sizes.name}`.as("size_name"),
       categoryName: sql<string | null>`${schema.categories.name}`.as("category_name"),
+      subCategoryName: sql<string | null>`(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
       articleName: sql<string | null>`${schema.articles.name}`.as("article_name"),
     })
     .from(schema.products)
@@ -603,6 +608,7 @@ export async function listAllProducts(db: DbClient): Promise<ProductWithMeta[]> 
       colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
       sizeName: sql<string | null>`${schema.sizes.name}`.as("size_name"),
       categoryName: sql<string | null>`${schema.categories.name}`.as("category_name"),
+      subCategoryName: sql<string | null>`(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
       articleName: sql<string | null>`${schema.articles.name}`.as("article_name"),
     })
     .from(schema.products)
@@ -624,6 +630,8 @@ export type ProductInput = {
   color?: string;
   size: string;
   category?: string;
+  /** SECOND category (sub-classification) name — resolved like `category`. */
+  subCategory?: string;
   /** Article (design/classification) name — resolved like `category`. */
   article?: string;
   /** Barcode value. `undefined` → keep existing (edit); `""` → clear; else set. */
@@ -699,7 +707,7 @@ function normalizeLabourType(value: string | undefined): "PERCENT" | "FIXED" | "
 }
 
 export async function createProduct(db: DbClient, input: ProductInput) {
-  const [sku, barcode, colorId, sizeId, categoryId, articleId] = await Promise.all([
+  const [sku, barcode, colorId, sizeId, categoryId, subCategoryId, articleId] = await Promise.all([
     generateSku(async (sku) => {
       const r = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.sku, sku));
       return r.length > 0;
@@ -716,6 +724,7 @@ export async function createProduct(db: DbClient, input: ProductInput) {
     input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
     resolveSizeId(db, input.size),
     input.category ? resolveCategoryId(db, input.category) : Promise.resolve(null),
+    input.subCategory ? resolveCategoryId(db, input.subCategory) : Promise.resolve(null),
     input.article ? resolveArticleId(db, input.article) : Promise.resolve(null),
   ]);
 
@@ -752,6 +761,7 @@ export async function createProduct(db: DbClient, input: ProductInput) {
       colorId,
       sizeId,
       categoryId,
+      subCategoryId,
       articleId,
     })
     .returning();
@@ -776,11 +786,16 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
   const existing = await getProduct(db, id);
   if (!existing) throw new ProductError("Product not found", "NOT_FOUND", 404);
 
-  const [colorId, sizeId, categoryId, articleId] = await Promise.all([
+  const [colorId, sizeId, categoryId, subCategoryId, articleId] = await Promise.all([
     // Empty/absent color clears it; a real value resolves (or creates) the color.
     input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
     resolveSizeId(db, input.size),
     input.category ? resolveCategoryId(db, input.category) : Promise.resolve(existing.categoryId),
+    // undefined → keep (forms that don't ship a sub-category must not wipe
+    // it); ""/whitespace → clear ("No sub-category"); a name resolves.
+    input.subCategory === undefined
+      ? Promise.resolve(existing.subCategoryId)
+      : resolveCategoryId(db, input.subCategory),
     // undefined → keep (forms that omit the field must not wipe it);
     // ""/whitespace → clear ("No article"); a name resolves find-or-create.
     input.article === undefined
@@ -854,6 +869,7 @@ export async function updateProduct(db: DbClient, id: string, input: ProductInpu
       colorId,
       sizeId,
       categoryId,
+      subCategoryId,
       articleId,
       updatedAt: new Date(),
     })
@@ -1060,6 +1076,7 @@ export async function findProductByBarcode(db: DbClient, barcode: string) {
       colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
       sizeName: sql<string | null>`${schema.sizes.name}`.as("size_name"),
       categoryName: sql<string | null>`${schema.categories.name}`.as("category_name"),
+      subCategoryName: sql<string | null>`(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
       articleName: sql<string | null>`${schema.articles.name}`.as("article_name"),
     })
     .from(schema.products)
@@ -1091,6 +1108,7 @@ export async function findProductByCode(db: DbClient, code: string) {
       colorName: sql<string | null>`${schema.colors.name}`.as("color_name"),
       sizeName: sql<string | null>`${schema.sizes.name}`.as("size_name"),
       categoryName: sql<string | null>`${schema.categories.name}`.as("category_name"),
+      subCategoryName: sql<string | null>`(select sc.name from ${schema.categories} sc where sc.id = ${schema.products.subCategoryId})`.as("sub_category_name"),
       articleName: sql<string | null>`${schema.articles.name}`.as("article_name"),
     })
     .from(schema.products)

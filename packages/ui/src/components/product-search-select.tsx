@@ -42,8 +42,10 @@ export type ProductOption = {
   purity?: string | null;
   /** Gross-weight free text from the product record (bill G.Wt. column). */
   grossWeight?: string | null;
-  /** Category name — silver subcategories ("92.5 Stock") live here. */
+  /** Category name. */
   category?: string | null;
+  /** Second category (silver sub-category) — preferred in the type label. */
+  subCategory?: string | null;
 };
 
 function stockMeta(stock: number): { label: string; className: string } {
@@ -224,6 +226,7 @@ export function ProductSearchSelect({
                           goldKarat: p.goldKarat,
                           purity: p.purity,
                           categoryName: p.category,
+                          subCategoryName: p.subCategory,
                         }).text}
                       </span>
                     ) : null}

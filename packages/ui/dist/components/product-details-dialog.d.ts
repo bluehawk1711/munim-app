@@ -19,6 +19,8 @@ export type ProductDetails = {
     color?: string | null;
     size?: string | null;
     category?: string | null;
+    /** Second category (silver sub-category) — preferred in the type label. */
+    subCategory?: string | null;
     /** Weight value — unit determined by `weightUnit`. */
     weight: number | null;
     /** Display & calculation unit: "mg" or "gm". */

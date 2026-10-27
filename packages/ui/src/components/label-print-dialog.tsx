@@ -38,6 +38,7 @@ import {
   DialogTitle,
 } from "./dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
+import { NumberInput } from "./number-input";
 
 const PRODUCT_TYPE_COLORS: Record<string, string> = {
   Gold: "#D4AF37",
@@ -324,14 +325,12 @@ export function LabelPrintDialog({
                       {/* GAP */}
                       <div className="space-y-1">
                         <label className="text-[11px] font-medium text-muted-foreground" htmlFor="lbl-gap">Gap (mm)</label>
-                        <input
+                        <NumberInput
                           id="lbl-gap"
-                          type="number"
                           min={0}
                           max={10}
-                          step={0.5}
                           value={printSettings.gapMm}
-                          onChange={(e) => updateSetting("gapMm", Number(e.target.value) || 0)}
+                          onValueChange={(value) => updateSetting("gapMm", value ?? 0)}
                           disabled={printSettings.useDefaults}
                           className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                         />
@@ -765,14 +764,12 @@ export function LabelPrintDialog({
                         {/* leftMarginMm */}
                         <div className="space-y-1">
                           <label className="text-[10px] text-muted-foreground" htmlFor="lbl-leftMargin">Left Margin (mm)</label>
-                          <input
+                          <NumberInput
                             id="lbl-leftMargin"
-                            type="number"
                             min={0}
                             max={10}
-                            step={0.5}
                             value={printSettings.leftMarginMm}
-                            onChange={(e) => updateSetting("leftMarginMm", Number(e.target.value) || 3.5)}
+                            onValueChange={(value) => updateSetting("leftMarginMm", value ?? 3.5)}
                             disabled={printSettings.useDefaults}
                             className="flex h-8 w-full rounded-md border bg-background px-2 text-xs disabled:opacity-40"
                           />

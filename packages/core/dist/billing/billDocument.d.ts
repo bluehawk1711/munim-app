@@ -16,10 +16,10 @@ export type BillStatus = "DRAFT" | "UNPAID" | "PARTIAL" | "PAID";
 export type BillTemplate = "jewellery" | "ecommerce";
 export type BillClassicColor = "red" | "yellow";
 export type BillMode = "duplicate" | "distinct";
-/** What prints under the "Gold rate: ₹X per gm" row (and what the bill
+/** What suffixes the "Gold rate: ₹X per gm" row (and what the bill
  *  form's rate badge shows) — the purity of the quoted rate:
- *    "off"     → no purity line at all;
- *    "base"    → the shop's base karat ("22 carat" — the original behaviour);
+ *    "off"     → no karat suffix at all;
+ *    "base"    → the shop's base karat ("22K" — the original behaviour);
  *    "product" → the bill's first gold line's karat (the selected product's
  *                karat, exactly what the gold-product badge shows);
  *    "karat"   → the karat the operator picked in the dropdown
@@ -112,7 +112,7 @@ export interface BillTemplateSettings {
     /** Free text for mode "custom" (e.g. "22K hallmark"). Ignored otherwise. */
     goldRateKaratText?: string;
     /** Picked karat (1–24) for mode "karat" — the number printed under the
-     *  gold rate row (e.g. `22 carat`). Ignored otherwise. Optional so older
+     *  gold rate row (e.g. `22K`). Ignored otherwise. Optional so older
      *  snapshots / payload builders still typecheck. */
     goldRateKaratValue?: number;
     /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
@@ -208,8 +208,8 @@ export interface BillDocument {
     currency: string;
     /** Shop's gold rate (₹/g) at build time — drives the gold rate row. */
     goldRate: number | null;
-    /** Purity of `goldRate` (e.g. 24 → "24 carat") — printed under the gold
-     *  rate row. null → no purity line (legacy bills / rates never stamped). */
+    /** Purity of `goldRate` (e.g. 24 → "24K") — printed as a suffix on the
+     *  gold rate row. null → no suffix (legacy bills / rates never stamped). */
     goldRateKarat: number | null;
     /** Shop's silver rate (₹/g) at build time — drives the silver rate row. */
     silverRate: number | null;
@@ -345,7 +345,7 @@ export declare function firstGoldKarat(lines: readonly {
     purity?: string | null;
 }[]): GoldKarat | null;
 /**
- * The purity line under the "Gold rate: ₹X per gm" row, per the template's
+ * The karat suffix on the "Gold rate: ₹X per gm" row, per the template's
  * `goldRateKaratMode` — THE one resolver, shared by the PDF/HTML rate rows,
  * the share text and the bill-form badge so every surface agrees.
  * Returns null when nothing should print.
@@ -363,7 +363,7 @@ export declare function buildBillDocument(input: BuildBillInput): BillDocument;
  * Plain-text render of a bill — the platform-agnostic export that works in
  * every app (copy/share/print). Richer renders (jsPDF, HTML) should consume
  * BillDocument and keep the same numbers. `settings` drives the gold-rate
- * purity line (omitted → the defaults, i.e. the legacy base-karat line).
+ * rate row's karat suffix (omitted → the defaults, i.e. the legacy base karat).
  */
 export declare function renderBillText(bill: BillDocument, settings?: BillTemplateSettings): string;
 //# sourceMappingURL=billDocument.d.ts.map

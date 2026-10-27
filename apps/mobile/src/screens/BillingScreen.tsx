@@ -556,14 +556,14 @@ function LineItemsEditor({
                     label="Qty"
                     value={line.quantity}
                     onChangeText={text => onChange(index, {quantity: text})}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     style={{flex: 1, marginRight: 8}}
                   />
                   <Field
                     label="Price"
                     value={line.price}
                     onChangeText={text => onChange(index, {price: text})}
-                    keyboardType="numeric"
+                    keyboardType="decimal-pad"
                     style={{flex: 2}}
                   />
                 </View>
@@ -575,7 +575,7 @@ function LineItemsEditor({
                       onChangeText={text =>
                         onWeightChange ? onWeightChange(index, text) : onChange(index, {weight: text})
                       }
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       style={{flex: 1, marginRight: 8}}
                       placeholder="0.000"
                     />
@@ -587,7 +587,7 @@ function LineItemsEditor({
                       label="G. Wt."
                       value={line.grossWeight}
                       onChangeText={text => basis({grossWeight: text})}
-                      keyboardType="numeric"
+                      keyboardType="decimal-pad"
                       style={{flex: 1, marginRight: 8}}
                       placeholder="19.12"
                     />
@@ -601,7 +601,7 @@ function LineItemsEditor({
                         label="Nag Wt."
                         value={line.nagLessWeight}
                         onChangeText={text => basis({nagLessWeight: text})}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         style={{flex: 1, marginRight: 8}}
                         placeholder="0.000"
                       />
@@ -609,7 +609,7 @@ function LineItemsEditor({
                         label="Chejat Wt."
                         value={line.chejatWeight}
                         onChangeText={text => basis({chejatWeight: text})}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         style={{flex: 1}}
                         placeholder="0.000"
                       />
@@ -620,7 +620,7 @@ function LineItemsEditor({
                         label="G. Wt."
                         value={line.grossWeight}
                         onChangeText={text => basis({grossWeight: text})}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         style={{flex: 1, marginRight: 8}}
                         placeholder="19.12"
                       />
@@ -644,7 +644,7 @@ function LineItemsEditor({
                         label="Rate ₹/g"
                         value={line.ratePerGram}
                         onChangeText={text => onPricingChange?.(index, {ratePerGram: text})}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         style={{flex: 1, marginRight: 8}}
                         placeholder={
                           pricingView.breakdown.source === 'auto' ? String(pricingView.breakdown.ratePerGram) : '0'
@@ -655,7 +655,7 @@ function LineItemsEditor({
                           label="Silver %"
                           value={line.silverPercentage}
                           onChangeText={text => onPricingChange?.(index, {silverPercentage: text})}
-                          keyboardType="numeric"
+                          keyboardType="decimal-pad"
                           style={{flex: 1}}
                         />
                       ) : (
@@ -686,7 +686,7 @@ function LineItemsEditor({
                         label="Value"
                         value={line.labourValue}
                         onChangeText={text => onPricingChange?.(index, {labourValue: text})}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         style={{flex: 1}}
                         placeholder={
                           line.labourValue === '' &&
@@ -703,7 +703,7 @@ function LineItemsEditor({
                           label="Nag ₹"
                           value={line.nag}
                           onChangeText={text => onPricingChange?.(index, {nag: text})}
-                          keyboardType="numeric"
+                          keyboardType="decimal-pad"
                           style={{flex: 1, marginRight: 8}}
                         />
                       ) : null}
@@ -711,14 +711,14 @@ function LineItemsEditor({
                         label="Povayi ₹"
                         value={line.povayi}
                         onChangeText={text => onPricingChange?.(index, {povayi: text})}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         style={{flex: pricingView.metal === 'Gold' ? 1 : 2, marginRight: 8}}
                       />
                       <Field
                         label="Other ₹"
                         value={line.otherCharges}
                         onChangeText={text => onPricingChange?.(index, {otherCharges: text})}
-                        keyboardType="numeric"
+                        keyboardType="decimal-pad"
                         style={{flex: 1}}
                       />
                     </View>
@@ -1275,7 +1275,7 @@ export function BillingScreen() {
       status: invoice.status,
       currency: settings?.currency ?? 'INR',
       goldRate: invoice.goldRate ?? goldBaseRate,
-      // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+      // Purity of the quoted rate — the "24K" suffix on the gold rate row.
       goldRateKarat: goldRates?.baseKarat ?? null,
       silverRate: invoice.silverRate ?? settings?.silverRatePerGram ?? null,
     });
@@ -1892,7 +1892,7 @@ export function BillingScreen() {
             label="Gold karat rate (₹/g) — editing re-prices gold lines"
             value={goldRateInput}
             onChangeText={handleGoldRateChange}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
             rightElement={
               rateKaratBadgeText ? (
@@ -1910,7 +1910,7 @@ export function BillingScreen() {
             }
             value={silverRateInput}
             onChangeText={handleSilverRateChange}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
           />
           <Button
@@ -1931,12 +1931,12 @@ export function BillingScreen() {
             products={products}
             onSelectProduct={onSelectProduct}
           />
-          <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="numeric" />
-          <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="numeric" />
+          <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="decimal-pad" />
+          <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="decimal-pad" />
             <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
             <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
-            <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" />
-          <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="numeric" />
+            <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="decimal-pad" />
+          <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="decimal-pad" />
           {/* How the advance is coming in — Cash / Online + optional note
               (recorded on the payment, shown in the invoice's Payments trail). */}
           <View>
@@ -2043,12 +2043,12 @@ export function BillingScreen() {
               products={products}
               onSelectProduct={onSecondSelectProduct}
             />
-            <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="numeric" />
-            <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="numeric" />
+            <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="decimal-pad" />
+            <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="decimal-pad" />
             <Field label="Material returned title" value={secondMaterialReturnedTitle} onChangeText={setSecondMaterialReturnedTitle} placeholder="Material Returned" />
             <Field label="Material returned weight" value={secondMaterialReturnedWeight} onChangeText={setSecondMaterialReturnedWeight} placeholder="e.g. 5gm" />
-            <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="numeric" />
-            <Field label="Paid now" value={secondPaid} onChangeText={setSecondPaid} keyboardType="numeric" />
+            <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="decimal-pad" />
+            <Field label="Paid now" value={secondPaid} onChangeText={setSecondPaid} keyboardType="decimal-pad" />
             <TotalsBlock
               styles={styles}
               label="Bill 2 total"

@@ -313,6 +313,7 @@ export function SalesPage() {
                         goldKarat: selected.goldKarat,
                         purity: selected.purity,
                         categoryName: selected.category,
+                        subCategoryName: selected.subCategory,
                       }).text}
                       {selected.color ? <>, {selected.color}</> : null}
                       {selected.size ? <> · {selected.size}</> : null}

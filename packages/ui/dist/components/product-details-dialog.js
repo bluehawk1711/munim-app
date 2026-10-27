@@ -23,6 +23,7 @@ export function ProductDetailsDialog({ open, onOpenChange, product, formatCurren
                 goldKarat: product.goldKarat,
                 purity: product.purity,
                 categoryName: product.category,
+                subCategoryName: product.subCategory,
             }).text,
             icon: _jsx(Tag, { className: "h-3.5 w-3.5" }),
         },
@@ -30,6 +31,9 @@ export function ProductDetailsDialog({ open, onOpenChange, product, formatCurren
         { label: "Color", value: product.color || "—", icon: _jsx(Layers, { className: "h-3.5 w-3.5" }) },
         { label: "Size", value: product.size || "—", icon: _jsx(Ruler, { className: "h-3.5 w-3.5" }) },
         { label: "Category", value: product.category || "—", icon: _jsx(Boxes, { className: "h-3.5 w-3.5" }) },
+        ...(product.subCategory
+            ? [{ label: "Sub-category", value: product.subCategory, icon: _jsx(Boxes, { className: "h-3.5 w-3.5" }) }]
+            : []),
         { label: "Weight", value: formatWeight(product.weight, product.weightUnit), icon: _jsx(Weight, { className: "h-3.5 w-3.5" }) },
         ...(product.type === "Gold" ? [
             { label: "Gross weight", value: product.grossWeight || "—", icon: _jsx(Scale, { className: "h-3.5 w-3.5" }) },

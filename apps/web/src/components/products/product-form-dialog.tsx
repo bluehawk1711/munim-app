@@ -5,7 +5,7 @@ import { useForm, type Resolver } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Loader2, Package, UploadCloud, Image as ImageIcon, X, Plus, Copy, BadgeIndianRupee } from "lucide-react"
 import Image from "next/image"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, GoldRateEditor, LabourInput, CategoryChips } from "@munim/ui"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Input, Label, Button, Textarea, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, GoldRateEditor, LabourInput, NumberInput } from "@munim/ui"
 import { useUploadImage, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, useSettings, useDebouncedSettingsUpdate, useQueryState } from "@munim/query"
 import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
@@ -24,6 +24,14 @@ const KARAT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
 
 const DEFAULT_COLORS = ["Black", "White", "Navy", "Blue", "Red", "Green", "Grey", "Brown", "Olive", "Silver", "Teal", "Amber"]
 const DEFAULT_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Standard", "30", "32", "34", "36", "8", "9", "10", "11"]
+
+/** RHF keeps registered inputs as raw strings until zod parses them on submit —
+ *  the live price preview must parse the same way. */
+function numericOrNull(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
 
 /** mg/gm segmented toggle — sits beside the nag-less + chejat weight fields. */
 function UnitToggle({
@@ -127,14 +135,21 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
       color: "Black",
       size: "Standard",
       category: "",
+      subCategory: "",
       article: "",
       barcode: "",
       weight: undefined,
       weightUnit: "gm",
       nagUnit: "gm",
+      grossWeight: "",
+      nagLessWeight: "",
+      nagRate: "",
+      chejatWeight: "",
+      netWeight: "",
       purity: "",
       imageUrl: "",
       stock: 1,
+      lowStockThreshold: 5,
       purchasePrice: 0,
       sellingPrice: 0,
       silverPercentage: 100,
@@ -159,15 +174,21 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
           color: product.color,
           size: product.size,
           category: product.category ?? "",
+          subCategory: product.subCategory ?? "",
           article: product.article ?? "",
           barcode: product.barcode ?? "",
           weight: product.weight ?? undefined,
           weightUnit: product.weightUnit === "mg" || product.weightUnit === "gm" ? product.weightUnit : "gm",
+          grossWeight: product.grossWeight ?? "",
+          nagLessWeight: product.nagLessWeight ?? "",
           nagRate: product.nagRate ?? "",
+          chejatWeight: product.chejatWeight ?? "",
+          netWeight: product.netWeight ?? "",
           nagUnit: product.nagUnit === "mg" ? "mg" : "gm",
           purity: product.purity ?? "",
           imageUrl: product.imageUrl ?? "",
           stock: product.stock,
+          lowStockThreshold: product.lowStockThreshold,
           purchasePrice: product.purchasePrice,
           sellingPrice: product.sellingPrice,
           silverPercentage: product.silverPercentage ?? 100,
@@ -189,14 +210,21 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
           color: "Black",
           size: "Standard",
           category: "",
+          subCategory: "",
           article: "",
           barcode: "",
           weight: undefined,
           weightUnit: "gm",
           nagUnit: "gm",
+          grossWeight: "",
+          nagLessWeight: "",
+          nagRate: "",
+          chejatWeight: "",
+          netWeight: "",
           purity: "",
           imageUrl: "",
           stock: 1,
+          lowStockThreshold: 5,
           purchasePrice: 0,
           sellingPrice: 0,
           silverPercentage: 100,
@@ -218,6 +246,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
   const colorValue = watched.color ?? ""
   const sizeValue = watched.size ?? ""
   const categoryValue = watched.category ?? ""
+  const subCategoryValue = watched.subCategory ?? ""
   const articleValue = watched.article ?? ""
   const colorIsCustom = customColor || (!!colorValue && !colors.includes(colorValue))
   const sizeIsCustom = customSize || (!!sizeValue && !sizes.includes(sizeValue))
@@ -242,10 +271,10 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
       {
         type: productType,
         priceMode,
-        weight: watched.weight ?? null,
+        weight: numericOrNull(watched.weight),
         weightUnit: watched.weightUnit ?? "gm",
         goldKarat,
-        silverPercentage: watched.silverPercentage ?? 100,
+        silverPercentage: numericOrNull(watched.silverPercentage) ?? 100,
         labourType: watched.labourType ?? "PERCENT",
         labourValue: typeof watched.labourValue === "number" ? watched.labourValue : null,
         netWeight: watched.netWeight ?? null,
@@ -253,7 +282,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
         povayiRate: typeof watched.povayiRate === "number" ? watched.povayiRate : null,
         otherCharges: typeof watched.otherCharges === "number" ? watched.otherCharges : null,
         silverRatePerGram: typeof watched.silverRatePerGram === "number" ? watched.silverRatePerGram : null,
-        sellingPrice: watched.sellingPrice ?? 0,
+        sellingPrice: numericOrNull(watched.sellingPrice) ?? 0,
       },
       karatTable,
       silverRatePerGram,
@@ -559,7 +588,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
             <div className="space-y-2">
               <Label htmlFor="weight">Weight</Label>
               <div className="flex gap-2">
-                <Input id="weight" type="number" step="0.1" min={0} placeholder="e.g. 24.5" {...form.register("weight")} className="flex-1" />
+                <Input id="weight" type="number" step="any" min={0} placeholder="e.g. 24.5" {...form.register("weight")} className="flex-1" />
                 <Select value={form.watch("weightUnit") ?? "gm"} onValueChange={(v) => form.setValue("weightUnit", v as "mg" | "gm")}>
                   <SelectTrigger className="w-[80px]">
                     <SelectValue />
@@ -732,7 +761,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="silverPercentage">Silver %</Label>
-                    <Input id="silverPercentage" type="number" step="1" min={0} max={100} placeholder="e.g. 90" {...form.register("silverPercentage")} />
+                    <Input id="silverPercentage" type="number" step="any" min={0} max={100} placeholder="e.g. 90" {...form.register("silverPercentage")} />
                     {form.formState.errors.silverPercentage && (
                       <p className="text-xs text-destructive">{form.formState.errors.silverPercentage.message}</p>
                     )}
@@ -754,19 +783,15 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
                   </div>
                   <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="silverRatePerGram">Product silver rate (₹ per gram)</Label>
-                    <Input
+                    <NumberInput
                       id="silverRatePerGram"
-                      type="text"
-                      inputMode="decimal"
                       className="h-9 tabular-nums"
                       placeholder={silverRatePerGram ? `e.g. ${silverRatePerGram}` : "e.g. 95"}
-                      value={watched.silverRatePerGram != null ? String(watched.silverRatePerGram) : ""}
-                      onChange={(e) =>
-                        form.setValue(
-                          "silverRatePerGram",
-                          e.target.value.trim() === "" ? null : Math.max(0, Number(e.target.value) || 0),
-                          { shouldValidate: true },
-                        )
+                      value={watched.silverRatePerGram ?? null}
+                      onValueChange={(value) =>
+                        form.setValue("silverRatePerGram", value == null ? null : Math.max(0, value), {
+                          shouldValidate: true,
+                        })
                       }
                     />
                     <p className="text-[11px] text-muted-foreground">
@@ -799,35 +824,29 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="povayiRate">Povayi rate (₹)</Label>
-                  <Input
+                  <NumberInput
                     id="povayiRate"
-                    inputMode="decimal"
                     className="h-9 tabular-nums"
                     placeholder="e.g. 100"
-                    value={watched.povayiRate != null ? String(watched.povayiRate) : ""}
-                    onChange={(e) =>
-                      form.setValue(
-                        "povayiRate",
-                        e.target.value.trim() === "" ? null : Math.max(0, Number(e.target.value) || 0),
-                        { shouldValidate: true },
-                      )
+                    value={watched.povayiRate ?? null}
+                    onValueChange={(value) =>
+                      form.setValue("povayiRate", value == null ? null : Math.max(0, value), {
+                        shouldValidate: true,
+                      })
                     }
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="otherCharges">Other charges (₹)</Label>
-                  <Input
+                  <NumberInput
                     id="otherCharges"
-                    inputMode="decimal"
                     className="h-9 tabular-nums"
                     placeholder="e.g. 25"
-                    value={watched.otherCharges != null ? String(watched.otherCharges) : ""}
-                    onChange={(e) =>
-                      form.setValue(
-                        "otherCharges",
-                        e.target.value.trim() === "" ? null : Math.max(0, Number(e.target.value) || 0),
-                        { shouldValidate: true },
-                      )
+                    value={watched.otherCharges ?? null}
+                    onValueChange={(value) =>
+                      form.setValue("otherCharges", value == null ? null : Math.max(0, value), {
+                        shouldValidate: true,
+                      })
                     }
                   />
                 </div>
@@ -985,16 +1004,29 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
               <p className="text-xs text-destructive">{form.formState.errors.category.message}</p>
             )}
             {productType === "Silver" && (
-              <CategoryChips
-                label="Silver sub-category"
-                hint="Shown as “Silver · <name>” on pickers, labels and the products table."
-                categories={categories}
-                value={categoryValue}
-                onSelect={(c) => {
-                  setCustomCategory(false)
-                  form.setValue("category", c, { shouldValidate: true })
-                }}
-              />
+              <div className="space-y-2 pt-1">
+                <Label>Silver sub-category</Label>
+                <Select
+                  value={subCategoryValue || "__none"}
+                  onValueChange={(v) =>
+                    form.setValue("subCategory", v === "__none" ? "" : v, { shouldValidate: true })
+                  }
+                >
+                  <SelectTrigger className="h-9 w-full" aria-label="Silver sub-category">
+                    <SelectValue placeholder="Select sub-category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">No sub-category</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Second category — stored apart from the category above, so picking one never
+                  overwrites the other.
+                </p>
+              </div>
             )}
           </div>
 
@@ -1026,18 +1058,24 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="stock">Current Stock</Label>
-            <Input id="stock" type="number" step="0.01" min={0} {...form.register("stock")} />
-            {form.formState.errors.stock && (
-              <p className="text-xs text-destructive">{form.formState.errors.stock.message}</p>
-            )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="stock">Current Stock</Label>
+              <Input id="stock" type="number" step="any" min={0} {...form.register("stock")} />
+              {form.formState.errors.stock && (
+                <p className="text-xs text-destructive">{form.formState.errors.stock.message}</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lowStockThreshold">Low stock alert at</Label>
+              <Input id="lowStockThreshold" type="number" step="any" min={0} {...form.register("lowStockThreshold")} />
+            </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="purchasePrice">Purchase Price (₹)</Label>
-              <Input id="purchasePrice" type="number" step="0.01" min={0} {...form.register("purchasePrice")} />
+              <Input id="purchasePrice" type="number" step="any" min={0} {...form.register("purchasePrice")} />
               {form.formState.errors.purchasePrice && (
                 <p className="text-xs text-destructive">{form.formState.errors.purchasePrice.message}</p>
               )}
@@ -1058,7 +1096,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
                 </>
               ) : (
                 <>
-                  <Input id="sellingPrice" type="number" step="0.01" min={0} {...form.register("sellingPrice")} />
+                  <Input id="sellingPrice" type="number" step="any" min={0} {...form.register("sellingPrice")} />
                   {form.formState.errors.sellingPrice && (
                     <p className="text-xs text-destructive">{form.formState.errors.sellingPrice.message}</p>
                   )}

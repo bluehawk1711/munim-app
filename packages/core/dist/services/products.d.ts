@@ -86,6 +86,8 @@ export type ProductWithMeta = schema.Product & {
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+    /** SECOND category slot — the shop's sub-classification name. */
+    subCategoryName: string | null;
     articleName: string | null;
 } & ProductComputedPricing;
 export declare const goldRatePerGramSql: import("drizzle-orm").SQL<number>;
@@ -137,6 +139,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         colorName: string | null;
         sizeName: string | null;
         categoryName: string | null;
+        subCategoryName: string | null;
         articleName: string | null;
         id: string;
         sku: string;
@@ -169,6 +172,7 @@ export declare function listProducts(db: DbClient, filters?: ProductFilters): Pr
         colorId: string | null;
         sizeId: string | null;
         categoryId: string | null;
+        subCategoryId: string | null;
         articleId: string | null;
         createdAt: Date;
         updatedAt: Date;
@@ -188,6 +192,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+    subCategoryName: string | null;
     articleName: string | null;
     id: string;
     sku: string;
@@ -220,6 +225,7 @@ export declare function getProduct(db: DbClient, id: string): Promise<{
     colorId: string | null;
     sizeId: string | null;
     categoryId: string | null;
+    subCategoryId: string | null;
     articleId: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -237,6 +243,8 @@ export type ProductInput = {
     color?: string;
     size: string;
     category?: string;
+    /** SECOND category (sub-classification) name — resolved like `category`. */
+    subCategory?: string;
     /** Article (design/classification) name — resolved like `category`. */
     article?: string;
     /** Barcode value. `undefined` → keep existing (edit); `""` → clear; else set. */
@@ -289,6 +297,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+    subCategoryName: string | null;
     articleName: string | null;
     id: string;
     sku: string;
@@ -321,6 +330,7 @@ export declare function createProduct(db: DbClient, input: ProductInput): Promis
     colorId: string | null;
     sizeId: string | null;
     categoryId: string | null;
+    subCategoryId: string | null;
     articleId: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -333,6 +343,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+    subCategoryName: string | null;
     articleName: string | null;
     id: string;
     sku: string;
@@ -365,6 +376,7 @@ export declare function updateProduct(db: DbClient, id: string, input: ProductIn
     colorId: string | null;
     sizeId: string | null;
     categoryId: string | null;
+    subCategoryId: string | null;
     articleId: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -384,6 +396,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+    subCategoryName: string | null;
     articleName: string | null;
     id: string;
     sku: string;
@@ -416,6 +429,7 @@ export declare function adjustStock(db: DbClient, id: string, input: StockAdjust
     colorId: string | null;
     sizeId: string | null;
     categoryId: string | null;
+    subCategoryId: string | null;
     articleId: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -473,6 +487,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+    subCategoryName: string | null;
     articleName: string | null;
     id: string;
     sku: string;
@@ -505,6 +520,7 @@ export declare function findProductByBarcode(db: DbClient, barcode: string): Pro
     colorId: string | null;
     sizeId: string | null;
     categoryId: string | null;
+    subCategoryId: string | null;
     articleId: string | null;
     createdAt: Date;
     updatedAt: Date;
@@ -526,6 +542,7 @@ export declare function findProductByCode(db: DbClient, code: string): Promise<{
     colorName: string | null;
     sizeName: string | null;
     categoryName: string | null;
+    subCategoryName: string | null;
     articleName: string | null;
     id: string;
     sku: string;
@@ -558,6 +575,7 @@ export declare function findProductByCode(db: DbClient, code: string): Promise<{
     colorId: string | null;
     sizeId: string | null;
     categoryId: string | null;
+    subCategoryId: string | null;
     articleId: string | null;
     createdAt: Date;
     updatedAt: Date;

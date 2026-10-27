@@ -362,7 +362,7 @@ export function ProductsScreen() {
     setLabelBusy(true);
     try {
       const label = buildProductLabel(
-        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, type: labelTarget.type, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, purity: labelTarget.purity, sellingPrice: labelTarget.effectivePrice, labourType: labelTarget.labourType, labourValue: labelTarget.labourValue, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category},
+        {id: labelTarget.id, name: labelTarget.name, sku: labelTarget.sku, barcode: labelTarget.barcode, type: labelTarget.type, weight: labelTarget.weight, weightUnit: labelTarget.weightUnit, grossWeight: labelTarget.grossWeight ?? null, nagLessWeight: labelTarget.nagLessWeight ?? null, nagRate: labelTarget.nagRate ?? null, chejatWeight: labelTarget.chejatWeight ?? null, netWeight: labelTarget.netWeight ?? null, purity: labelTarget.purity, sellingPrice: labelTarget.effectivePrice, labourType: labelTarget.labourType, labourValue: labelTarget.labourValue, colorName: labelTarget.color, sizeName: labelTarget.size, categoryName: labelTarget.category, subCategoryName: labelTarget.subCategory},
         {name: settings?.shopName ?? ''},
       );
       const html = renderLabelSheetHtml([label], {copies: labelCopies});
@@ -607,7 +607,7 @@ export function ProductsScreen() {
             : ''}
           {labelTarget?.weight != null ? ` · ${formatWeight(labelTarget.weight, labelTarget.weightUnit)}` : ''}
         </Text>
-        <Field label="Copies" value={String(labelCopies)} onChangeText={t => setLabelCopies(Math.max(1, Math.min(100, Number(t) || 1)))} keyboardType="numeric" />
+        <Field label="Copies" value={String(labelCopies)} onChangeText={t => setLabelCopies(Math.max(1, Math.min(100, Number(t) || 1)))} keyboardType="number-pad" />
         <Button title={labelBusy ? 'Preparing…' : 'Share label PDF'} onPress={handleLabelShare} loading={labelBusy} disabled={!labelTarget} />
       </ModalSheet>
 

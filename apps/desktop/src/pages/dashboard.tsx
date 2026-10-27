@@ -165,7 +165,7 @@ function invoiceToBillDocument(
     status: inv.status,
     currency,
     goldRate: inv.goldRate ?? rates?.gold ?? null,
-    // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+    // Purity of the quoted rate — the "24K" suffix on the gold rate row.
     goldRateKarat: rates?.karat ?? null,
     silverRate: inv.silverRate ?? rates?.silver ?? null,
   });

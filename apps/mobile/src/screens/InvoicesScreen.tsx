@@ -230,7 +230,7 @@ export function InvoicesScreen() {
         status: inv.status,
         currency: settings.currency ?? 'INR',
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
-        // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+        // Purity of the quoted rate — the "24K" suffix on the gold rate row.
         goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings.silverRatePerGram ?? null,
       });
@@ -474,7 +474,7 @@ export function InvoicesScreen() {
               label="Amount to receive"
               value={payAmount}
               onChangeText={setPayAmount}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
             />
             <View style={styles.payMethodWrap}>
               <Text style={styles.payLabel}>Paid via</Text>
