@@ -1,5 +1,40 @@
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
+/** Free-text material-returned weight ("5gm", "500mg", "5.2") → GRAMS.
+ *  `parseNetWeight` strips the unit, so the unit is read from the TEXT itself
+ *  ("…mg" → milligrams, anything else → grams). Unparseable → 0. */
+export declare function materialWeightGm(text: string | null | undefined): number;
+/** Period the dashboard KPI tiles are scoped to (chip presets resolve to
+ *  ISO date bounds before they reach the API). */
+export type DashboardPeriod = {
+    /** Inclusive lower bound (yyyy-mm-dd or ISO). Open when omitted. */
+    from?: string;
+    /** Inclusive upper bound (yyyy-mm-dd or ISO). Open when omitted. */
+    to?: string;
+};
+/** Chip presets shared by all three dashboards. */
+export type DashboardPreset = "today" | "week" | "month";
+/**
+ * Chip preset → inclusive `yyyy-mm-dd` bounds in the LOCAL day (week starts
+ * Monday, month starts on the 1st). One definition so web, desktop and mobile
+ * show identical numbers for the same chip.
+ */
+export declare function dashboardPresetRange(preset: DashboardPreset, now?: Date): Required<DashboardPeriod>;
+/** Period-scoped headline KPIs — revenue, bills, weight sold, material in. */
+export type DashboardPeriodKpis = {
+    /** ISO bounds actually used (null = open end). */
+    from: string | null;
+    to: string | null;
+    revenue: number;
+    invoicesCount: number;
+    /** Weight sold in the period, GRAMS — line-level frozen pricing.weightGm
+     *  (per unit × quantity) with the line's weight snapshot as fallback. */
+    weightSoldGm: number;
+    /** Old material handed in by customers — parsed gram sum. */
+    materialReceivedGm: number;
+    /** Its assessed value (₹). */
+    materialReceivedValue: number;
+};
 export type DashboardStats = {
     totalProducts: number;
     totalStock: number;
@@ -56,12 +91,15 @@ export type DashboardStats = {
         month: string;
         quantity: number;
     }[];
+    /** Period-scoped KPIs for the dashboard chips (Today / This week /
+     *  This month / Custom). All-time when no period is supplied. */
+    period: DashboardPeriodKpis;
     recentActivity: schema.ActivityLog[];
     recentAdvances: (schema.Advance & {
         partyName?: string;
     })[];
 };
-export declare function getDashboard(db: DbClient): Promise<DashboardStats>;
+export declare function getDashboard(db: DbClient, period?: DashboardPeriod): Promise<DashboardStats>;
 export type ReportType = "daily" | "weekly" | "monthly" | "yearly" | "stock" | "low_stock" | "sold";
 export type ReportRow = {
     productId: string | null;
@@ -77,6 +115,9 @@ export type ReportRow = {
     weightUnit: string;
     /** Total weight sold (quantity × unit weight). */
     soldWeight: number;
+    /** Line-level weight sold in GRAMS — frozen `pricing.weightGm` × quantity
+     *  (line weight snapshot as fallback); independent of later product edits. */
+    soldWeightGm: number;
     revenue: number;
     profit: number;
 };
@@ -106,8 +147,11 @@ export declare function getReport(db: DbClient, type: ReportType, startDate?: st
         stock: number;
         soldQuantity: number;
         soldWeight: number;
+        weightSoldGm: number;
         revenue: number;
         profit: number;
+        materialReceivedGm: number;
+        materialReceivedValue: number;
     };
 }>;
 /**
@@ -126,6 +170,10 @@ export declare function reportToCsv(report: {
         soldWeight: number;
         revenue: number;
         profit: number;
+        /** Line-level weight sold (gm) — falls back to soldWeight when absent. */
+        weightSoldGm?: number;
+        materialReceivedGm?: number;
+        materialReceivedValue?: number;
     };
 }): string;
 //# sourceMappingURL=dashboard.d.ts.map

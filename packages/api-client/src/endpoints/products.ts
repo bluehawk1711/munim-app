@@ -1,4 +1,5 @@
 import type {
+  BulkProductPatch,
   ProductDto,
   ProductFilters,
   ProductFormValues,
@@ -44,6 +45,13 @@ export function products(http: HttpClient) {
     /** PUT /api/products/:id — mirrors core `updateProduct(db, id, values)`. */
     update(id: string, values: ProductFormValues): Promise<ProductDto> {
       return http.put(`/api/products/${id}`, values);
+    },
+    /** PATCH /api/products/bulk — one patch across many selected products. */
+    bulkUpdate(input: {
+      ids: string[];
+      patch: BulkProductPatch;
+    }): Promise<{ count: number }> {
+      return http.patch("/api/products/bulk", input);
     },
     /** PATCH /api/products/:id/stock — mirrors core `adjustStock`. */
     adjustStock(id: string, values: StockAdjustmentValues): Promise<ProductDto> {

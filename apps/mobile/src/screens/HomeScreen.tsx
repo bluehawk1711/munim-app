@@ -23,7 +23,15 @@ import {
   Wallet,
   ChevronRight,
 } from 'lucide-react-native';
-import {formatDate, type ProductDto} from '@munim/core';
+import {
+  dashboardPresetRange,
+  formatDate,
+  formatWeight,
+  type DashboardPeriod,
+  type DashboardPreset,
+  type ProductDto,
+} from '@munim/core';
+import {DateField} from '../components/date-field';
 import {ApiClientError} from '@munim/api-client';
 import {useDashboard, useProductByBarcode, useQueryState} from '@munim/query';
 import {money} from '../lib/format';
@@ -56,10 +64,29 @@ function revenueDelta(monthlySales: {month: string; revenue: number; orders: num
   return ((cur - prev) / prev) * 100;
 }
 
+/** Period chips for the KPI tiles — shared with web/desktop dashboards. */
+const PERIOD_CHIPS = [
+  {key: 'today' as const, label: 'Today'},
+  {key: 'week' as const, label: 'This week'},
+  {key: 'month' as const, label: 'This month'},
+  {key: 'custom' as const, label: 'Custom'},
+];
+
 export function HomeScreen() {
   const styles = useThemeStyles(makeStyles);
   const {colors: palette} = useTheme();
-  const {data, error, loading, reload} = useQueryState(useDashboard());
+  // Period chips scope the KPI tiles (Today / This week / This month /
+  // Custom date range). Default: this month.
+  const [periodPreset, setPeriodPreset] = useState<DashboardPreset | 'custom'>('month');
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const period: DashboardPeriod =
+    periodPreset === 'custom'
+      ? {from: customFrom || undefined, to: customTo || undefined}
+      : dashboardPresetRange(periodPreset);
+  const activeChipLabel =
+    PERIOD_CHIPS.find(c => c.key === periodPreset)?.label ?? 'Period';
+  const {data, error, loading, reload} = useQueryState(useDashboard(period));
 
   // ── Scan-to-sell (header scan button) ───────────────────────────────────
   const [scanOpen, setScanOpen] = useState(false);
@@ -208,6 +235,82 @@ export function HomeScreen() {
               </Text>
             </View>
             <LineChart data={performance} />
+          </Card>
+
+          {/* Period KPIs — chips scope these four tiles */}
+          <Card style={styles.card} index={1}>
+            <Text style={styles.chartTitle}>{activeChipLabel.toUpperCase()}</Text>
+            <View style={styles.periodChipsRow}>
+              {PERIOD_CHIPS.map(chip => {
+                const active = periodPreset === chip.key;
+                return (
+                  <Pressable
+                    key={chip.key}
+                    accessibilityRole="button"
+                    accessibilityLabel={chip.label}
+                    onPress={() => {
+                      selectionTick();
+                      setPeriodPreset(chip.key);
+                    }}
+                    style={({pressed}) => [
+                      styles.periodChip,
+                      active && styles.periodChipActive,
+                      pressed && {opacity: 0.75},
+                    ]}>
+                    <Text style={[styles.periodChipText, active && styles.periodChipTextActive]}>
+                      {chip.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {periodPreset === 'custom' ? (
+              <View style={{gap: spacing.sm, marginBottom: spacing.sm}}>
+                <DateField label="From" value={customFrom} onChange={setCustomFrom} placeholder="Start date" />
+                <DateField label="To" value={customTo} onChange={setCustomTo} placeholder="End date (optional)" />
+                {customFrom && customTo && customFrom > customTo ? (
+                  <Text style={{color: palette.danger, fontSize: typography.caption, fontWeight: '600'}}>
+                    Start date must be on or before end date.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+            <View style={styles.periodGrid}>
+              <View style={styles.periodTile}>
+                <Text style={styles.periodTileLabel}>Revenue</Text>
+                <Text style={styles.periodTileValue} numberOfLines={1} adjustsFontSizeToFit>
+                  {money(data.period.revenue)}
+                </Text>
+                <Text style={styles.periodTileHint}>{data.period.invoicesCount} bills</Text>
+              </View>
+              <View style={styles.periodTile}>
+                <Text style={styles.periodTileLabel}>Weight sold</Text>
+                <Text style={styles.periodTileValue} numberOfLines={1} adjustsFontSizeToFit>
+                  {data.period.weightSoldGm > 0 ? formatWeight(data.period.weightSoldGm) : '—'}
+                </Text>
+                <Text style={styles.periodTileHint}>from bill lines</Text>
+              </View>
+              <View style={styles.periodTile}>
+                <Text style={styles.periodTileLabel}>Material in</Text>
+                <Text style={styles.periodTileValue} numberOfLines={1} adjustsFontSizeToFit>
+                  {data.period.materialReceivedGm > 0 ? formatWeight(data.period.materialReceivedGm) : '—'}
+                </Text>
+                <Text style={styles.periodTileHint}>
+                  ₹{money(data.period.materialReceivedValue)} assessed
+                </Text>
+              </View>
+              <View style={styles.periodTile}>
+                <Text style={styles.periodTileLabel}>Avg sale</Text>
+                <Text style={styles.periodTileValue} numberOfLines={1} adjustsFontSizeToFit>
+                  {money(
+                    data.period.invoicesCount > 0
+                      ? data.period.revenue / data.period.invoicesCount
+                      : 0,
+                  )}
+                </Text>
+                <Text style={styles.periodTileHint}>{data.period.invoicesCount} bills</Text>
+              </View>
+            </View>
           </Card>
 
           {/* Stock & sales pulse — live composition charts from the dashboard */}
@@ -504,6 +607,49 @@ const makeStyles = (c: MobileColors) =>
       fontSize: typography.caption,
       color: c.muted,
     },
+    /* Period KPIs — chips + 2×2 tiles */
+    periodChipsRow: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: rs(6),
+      marginTop: spacing.sm,
+      marginBottom: spacing.sm,
+    },
+    periodChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.card,
+    },
+    periodChipActive: {backgroundColor: c.primary, borderColor: c.primary},
+    periodChipText: {fontSize: 11, fontWeight: '600', color: c.muted},
+    periodChipTextActive: {color: c.onPrimary},
+    periodGrid: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: rs(8),
+    },
+    periodTile: {
+      flexGrow: 1,
+      flexBasis: '46%',
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.mutedSoft,
+      borderRadius: radii.md,
+      padding: spacing.sm + 2,
+      gap: 2,
+    },
+    periodTileLabel: {
+      fontSize: typography.caption - 1,
+      fontWeight: '700' as const,
+      letterSpacing: 0.4,
+      color: c.muted,
+      textTransform: 'uppercase' as const,
+    },
+    periodTileValue: {fontSize: 17, fontWeight: '700', color: c.text},
+    periodTileHint: {fontSize: 10, color: c.muted},
     /* Quick actions */
     quickRow: {
       flexDirection: 'row',

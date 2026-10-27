@@ -14,6 +14,8 @@ import {
 import {
   adjustStock,
   backfillBarcodes,
+  bulkProductSchema,
+  bulkUpdateProducts,
   createProduct,
   deleteProduct,
   findProductByCode,
@@ -52,6 +54,7 @@ export class ProductsController {
     @Query("color") color?: string,
     @Query("size") size?: string,
     @Query("category") category?: string,
+    @Query("article") article?: string,
     @Query("status") status?: string,
     @Query("priceMode") priceMode?: string,
     @Query("page") page?: string,
@@ -63,6 +66,7 @@ export class ProductsController {
       color,
       size,
       category,
+      article,
       status: (status ?? undefined) as ProductFilters["status"],
       priceMode: priceMode === "auto" || priceMode === "manual" ? priceMode : undefined,
       page: page ? Math.max(1, parseInt(page, 10) || 1) : undefined,
@@ -134,6 +138,18 @@ export class ProductsController {
     if (!product) throw new Error("Product update returned no row");
     await invalidate(this.cache, ["products"]);
     return serializeProduct(product);
+  }
+
+  /** PATCH /api/products/bulk — apply one patch to many selected products
+   *  (bulk edit). Declared before the parameterised :id routes. */
+  @Patch("bulk")
+  async bulkUpdate(@Body(new ZodValidationPipe(bulkProductSchema)) values: {
+    ids: string[];
+    patch: Parameters<typeof bulkUpdateProducts>[1]["patch"];
+  }) {
+    const result = await bulkUpdateProducts(this.db, values);
+    await invalidate(this.cache, ["products"]);
+    return result;
   }
 
   @Patch(":id/stock")

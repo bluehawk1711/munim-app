@@ -28,6 +28,7 @@ import {
 } from 'lucide-react-native';
 import {
   reportToCsv,
+  dashboardPresetRange,
   formatCurrency,
   formatWeight,
   type ReportType,
@@ -256,6 +257,26 @@ export function ReportsScreen() {
 
           {editWindow ? (
             <View style={styles.windowEditor}>
+              <View style={styles.quickRangeRow}>
+                <Text style={styles.quickRangeLabel}>Quick range</Text>
+                {(["today", "week", "month"] as const).map(key => (
+                  <Pressable
+                    key={key}
+                    accessibilityRole="button"
+                    accessibilityLabel={key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
+                    onPress={() => {
+                      selectionTick();
+                      const range = dashboardPresetRange(key);
+                      setStartDate(range.from);
+                      setEndDate(range.to);
+                    }}
+                    style={({pressed}) => [styles.quickRangeChip, pressed && {opacity: 0.75}]}>
+                    <Text style={styles.quickRangeChipText}>
+                      {key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
               <DateField label="Start date" value={startDate} onChange={setStartDate} placeholder="Start date" />
               <DateField label="End date" value={endDate} onChange={setEndDate} placeholder="End date (optional)" />
             </View>
@@ -298,8 +319,8 @@ export function ReportsScreen() {
                 </Text>
                 <Text style={styles.heroSub}>
                   {report.totals.soldQuantity} units sold
-                  {report.totals.soldWeight > 0
-                    ? ` · ${formatWeight(report.totals.soldWeight)}`
+                  {(report.totals.weightSoldGm ?? 0) > 0
+                    ? ` · ${formatWeight(report.totals.weightSoldGm)}`
                     : ''}
                 </Text>
               </Card>
@@ -413,10 +434,22 @@ export function ReportsScreen() {
                   <Text style={styles.totalsLabel}>Items sold</Text>
                   <Text style={styles.totalsValue}>{report.totals.soldQuantity}</Text>
                 </View>
-                {report.totals.soldWeight > 0 ? (
+                {(report.totals.weightSoldGm ?? 0) > 0 ? (
                   <View style={styles.totalsRow}>
                     <Text style={styles.totalsLabel}>Weight sold</Text>
-                    <Text style={styles.totalsValue}>{formatWeight(report.totals.soldWeight)}</Text>
+                    <Text style={styles.totalsValue}>{formatWeight(report.totals.weightSoldGm)}</Text>
+                  </View>
+                ) : null}
+                {(report.totals.materialReceivedGm ?? 0) > 0 ||
+                (report.totals.materialReceivedValue ?? 0) > 0 ? (
+                  <View style={styles.totalsRow}>
+                    <Text style={styles.totalsLabel}>Material received</Text>
+                    <Text style={styles.totalsValue}>
+                      {(report.totals.materialReceivedGm ?? 0) > 0
+                        ? `${formatWeight(report.totals.materialReceivedGm)} · `
+                        : ''}
+                      ₹{money(report.totals.materialReceivedValue ?? 0)}
+                    </Text>
                   </View>
                 ) : null}
               </Card>
@@ -539,6 +572,23 @@ const makeStyles = () =>
       marginTop: rs(1),
     },
     windowEditor: {marginTop: spacing.sm},
+    quickRangeRow: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      alignItems: 'center' as const,
+      gap: rs(6),
+      marginBottom: spacing.sm,
+    },
+    quickRangeLabel: {fontSize: 11, fontWeight: '700' as const, color: colors.muted},
+    quickRangeChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    quickRangeChipText: {fontSize: 11, fontWeight: '600', color: colors.muted},
     editBtn: {
       minWidth: rs(84),
       paddingHorizontal: rs(18),

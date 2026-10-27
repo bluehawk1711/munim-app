@@ -38,6 +38,7 @@ export type ProductWithNames = Product & {
   colorName: string | null;
   sizeName: string | null;
   categoryName?: string | null;
+  articleName?: string | null;
 } & ProductComputedPricing;
 
 export type ProductDto = {
@@ -49,6 +50,8 @@ export type ProductDto = {
   color: string;
   size: string;
   category?: string;
+  /** Article (design) name — joined from `products.articleId`. */
+  article?: string;
   barcode: string | null;
   /** Weight value — unit determined by `weightUnit`. */
   weight: number | null;
@@ -108,6 +111,7 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     color: p.colorName ?? "",
     size: p.sizeName ?? "",
     category: p.categoryName ?? "",
+    article: p.articleName ?? "",
     barcode: p.barcode,
     weight: p.weight,
     weightUnit: p.weightUnit ?? "gm",
@@ -345,8 +349,14 @@ export type ReportDto = {
     stock: number;
     soldQuantity: number;
     soldWeight: number;
+    /** Line-level weight sold (gm) — the accurate Weight Sold figure. */
+    weightSoldGm: number;
     revenue: number;
     profit: number;
+    /** Old material handed in by customers during the period. */
+    materialReceivedGm: number;
+    /** Its assessed value (₹). */
+    materialReceivedValue: number;
   };
 };
 

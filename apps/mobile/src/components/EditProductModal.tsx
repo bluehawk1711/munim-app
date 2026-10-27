@@ -8,6 +8,7 @@ import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {type ProductDto, calcNetWeight, karatPurityPercent, priceFallbackMessage, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
 import {
+  useArticles,
   useCatalog,
   useCreateProduct,
   useGoldRates,
@@ -116,6 +117,9 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
   const [category, setCategory] = useState('');
+  const [article, setArticle] = useState('');
+  const {data: articlesCatalog} = useQueryState(useArticles());
+  const articleOptions = (articlesCatalog ?? []).map(a => ({label: a.name, value: a.name}));
   const [weight, setWeight] = useState('');
   const [weightUnit, setWeightUnit] = useState<'mg' | 'gm'>('gm');
   const [grossWeight, setGrossWeight] = useState('');
@@ -143,6 +147,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const [sizePickerOpen, setSizePickerOpen] = useState(false);
   const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [articlePickerOpen, setArticlePickerOpen] = useState(false);
   const [karatPickerOpen, setKaratPickerOpen] = useState(false);
   const [goldModePickerOpen, setGoldModePickerOpen] = useState(false);
 
@@ -200,6 +205,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       setColor(product.color);
       setSize(product.size);
       setCategory(product.category ?? '');
+      setArticle(product.article ?? '');
       setWeight(product.weight != null ? String(product.weight) : '');
       setWeightUnit(product.weightUnit === 'mg' ? 'mg' : 'gm');
       setGrossWeight(product.grossWeight ?? '');
@@ -330,6 +336,8 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         color: color.trim() || undefined,
         size: size.trim() || 'Standard',
         category: category.trim() || undefined,
+        // Always sent: "" clears the article, a name resolves find-or-create.
+        article: article.trim(),
         weight: weight.trim() ? Math.max(0, Number(weight) || 0) : undefined,
         weightUnit,
         grossWeight: grossWeight.trim() || undefined,
@@ -407,6 +415,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             <SelectField label="Color" value={color} placeholder="Select color (optional)" onPress={() => setColorPickerOpen(true)} />
             <SelectField label="Size" value={size} placeholder="Select size (optional)" onPress={() => setSizePickerOpen(true)} />
             <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
+            <SelectField label="Article" value={article} placeholder="Select article (optional)" onPress={() => setArticlePickerOpen(true)} />
             {type === 'Silver' && catalogCategories.length > 0 && (
               <View style={{marginBottom: spacing.sm}}>
                 <Text style={{fontSize: 12, color: colors.muted, marginBottom: 5}}>Silver sub-category</Text>
@@ -631,6 +640,17 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         ))}
         <Pressable onPress={() => { setCategory(''); setCategoryPickerOpen(false); }} style={{paddingVertical: spacing.md}}>
           <Text style={{fontSize: typography.body, color: colors.muted}}>Clear category</Text>
+        </Pressable>
+      </ModalSheet>
+
+      <ModalSheet visible={articlePickerOpen} title="Select article" onClose={() => setArticlePickerOpen(false)} centered scrollable>
+        {articleOptions.map(opt => (
+          <Pressable key={opt.value} onPress={() => { setArticle(opt.value); setArticlePickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
+            <Text style={{fontSize: typography.body, color: opt.value === article ? colors.primary : colors.text, fontWeight: opt.value === article ? '700' : '400'}}>{opt.label}</Text>
+          </Pressable>
+        ))}
+        <Pressable onPress={() => { setArticle(''); setArticlePickerOpen(false); }} style={{paddingVertical: spacing.md}}>
+          <Text style={{fontSize: typography.body, color: colors.muted}}>No article</Text>
         </Pressable>
       </ModalSheet>
 

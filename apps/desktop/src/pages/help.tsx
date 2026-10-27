@@ -1,5 +1,5 @@
 import { BadgeIndianRupee } from "lucide-react";
-import { PricingGuide } from "@munim/ui";
+import { HelpCenter, PricingGuide } from "@munim/ui";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@munim/ui";
 import { navigate } from "@/lib/navigation";
@@ -19,6 +19,8 @@ export function HelpPage() {
           </Button>
         }
       />
+      {/* Shared searchable Help Center (same content as web + mobile). */}
+      <HelpCenter />
       <PricingGuide />
     </div>
   );

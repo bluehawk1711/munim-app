@@ -1,6 +1,6 @@
 # Munim — Project Memory & Complete Reference
 
-> **Last updated:** 2026-09-02 · **Current commit:** `dd38fd3`
+> **Last updated:** 2026-10-27 · **Current commit:** `775c5d3` + uncommitted session work (Articles, bulk edit, Help Center, period filters)
 >
 > This file is the single source of truth for understanding the Munim project.
 > Read it when you pick up work. Append new decisions here instead of re-litigating old ones.
@@ -259,7 +259,7 @@ Product row → buildProductLabel(product, shop) [core] → ProductLabel
 
 ### Web (`apps/web`)
 - **Stack:** Next.js 16 (Turbopack), React 19, Tailwind v4
-- **Views:** dashboard, products, sales, catalog, invoices, orders, billing, job-letter, parties, advances, reports, settings
+- **Views:** dashboard, products, articles, sales, catalog, invoices, orders, billing, job-letter, parties, advances, reports, settings, help
 - **Auth:** PIN gate (30-day session cookie), login page
 - **Exports:** Excel + PDF (reports), jsPDF bill templates, job-letter PDF
 - **Settings:** `SettingsShell` sectioned layout (Shop profile / Appearance / Security / Server)
@@ -270,7 +270,7 @@ Product row → buildProductLabel(product, shop) [core] → ProductLabel
 
 ### Desktop (`apps/desktop`)
 - **Stack:** Tauri v2 + Vite + React 19 + Tailwind v4
-- **Pages:** dashboard, products, catalog, sales, billing, invoices, orders, parties, advances, job-letters, reports, settings
+- **Pages:** dashboard, products, articles, catalog, sales, billing, invoices, orders, parties, advances, job-letters, reports, settings, help
 - **API:** `@tauri-apps/plugin-http` (Rust fetch, no CORS)
 - **Settings:** same `SettingsShell` + Printing section (thermal printer selection)
 - **Thermal printing:** Rust `printer.rs` spools TSPL2 commands raw to Windows print queue
@@ -279,7 +279,7 @@ Product row → buildProductLabel(product, shop) [core] → ProductLabel
 
 ### Mobile (`apps/mobile`)
 - **Stack:** React Native 0.86 + Expo SDK 57 dev client
-- **Screens:** home, products, sales, billing, parties, letters, catalog, reports, invoices, orders, advances, settings
+- **Screens:** home, products, articles, sales, billing, parties, letters, catalog, reports, invoices, orders, advances, settings, help
 - **API:** global fetch (native, no CORS)
 - **Native modules:** `expo-image-picker`, `@react-native-community/datetimepicker`, `expo-camera` — require dev build rebuild
 - **PDF:** `expo-print` + `renderBillHtml` / `renderJobLetterHtml` / `renderLabelSheetHtml`
@@ -466,6 +466,12 @@ Full TSPL2 reference + TE244 audit: `docs/tspl2-reference.md`
 | 23 | Barcode generation (EAN-13) | ✅ | ✅ | ✅ |
 | 24 | Barcode lookup & scanning | ✅ | ✅ | ✅ |
 | 25 | Weight-based sales info | ✅ | ✅ | ✅ |
+| 26 | Orders (create, track, convert to bill, payment ledger) | ✅ | ✅ | ✅ | Shared `order_payments` ledger: `GET/POST /api/orders/:id/pay` + payments history on all 3 |
+| 27 | Payment method presets (Cash · UPI · Card · Cheque · Bank + Custom) | ✅ | ✅ | ✅ | Shared `PaymentMethodPicker` in `@munim/ui` (web/desktop bill form + Record Payment dialogs); mobile renders native preset segments from core `PAYMENT_METHOD_PRESETS` |
+| 28 | Dashboard / Reports period chips + weight-sold & material-received KPIs | ✅ | ✅ | ✅ | Core `getDashboard(db, period)` + `dashboardPresetRange`; reports Quick range row |
+| 29 | Articles (entity like Category + per-article analytics page) | ✅ | ✅ | ✅ | `articles` table (migration 0021), `GET /api/articles/analytics`, product-form Article select |
+| 30 | Bulk product edit (multi-select → one write) | ✅ | ✅ | — | `PATCH /api/products/bulk` + shared `<BulkEditDialog />`; web/desktop only |
+| 31 | Help Center + Pricing guide (shared structured content) | ✅ | ✅ | ✅ | `HELP_SECTIONS` in core, rendered by shared `<HelpCenter />` + mobile `HelpScreen` |
 
 Full matrix with notes: `docs/features.md`
 
@@ -489,6 +495,7 @@ Full matrix with notes: `docs/features.md`
 | Doc | What it covers |
 |---|---|
 | `docs/features.md` | Feature × platform matrix (which app has what) |
+| `docs/pages.md` | Per-page/per-field reference mirroring the in-app Help Center |
 | `docs/ARCHITECTURE.md` | ADR decisions, security notes, type discipline, repo map |
 | `docs/nestjs-backend.md` | NestJS API plan, caching (Upstash), performance, deployment |
 | `docs/state-management.md` | TanStack Query + Zustand architecture, rules for future work |
@@ -496,6 +503,10 @@ Full matrix with notes: `docs/features.md`
 | `docs/tspl2-reference.md` | TSPL2 command reference, TSC TE244 specifics |
 | `docs/i18n-hindi.md` | Hindi language support plan (5 phases, glossary, style rules) |
 | `docs/react-doctor-checklist.md` | React Doctor cleanup checklist (bugs, perf, maintainability) |
+| `docs/testing.md` | How to verify changes: typecheck/lint, smoke + live-DB tests, browser-act, CI |
+| `docs/issues.md` | Code-review issue log (fixed + deferred items) |
+| `docs/label-fields.md` | Every configurable label-print field (single source of truth) |
+| `docs/label-print-debug.md` | Label printing regression/debug history |
 | `AGENTS.md` | Rules for AI assistants (no any/unknown, global types, reuse core) |
 | `README.md` | Project overview, quickstart, deployment, CI/CD |
 

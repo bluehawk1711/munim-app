@@ -41,6 +41,8 @@ export const productSchema = z.object({
   color: z.string().max(40).optional().or(z.literal("")),
   size: z.string().min(1, "Size is required").max(40),
   category: z.string().max(40).optional().or(z.literal("")),
+  /** Article (design) name — resolved find-or-create like `category`. */
+  article: z.string().max(40).optional().or(z.literal("")),
   barcode: z.string().max(80).optional().or(z.literal("")),
   /** Weight in milligrams (mg). */
   weight: z.coerce.number().min(0, "Weight cannot be negative").optional(),
@@ -88,6 +90,36 @@ export const stockAdjustmentSchema = z.object({
 });
 
 export type StockAdjustmentValues = z.infer<typeof stockAdjustmentSchema>;
+
+/* ── Bulk product edit (multi-select → one patch) ────────────── */
+
+/** One field-set a bulk edit may change. Omitted keys stay untouched; `""`
+ * clears category/article; `stockDelta` must be non-zero. */
+export const bulkProductPatchSchema = z
+  .object({
+    category: z.string().max(40).optional(),
+    article: z.string().max(40).optional(),
+    priceMode: z.enum(["auto", "manual"]).optional(),
+    labourType: z.enum(["PERCENT", "FIXED", "PER_GRAM"]).optional(),
+    labourValue: z.coerce.number().min(0).nullable().optional(),
+    silverPercentage: z.coerce.number().positive().optional(),
+    stockDelta: z.coerce
+      .number()
+      .refine((v) => v !== 0, "Stock delta cannot be zero")
+      .optional(),
+    lowStockThreshold: z.coerce.number().min(0).optional(),
+    notes: z.string().max(500).optional().or(z.literal("")),
+  })
+  .refine((p) => Object.values(p).some((v) => v !== undefined), {
+    message: "Nothing to update",
+  });
+
+export const bulkProductSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "Select at least one product"),
+  patch: bulkProductPatchSchema,
+});
+
+export type BulkProductFormValues = z.infer<typeof bulkProductSchema>;
 
 /* ── Sales (quick sale) ───────────────────────────────────────── */
 

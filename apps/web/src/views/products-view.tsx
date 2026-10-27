@@ -14,6 +14,7 @@ import {
   Barcode,
   Printer,
   RefreshCw,
+  Pencil,
 } from "lucide-react"
 import {
   Button,
@@ -44,9 +45,11 @@ import { ProductsTable } from "@/components/products/products-table"
 import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
+import { BulkEditDialog } from "@/components/products/bulk-edit-dialog"
 import { CameraScanButton } from "@/components/camera-scan-button"
 import { setPendingSellProduct } from "@/lib/pending-sell"
 import { useProducts, useBackfillBarcodes, useSyncProductPrices } from "@/hooks/use-products"
+import { useArticles } from "@/hooks/use-articles"
 import { useApiClient } from "@munim/query"
 import { useSettings } from "@/hooks/use-settings"
 import { useProductMeta } from "@/hooks/use-meta"
@@ -70,17 +73,20 @@ export function ProductsView() {
   const productColorFilter = useAppStore((s) => s.productColorFilter)
   const productSizeFilter = useAppStore((s) => s.productSizeFilter)
   const productCategoryFilter = useAppStore((s) => s.productCategoryFilter)
+  const productArticleFilter = useAppStore((s) => s.productArticleFilter)
   const productStatusFilter = useAppStore((s) => s.productStatusFilter)
   const productTypeFilter = useAppStore((s) => s.productTypeFilter)
   const setProductColorFilter = useAppStore((s) => s.setProductColorFilter)
   const setProductSizeFilter = useAppStore((s) => s.setProductSizeFilter)
   const setProductCategoryFilter = useAppStore((s) => s.setProductCategoryFilter)
+  const setProductArticleFilter = useAppStore((s) => s.setProductArticleFilter)
   const setProductStatusFilter = useAppStore((s) => s.setProductStatusFilter)
   const setProductTypeFilter = useAppStore((s) => s.setProductTypeFilter)
 
   const [color, setColor] = React.useState<string>(productColorFilter)
   const [size, setSize] = React.useState<string>(productSizeFilter)
   const [category, setCategory] = React.useState<string>(productCategoryFilter)
+  const [article, setArticle] = React.useState<string>(productArticleFilter)
   const [status, setStatus] = React.useState<StockStatus | "all">(productStatusFilter as StockStatus | "all")
   const [type, setType] = React.useState<string>(productTypeFilter)
   const [priceMode, setPriceMode] = React.useState<"all" | "auto" | "manual">("all")
@@ -95,6 +101,7 @@ export function ProductsView() {
     color: productColorFilter,
     size: productSizeFilter,
     category: productCategoryFilter,
+    article: productArticleFilter,
     status: productStatusFilter,
     type: productTypeFilter,
   })
@@ -102,6 +109,7 @@ export function ProductsView() {
     prevFilters.color !== productColorFilter ||
     prevFilters.size !== productSizeFilter ||
     prevFilters.category !== productCategoryFilter ||
+    prevFilters.article !== productArticleFilter ||
     prevFilters.status !== productStatusFilter ||
     prevFilters.type !== productTypeFilter
   ) {
@@ -109,12 +117,14 @@ export function ProductsView() {
       color: productColorFilter,
       size: productSizeFilter,
       category: productCategoryFilter,
+      article: productArticleFilter,
       status: productStatusFilter,
       type: productTypeFilter,
     })
     setColor(productColorFilter)
     setSize(productSizeFilter)
     setCategory(productCategoryFilter)
+    setArticle(productArticleFilter)
     setStatus(productStatusFilter as StockStatus | "all")
     setType(productTypeFilter)
   }
@@ -137,6 +147,11 @@ export function ProductsView() {
   function changeCategory(value: string) {
     setCategory(value)
     setProductCategoryFilter(value)
+    setPage(1)
+  }
+  function changeArticle(value: string) {
+    setArticle(value)
+    setProductArticleFilter(value)
     setPage(1)
   }
   function changeStatus(value: StockStatus | "all") {
@@ -166,8 +181,12 @@ export function ProductsView() {
   const [labelOpen, setLabelOpen] = React.useState(false)
   const [labelCopies, setLabelCopies] = React.useState(1)
   const [detailsProduct, setDetailsProduct] = React.useState<Product | null>(null)
+  // Bulk edit: selected row ids (across pages) + dialog state.
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set())
+  const [bulkOpen, setBulkOpen] = React.useState(false)
 
   const { data: meta } = useProductMeta()
+  const { data: articleList } = useArticles()
   const { data: settings } = useSettings()
   const backfill = useBackfillBarcodes()
   const syncPrices = useSyncProductPrices()
@@ -178,6 +197,7 @@ export function ProductsView() {
     color,
     size,
     category,
+    article,
     status,
     type,
     priceMode,
@@ -189,7 +209,7 @@ export function ProductsView() {
   const pagination = data?.pagination
 
   const hasActiveFilters =
-    color !== "all" || size !== "all" || category !== "all" || status !== "all" || type !== "all" || priceMode !== "all" || !!globalSearch
+    color !== "all" || size !== "all" || category !== "all" || article !== "all" || status !== "all" || type !== "all" || priceMode !== "all" || !!globalSearch
 
   function clearFilters() {
     setGlobalSearch("")
@@ -199,6 +219,7 @@ export function ProductsView() {
     changeStatus("all")
     changeType("all")
     changePriceMode("all")
+    changeArticle("all")
     setPage(1)
   }
 
@@ -247,6 +268,10 @@ export function ProductsView() {
 
   function openDetails(p: Product) {
     setDetailsProduct(p)
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set())
   }
 
   /** Shop-counter path: exact barcode lookup (indexed) → open the product. */
@@ -419,6 +444,17 @@ export function ProductsView() {
                 ))}
               </SelectContent>
             </Select>
+            <Select value={article} onValueChange={changeArticle}>
+              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by article">
+                <SelectValue placeholder="Article" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All articles</SelectItem>
+                {(articleList ?? []).map((a) => (
+                  <SelectItem key={a.id} value={a.name}>{a.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={type} onValueChange={changeType}>
               <SelectTrigger className="h-9 w-[130px]" aria-label="Filter by type">
                 <SelectValue placeholder="Type" />
@@ -495,6 +531,7 @@ export function ProductsView() {
           {color !== "all" && <Badge variant="secondary">Color: {color}</Badge>}
           {size !== "all" && <Badge variant="secondary">Size: {size}</Badge>}
           {category !== "all" && <Badge variant="secondary">Category: {category}</Badge>}
+          {article !== "all" && <Badge variant="secondary">Article: {article}</Badge>}
           {type !== "all" && <Badge variant="secondary">Type: {type}</Badge>}
           {status !== "all" && <Badge variant="secondary">Status: {status.replace("_", " ")}</Badge>}
         </div>
@@ -539,7 +576,27 @@ export function ProductsView() {
           onViewDetails={openDetails}
           pagination={pagination}
           onPageChange={handlePageChange}
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
         />
+      )}
+
+      {/* Bulk action bar — appears when rows are selected */}
+      {selectedIds.size > 0 && (
+        <div className="sticky bottom-4 z-30 flex items-center justify-between gap-3 rounded-xl border bg-card p-3 shadow-lg">
+          <span className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{selectedIds.size}</span>{" "}
+            product{selectedIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={clearSelection} className="h-9">
+              Clear selection
+            </Button>
+            <Button size="sm" onClick={() => setBulkOpen(true)} className="h-9 gap-1.5">
+              <Pencil className="h-4 w-4" /> Edit selected
+            </Button>
+          </div>
+        </div>
       )}
 
       <ProductDetailsDialog
@@ -551,6 +608,12 @@ export function ProductsView() {
         formatDate={formatDate}
       />
       <ProductFormDialog open={formOpen} onOpenChange={setFormOpen} product={editing} defaultType={type} />
+      <BulkEditDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        selectedIds={[...selectedIds]}
+        onDone={clearSelection}
+      />
       <StockAdjustmentDialog open={adjustOpen} onOpenChange={setAdjustOpen} product={adjusting} />
       <DeleteProductDialog open={deleteOpen} onOpenChange={setDeleteOpen} product={deleting} />
       <LabelPrintSelectDialog

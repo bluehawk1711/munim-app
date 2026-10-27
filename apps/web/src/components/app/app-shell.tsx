@@ -9,6 +9,7 @@ import { AppTopbar } from "@/components/app/app-topbar"
 import { SellProductDialog } from "@/components/sales/sell-product-dialog"
 import { DashboardView } from "@/views/dashboard-view"
 import { ProductsView } from "@/views/products-view"
+import { ArticlesView } from "@/views/articles-view"
 import { SalesView } from "@/views/sales-view"
 import { ReportsView } from "@/views/reports-view"
 import { CatalogView } from "@/views/catalog-view"
@@ -26,6 +27,7 @@ import { VIEW_TITLES } from "@/lib/view-titles"
 const VIEW_COMPONENTS: Record<string, React.ComponentType> = {
   dashboard: DashboardView,
   products: ProductsView,
+  articles: ArticlesView,
   sales: SalesView,
   reports: ReportsView,
   catalog: CatalogView,

@@ -17,6 +17,7 @@ export * from "./billing/index.js";
 export * from "./security/index.js";
 /* Help — the shared PricingGuide wording rendered by web, desktop & mobile */
 export * from "./help/pricingGuide.js";
+export * from "./help/helpCenter.js";
 /* Pricing — dynamic metal pricing (gold karats + silver + labour), shared by
  * every app + the API: `priceProduct` is THE formula; gold.ts holds the rate
  * table utilities; labour.ts the Fixed/Per-Gram/Percent methods; labels.ts the
@@ -41,6 +42,7 @@ export * from "./validators/index.js";
 export * from "./serialize/index.js";
 /* Services */
 export * from "./services/catalog.js";
+export * from "./services/articles.js";
 export * from "./services/products.js";
 export * from "./services/invoices.js";
 export * from "./services/orders.js";

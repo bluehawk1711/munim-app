@@ -13,6 +13,7 @@ import {
   useAdjustStock,
   useBackfillBarcodes,
   useSyncProductPrices,
+  useBulkUpdateProducts,
 } from "@munim/query"
 
 export {
@@ -23,4 +24,5 @@ export {
   useAdjustStock,
   useBackfillBarcodes,
   useSyncProductPrices,
+  useBulkUpdateProducts,
 }

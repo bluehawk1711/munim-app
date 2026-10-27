@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import * as schema from "../db/schema.js";
 import { isGoldKarat, round2 } from "../pricing/gold.js";
 import { generateSku } from "../utils/codes.js";
@@ -139,6 +139,19 @@ export async function resolveCategoryId(db, name) {
     const [created] = await db.insert(schema.categories).values({ name: trimmed }).returning();
     if (!created)
         throw new Error(`Failed to create category "${trimmed}"`);
+    return created.id;
+}
+/** Article name → id (find-or-create), the exact twin of `resolveCategoryId`. */
+export async function resolveArticleId(db, name) {
+    const trimmed = name.trim();
+    if (!trimmed)
+        return null;
+    const existing = await db.query.articles.findFirst({ where: eq(schema.articles.name, trimmed) });
+    if (existing)
+        return existing.id;
+    const [created] = await db.insert(schema.articles).values({ name: trimmed }).returning();
+    if (!created)
+        throw new Error(`Failed to create article "${trimmed}"`);
     return created.id;
 }
 /* ── Gold pricing (dynamic karat-wise prices) ─────────────────── */
@@ -375,6 +388,7 @@ const PRODUCT_SELECT = {
     colorId: schema.products.colorId,
     sizeId: schema.products.sizeId,
     categoryId: schema.products.categoryId,
+    articleId: schema.products.articleId,
     createdAt: schema.products.createdAt,
     updatedAt: schema.products.updatedAt,
     // Dynamic gold pricing — computed, never stored.
@@ -389,13 +403,14 @@ export async function listProducts(db, filters = {}) {
     const color = filters.color && filters.color !== "all" ? filters.color : undefined;
     const size = filters.size && filters.size !== "all" ? filters.size : undefined;
     const category = filters.category && filters.category !== "all" ? filters.category : undefined;
+    const article = filters.article && filters.article !== "all" ? filters.article : undefined;
     const status = filters.status && filters.status !== "all" ? filters.status : undefined;
     const priceMode = filters.priceMode && filters.priceMode !== "all" ? filters.priceMode : undefined;
     const page = Math.max(1, filters.page || 1);
     const pageSize = Math.max(1, Math.min(1000, filters.pageSize || 20));
     const conditions = [];
     if (search) {
-        conditions.push(or(ilike(schema.products.name, `%${search}%`), ilike(schema.products.sku, `%${search}%`), ilike(schema.products.barcode, `%${search}%`), sql `exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name ilike ${`%${search}%`})`));
+        conditions.push(or(ilike(schema.products.name, `%${search}%`), ilike(schema.products.sku, `%${search}%`), ilike(schema.products.barcode, `%${search}%`), sql `exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name ilike ${`%${search}%`})`, sql `exists (select 1 from ${schema.articles} at where at.id = ${schema.products.articleId} and at.name ilike ${`%${search}%`})`));
     }
     if (color)
         conditions.push(sql `exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name = ${color})`);
@@ -403,6 +418,8 @@ export async function listProducts(db, filters = {}) {
         conditions.push(sql `exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name = ${size})`);
     if (category)
         conditions.push(sql `exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name = ${category})`);
+    if (article)
+        conditions.push(sql `exists (select 1 from ${schema.articles} at where at.id = ${schema.products.articleId} and at.name = ${article})`);
     if (type)
         conditions.push(eq(schema.products.type, type));
     if (priceMode)
@@ -422,11 +439,13 @@ export async function listProducts(db, filters = {}) {
             colorName: sql `${schema.colors.name}`.as("color_name"),
             sizeName: sql `${schema.sizes.name}`.as("size_name"),
             categoryName: sql `${schema.categories.name}`.as("category_name"),
+            articleName: sql `${schema.articles.name}`.as("article_name"),
         })
             .from(schema.products)
             .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
             .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId))
             .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+            .leftJoin(schema.articles, eq(schema.articles.id, schema.products.articleId))
             .where(where)
             .orderBy(desc(schema.products.createdAt))
             .limit(pageSize)
@@ -449,11 +468,13 @@ export async function getProduct(db, id) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)
         .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
         .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId))
         .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+        .leftJoin(schema.articles, eq(schema.articles.id, schema.products.articleId))
         .where(eq(schema.products.id, id));
     return row[0] ?? null;
 }
@@ -464,11 +485,13 @@ export async function listAllProducts(db) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)
         .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
         .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId))
         .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+        .leftJoin(schema.articles, eq(schema.articles.id, schema.products.articleId))
         .orderBy(desc(schema.products.createdAt));
     return rows;
 }
@@ -506,7 +529,7 @@ function normalizeLabourType(value) {
     return value === "FIXED" || value === "PER_GRAM" ? value : "PERCENT";
 }
 export async function createProduct(db, input) {
-    const [sku, barcode, colorId, sizeId, categoryId] = await Promise.all([
+    const [sku, barcode, colorId, sizeId, categoryId, articleId] = await Promise.all([
         generateSku(async (sku) => {
             const r = await db.select({ id: schema.products.id }).from(schema.products).where(eq(schema.products.sku, sku));
             return r.length > 0;
@@ -524,6 +547,7 @@ export async function createProduct(db, input) {
         input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
         resolveSizeId(db, input.size),
         input.category ? resolveCategoryId(db, input.category) : Promise.resolve(null),
+        input.article ? resolveArticleId(db, input.article) : Promise.resolve(null),
     ]);
     const [product] = await db
         .insert(schema.products)
@@ -558,6 +582,7 @@ export async function createProduct(db, input) {
         colorId,
         sizeId,
         categoryId,
+        articleId,
     })
         .returning();
     if (!product)
@@ -579,11 +604,16 @@ export async function updateProduct(db, id, input) {
     const existing = await getProduct(db, id);
     if (!existing)
         throw new ProductError("Product not found", "NOT_FOUND", 404);
-    const [colorId, sizeId, categoryId] = await Promise.all([
+    const [colorId, sizeId, categoryId, articleId] = await Promise.all([
         // Empty/absent color clears it; a real value resolves (or creates) the color.
         input.color?.trim() ? resolveColorId(db, input.color) : Promise.resolve(null),
         resolveSizeId(db, input.size),
         input.category ? resolveCategoryId(db, input.category) : Promise.resolve(existing.categoryId),
+        // undefined → keep (forms that omit the field must not wipe it);
+        // ""/whitespace → clear ("No article"); a name resolves find-or-create.
+        input.article === undefined
+            ? Promise.resolve(existing.articleId)
+            : resolveArticleId(db, input.article),
     ]);
     // undefined → keep the existing barcode (forms that omit the field must not
     // wipe it, e.g. the mobile form which has no barcode input); "" → clear.
@@ -645,6 +675,7 @@ export async function updateProduct(db, id, input) {
         colorId,
         sizeId,
         categoryId,
+        articleId,
         updatedAt: new Date(),
     })
         .where(eq(schema.products.id, id));
@@ -690,6 +721,95 @@ export async function listStockMovements(db, productId, limit = 50) {
         .orderBy(desc(schema.stockMovements.createdAt))
         .limit(limit);
 }
+/** PATCH /api/products/bulk — apply one patch to many products in one write
+ *  (+ per-product stock movements for `stockDelta`). Returns how many
+ *  products were updated; one activity-log entry summarizes the run. */
+export async function bulkUpdateProducts(db, input) {
+    const ids = [...new Set(input.ids.filter((id) => id.trim()))];
+    if (ids.length === 0)
+        throw new ProductError("No products selected", "NO_IDS", 400);
+    const patch = input.patch;
+    const touched = patch.category !== undefined ||
+        patch.article !== undefined ||
+        patch.priceMode !== undefined ||
+        patch.labourType !== undefined ||
+        patch.labourValue !== undefined ||
+        patch.silverPercentage !== undefined ||
+        (patch.stockDelta !== undefined && patch.stockDelta !== 0) ||
+        patch.lowStockThreshold !== undefined ||
+        patch.notes !== undefined;
+    if (!touched)
+        throw new ProductError("Nothing to update", "EMPTY_PATCH", 400);
+    const [existing, category, article] = await Promise.all([
+        db
+            .select({
+            id: schema.products.id,
+            name: schema.products.name,
+            sku: schema.products.sku,
+            stock: schema.products.stock,
+        })
+            .from(schema.products)
+            .where(inArray(schema.products.id, ids)),
+        patch.category !== undefined ? resolveCategoryId(db, patch.category) : undefined,
+        patch.article !== undefined ? resolveArticleId(db, patch.article) : undefined,
+    ]);
+    if (existing.length === 0)
+        throw new ProductError("No products found", "NOT_FOUND", 404);
+    const values = { updatedAt: new Date() };
+    if (patch.category !== undefined)
+        values.categoryId = category ?? null;
+    if (patch.article !== undefined)
+        values.articleId = article ?? null;
+    if (patch.priceMode !== undefined)
+        values.priceMode = patch.priceMode;
+    if (patch.labourType !== undefined)
+        values.labourType = patch.labourType;
+    if (patch.labourValue !== undefined)
+        values.labourValue = normalizeLabourValue(patch.labourValue);
+    if (patch.silverPercentage !== undefined && patch.silverPercentage > 0)
+        values.silverPercentage = patch.silverPercentage;
+    if (patch.lowStockThreshold !== undefined)
+        values.lowStockThreshold = Math.max(0, patch.lowStockThreshold);
+    if (patch.notes !== undefined)
+        values.notes = patch.notes.trim() || null;
+    const delta = patch.stockDelta ?? 0;
+    if (delta !== 0) {
+        const wentNegative = existing.find((p) => p.stock + delta < 0);
+        if (wentNegative) {
+            throw new ProductError(`Bulk ${delta > 0 ? "+" : ""}${delta} would make "${wentNegative.name}" negative`, "NEGATIVE_STOCK", 400);
+        }
+    }
+    // Column patch + (optional) stock delta. Both are single statements over
+    // the id set; the movement rows record the resulting stock per product.
+    const hasColumnPatch = patch.category !== undefined ||
+        patch.article !== undefined ||
+        patch.priceMode !== undefined ||
+        patch.labourType !== undefined ||
+        patch.labourValue !== undefined ||
+        patch.silverPercentage !== undefined ||
+        patch.lowStockThreshold !== undefined ||
+        patch.notes !== undefined;
+    if (hasColumnPatch) {
+        await db.update(schema.products).set(values).where(inArray(schema.products.id, ids));
+    }
+    if (delta !== 0) {
+        await Promise.all([
+            db
+                .update(schema.products)
+                .set({ stock: sql `${schema.products.stock} + ${delta}`, updatedAt: new Date() })
+                .where(inArray(schema.products.id, ids)),
+            db.insert(schema.stockMovements).values(existing.map((p) => ({
+                productId: p.id,
+                type: "ADJUSTMENT",
+                quantity: delta,
+                stockAfter: p.stock + delta,
+                note: `Bulk edit (${delta > 0 ? "+" : ""}${delta})`,
+            }))),
+        ]);
+    }
+    await logActivity(db, "PRODUCTS_BULK_UPDATED", `Bulk-updated ${existing.length} product(s)${delta !== 0 ? ` (stock ${delta > 0 ? "+" : ""}${delta})` : ""}`);
+    return { count: existing.length };
+}
 /* ── Barcode lookup & backfill ───────────────────────────────── */
 /**
  * Fast exact barcode lookup — the shop-counter path. Indexed on
@@ -707,11 +827,13 @@ export async function findProductByBarcode(db, barcode) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)
         .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
         .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId))
         .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+        .leftJoin(schema.articles, eq(schema.articles.id, schema.products.articleId))
         .where(eq(schema.products.barcode, code))
         .limit(1);
     return row[0] ?? null;
@@ -736,11 +858,13 @@ export async function findProductByCode(db, code) {
         colorName: sql `${schema.colors.name}`.as("color_name"),
         sizeName: sql `${schema.sizes.name}`.as("size_name"),
         categoryName: sql `${schema.categories.name}`.as("category_name"),
+        articleName: sql `${schema.articles.name}`.as("article_name"),
     })
         .from(schema.products)
         .leftJoin(schema.colors, eq(schema.colors.id, schema.products.colorId))
         .leftJoin(schema.sizes, eq(schema.sizes.id, schema.products.sizeId))
         .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+        .leftJoin(schema.articles, eq(schema.articles.id, schema.products.articleId))
         .where(or(eq(schema.products.barcode, stripped), eq(schema.products.barcode, trimmed), sql `lower(trim(${schema.products.sku})) = lower(${trimmed})`))
         .limit(1);
     return row[0] ?? null;

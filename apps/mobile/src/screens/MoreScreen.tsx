@@ -11,6 +11,7 @@ import {
   Receipt,
   ScrollText,
   Settings as SettingsIcon,
+  Tag,
 } from 'lucide-react-native';
 import {colors, Screen} from '../components/ui';
 import {HomeHeader} from '../components/home-header';
@@ -18,6 +19,7 @@ import {useThemeStyles} from '../theme';
 import {sectionPress} from '../lib/haptics';
 import {BillingScreen} from './BillingScreen';
 import {CatalogScreen} from './CatalogScreen';
+import {ArticlesScreen} from './ArticlesScreen';
 import {InvoicesScreen} from './InvoicesScreen';
 import {OrdersScreen} from './OrdersScreen';
 import {JobLettersScreen} from './JobLettersScreen';
@@ -38,6 +40,7 @@ const SECTIONS: {
   {key: 'letters', label: 'Job Letters', subtitle: 'Offer letters for staff', icon: ScrollText},
   {key: 'reports', label: 'Reports', subtitle: 'Sales, stock & profit', icon: BarChart3},
   {key: 'catalog', label: 'Catalog', subtitle: 'Colors & sizes for products', icon: Palette},
+  {key: 'articles', label: 'Articles', subtitle: 'Designs & product analytics', icon: Tag},
   {key: 'settings', label: 'Settings', subtitle: 'Database & shop profile', icon: SettingsIcon},
   {key: 'help', label: 'Help', subtitle: 'Pricing guide & counter tips', icon: CircleHelp},
 ];
@@ -83,6 +86,13 @@ export function MoreScreen() {
     return (
       <SectionView onBack={closeMore}>
         <CatalogScreen />
+      </SectionView>
+    );
+  }
+  if (section === 'articles') {
+    return (
+      <SectionView onBack={closeMore}>
+        <ArticlesScreen />
       </SectionView>
     );
   }

@@ -49,8 +49,10 @@ import type { ProductDto } from "@munim/api-client";
 import {
   useAdjustStock,
   useApiClient,
+  useArticles,
   useBackfillBarcodes,
   useBackfillGoldKarats,
+  useBulkUpdateProducts,
   useCategoryBreakdown,
   useCreateProduct,
   useCreateSale,
@@ -68,6 +70,7 @@ import {
   useUploadImage,
 } from "@munim/query";
 import { money } from "@/lib/format";
+import { useUrlSearch } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
 import {
@@ -119,6 +122,7 @@ import {
   TableRow,
   BarcodeLookupInput,
   BarcodeSvg,
+  BulkEditDialog,
   CategoryChips,
   GoldRateEditor,
   LabourInput,
@@ -151,6 +155,7 @@ type FormState = {
   color: string;
   size: string;
   category: string;
+  article: string;
   barcode: string;
   weight: string;
   weightUnit: "mg" | "gm";
@@ -184,6 +189,7 @@ const EMPTY_FORM: FormState = {
   color: "",
   size: "",
   category: "",
+  article: "",
   barcode: "",
   weight: "",
   weightUnit: "gm",
@@ -268,9 +274,22 @@ export function ProductsPage() {
   const [tablePage, setTablePage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [priceFilter, setPriceFilter] = useState<"all" | "auto" | "manual">("all");
+  // Article filter — also the deep-link target from the Articles page
+  // (/products?article=<name>). Read once on mount; the route remounts us.
+  const urlSearch = useUrlSearch();
+  const [articleFilter, setArticleFilter] = useState<string>(
+    () => new URLSearchParams(urlSearch).get("article") ?? "all",
+  );
   const TABLE_PAGE_SIZE = 40;
   const { data, error, loading, refetching, reload } = useQueryState(
-    useProducts({ search, type: typeFilter, priceMode: priceFilter, page: tablePage, pageSize: TABLE_PAGE_SIZE }),
+    useProducts({
+      search,
+      type: typeFilter,
+      article: articleFilter,
+      priceMode: priceFilter,
+      page: tablePage,
+      pageSize: TABLE_PAGE_SIZE,
+    }),
   );
   const products = useMemo(() => data?.products ?? [], [data]);
   const pagination = data?.pagination;
@@ -281,6 +300,12 @@ export function ProductsPage() {
   const colors = useMemo(() => Array.from(new Set([...DEFAULT_COLORS, ...(meta?.colors ?? [])])), [meta?.colors]);
   const sizes = useMemo(() => Array.from(new Set([...DEFAULT_SIZES, ...(meta?.sizes ?? [])])), [meta?.sizes]);
   const categories = useMemo(() => Array.from(new Set(meta?.categories ?? [])), [meta?.categories]);
+
+  const articlesQ = useArticles();
+  const articleNames = useMemo(
+    () => (articlesQ.data ?? []).map((a) => a.name),
+    [articlesQ.data],
+  );
 
   const statsQ = useInventoryStats();
   const stats = statsQ.data;
@@ -294,6 +319,18 @@ export function ProductsPage() {
   const adjustStock = useAdjustStock();
   const backfillBarcodes = useBackfillBarcodes();
   const syncPrices = useSyncProductPrices();
+  const bulkUpdate = useBulkUpdateProducts();
+  // Bulk edit — multi-select rows, then one PATCH /api/products/bulk.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const uploadImage = useUploadImage();
   const getClient = useApiClient();
 
@@ -306,6 +343,7 @@ export function ProductsPage() {
   const [customColor, setCustomColor] = useState(false);
   const [customSize, setCustomSize] = useState(false);
   const [customCategory, setCustomCategory] = useState(false);
+  const [customArticle, setCustomArticle] = useState(false);
 
   const [adjusting, setAdjusting] = useState<ProductDto | null>(null);
   const [adjustQty, setAdjustQty] = useState("");
@@ -529,9 +567,11 @@ export function ProductsPage() {
   const colorIsCustom = customColor || (!!form.color && !colors.includes(form.color));
   const sizeIsCustom = customSize || (!!form.size && !sizes.includes(form.size));
   const categoryIsCustom = customCategory || (!!form.category && !categories.includes(form.category));
+  const articleIsCustom = customArticle || (!!form.article && !articleNames.includes(form.article));
   const colorSelectValue = colorIsCustom ? "__custom" : form.color || "__none";
   const sizeSelectValue = sizeIsCustom ? "__custom" : form.size || "__none";
   const categorySelectValue = categoryIsCustom ? "__custom" : form.category || "__none";
+  const articleSelectValue = articleIsCustom ? "__custom" : form.article || "__none";
 
   const visibleProducts = useMemo(() => {
     if (activeCategory.kind === "all") return products;
@@ -591,12 +631,14 @@ export function ProductsPage() {
     setCustomColor(false);
     setCustomSize(false);
     setCustomCategory(false);
+    setCustomArticle(false);
     setForm({
       name: p.name,
       type: p.type ?? "Gold",
       color: p.color ?? "",
       size: p.size ?? "",
       category: p.category ?? "",
+      article: p.article ?? "",
       barcode: p.barcode ?? "",
       weight: p.weight != null ? String(p.weight) : "",
       weightUnit: (p.weightUnit === "mg" || p.weightUnit === "gm") ? p.weightUnit : "gm",
@@ -686,6 +728,19 @@ export function ProductsPage() {
     }
   }
 
+  function handleArticleSelect(value: string) {
+    if (value === "__custom") {
+      setCustomArticle(true);
+      setForm((f) => ({ ...f, article: "" }));
+    } else if (value === "__none") {
+      setCustomArticle(false);
+      setForm((f) => ({ ...f, article: "" }));
+    } else {
+      setCustomArticle(false);
+      setForm((f) => ({ ...f, article: value }));
+    }
+  }
+
   function toggleAnalytics() {
     const next = !showAnalytics;
     setShowAnalytics(next);
@@ -767,6 +822,8 @@ export function ProductsPage() {
         color: form.color.trim() || undefined,
         size: form.size.trim() || "Standard",
         category: form.category.trim() || undefined,
+        // Always sent: "" clears the article ("No article"), a name resolves.
+        article: form.article.trim(),
         barcode: form.barcode.trim() || undefined,
         weight: form.weight.trim() ? Math.max(0, Number(form.weight) || 0) : undefined,
         weightUnit: form.weightUnit,
@@ -1027,6 +1084,20 @@ export function ProductsPage() {
             />
           </div>
           <Select
+            value={articleFilter}
+            onValueChange={(v) => { setArticleFilter(v); setTablePage(1); }}
+          >
+            <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by article">
+              <SelectValue placeholder="Article" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All articles</SelectItem>
+              {articleNames.map((a) => (
+                <SelectItem key={a} value={a}>{a}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
             value={priceFilter}
             onValueChange={(v) => { setPriceFilter(v === "auto" || v === "manual" ? v : "all"); setTablePage(1); }}
           >
@@ -1245,6 +1316,23 @@ export function ProductsPage() {
       </>
       )}
 
+      {selectedIds.size > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border bg-card p-3">
+          <span className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{selectedIds.size}</span>{" "}
+            product{selectedIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>
+              Clear selection
+            </Button>
+            <Button size="sm" onClick={() => setBulkOpen(true)}>
+              <Pencil className="mr-1.5 h-4 w-4" /> Edit selected
+            </Button>
+          </div>
+        </div>
+      )}
+
       {error ? (
         <Card className="flex items-center justify-between gap-3 p-6 text-sm text-destructive">
           <span>{error}</span>
@@ -1261,11 +1349,38 @@ export function ProductsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>
+                  <input
+                    type="checkbox"
+                    aria-label="Select all visible products"
+                    checked={
+                      visibleProducts.length > 0 &&
+                      visibleProducts.every((p) => selectedIds.has(p.id))
+                    }
+                    ref={(el) => {
+                      if (el) {
+                        el.indeterminate =
+                          visibleProducts.some((p) => selectedIds.has(p.id)) &&
+                          !visibleProducts.every((p) => selectedIds.has(p.id));
+                      }
+                    }}
+                    onChange={(e) => {
+                      setSelectedIds((prev) => {
+                        const next = new Set(prev);
+                        if (e.target.checked) visibleProducts.forEach((p) => next.add(p.id));
+                        else visibleProducts.forEach((p) => next.delete(p.id));
+                        return next;
+                      });
+                    }}
+                    className="h-4 w-4 accent-primary"
+                  />
+                </TableHead>
                 <TableHead>Image</TableHead>
                 <TableHead>Product Name & Karigar</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>SKU & Barcode</TableHead>
                 <TableHead>Variant Specs</TableHead>
+                <TableHead>Article</TableHead>
                 <TableHead>Weight Breakdown</TableHead>
                 <TableHead>Stock Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -1274,13 +1389,25 @@ export function ProductsPage() {
             <TableBody>
               {visibleProducts.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-muted-foreground text-center">
+                  <TableCell colSpan={10} className="text-muted-foreground text-center">
                     No products found
                   </TableCell>
                 </TableRow>
               ) : (
                 visibleProducts.map((p) => (
-                  <TableRow key={p.id}>
+                  <TableRow
+                    key={p.id}
+                    className={selectedIds.has(p.id) ? "bg-primary/5" : undefined}
+                  >
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={() => toggleSelect(p.id)}
+                        aria-label={`Select ${p.name}`}
+                        className="h-4 w-4 accent-primary"
+                      />
+                    </TableCell>
                     <TableCell>
                       {p.imageUrl ? (
                         <img src={p.imageUrl} alt="" className="h-9 w-9 rounded-md border object-cover" />
@@ -1326,6 +1453,9 @@ export function ProductsPage() {
                     <TableCell className="text-muted-foreground text-xs">
                       <div>{[p.color, p.size ? `Size ${p.size}` : null].filter(Boolean).join(" / ") || "—"}</div>
                       {p.purity ? <div className="font-medium">Purity {p.purity}</div> : null}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {p.article ? <span>{p.article}</span> : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs">
                       {p.type === "Gold" && p.netWeight != null ? (
@@ -1518,6 +1648,24 @@ export function ProductsPage() {
                 <Label htmlFor="p-barcode">Barcode</Label>
                 <Input id="p-barcode" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Auto-generate if blank" />
               </div>
+            </div>
+
+            {/* Row 5b: Article — design/classification beside Category */}
+            <div className="space-y-1.5">
+              <Label>Article</Label>
+              <Select value={articleSelectValue} onValueChange={handleArticleSelect}>
+                <SelectTrigger className="h-9"><SelectValue placeholder="Select article" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">No article</SelectItem>
+                  {articleNames.map((a) => (
+                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  ))}
+                  <SelectItem value="__custom"><span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5" /> New…</span></SelectItem>
+                </SelectContent>
+              </Select>
+              {articleIsCustom && (
+                <Input placeholder="Type new article…" value={form.article} onChange={(e) => setForm({ ...form, article: e.target.value })} className="h-9" />
+              )}
             </div>
 
             {/* SKU — read-only, generated by core; copy for fast search */}
@@ -1963,6 +2111,15 @@ export function ProductsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkEditDialog
+        open={bulkOpen}
+        onOpenChange={setBulkOpen}
+        selectedCount={selectedIds.size}
+        options={{ categories, articles: articleNames }}
+        onSubmit={(patch) => bulkUpdate.mutateAsync({ ids: [...selectedIds], patch })}
+        onDone={() => setSelectedIds(new Set())}
+      />
 
       <ProductDetailsDialog
         open={detailsProduct !== null}

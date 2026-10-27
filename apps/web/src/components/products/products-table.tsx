@@ -56,13 +56,66 @@ type Props = {
     totalPages: number
   }
   onPageChange?: (page: number) => void
+  /** Multi-select (bulk edit). Ids are controlled by the parent view. */
+  selectedIds?: Set<string>
+  onSelectionChange?: (ids: Set<string>) => void
 }
 
-export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, onPrintLabel, onViewDetails, pagination, onPageChange }: Props) {
+export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, onPrintLabel, onViewDetails, pagination, onPageChange, selectedIds, onSelectionChange }: Props) {
   const [sorting, setSorting] = React.useState<SortingState>([{ id: "createdAt", desc: true }])
+  const selectable = selectedIds !== undefined && onSelectionChange !== undefined
+
+  const toggleRow = React.useCallback(
+    (id: string) => {
+      if (!selectedIds || !onSelectionChange) return
+      const next = new Set(selectedIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      onSelectionChange(next)
+    },
+    [selectedIds, onSelectionChange],
+  )
+
+  const pageIds = products.map((p) => p.id)
+  const allPageSelected = selectable && pageIds.length > 0 && pageIds.every((id) => selectedIds?.has(id))
+  const somePageSelected = selectable && pageIds.some((id) => selectedIds?.has(id))
 
   const columns = React.useMemo<ColumnDef<Product>[]>(
     () => [
+      ...(selectable
+        ? [
+            {
+              id: "select",
+              header: () => (
+                <input
+                  type="checkbox"
+                  checked={allPageSelected}
+                  ref={(el) => {
+                    if (el) el.indeterminate = somePageSelected && !allPageSelected
+                  }}
+                  onChange={(e) => {
+                    if (!onSelectionChange) return
+                    const next = new Set(selectedIds)
+                    if (e.target.checked) pageIds.forEach((id) => next.add(id))
+                    else pageIds.forEach((id) => next.delete(id))
+                    onSelectionChange(next)
+                  }}
+                  className="h-4 w-4 accent-primary"
+                  aria-label="Select all products on this page"
+                />
+              ),
+              cell: ({ row }) => (
+                <input
+                  type="checkbox"
+                  checked={selectedIds?.has(row.original.id) ?? false}
+                  onChange={() => toggleRow(row.original.id)}
+                  className="h-4 w-4 accent-primary"
+                  aria-label={`Select ${row.original.name}`}
+                />
+              ),
+            } satisfies ColumnDef<Product>,
+          ]
+        : []),
       {
         id: "name",
         accessorKey: "name",
@@ -176,6 +229,16 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
         cell: ({ row }) => <span>{row.original.size}</span>,
       },
       {
+        accessorKey: "article",
+        header: "Article",
+        cell: ({ row }) =>
+          row.original.article ? (
+            <span>{row.original.article}</span>
+          ) : (
+            <span className="text-xs text-muted-foreground">—</span>
+          ),
+      },
+      {
         accessorKey: "purity",
         header: "Purity",
         cell: ({ row }) =>
@@ -275,7 +338,7 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
         },
       },
     ],
-    [onEdit, onAdjust, onDelete, onSell, onPrintLabel, onViewDetails]
+    [onEdit, onAdjust, onDelete, onSell, onPrintLabel, onViewDetails, selectable, selectedIds, allPageSelected, somePageSelected, pageIds, toggleRow, onSelectionChange]
   )
 
   const table = useReactTable({
@@ -316,7 +379,14 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
           </TableHeader>
           <TableBody>
             {table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id} className="hover:bg-muted/30">
+              <TableRow
+                key={row.id}
+                className={
+                  selectedIds?.has(row.original.id)
+                    ? "bg-primary/5 hover:bg-primary/10"
+                    : "hover:bg-muted/30"
+                }
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id} className="py-2.5">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

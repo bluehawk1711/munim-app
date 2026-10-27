@@ -12,6 +12,7 @@ export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 export * from "./billing/index.js";
 export * from "./security/index.js";
 export * from "./help/pricingGuide.js";
+export * from "./help/helpCenter.js";
 export * from "./pricing/gold.js";
 export * from "./pricing/labour.js";
 export * from "./pricing/product.js";
@@ -28,6 +29,7 @@ export { uploadImageToCloudinary, uploadImageToCloudinarySigned, type Cloudinary
 export * from "./validators/index.js";
 export * from "./serialize/index.js";
 export * from "./services/catalog.js";
+export * from "./services/articles.js";
 export * from "./services/products.js";
 export * from "./services/invoices.js";
 export * from "./services/orders.js";

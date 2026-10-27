@@ -25,6 +25,7 @@ export type AppClientState = {
   productColorFilter: string;
   productSizeFilter: string;
   productCategoryFilter: string;
+  productArticleFilter: string;
   productStatusFilter: string;
   setActiveView: (view: string) => void;
   setGlobalSearch: (value: string) => void;
@@ -34,6 +35,7 @@ export type AppClientState = {
   setProductColorFilter: (value: string) => void;
   setProductSizeFilter: (value: string) => void;
   setProductCategoryFilter: (value: string) => void;
+  setProductArticleFilter: (value: string) => void;
   setProductStatusFilter: (value: string) => void;
 };
 
@@ -53,6 +55,7 @@ export function createAppStore(initialView = "dashboard") {
     productColorFilter: "all",
     productSizeFilter: "all",
     productCategoryFilter: "all",
+    productArticleFilter: "all",
     productStatusFilter: "all",
     setActiveView: (view) => set({ activeView: view }),
     setGlobalSearch: (value: string) => set({ globalSearch: value }),
@@ -62,6 +65,7 @@ export function createAppStore(initialView = "dashboard") {
     setProductColorFilter: (value) => set({ productColorFilter: value }),
     setProductSizeFilter: (value) => set({ productSizeFilter: value }),
     setProductCategoryFilter: (value) => set({ productCategoryFilter: value }),
+    setProductArticleFilter: (value) => set({ productArticleFilter: value }),
     setProductStatusFilter: (value) => set({ productStatusFilter: value }),
   }));
 }

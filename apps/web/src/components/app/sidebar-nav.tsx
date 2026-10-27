@@ -14,6 +14,7 @@ import {
   HandCoins,
   Settings,
   CircleHelp,
+  Tag,
 } from "lucide-react"
 import { useAppStore, type ViewKey } from "@/store/view-store"
 import { cn } from "@/lib/utils"
@@ -40,6 +41,7 @@ const NAV_SECTIONS: {
     label: "Inventory",
     items: [
       { key: "products", label: "Products", icon: Package, description: "Manage inventory" },
+      { key: "articles", label: "Articles", icon: Tag, description: "Designs & analytics" },
       { key: "sales", label: "Sales", icon: ShoppingCart, description: "Sell & history" },
       { key: "catalog", label: "Catalog", icon: Palette, description: "Colors, sizes & categories" },
     ],

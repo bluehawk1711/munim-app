@@ -151,7 +151,8 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
               </Text>
             </View>
             <Text style={styles.variantText} numberOfLines={1}>
-              {[
+              {              [
+                item.article || null,
                 variantBits || null,
                 // Gold shows the DERIVED net weight when present (what pricing
                 // uses) — same "(net)" display as the web + desktop listings.

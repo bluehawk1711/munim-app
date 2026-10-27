@@ -1,6 +1,6 @@
 # Munim — NestJS Backend Plan
 
-> Status: **Phases 1–3 landed (2026-08-17)** — `apps/api` scaffolded (Fastify,
+> Status: **All phases landed** — `apps/api` scaffolded (Fastify,
 > pg.Pool client, API-key guard, health checks, boot + live-DB e2e smoke), core
 > prep done (`createServerDb` via `@munim/core/server`, validators +
 > serializers moved into core, explicit `*Dto` wire types added to
@@ -11,7 +11,10 @@
 > prefix invalidation on every write; in-memory TTL fallback when
 > `UPSTASH_REDIS_REST_URL/TOKEN` are unset; `/readyz` pings Upstash too;
 > 11-check cache unit spec + live-DB e2e extended to 16 checks, all green.
-> Remaining phases: 4 (desktop) → 5 (mobile) → 6 (web) → 7 (CI/CD + docs).
+> **Phases 4–6 landed (2026-08-17): desktop, mobile and web all fetch from the
+> API** (the web app's Next.js `/api/*` routes are deleted). Later additions:
+> orders + order-payment ledger, gold rates, articles analytics, bulk product
+> edit (see §5).
 >
 > Supersedes part of **ADR-001** (no API server). See "ADR updates" at the end.
 
@@ -19,8 +22,9 @@
 
 ## 1. Why & what
 
-Today all three apps talk to Neon directly through `@munim/core`'s pg-proxy
-(fetch-based) client:
+Originally all three apps talked to Neon directly through `@munim/core`'s
+pg-proxy (fetch-based) client (this is the state the plan was written against —
+none of it holds today):
 
 - **Web** — Next.js server routes (`/api/*`) call core services with `getDb()`.
 - **Desktop** — Tauri webview calls core with `createAppDb(url)` using the Rust
@@ -152,21 +156,24 @@ and web pass global `fetch`.
 
 ---
 
-## 5. API surface (mirrors web `/api/*` exactly)
+## 5. API surface (the REST API all three apps call)
 
 | Resource | Endpoints (all implemented) |
 |---|---|
-| Products | `GET /api/products?search&color&size&category&status&page&pageSize`, `POST /api/products`, `GET/PUT/DELETE /api/products/:id`, `PATCH /api/products/:id/stock`, `GET /api/products/:id/movements`, `GET /api/products/lookup?barcode`, `GET /api/products/meta`, `POST /api/products/backfill-barcodes` |
+| Products | `GET /api/products?search&color&size&category&article&priceMode&status&page&pageSize`, `POST /api/products`, `GET/PUT/DELETE /api/products/:id`, `PATCH /api/products/bulk` (multi-select batch patch), `PATCH /api/products/:id/stock`, `GET /api/products/:id/movements`, `GET /api/products/lookup?barcode`, `GET /api/products/meta`, `GET /api/products/stats`, `GET /api/products/by-category`, `POST /api/products/backfill-barcodes`, `POST /api/products/sync-prices` |
 | Catalog (colors/sizes/categories) | `GET/POST /api/catalog/:kind`, `PATCH/DELETE /api/catalog/:kind/:id` (`kind` = color \| size \| category) |
+| Articles | `GET /api/articles`, `GET /api/articles/analytics` (stock count/value, sold units/weight, revenue, last sale, 6-month trend), `POST /api/articles`, `PATCH/DELETE /api/articles/:id` |
+| Orders | `GET /api/orders?…`, `GET/POST/PATCH/DELETE /api/orders/:id`, `GET /api/orders/:id/payments` + `POST /api/orders/:id/pay` (shared `order_payments` ledger), `POST /api/orders/:id/bill` (convert to invoice) |
 | Sales | `GET /api/sales?search&status&startDate&endDate`, `POST /api/sales` (quick sale), `DELETE /api/sales/:id` (undo → stock restore) |
-| Invoices | `GET /api/invoices?search&status&partyId&startDate&endDate&page&pageSize`, `POST /api/invoices`, `GET/DELETE /api/invoices/:id`, `POST /api/invoices/:id/payment` |
+| Invoices | `GET /api/invoices?search&status&partyId&startDate&endDate&page&pageSize`, `POST /api/invoices`, `GET/PUT/DELETE /api/invoices/:id` (PUT = edit an existing bill), `GET /api/invoices/:id/payments` (payment history), `POST /api/invoices/:id/payment` |
 | Payments | `GET/POST /api/payments` (money in/out against a party) |
 | Parties | `GET /api/parties?search&type&balances`, `POST /api/parties`, `GET/PUT/DELETE /api/parties/:id` (GET returns party + ledger) |
 | Advances | `GET/POST /api/advances`, `POST /api/advances/:id/settle`, `DELETE /api/advances/:id` |
 | Job letters | `GET/POST /api/job-letters`, `DELETE /api/job-letters/:id` |
 | Reports | `GET /api/reports?type&startDate&endDate[&format=csv]` (all types + custom dates) |
 | Settings | `GET/PUT /api/settings` |
-| Dashboard | `GET /api/dashboard` (all 7 stat sets) |
+| Dashboard | `GET /api/dashboard?from=&to=` (all stat sets + period KPIs: weight sold, material received/value, scoped by a custom range — Today/week/month presets resolve client-side from core `dashboardPresetRange`) |
+| Gold rates | `GET /api/gold-rates`, `PUT /api/gold-rates` (shop base rates), `POST /api/gold-rates/backfill-karats` |
 | Upload | `POST /api/upload` (multipart `file` field, Cloudinary signed — secret lives only on the server) |
 | Health | `GET /healthz`, `GET /readyz` |
 

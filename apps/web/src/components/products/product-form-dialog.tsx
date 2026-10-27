@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useUploadImage, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, useSettings, useDebouncedSettingsUpdate, useQueryState } from "@munim/query"
 import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
+import { useArticles } from "@/hooks/use-articles"
 import { productSchema, calcNetWeight, isLabourType, karatPurityPercent, resolveGoldRateTable, priceFallbackMessage, priceWithTable, toGoldKarat, type GoldRateSaveInput, type GoldRateTableEntry, type LabourType, type PriceBreakdown, type ProductFormValues } from "@munim/core"
 import type { Product } from "@/lib/types"
 import { toast } from "@munim/ui"
@@ -103,10 +104,16 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
   const [customColor, setCustomColor] = React.useState(false)
   const [customSize, setCustomSize] = React.useState(false)
   const [customCategory, setCustomCategory] = React.useState(false)
+  const [customArticle, setCustomArticle] = React.useState(false)
 
   const colors = Array.from(new Set([...DEFAULT_COLORS, ...(meta?.colors ?? [])]))
   const sizes = Array.from(new Set([...DEFAULT_SIZES, ...(meta?.sizes ?? [])]))
   const categories = Array.from(new Set(meta?.categories ?? []))
+  const articleList = useArticles()
+  const articleNames = React.useMemo(
+    () => (articleList.data ?? []).map((a) => a.name),
+    [articleList.data],
+  )
 
   const form = useForm<ProductFormValues>({
     // Sanctioned boundary cast: react-hook-form's Resolver<T> requires
@@ -120,6 +127,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
       color: "Black",
       size: "Standard",
       category: "",
+      article: "",
       barcode: "",
       weight: undefined,
       weightUnit: "gm",
@@ -151,6 +159,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
           color: product.color,
           size: product.size,
           category: product.category ?? "",
+          article: product.article ?? "",
           barcode: product.barcode ?? "",
           weight: product.weight ?? undefined,
           weightUnit: product.weightUnit === "mg" || product.weightUnit === "gm" ? product.weightUnit : "gm",
@@ -180,6 +189,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
           color: "Black",
           size: "Standard",
           category: "",
+          article: "",
           barcode: "",
           weight: undefined,
           weightUnit: "gm",
@@ -208,12 +218,15 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
   const colorValue = watched.color ?? ""
   const sizeValue = watched.size ?? ""
   const categoryValue = watched.category ?? ""
+  const articleValue = watched.article ?? ""
   const colorIsCustom = customColor || (!!colorValue && !colors.includes(colorValue))
   const sizeIsCustom = customSize || (!!sizeValue && !sizes.includes(sizeValue))
   const categoryIsCustom = customCategory || (!!categoryValue && !categories.includes(categoryValue))
+  const articleIsCustom = customArticle || (!!articleValue && !articleNames.includes(articleValue))
   // Select needs a non-empty value: "__none" represents "no color" (form value "").
   const colorSelectValue = colorIsCustom ? "__custom" : colorValue || "__none"
   const categorySelectValue = categoryIsCustom ? "__custom" : categoryValue || "__none"
+  const articleSelectValue = articleIsCustom ? "__custom" : articleValue || "__none"
   const margin =
     (watched.sellingPrice ?? 0) - (watched.purchasePrice ?? 0) > 0
       ? ((((watched.sellingPrice ?? 0) - (watched.purchasePrice ?? 0)) / (watched.sellingPrice ?? 1)) * 100).toFixed(0)
@@ -320,6 +333,19 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
     } else {
       setCustomCategory(false)
       form.setValue("category", value, { shouldValidate: true })
+    }
+  }
+
+  function handleArticleSelect(value: string) {
+    if (value === "__custom") {
+      setCustomArticle(true)
+      form.setValue("article", "", { shouldValidate: false })
+    } else if (value === "__none") {
+      setCustomArticle(false)
+      form.setValue("article", "", { shouldValidate: true })
+    } else {
+      setCustomArticle(false)
+      form.setValue("article", value, { shouldValidate: true })
     }
   }
 
@@ -968,6 +994,34 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
                   setCustomCategory(false)
                   form.setValue("category", c, { shouldValidate: true })
                 }}
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Article</Label>
+            <Select value={articleSelectValue} onValueChange={handleArticleSelect}>
+              <SelectTrigger className="h-9 w-full" aria-label="Article">
+                <SelectValue placeholder="Select an article" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">No article</SelectItem>
+                {articleNames.map((a) => (
+                  <SelectItem key={a} value={a}>{a}</SelectItem>
+                ))}
+                <SelectItem value="__custom">
+                  <span className="flex items-center gap-1.5">
+                    <Plus className="h-3.5 w-3.5" /> New article…
+                  </span>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            {articleIsCustom && (
+              <Input
+                placeholder="Type a new article…"
+                value={articleValue}
+                onChange={(e) => form.setValue("article", e.target.value, { shouldValidate: true })}
+                className="h-9"
               />
             )}
           </div>

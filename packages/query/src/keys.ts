@@ -74,6 +74,12 @@ export const qk = {
     list: (kind: CatalogKind) => ["catalog", kind] as const,
   },
 
+  articles: {
+    all: ["articles"] as const,
+    list: ["articles", "list"] as const,
+    analytics: ["articles", "analytics"] as const,
+  },
+
   reports: {
     all: ["reports"] as const,
     get: (query: ReportQueryValues) => ["reports", "get", query] as const,

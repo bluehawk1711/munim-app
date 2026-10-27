@@ -20,6 +20,19 @@ export const categories = pgTable("categories", {
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("categories_name_idx").on(t.name)]);
 /* ────────────────────────────────────────────────────────────────
+ * ARTICLES (product classification, behaves like category + code/description)
+ * ──────────────────────────────────────────────────────────────── */
+export const articles = pgTable("articles", {
+    id: id(),
+    name: text("name").notNull().unique(),
+    /** Optional short code (e.g. "BGL-01") shown beside the name. */
+    code: text("code"),
+    /** Optional free-text description of the article/design. */
+    description: text("description"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("articles_name_idx").on(t.name)]);
+/* ────────────────────────────────────────────────────────────────
  * GOLD RATES (dynamic karat-wise pricing)
  * ──────────────────────────────────────────────────────────────── */
 /**
@@ -110,6 +123,7 @@ export const products = pgTable("products", {
     colorId: text("color_id").references(() => colors.id, { onDelete: "set null" }),
     sizeId: text("size_id").references(() => sizes.id, { onDelete: "set null" }),
     categoryId: text("category_id").references(() => categories.id, { onDelete: "set null" }),
+    articleId: text("article_id").references(() => articles.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
@@ -118,6 +132,7 @@ export const products = pgTable("products", {
     index("products_color_idx").on(t.colorId),
     index("products_size_idx").on(t.sizeId),
     index("products_category_idx").on(t.categoryId),
+    index("products_article_idx").on(t.articleId),
 ]);
 /** Every change to a product's stock level — a full audit trail. */
 export const stockMovements = pgTable("stock_movements", {

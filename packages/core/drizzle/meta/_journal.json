@@ -148,6 +148,13 @@
       "when": 1793003523507,
       "tag": "0020_crazy_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793011603250,
+      "tag": "0021_faulty_hardball",
+      "breakpoints": true
     }
   ]
 }
