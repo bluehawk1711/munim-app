@@ -327,7 +327,9 @@ export function ArticlesView() {
                       <p className="truncate text-xs text-muted-foreground">{a.description}</p>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  {/* Same breakpoint as the mobile nav (lg): no hover on phones/
+                      tablets, so keep the actions visible there. */}
+                  <div className="flex items-center gap-1 transition-opacity max-lg:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100">
                     <Button
                       variant="ghost"
                       size="icon"

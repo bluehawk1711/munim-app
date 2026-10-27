@@ -15,6 +15,7 @@ import {
   Printer,
   RefreshCw,
   Pencil,
+  MoreHorizontal,
 } from "lucide-react"
 import {
   Button,
@@ -33,6 +34,11 @@ import {
   LabelPrintSelectDialog,
   type LabelPrintSelectProduct,
   ProductDetailsDialog,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@munim/ui"
 import { buildProductLabel, type ProductLabel } from "@munim/core"
 
@@ -386,34 +392,72 @@ export function ProductsView() {
 
   return (
     <div className="space-y-4">
-      {/* Toolbar — search on row 1, filters on row 2, actions right */}
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="flex w-full flex-col gap-2">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={globalSearch}
-                onChange={(e) => setGlobalSearch(e.target.value)}
-                placeholder="Search by name, SKU, barcode, color…"
-                className="h-9 pl-9"
-                aria-label="Search products"
-              />
-            </div>
-            {/* Scanner-friendly input: USB barcode scanners type here + Enter. */}
-            <div className="flex items-center gap-2">
-              <BarcodeLookupInput
-                onLookup={handleBarcodeLookup}
-                className="w-full sm:max-w-[240px]"
-                autoFocus={false}
-              />
-              {/* Camera scan — mobile's scan-to-act on a phone/laptop camera. */}
-              <CameraScanButton onDetected={handleBarcodeLookup} label="Scan barcode" />
-            </div>
+      {/* Toolbar — search + actions on row 1, filters on row 2 */}
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="relative w-full lg:max-w-sm">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={globalSearch}
+              onChange={(e) => setGlobalSearch(e.target.value)}
+              placeholder="Search by name, SKU, barcode, color…"
+              className="h-9 pl-9"
+              aria-label="Search products"
+            />
           </div>
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-2.5 py-2">
+          {/* Scanner-friendly input: USB barcode scanners type here + Enter. */}
+          <div className="flex items-center gap-2">
+            <BarcodeLookupInput
+              onLookup={handleBarcodeLookup}
+              className="w-full sm:w-[240px]"
+              autoFocus={false}
+            />
+            {/* Camera scan — mobile's scan-to-act on a phone/laptop camera. */}
+            <CameraScanButton onDetected={handleBarcodeLookup} label="Scan barcode" />
+          </div>
+          <div className="flex items-center gap-2 max-sm:w-full lg:ml-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 gap-1.5">
+                  <MoreHorizontal className="h-4 w-4" /> More
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onSelect={handleSyncPrices} disabled={syncPrices.isPending}>
+                  <RefreshCw className={syncPrices.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
+                  {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
+                </DropdownMenuItem>
+                {missingBarcodes && (
+                  <DropdownMenuItem onSelect={handleBackfill} disabled={backfill.isPending}>
+                    <Barcode className="h-4 w-4" />
+                    {backfill.isPending ? "Generating…" : "Generate barcodes"}
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => setLabelSelectOpen(true)}>
+                  <Printer className="h-4 w-4" /> Print label
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={handleExportCsv}>
+                  <Download className="h-4 w-4" /> Export CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={handleExportExcel}>
+                  <FileSpreadsheet className="h-4 w-4" /> Export Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={handleAdd} className="h-9 flex-1 gap-1.5 sm:flex-none">
+              <Plus className="h-4 w-4" /> Add Product
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 rounded-xl border border-border/60 bg-muted/30 p-2.5 sm:flex-row sm:flex-wrap sm:items-center">
+          <span className="flex items-center gap-1.5 px-1 text-xs font-medium text-muted-foreground">
+            <Filter className="h-3.5 w-3.5" /> Filters
+          </span>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-1 sm:flex-wrap">
             <Select value={color} onValueChange={changeColor}>
-              <SelectTrigger className="h-9 w-[130px]" aria-label="Filter by color">
+              <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filter by color">
                 <SelectValue placeholder="Color" />
               </SelectTrigger>
               <SelectContent>
@@ -424,7 +468,7 @@ export function ProductsView() {
               </SelectContent>
             </Select>
             <Select value={size} onValueChange={changeSize}>
-              <SelectTrigger className="h-9 w-[130px]" aria-label="Filter by size">
+              <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filter by size">
                 <SelectValue placeholder="Size" />
               </SelectTrigger>
               <SelectContent>
@@ -435,7 +479,7 @@ export function ProductsView() {
               </SelectContent>
             </Select>
             <Select value={category} onValueChange={changeCategory}>
-              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by category">
+              <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filter by category">
                 <SelectValue placeholder="Category" />
               </SelectTrigger>
               <SelectContent>
@@ -446,7 +490,7 @@ export function ProductsView() {
               </SelectContent>
             </Select>
             <Select value={article} onValueChange={changeArticle}>
-              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by article">
+              <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filter by article">
                 <SelectValue placeholder="Article" />
               </SelectTrigger>
               <SelectContent>
@@ -457,7 +501,7 @@ export function ProductsView() {
               </SelectContent>
             </Select>
             <Select value={type} onValueChange={changeType}>
-              <SelectTrigger className="h-9 w-[130px]" aria-label="Filter by type">
+              <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filter by type">
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
@@ -470,7 +514,7 @@ export function ProductsView() {
               </SelectContent>
             </Select>
             <Select value={status} onValueChange={(v) => changeStatus(v as StockStatus | "all")}>
-              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by stock status">
+              <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filter by stock status">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
@@ -481,7 +525,7 @@ export function ProductsView() {
               </SelectContent>
             </Select>
             <Select value={priceMode} onValueChange={(v) => changePriceMode(v as "all" | "auto" | "manual")}>
-              <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by price mode">
+              <SelectTrigger className="h-9 w-full sm:w-[140px]" aria-label="Filter by price mode">
                 <SelectValue placeholder="Pricing" />
               </SelectTrigger>
               <SelectContent>
@@ -491,35 +535,16 @@ export function ProductsView() {
               </SelectContent>
             </Select>
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" onClick={clearFilters} className="h-9 gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearFilters}
+                className="col-span-2 h-9 gap-1 sm:col-span-1 sm:ml-auto"
+              >
                 <X className="h-3.5 w-3.5" /> Clear
               </Button>
             )}
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleSyncPrices} disabled={syncPrices.isPending} className="h-9 gap-1.5">
-            <RefreshCw className={syncPrices.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />{" "}
-            {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
-          </Button>
-          {missingBarcodes && (
-            <Button variant="outline" size="sm" onClick={handleBackfill} disabled={backfill.isPending} className="h-9 gap-1.5">
-              <Barcode className="h-4 w-4" /> {backfill.isPending ? "Generating…" : "Generate barcodes"}
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => setLabelSelectOpen(true)} className="h-9 gap-1.5">
-            <Printer className="h-4 w-4" /> Print Label
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportCsv} className="h-9 gap-1.5">
-            <Download className="h-4 w-4" /> CSV
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportExcel} className="h-9 gap-1.5">
-            <FileSpreadsheet className="h-4 w-4" /> Excel
-          </Button>
-          <Button onClick={handleAdd} className="h-9 gap-1.5">
-            <Plus className="h-4 w-4" /> Add Product
-          </Button>
         </div>
       </div>
 
