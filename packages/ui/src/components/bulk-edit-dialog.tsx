@@ -4,6 +4,7 @@ import * as React from "react"
 import { Loader2, Pencil } from "lucide-react"
 import type { BulkProductPatch } from "@munim/core"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog.js"
+import { Checkbox } from "./checkbox.js"
 import { Input } from "./input.js"
 import { Label } from "./label.js"
 import { Button } from "./button.js"
@@ -143,14 +144,20 @@ export function BulkEditDialog({ open, onOpenChange, selectedCount, options, onS
   }) {
     const id = idFor(label)
     return (
-      <div className="flex items-start gap-3 rounded-lg border p-3">
-        <input
+      <div
+        className={
+          "flex items-start gap-3 rounded-lg border p-3 transition-colors " +
+          (checked
+            ? "border-primary/40 bg-primary/5"
+            : "bg-muted/30 hover:border-ring/50")
+        }
+      >
+        <Checkbox
           id={id}
-          type="checkbox"
           checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-primary"
+          onCheckedChange={onChange}
           aria-label={`Apply ${label}`}
+          className="mt-0.5"
         />
         <div className="min-w-0 flex-1 space-y-1.5">
           <Label htmlFor={id} className="cursor-pointer text-sm font-medium">
@@ -213,7 +220,7 @@ export function BulkEditDialog({ open, onOpenChange, selectedCount, options, onS
 
           <Row checked={usePriceMode} onChange={setUsePriceMode} label="Pricing mode">
             <Select value={priceMode} onValueChange={(v) => setPriceMode(v as "auto" | "manual")}>
-              <SelectTrigger className="h-9" aria-label="Pricing mode">
+              <SelectTrigger className="h-9 w-full bg-background" aria-label="Pricing mode">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -226,7 +233,7 @@ export function BulkEditDialog({ open, onOpenChange, selectedCount, options, onS
           <Row checked={useLabour} onChange={setUseLabour} label="Labour charge">
             <div className="flex gap-2">
               <Select value={labourType} onValueChange={(v) => setLabourType(v as typeof labourType)}>
-                <SelectTrigger className="h-9 flex-1" aria-label="Labour type">
+                <SelectTrigger className="h-9 flex-1 bg-background" aria-label="Labour type">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

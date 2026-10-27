@@ -1,7 +1,7 @@
 export { buildBillDocument, renderBillText, billKindLabel, estimateNetWeightTotal, estimateWeightLines, firstGoldKarat, goldRateKaratLine, netWeightCellOf, receiptLabelOf, DEFAULT_BILL_TEMPLATE_SETTINGS, mergeBillTemplateSettings, GOLD_ESTIMATE_COLUMNS, SILVER_ESTIMATE_COLUMNS, } from "./billDocument.js";
 export { PURITY_PRESETS, purityOptionsFor, } from "./purity.js";
 export { renderBillHtml, } from "./billHtml.js";
-export { buildSampleBill, } from "./sampleBill.js";
+export { buildSampleBill, SAMPLE_BILL_VARIANTS, } from "./sampleBill.js";
 export { buildOrderDocument, } from "./orderDocument.js";
 export { generateBillPDF, } from "./generateBillPdf.js";
 export { defaultJobLetterData, formatJoiningDate, jobLetterFromStored, renderJobLetterHtml, } from "./jobLetterDocument.js";

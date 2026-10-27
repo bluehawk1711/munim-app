@@ -123,6 +123,7 @@ import {
   BarcodeLookupInput,
   BarcodeSvg,
   BulkEditDialog,
+  Checkbox,
   CategoryChips,
   GoldRateEditor,
   LabourInput,
@@ -1350,29 +1351,24 @@ export function ProductsPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     aria-label="Select all visible products"
                     checked={
                       visibleProducts.length > 0 &&
                       visibleProducts.every((p) => selectedIds.has(p.id))
                     }
-                    ref={(el) => {
-                      if (el) {
-                        el.indeterminate =
-                          visibleProducts.some((p) => selectedIds.has(p.id)) &&
-                          !visibleProducts.every((p) => selectedIds.has(p.id));
-                      }
-                    }}
-                    onChange={(e) => {
+                    indeterminate={
+                      visibleProducts.some((p) => selectedIds.has(p.id)) &&
+                      !visibleProducts.every((p) => selectedIds.has(p.id))
+                    }
+                    onCheckedChange={(next) => {
                       setSelectedIds((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) visibleProducts.forEach((p) => next.add(p.id));
-                        else visibleProducts.forEach((p) => next.delete(p.id));
-                        return next;
+                        const set = new Set(prev);
+                        if (next) visibleProducts.forEach((p) => set.add(p.id));
+                        else visibleProducts.forEach((p) => set.delete(p.id));
+                        return set;
                       });
                     }}
-                    className="h-4 w-4 accent-primary"
                   />
                 </TableHead>
                 <TableHead>Image</TableHead>
@@ -1400,12 +1396,10 @@ export function ProductsPage() {
                     className={selectedIds.has(p.id) ? "bg-primary/5" : undefined}
                   >
                     <TableCell>
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={selectedIds.has(p.id)}
-                        onChange={() => toggleSelect(p.id)}
+                        onCheckedChange={() => toggleSelect(p.id)}
                         aria-label={`Select ${p.name}`}
-                        className="h-4 w-4 accent-primary"
                       />
                     </TableCell>
                     <TableCell>

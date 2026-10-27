@@ -38,8 +38,9 @@ export {
 
 export {
   buildSampleBill,
+  SAMPLE_BILL_VARIANTS,
 } from "./sampleBill.js";
-export type { SampleBillKind } from "./sampleBill.js";
+export type { SampleBillKind, SampleBillVariant } from "./sampleBill.js";
 
 export {
   buildOrderDocument,

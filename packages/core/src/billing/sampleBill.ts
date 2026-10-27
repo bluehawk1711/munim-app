@@ -1,5 +1,5 @@
 import { buildBillDocument } from "./billDocument.js";
-import type { BillDocument } from "./billDocument.js";
+import type { BillDocument, BillTemplateSettings } from "./billDocument.js";
 
 export type SampleBillKind = "gold" | "silver";
 
@@ -144,3 +144,83 @@ export function buildSampleBill(kind: SampleBillKind): BillDocument {
     silverRate: 80.25,
   });
 }
+
+/** One selectable look for the Settings → Bills sample-bill card. */
+export type SampleBillVariant = {
+  id: string;
+  /** Dropdown label. */
+  label: string;
+  /** One line saying what the sheet demonstrates. */
+  hint: string;
+  /** Which dummy bill to render (gold / silver). */
+  kind: SampleBillKind;
+  /** Bill 2 for the 2-in-1 Separate sheet. */
+  secondKind?: SampleBillKind;
+  /** Template settings for this look — merged over core defaults by the caller. */
+  settings: Partial<BillTemplateSettings>;
+};
+
+/**
+ * Every sample-bill variant the Settings → Bills card offers, so a shop can
+ * eyeball each template/color/2-in-1 combination without creating an invoice.
+ * The first entry is the default (the look a fresh New Bill produces).
+ */
+export const SAMPLE_BILL_VARIANTS: readonly SampleBillVariant[] = [
+  {
+    id: "gold-ecommerce",
+    label: "Gold · Modern E-commerce",
+    hint: "Estimate sheet — the default bill design",
+    kind: "gold",
+    settings: { template: "ecommerce" },
+  },
+  {
+    id: "gold-classic-red",
+    label: "Gold · Classic Jewellery (red)",
+    hint: "Traditional red-theme invoice",
+    kind: "gold",
+    settings: { template: "jewellery", classicColor: "red" },
+  },
+  {
+    id: "gold-classic-yellow",
+    label: "Gold · Classic Jewellery (yellow)",
+    hint: "Traditional invoice in the yellow accent",
+    kind: "gold",
+    settings: { template: "jewellery", classicColor: "yellow" },
+  },
+  {
+    id: "gold-karat-line",
+    label: "Gold · Estimate + picked karat line",
+    hint: "Shows the manually picked karat under the gold rate",
+    kind: "gold",
+    settings: { template: "ecommerce", goldRateKaratMode: "karat", goldRateKaratValue: 22 },
+  },
+  {
+    id: "silver-ecommerce",
+    label: "Silver · Modern E-commerce",
+    hint: "Estimate with the combined silver Weight column",
+    kind: "silver",
+    settings: { template: "ecommerce" },
+  },
+  {
+    id: "silver-classic-red",
+    label: "Silver · Classic Jewellery (red)",
+    hint: "Classic invoice for a silver bill",
+    kind: "silver",
+    settings: { template: "jewellery", classicColor: "red" },
+  },
+  {
+    id: "two-in-one-duplicate",
+    label: "2-in-1 · Duplicate (gold ×2)",
+    hint: "Same bill printed twice on one sheet",
+    kind: "gold",
+    settings: { template: "ecommerce", twoInOne: true, mode: "duplicate" },
+  },
+  {
+    id: "two-in-one-separate",
+    label: "2-in-1 · Separate (gold + silver)",
+    hint: "Two different bills stacked on one sheet",
+    kind: "gold",
+    secondKind: "silver",
+    settings: { template: "ecommerce", twoInOne: true, mode: "distinct" },
+  },
+];

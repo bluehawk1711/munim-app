@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw, BadgeIndianRupee, FileText } from "lucide-react";
+import { Server, Save, RotateCcw, Eye, EyeOff, ShieldCheck, Store, Palette, ShoppingBag, SunMoon, Loader2, Printer, RefreshCw, BadgeIndianRupee, FileText, HeartPulse } from "lucide-react";
 import { pingApiUrl, resetApi } from "@/lib/api";
 import { getSavedApiKey, getSavedApiUrl, saveApiKey, saveApiUrl } from "@/lib/env";
 import {
@@ -30,6 +30,7 @@ import {
   useAccentThemeContext,
   type ThemeMode,
 } from "@/components/theme-swatches";
+import { SettingsHealthCard } from "@/components/settings-health";
 import {
   Button,
   Input,
@@ -88,7 +89,8 @@ export function SettingsPage() {
       param === "appearance" ||
       param === "security" ||
       param === "printing" ||
-      param === "server"
+      param === "server" ||
+      param === "health"
       ? param
       : "shop";
   });
@@ -425,6 +427,12 @@ export function SettingsPage() {
       description: "API connection & sync",
       icon: Server,
     },
+    {
+      id: "health",
+      label: "Health",
+      description: "What's set up & what's still missing",
+      icon: HeartPulse,
+    },
   ];
 
   return (
@@ -532,6 +540,7 @@ export function SettingsPage() {
       )}
 
       {section === "bills" && <SampleBillCard />}
+      {section === "health" && <SettingsHealthCard />}
 
       {section === "appearance" && (
         <Card>
