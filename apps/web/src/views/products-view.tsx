@@ -334,6 +334,7 @@ export function ProductsView() {
           colorName: p.color || null,
           sizeName: p.size || null,
           categoryName: p.category ?? null,
+          subCategoryName: p.subCategory ?? null,
         },
         { name: settings?.shopName ?? "" },
       ),

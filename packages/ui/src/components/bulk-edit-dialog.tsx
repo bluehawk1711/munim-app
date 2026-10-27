@@ -244,7 +244,7 @@ export function BulkEditDialog({ open, onOpenChange, selectedCount, options, onS
               </Select>
               <Input
                 type="number"
-                step="0.01"
+                step="any"
                 min="0"
                 value={labourValue}
                 onChange={(e) => setLabourValue(e.target.value)}
@@ -258,7 +258,7 @@ export function BulkEditDialog({ open, onOpenChange, selectedCount, options, onS
           <Row checked={useSilverPct} onChange={setUseSilverPct} label="Silver %" hint="(pure-silver percentage)">
             <Input
               type="number"
-              step="0.01"
+              step="any"
               min="0"
               value={silverPct}
               onChange={(e) => setSilverPct(e.target.value)}

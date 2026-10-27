@@ -289,7 +289,7 @@ export function AdvancesScreen() {
             </Pressable>
           </View>
           <View style={{flexDirection: 'row', gap: spacing.sm}}>
-            <Field label="Amount" value={quickAmount} onChangeText={setQuickAmount} keyboardType="numeric" style={{flex: 1}} />
+            <Field label="Amount" value={quickAmount} onChangeText={setQuickAmount} keyboardType="decimal-pad" style={{flex: 1}} />
             <Field label="Note" value={quickNote} onChangeText={setQuickNote} style={{flex: 2}} />
           </View>
           <Button
@@ -371,7 +371,7 @@ export function AdvancesScreen() {
                 </Text>
               </View>
             </View>
-            <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="numeric" />
+            <Field label="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
             <Field label="Note (optional)" value={note} onChangeText={setNote} />
             <Button title={busy ? 'Saving…' : 'Confirm'} onPress={() => void submitAction()} loading={busy} disabled={!Number(amount) || Number(amount) <= 0} />
           </>

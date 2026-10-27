@@ -13,7 +13,7 @@ import {
   Mail,
   MapPin,
 } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, Badge, Skeleton, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, LedgerKindBadge } from "@munim/ui"
+import { Button, Input, Label, Card, CardContent, Badge, Skeleton, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, LedgerKindBadge, NumberInput } from "@munim/ui"
 
 
 
@@ -259,7 +259,7 @@ function PartyLedger({ id, onBack }: { id: string; onBack: () => void }) {
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs">Amount (₹)</Label>
-              <Input type="number" min={0} value={amount || ""} onChange={(e) => setAmount(Number(e.target.value))} className="h-9" autoFocus />
+              <NumberInput min={0} value={amount || null} onValueChange={(value) => setAmount(value ?? 0)} className="h-9" autoFocus />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Note (optional)</Label>

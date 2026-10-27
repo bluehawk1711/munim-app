@@ -55,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
   GoldRateEditor,
+  NumberInput,
   type GoldRateDraft,
 } from "@munim/ui";
 
@@ -656,35 +657,32 @@ export function SettingsPage() {
                   <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-0.5">
                       <Label htmlFor="st-lbl-w" className="text-[11px] text-muted-foreground">Width (mm)</Label>
-                      <Input
+                      <NumberInput
                         id="st-lbl-w"
-                        type="number"
                         min={10}
                         max={120}
                         value={labelSize.widthMm}
-                        onChange={(e) => setLabelSize((s) => ({ ...s, widthMm: Number(e.target.value) }))}
+                        onValueChange={(value) => setLabelSize((s) => ({ ...s, widthMm: value ?? 0 }))}
                       />
                     </div>
                     <div className="space-y-0.5">
                       <Label htmlFor="st-lbl-h" className="text-[11px] text-muted-foreground">Height (mm)</Label>
-                      <Input
+                      <NumberInput
                         id="st-lbl-h"
-                        type="number"
                         min={10}
                         max={300}
                         value={labelSize.heightMm}
-                        onChange={(e) => setLabelSize((s) => ({ ...s, heightMm: Number(e.target.value) }))}
+                        onValueChange={(value) => setLabelSize((s) => ({ ...s, heightMm: value ?? 0 }))}
                       />
                     </div>
                     <div className="space-y-0.5">
                       <Label htmlFor="st-lbl-g" className="text-[11px] text-muted-foreground">Gap (mm)</Label>
-                      <Input
+                      <NumberInput
                         id="st-lbl-g"
-                        type="number"
                         min={0}
                         max={10}
                         value={labelSize.gapMm}
-                        onChange={(e) => setLabelSize((s) => ({ ...s, gapMm: Number(e.target.value) }))}
+                        onValueChange={(value) => setLabelSize((s) => ({ ...s, gapMm: value ?? 0 }))}
                       />
                     </div>
                   </div>

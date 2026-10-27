@@ -67,6 +67,8 @@ export function buildProductLabel(
     colorName?: string | null;
     sizeName?: string | null;
     categoryName?: string | null;
+    /** Second category (silver sub-category) — printed in place of the main one. */
+    subCategoryName?: string | null;
   },
   shop?: LabelShop,
 ): ProductLabel {
@@ -86,7 +88,7 @@ export function buildProductLabel(
     purity: product.purity ?? null,
     color: product.colorName ?? null,
     size: product.sizeName ?? null,
-    category: product.categoryName ?? null,
+    category: product.subCategoryName?.trim() || product.categoryName || null,
     sellingPrice: product.sellingPrice,
     labourType: product.labourType ?? null,
     labourValue: product.labourValue ?? null,

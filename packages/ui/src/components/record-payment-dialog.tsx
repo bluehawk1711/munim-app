@@ -22,6 +22,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "./button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
+import { NumberInput } from "./number-input";
 import { PaymentMethodPicker } from "./payment-method-picker";
 import { formatMoney } from "../lib/format";
 
@@ -103,13 +104,12 @@ export function RecordPaymentDialog({
               <label htmlFor="record-payment-amount" className="text-xs font-medium">
                 Amount (₹)
               </label>
-              <Input
+              <NumberInput
                 id="record-payment-amount"
-                type="number"
                 min={0}
-                value={amount || ""}
-                onChange={(e) => {
-                  setAmount(Number(e.target.value));
+                value={amount || null}
+                onValueChange={(value) => {
+                  setAmount(value ?? 0);
                   setError(null);
                 }}
                 className="h-9"

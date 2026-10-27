@@ -18,6 +18,7 @@ import { HandCoins, Loader2 } from "lucide-react";
 import { Button } from "./button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./dialog";
 import { Input } from "./input";
+import { NumberInput } from "./number-input";
 import { Label } from "./label";
 import { formatMoney } from "../lib/format";
 
@@ -74,12 +75,11 @@ export function KhataActionDialog({
             ) : null}
             <div className="space-y-1.5">
               <Label className="text-xs">Amount (₹)</Label>
-              <Input
-                type="number"
+              <NumberInput
                 min={0}
-                value={amount || ""}
-                onChange={(e) => {
-                  setAmount(Number(e.target.value));
+                value={amount || null}
+                onValueChange={(value) => {
+                  setAmount(value ?? 0);
                   setError(null);
                 }}
                 className="h-9"

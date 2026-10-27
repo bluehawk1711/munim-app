@@ -387,14 +387,14 @@ function OrderLinesEditor({
               label="Qty"
               value={line.quantity}
               onChangeText={text => onChange(index, {quantity: text})}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               style={{flex: 1, marginRight: 8}}
             />
             <Field
               label="Quoted ₹"
               value={line.price}
               onChangeText={text => onChange(index, {price: text})}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
               style={{flex: 2}}
             />
           </View>
@@ -680,7 +680,7 @@ export function OrdersScreen() {
         status: inv.status,
         currency: settings.currency ?? 'INR',
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
-        // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+        // Purity of the quoted rate — the "24K" suffix on the gold rate row.
         goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings.silverRatePerGram ?? null,
       });
@@ -995,14 +995,14 @@ export function OrdersScreen() {
             label="Discount (₹)"
             value={form.discount}
             onChangeText={text => setField('discount', text)}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             style={{flex: 1, marginRight: 8}}
           />
           <Field
             label="Delivery (₹)"
             value={form.delivery}
             onChangeText={text => setField('delivery', text)}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             style={{flex: 1}}
           />
         </View>
@@ -1010,7 +1010,7 @@ export function OrdersScreen() {
           label="Received now (₹)"
           value={form.paid}
           onChangeText={text => setField('paid', text)}
-          keyboardType="numeric"
+          keyboardType="decimal-pad"
           style={styles.paidField}
         />
         <Text style={styles.fieldHint}>
@@ -1217,7 +1217,7 @@ export function OrdersScreen() {
               label="Amount (₹)"
               value={payAmount}
               onChangeText={setPayAmount}
-              keyboardType="numeric"
+              keyboardType="decimal-pad"
             />
             <View style={styles.payMethodWrap}>
               <Text style={styles.payLabel}>Paid via</Text>

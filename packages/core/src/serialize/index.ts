@@ -38,6 +38,7 @@ export type ProductWithNames = Product & {
   colorName: string | null;
   sizeName: string | null;
   categoryName?: string | null;
+  subCategoryName?: string | null;
   articleName?: string | null;
 } & ProductComputedPricing;
 
@@ -50,6 +51,8 @@ export type ProductDto = {
   color: string;
   size: string;
   category?: string;
+  /** SECOND category (sub-classification) — joined from `products.subCategoryId`. */
+  subCategory?: string;
   /** Article (design) name — joined from `products.articleId`. */
   article?: string;
   barcode: string | null;
@@ -111,6 +114,7 @@ export function serializeProduct(p: ProductWithNames): ProductDto {
     color: p.colorName ?? "",
     size: p.sizeName ?? "",
     category: p.categoryName ?? "",
+    subCategory: p.subCategoryName ?? "",
     article: p.articleName ?? "",
     barcode: p.barcode,
     weight: p.weight,

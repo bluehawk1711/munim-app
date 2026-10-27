@@ -233,6 +233,7 @@ export function SellProductDialog() {
                             goldKarat: selectedProduct.goldKarat,
                             purity: selectedProduct.purity,
                             categoryName: selectedProduct.category,
+                            subCategoryName: selectedProduct.subCategory,
                           }).text}
                         </span>
                       </p>
@@ -322,6 +323,7 @@ export function SellProductDialog() {
                                         goldKarat: p.goldKarat,
                                         purity: p.purity,
                                         categoryName: p.category,
+                                        subCategoryName: p.subCategory,
                                       }).text}
                                     </span>
                                   </p>
@@ -370,7 +372,7 @@ export function SellProductDialog() {
                     id="quantity"
                     type="number"
                     min={0.01}
-                    step={0.01}
+                    step="any"
                     max={maxQty}
                     className="text-center"
                     {...form.register("quantity")}

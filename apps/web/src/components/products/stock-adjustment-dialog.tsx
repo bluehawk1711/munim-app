@@ -94,7 +94,7 @@ export function StockAdjustmentDialog({ open, onOpenChange, product }: Props) {
               <Input
                 id="adjustment"
                 type="number"
-                step="0.01"
+                step="any"
                 className="text-center"
                 {...form.register("adjustment")}
               />

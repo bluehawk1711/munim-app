@@ -385,7 +385,7 @@ export function SalesScreen() {
         amountPaid: invoice.amountPaid,
         status: invoice.status,
         goldRate: invoice.goldRate ?? goldBaseRate,
-        // Purity of the quoted rate — the "24 carat" line under the gold rate row.
+        // Purity of the quoted rate — the "24K" suffix on the gold rate row.
         goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: invoice.silverRate ?? settings?.silverRatePerGram ?? null,
       });
@@ -586,7 +586,7 @@ export function SalesScreen() {
             label="Gold karat rate (₹/g) — editing re-prices gold lines"
             value={goldRateInput}
             onChangeText={handleGoldRateChange}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
           />
           <Field
@@ -597,7 +597,7 @@ export function SalesScreen() {
             }
             value={silverRateInput}
             onChangeText={handleSilverRateChange}
-            keyboardType="numeric"
+            keyboardType="decimal-pad"
             placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
           />
           <View style={styles.toggleRow}>
@@ -610,11 +610,11 @@ export function SalesScreen() {
             />
           </View>
           {includeDelivery && (
-            <Field label="Delivery charge" value={deliveryCharge} onChangeText={setDeliveryCharge} keyboardType="numeric" placeholder="0" />
+            <Field label="Delivery charge" value={deliveryCharge} onChangeText={setDeliveryCharge} keyboardType="decimal-pad" placeholder="0" />
           )}
           <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
           <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
-          <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="numeric" placeholder="0" />
+          <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="decimal-pad" placeholder="0" />
         </Card>
 
         {/* Bill items */}

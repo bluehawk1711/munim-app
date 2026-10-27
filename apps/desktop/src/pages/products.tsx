@@ -124,7 +124,6 @@ import {
   BarcodeSvg,
   BulkEditDialog,
   Checkbox,
-  CategoryChips,
   GoldRateEditor,
   LabourInput,
   LabelPrintDialog,
@@ -156,6 +155,8 @@ type FormState = {
   color: string;
   size: string;
   category: string;
+  /** Second category slot (silver sub-category) — stored apart from `category`. */
+  subCategory: string;
   article: string;
   barcode: string;
   weight: string;
@@ -190,6 +191,7 @@ const EMPTY_FORM: FormState = {
   color: "",
   size: "",
   category: "",
+  subCategory: "",
   article: "",
   barcode: "",
   weight: "",
@@ -425,6 +427,11 @@ export function ProductsPage() {
     defaultLabour,
   ]);
 
+  const margin =
+    Number(form.sellingPrice) - Number(form.purchasePrice) > 0
+      ? (((Number(form.sellingPrice) - Number(form.purchasePrice)) / (Number(form.sellingPrice) || 1)) * 100).toFixed(0)
+      : null;
+
   async function handleSaveInlineRates(rates: GoldRateSaveInput[]) {
     // Any labour/silver edit still inside its debounce window rides along.
     updateSettings.flush();
@@ -639,6 +646,7 @@ export function ProductsPage() {
       color: p.color ?? "",
       size: p.size ?? "",
       category: p.category ?? "",
+      subCategory: p.subCategory ?? "",
       article: p.article ?? "",
       barcode: p.barcode ?? "",
       weight: p.weight != null ? String(p.weight) : "",
@@ -823,6 +831,8 @@ export function ProductsPage() {
         color: form.color.trim() || undefined,
         size: form.size.trim() || "Standard",
         category: form.category.trim() || undefined,
+        // Always sent: "" clears the sub-category ("No sub-category").
+        subCategory: form.subCategory.trim(),
         // Always sent: "" clears the article ("No article"), a name resolves.
         article: form.article.trim(),
         barcode: form.barcode.trim() || undefined,
@@ -1006,6 +1016,7 @@ export function ProductsPage() {
         colorName: p.color || null,
         sizeName: p.size || null,
         categoryName: p.category || null,
+        subCategoryName: p.subCategory || null,
       },
       { name: "" },
     ),
@@ -1431,6 +1442,7 @@ export function ProductsPage() {
                           goldKarat: p.goldKarat,
                           purity: p.purity,
                           categoryName: p.category,
+                          subCategoryName: p.subCategory,
                         }).text}
                       </span>
                     </TableCell>
@@ -1626,16 +1638,27 @@ export function ProductsPage() {
                   <Input placeholder="Type new category…" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9" />
                 )}
                 {form.type === "Silver" && (
-                  <CategoryChips
-                    label="Silver sub-category"
-                    hint="Shown as “Silver · <name>” on pickers, labels and the products table."
-                    categories={categories}
-                    value={form.category}
-                    onSelect={(c) => {
-                      setCustomCategory(false);
-                      setForm((f) => ({ ...f, category: c }));
-                    }}
-                  />
+                  <div className="space-y-1.5 pt-1">
+                    <Label>Silver sub-category</Label>
+                    <Select
+                      value={form.subCategory || "__none"}
+                      onValueChange={(v) =>
+                        setForm((f) => ({ ...f, subCategory: v === "__none" ? "" : v }))
+                      }
+                    >
+                      <SelectTrigger className="h-9"><SelectValue placeholder="Select sub-category" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none">No sub-category</SelectItem>
+                        {categories.map((c) => (
+                          <SelectItem key={c} value={c}>{c}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[11px] text-muted-foreground">
+                      Second category — stored apart from the category above, so picking one never
+                      overwrites the other.
+                    </p>
+                  </div>
                 )}
               </div>
               <div className="space-y-1.5">
@@ -1694,30 +1717,29 @@ export function ProductsPage() {
               </p>
             </div>
 
-            {/* Row 6: Weight + Purity (hidden for Gold — parity with EditProductModal) */}
+            {/* Row 6: Weight (hidden for Gold — parity with web) */}
             {form.type !== "Gold" && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-weight">Weight</Label>
-                  <div className="flex gap-2">
-                    <Input id="p-weight" type="number" min={0} step="0.1" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} placeholder="e.g. 24.5" className="flex-1" />
-                    <Select value={form.weightUnit} onValueChange={(v) => setForm({ ...form, weightUnit: v as "mg" | "gm" })}>
-                      <SelectTrigger className="w-[72px]"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="gm">gm</SelectItem>
-                        <SelectItem value="mg">mg</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="p-purity">Purity</Label>
-                  <Input id="p-purity" value={form.purity} onChange={(e) => setForm({ ...form, purity: e.target.value })} placeholder="e.g. 24K / 925" maxLength={20} />
+              <div className="space-y-1.5">
+                <Label htmlFor="p-weight">Weight</Label>
+                <div className="flex gap-2">
+                  <Input id="p-weight" type="number" min={0} step="any" value={form.weight} onChange={(e) => setForm({ ...form, weight: e.target.value })} placeholder="e.g. 24.5" className="flex-1" />
+                  <Select value={form.weightUnit} onValueChange={(v) => setForm({ ...form, weightUnit: v as "mg" | "gm" })}>
+                    <SelectTrigger className="w-[72px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="gm">gm</SelectItem>
+                      <SelectItem value="mg">mg</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             )}
 
-            {form.type !== "Silver" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="p-purity">Purity</Label>
+              <Input id="p-purity" value={form.purity} onChange={(e) => setForm({ ...form, purity: e.target.value })} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
+            </div>
+
+            {(form.type === "Gold" || form.type === "Silver") && (
               <div className="rounded-xl border bg-muted/30 p-3 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold">
@@ -1916,7 +1938,9 @@ export function ProductsPage() {
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    Pick a karat to enable auto pricing by net weight.
+                    {form.type === "Gold"
+                      ? "Pick a karat to enable auto pricing by net weight."
+                      : "Enter weight to enable auto pricing."}
                   </p>
                 )}
 
@@ -2083,6 +2107,15 @@ export function ProductsPage() {
               </div>
             </div>
 
+            {/* Row 11: Profit margin — parity with the web form */}
+            {margin ? (
+              <p className="text-xs text-muted-foreground">
+                Profit margin:{" "}
+                <span className="font-medium text-emerald-600 dark:text-emerald-400">{margin}%</span>{" "}
+                (₹{(Number(form.sellingPrice) - Number(form.purchasePrice)).toFixed(2)} per unit)
+              </p>
+            ) : null}
+
             {/* Row 11: Notes */}
             <div className="space-y-1.5">
               <Label htmlFor="p-notes">Notes</Label>
@@ -2129,6 +2162,7 @@ export function ProductsPage() {
                 color: detailsProduct.color,
                 size: detailsProduct.size,
                 category: detailsProduct.category,
+                subCategory: detailsProduct.subCategory,
                 weight: detailsProduct.weight,
                 weightUnit: detailsProduct.weightUnit ?? "gm",
                 purity: detailsProduct.purity,

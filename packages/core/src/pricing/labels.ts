@@ -6,9 +6,9 @@
  * Classification rules (no new schema — reuses what the row already carries):
  *   Gold   → sub = `goldKarat` (e.g. "22K"), falling back to parsing the
  *            free-text `purity` stamp ("22K" / "916").
- *   Silver → sub = the category name (the shop's silver subcategories —
- *            "92.5 Stock", "92.5 Rodium", "Silver Items", or any category it
- *            creates later), falling back to the purity stamp ("925").
+ *   Silver → sub = the dedicated sub-category (the shop's silver
+ *            subcategories — "92.5 Stock", "92.5 Rodium", …), falling back to
+ *            the main category name, then the purity stamp ("925").
  *   Other types (Diamond/Platinum/Other) → metal only.
  */
 import { karatFromPurity, toGoldKarat } from "./gold.js";
@@ -28,8 +28,10 @@ export type ClassifiableProduct = {
   goldKarat?: number | null;
   /** Free-text purity stamp — "22K", "916", "925"… */
   purity?: string | null;
-  /** Joined category name (silver subcategories live here). */
+  /** Joined category name. */
   categoryName?: string | null;
+  /** Joined second-category name (`products.subCategoryId`, silver sub-category). */
+  subCategoryName?: string | null;
 };
 
 export function classifyProduct(product: ClassifiableProduct): ProductClassification {
@@ -42,8 +44,11 @@ export function classifyProduct(product: ClassifiableProduct): ProductClassifica
   }
 
   if (metal === "Silver") {
-    const category = product.categoryName?.trim() || null;
-    const sub = (category ?? product.purity?.trim()) || null;
+    const sub =
+      product.subCategoryName?.trim() ||
+      product.categoryName?.trim() ||
+      product.purity?.trim() ||
+      null;
     return { metal, sub, text: sub ? `${metal} · ${sub}` : metal };
   }
 

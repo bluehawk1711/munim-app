@@ -491,7 +491,7 @@ export function SettingsScreen() {
         <Field label="Phones (comma separated)" value={shopPhones} onChangeText={setShopPhones} />
         <Field label="Email" value={shopEmail} onChangeText={setShopEmail} />
         <Field label="Currency code" value={currency} onChangeText={setCurrency} placeholder="INR" />
-        <Field label="Low-stock alert at" value={lowStockThreshold} onChangeText={setLowStockThreshold} keyboardType="numeric" placeholder="5" />
+        <Field label="Low-stock alert at" value={lowStockThreshold} onChangeText={setLowStockThreshold} keyboardType="decimal-pad" placeholder="5" />
         <View style={styles.toggleRow}>
           <View style={{flex: 1, paddingRight: 12}}>
             <Text style={styles.switchLabel}>Allow ₹0 invoices</Text>
@@ -517,7 +517,7 @@ export function SettingsScreen() {
           label={`Gold base rate — ${goldBaseKarat}K (₹ per gram)`}
           value={goldBaseRate ? String(goldBaseRate) : ''}
           onChangeText={text => setKaratRate(goldBaseKarat, text)}
-          keyboardType="numeric"
+          keyboardType="decimal-pad"
           placeholder="e.g. 7200"
         />
         <Field
@@ -541,7 +541,7 @@ export function SettingsScreen() {
               setSilverRate(String(rateDisplayUnit === '10gm' ? parsed / 10 : parsed));
             }
           }}
-          keyboardType="numeric"
+          keyboardType="decimal-pad"
           placeholder={rateDisplayUnit === '10gm' ? 'e.g. 950' : 'e.g. 95'}
         />
         <View style={styles.unitRow}>
@@ -974,7 +974,7 @@ export function SettingsScreen() {
                 label={`${row.karat}K · ${row.purityPercent}%${row.isCustom ? ' · quoted' : ''}`}
                 value={karatDraftText[row.karat] ?? (row.ratePerGram ? String(row.ratePerGram) : '')}
                 onChangeText={text => setKaratRate(row.karat, text)}
-                keyboardType="numeric"
+                keyboardType="decimal-pad"
                 placeholder="—"
               />
             </View>

@@ -126,8 +126,8 @@ export function QuickSaleSheet({
       {summary}
 
       <View style={styles.row}>
-        <Field label="Quantity" value={qty} onChangeText={setQty} keyboardType="numeric" style={styles.rowField} />
-        <Field label="Selling price" value={price} onChangeText={setPrice} keyboardType="numeric" style={styles.rowField} />
+        <Field label="Quantity" value={qty} onChangeText={setQty} keyboardType="decimal-pad" style={styles.rowField} />
+        <Field label="Selling price" value={price} onChangeText={setPrice} keyboardType="decimal-pad" style={styles.rowField} />
       </View>
 
       {overStock ? (

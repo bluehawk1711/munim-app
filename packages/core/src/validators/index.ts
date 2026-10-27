@@ -41,6 +41,9 @@ export const productSchema = z.object({
   color: z.string().max(40).optional().or(z.literal("")),
   size: z.string().min(1, "Size is required").max(40),
   category: z.string().max(40).optional().or(z.literal("")),
+  /** SECOND category (sub-classification) — resolved like `category`.
+   *  "" clears it; absent keeps the stored value on edit. */
+  subCategory: z.string().max(40).optional().or(z.literal("")),
   /** Article (design) name — resolved find-or-create like `category`. */
   article: z.string().max(40).optional().or(z.literal("")),
   barcode: z.string().max(80).optional().or(z.literal("")),

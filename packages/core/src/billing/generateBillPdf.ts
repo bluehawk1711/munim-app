@@ -315,7 +315,7 @@ function drawEcommerceBill(
   rateRowsOf(bill, settings).forEach((row, i) => {
     doc.setFontSize(7);
     doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-    // Starts at +15 so a gold bill's rate + purity ("24 carat") + a silver
+    // Starts at +15 so a gold bill's rate (with its "24K" suffix) + a silver
     // rate row (mixed-metal bills) all fit inside the 26mm header box.
     money(doc, row, x0 + tableW - 3, boxTop + 15 + i * 4.5, "right", true);
   });

@@ -154,7 +154,7 @@ export function InvoicesView() {
         status: inv.status,
         currency: settings?.currency ?? "INR",
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
-        // Purity of the quoted rate — the "24 carat" line (current base karat;
+        // Purity of the quoted rate — the "24K" suffix (current base karat;
         // no column exists to freeze it per-bill, same fallback the rate uses).
         goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings?.silverRatePerGram ?? null,

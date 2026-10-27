@@ -183,6 +183,7 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
             goldKarat: row.original.goldKarat,
             purity: row.original.purity,
             categoryName: row.original.category,
+            subCategoryName: row.original.subCategory,
           }).text
           return (
             <span
