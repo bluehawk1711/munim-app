@@ -10,6 +10,8 @@ export * from "./components/animated-theme-toggle.js";
 export * from "./components/barcode-lookup-input.js";
 export * from "./components/product-search-select.js";
 export * from "./components/barcode-svg.js";
+export * from "./components/bulk-edit-dialog.js";
+export * from "./components/help-center.js";
 export * from "./components/badge.js";
 export * from "./components/badge-variants.js";
 export * from "./components/bill-template-options.js";
@@ -58,5 +60,6 @@ export * from "./components/theme-swatches.js";
 export * from "./components/pin-gate.js";
 export * from "./components/pin-settings-card.js";
 export * from "./components/quick-advance-record.js";
+export * from "./components/payment-method-picker.js";
 export * from "./components/record-payment-dialog.js";
 //# sourceMappingURL=index.d.ts.map

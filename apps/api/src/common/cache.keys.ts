@@ -34,8 +34,10 @@ export const cacheKeys = {
   productsByCategory: "products:by-category",
   productLookup: (barcode: string) => `products:lookup:${hashFilters({ barcode })}`,
   productMovements: (id: string) => `products:movements:${id}`,
-  dashboard: "dashboard:get",
+  dashboard: (f: Record<string, unknown> = {}) => `dashboard:get:${hashFilters(f)}`,
   catalogList: (kind: string) => `catalog:${kind}:list`,
+  articlesList: "articles:list",
+  articlesAnalytics: "articles:analytics",
   settings: "settings:get",
   goldRates: "gold-rates:list",
   report: (q: Record<string, unknown>) => `reports:${hashFilters(q)}`,
@@ -44,6 +46,7 @@ export const cacheKeys = {
   invoicePayments: (id: string) => `invoices:payments:${id}`,
   ordersList: (f: Record<string, unknown>) => `orders:list:${hashFilters(f)}`,
   order: (id: string) => `orders:get:${id}`,
+  orderPayments: (id: string) => `orders:payments:${id}`,
   salesList: (f: Record<string, unknown>) => `sales:list:${hashFilters(f)}`,
   partiesList: (f: Record<string, unknown>) => `parties:list:${hashFilters(f)}`,
   partiesBalances: "parties:balances",
@@ -76,6 +79,8 @@ export const CACHE_GROUPS = {
   jobLetters: ["job-letters", "dashboard"] as const,
   /** Catalog names are embedded in product rows. */
   catalog: ["catalog", "products"] as const,
+  /** Article names + analytics derive from product/invoice rows. */
+  articles: ["articles", "products", "dashboard", "reports"] as const,
   /**
    * Settings — shop name/address render on dashboard + invoices, and the
    * silver rate / default labour here feed BOTH `listGoldRates` (which embeds

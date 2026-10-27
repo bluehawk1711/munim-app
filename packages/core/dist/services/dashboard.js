@@ -12,10 +12,56 @@ function startOfMonth(d) {
     x.setHours(0, 0, 0, 0);
     return x;
 }
-export async function getDashboard(db) {
+/** Free-text material-returned weight ("5gm", "500mg", "5.2") → GRAMS.
+ *  `parseNetWeight` strips the unit, so the unit is read from the TEXT itself
+ *  ("…mg" → milligrams, anything else → grams). Unparseable → 0. */
+export function materialWeightGm(text) {
+    if (!text)
+        return 0;
+    const cleaned = text.replace(/[^0-9.]/g, "");
+    if (cleaned === "")
+        return 0;
+    const value = Number(cleaned);
+    if (!Number.isFinite(value))
+        return 0;
+    const grams = /mg/i.test(text) ? value / 1000 : value;
+    return Math.round(grams * 10000) / 10000;
+}
+/**
+ * Chip preset → inclusive `yyyy-mm-dd` bounds in the LOCAL day (week starts
+ * Monday, month starts on the 1st). One definition so web, desktop and mobile
+ * show identical numbers for the same chip.
+ */
+export function dashboardPresetRange(preset, now = new Date()) {
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    if (preset === "today") {
+        return { from: ymd(start), to: ymd(start) };
+    }
+    if (preset === "week") {
+        // Monday-start calendar week (getDay: 0=Sun … 6=Sat).
+        const back = (start.getDay() + 6) % 7;
+        start.setDate(start.getDate() - back);
+        return { from: ymd(start), to: ymd(now) };
+    }
+    // month
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { from: ymd(first), to: ymd(now) };
+}
+export async function getDashboard(db, period) {
     const now = new Date();
     const todayStart = startOfDay(now);
     const monthStart = startOfMonth(now);
+    // Period bounds for the KPI tiles — normalize date-only input to the full day.
+    const periodFrom = period?.from ? startOfDay(new Date(period.from)) : null;
+    const periodTo = period?.to ? (() => { const d = new Date(period.to); d.setHours(23, 59, 59, 999); return d; })() : null;
+    const periodConds = [];
+    if (periodFrom)
+        periodConds.push(gte(schema.invoices.createdAt, periodFrom));
+    if (periodTo)
+        periodConds.push(lte(schema.invoices.createdAt, periodTo));
+    const periodWhere = periodConds.length ? and(...periodConds) : undefined;
     const monthRanges = Array.from({ length: 6 }, (_, i) => {
         const start = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
         const end = new Date(now.getFullYear(), now.getMonth() - 4 + i, 1);
@@ -104,6 +150,46 @@ export async function getDashboard(db) {
             .where(and(gte(schema.invoices.date, r.start), lte(schema.invoices.date, r.end))))),
         db.select({ id: schema.products.id, sku: schema.products.sku }).from(schema.products),
     ]);
+    // ── Period KPIs (dashboard chips: Today / This week / This month / Custom)
+    // Weight sold prefers the LINE's frozen pricing.weightGm (per unit × qty),
+    // falling back to the line's weight snapshot — never the CURRENT product
+    // weight, which may have changed since the sale.
+    const [periodSales, periodWeight, materialRows] = await Promise.all([
+        db
+            .select({
+            revenue: sql `coalesce(sum(${schema.invoices.total}),0)::float8`,
+            count: sql `count(*)::int`,
+        })
+            .from(schema.invoices)
+            .where(periodWhere),
+        db
+            .select({
+            weightGm: sql `coalesce(sum(coalesce(
+          (${schema.invoiceItems.pricing} ->> 'weightGm')::float8,
+          case when ${schema.invoiceItems.weightUnit} = 'mg' then ${schema.invoiceItems.weight} / 1000.0
+               else ${schema.invoiceItems.weight} end
+        ) * ${schema.invoiceItems.quantity}), 0)::float8`,
+        })
+            .from(schema.invoiceItems)
+            .innerJoin(schema.invoices, eq(schema.invoices.id, schema.invoiceItems.invoiceId))
+            .where(periodWhere),
+        db
+            .select({
+            weight: schema.invoices.materialReturnedWeight,
+            value: schema.invoices.materialReturnedValue,
+        })
+            .from(schema.invoices)
+            .where(and(...periodConds, sql `(${schema.invoices.materialReturnedValue} > 0 or ${schema.invoices.materialReturnedWeight} is not null)`)),
+    ]);
+    const periodKpis = {
+        from: periodFrom ? periodFrom.toISOString() : null,
+        to: periodTo ? periodTo.toISOString() : null,
+        revenue: periodSales[0]?.revenue ?? 0,
+        invoicesCount: periodSales[0]?.count ?? 0,
+        weightSoldGm: periodWeight[0]?.weightGm ?? 0,
+        materialReceivedGm: Math.round(materialRows.reduce((s, r) => s + materialWeightGm(r.weight), 0) * 100) / 100,
+        materialReceivedValue: Math.round(materialRows.reduce((s, r) => s + (r.value || 0), 0) * 100) / 100,
+    };
     const totalInvoices = salesStats[0]?.count ?? 0;
     const totalRevenue = salesStats[0]?.total ?? 0;
     const productsSoldToday = todayStats[0]?.qty ?? 0;
@@ -200,6 +286,7 @@ export async function getDashboard(db) {
             month: r.label,
             quantity: soldPerMonthAggs[i]?.[0]?.quantity ?? 0,
         })),
+        period: periodKpis,
         recentActivity,
         recentAdvances: recentAdvancesWithNames,
     };
@@ -252,6 +339,11 @@ export async function getReport(db, type, startDate, endDate) {
         productId: schema.invoiceItems.productId,
         productName: schema.invoiceItems.productName,
         soldQuantity: sql `coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`.as("sold_quantity"),
+        weightGm: sql `coalesce(sum(coalesce(
+        (${schema.invoiceItems.pricing} ->> 'weightGm')::float8,
+        case when ${schema.invoiceItems.weightUnit} = 'mg' then ${schema.invoiceItems.weight} / 1000.0
+             else ${schema.invoiceItems.weight} end
+      ) * ${schema.invoiceItems.quantity}), 0)::float8`.as("weight_gm"),
         revenue: sql `coalesce(sum(${schema.invoiceItems.total}),0)::float8`.as("revenue"),
     })
         .from(schema.invoiceItems)
@@ -290,6 +382,11 @@ export async function getReport(db, type, startDate, endDate) {
             productName: schema.invoiceItems.productName,
             invoices: sql `count(distinct ${schema.invoices.id})::float8`.as("invoices"),
             soldQuantity: sql `coalesce(sum(${schema.invoiceItems.quantity}),0)::float8`.as("sold_quantity"),
+            weightGm: sql `coalesce(sum(coalesce(
+          (${schema.invoiceItems.pricing} ->> 'weightGm')::float8,
+          case when ${schema.invoiceItems.weightUnit} = 'mg' then ${schema.invoiceItems.weight} / 1000.0
+               else ${schema.invoiceItems.weight} end
+        ) * ${schema.invoiceItems.quantity}), 0)::float8`.as("weight_gm"),
             revenue: sql `coalesce(sum(${schema.invoiceItems.total}),0)::float8`.as("revenue"),
         })
             .from(schema.invoiceItems)
@@ -320,6 +417,7 @@ export async function getReport(db, type, startDate, endDate) {
                 weight: p?.weight ?? null,
                 weightUnit: p?.weightUnit ?? "gm",
                 soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
+                soldWeightGm: (existing?.soldWeightGm ?? 0) + (r.weightGm ?? 0),
                 soldQuantity,
                 revenue,
                 profit: revenue - soldQuantity * (p?.purchasePrice ?? 0),
@@ -358,6 +456,7 @@ export async function getReport(db, type, startDate, endDate) {
                 weight: p.weight,
                 weightUnit: p.weightUnit ?? "gm",
                 soldWeight: p.weight != null ? soldQuantity * p.weight : 0,
+                soldWeightGm: sold?.weightGm ?? 0,
                 soldQuantity,
                 revenue: sold?.revenue ?? 0,
                 profit: (sold?.revenue ?? 0) - soldQuantity * p.purchasePrice,
@@ -394,6 +493,7 @@ export async function getReport(db, type, startDate, endDate) {
                 weight: p?.weight ?? null,
                 weightUnit: p?.weightUnit ?? "gm",
                 soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
+                soldWeightGm: (existing?.soldWeightGm ?? 0) + (r.weightGm ?? 0),
                 soldQuantity,
                 revenue,
                 profit: revenue - soldQuantity * (p?.purchasePrice ?? 0),
@@ -402,15 +502,30 @@ export async function getReport(db, type, startDate, endDate) {
         reportRows = [...merged.values()];
     }
     reportRows.sort((a, b) => b.revenue - a.revenue);
+    // Material received in the same period (bill's "Material Returned" free
+    // text + assessed value) — the other half of the weight story.
+    const materialRows = await db
+        .select({
+        weight: schema.invoices.materialReturnedWeight,
+        value: schema.invoices.materialReturnedValue,
+    })
+        .from(schema.invoices)
+        .where(and(gte(schema.invoices.date, periodStart), lte(schema.invoices.date, periodEnd), sql `(${schema.invoices.materialReturnedValue} > 0 or ${schema.invoices.materialReturnedWeight} is not null)`));
     const totals = reportRows.reduce((acc, r) => {
         acc.stock += r.stock;
         acc.soldQuantity += r.soldQuantity;
         // Normalize to grams so mixed-unit totals are meaningful.
         acc.soldWeight += r.weightUnit === "mg" ? r.soldWeight / 1000 : r.soldWeight;
+        acc.weightSoldGm += r.soldWeightGm;
         acc.revenue += r.revenue;
         acc.profit += r.profit;
         return acc;
-    }, { stock: 0, soldQuantity: 0, soldWeight: 0, revenue: 0, profit: 0 });
+    }, { stock: 0, soldQuantity: 0, soldWeight: 0, weightSoldGm: 0, revenue: 0, profit: 0, materialReceivedGm: 0, materialReceivedValue: 0 });
+    totals.weightSoldGm = Math.round(totals.weightSoldGm * 100) / 100;
+    totals.materialReceivedGm =
+        Math.round(materialRows.reduce((s, r) => s + materialWeightGm(r.weight), 0) * 100) / 100;
+    totals.materialReceivedValue =
+        Math.round(materialRows.reduce((s, r) => s + (r.value || 0), 0) * 100) / 100;
     return {
         type,
         title,
@@ -431,17 +546,34 @@ export async function getReport(db, type, startDate, endDate) {
 export function reportToCsv(report) {
     const dayWise = (report.days?.length ?? 0) > 0;
     const header = dayWise
-        ? ["Date", "Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit"]
-        : ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit"];
+        ? ["Date", "Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit", "Material Wt (gm)", "Material Recvd (₹)"]
+        : ["Product", "SKU", "Color", "Size", "Stock", "Sold Qty", "Sold Wt (gm)", "Revenue", "Profit", "Material Wt (gm)", "Material Recvd (₹)"];
     const quote = (v) => `"${String(v).replace(/"/g, '""')}"`;
-    const rowCells = (r, date = "") => [...(dayWise ? [date] : []), r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, Math.round(r.soldWeight * 1000) / 1000, r.revenue, r.profit]
+    const rowCells = (r, date = "") => [...(dayWise ? [date] : []), r.productName, r.sku ?? "", r.color ?? "", r.size ?? "", r.stock, r.soldQuantity, Math.round(r.soldWeightGm * 1000) / 1000, r.revenue, r.profit, "", ""]
         .map(quote)
         .join(",");
+    const t = report.totals;
+    // Totals row — the aggregates the reports screen shows, incl. material in.
+    // "Total" lands in Date (daywise) or Product (flat); the remaining name
+    // columns are padded so the cell count always matches the header.
+    const padCount = dayWise ? 4 : 3; // Product/SKU/Color/Size (Product holds "Total" when flat)
+    const totalsCells = [
+        "Total",
+        ...Array.from({ length: padCount }, () => ""),
+        t.stock,
+        t.soldQuantity,
+        Math.round((t.weightSoldGm ?? t.soldWeight) * 1000) / 1000,
+        t.revenue,
+        t.profit,
+        t.materialReceivedGm ?? 0,
+        t.materialReceivedValue ?? 0,
+    ];
     const lines = [
         header.join(","),
         ...(dayWise
             ? (report.days ?? []).flatMap((d) => d.rows.map((r) => rowCells(r, d.day)))
             : report.rows.map((r) => rowCells(r))),
+        totalsCells.map(quote).join(","),
     ];
     return lines.join("\r\n");
 }

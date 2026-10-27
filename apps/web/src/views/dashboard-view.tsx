@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   Package,
   Boxes,
@@ -12,7 +13,10 @@ import {
   ArrowRight,
   Sparkles,
   HandCoins,
+  Scale,
+  Recycle,
 } from "lucide-react"
+import { dashboardPresetRange, type DashboardPeriod, type DashboardPreset } from "@munim/core"
 import { useDashboard } from "@/hooks/use-dashboard"
 import { useAppStore } from "@/store/view-store"
 import { StatCard } from "@/components/app/stat-card"
@@ -31,11 +35,28 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badg
 
 
 
-import { formatCurrency, formatNumber, formatDateTime, formatTimeAgo } from "@/lib/format"
+import { formatCurrency, formatNumber, formatDateTime, formatTimeAgo, formatWeight } from "@/lib/format"
 import { toast } from "@munim/ui"
 
+const PERIOD_CHIPS = [
+  { key: "today" as const, label: "Today" },
+  { key: "week" as const, label: "This week" },
+  { key: "month" as const, label: "This month" },
+  { key: "custom" as const, label: "Custom" },
+]
+
 export function DashboardView() {
-  const { data, isLoading, isError, refetch } = useDashboard()
+  // Period chips scope the four KPI tiles below (Today / This week /
+  // This month / Custom date range). Default: this month.
+  const [preset, setPreset] = React.useState<DashboardPreset | "custom">("month")
+  const [customFrom, setCustomFrom] = React.useState("")
+  const [customTo, setCustomTo] = React.useState("")
+  const period: DashboardPeriod =
+    preset === "custom"
+      ? { from: customFrom || undefined, to: customTo || undefined }
+      : dashboardPresetRange(preset)
+  const activeChipLabel = PERIOD_CHIPS.find((c) => c.key === preset)?.label ?? "Period"
+  const { data, isLoading, isError, refetch } = useDashboard(period)
   const setView = useAppStore((s) => s.setActiveView)
   const setSellDialogOpen = useAppStore((s) => s.setSellDialogOpen)
 
@@ -78,6 +99,84 @@ export function DashboardView() {
 
   return (
     <div className="space-y-6">
+      {/* Period KPIs — chips scope these four tiles */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {PERIOD_CHIPS.map((chip) => (
+            <button
+              key={chip.key}
+              type="button"
+              onClick={() => setPreset(chip.key)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                preset === chip.key
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {chip.label}
+            </button>
+          ))}
+          {preset === "custom" ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                aria-label="Period from date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-8 rounded-lg border bg-background px-2 text-xs"
+              />
+              <span className="text-xs text-muted-foreground">→</span>
+              <input
+                type="date"
+                aria-label="Period to date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-8 rounded-lg border bg-background px-2 text-xs"
+              />
+            </div>
+          ) : null}
+          {preset === "custom" && customFrom && customTo && customFrom > customTo ? (
+            <span className="text-destructive text-xs">Start date must be on or before end date.</span>
+          ) : null}
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            title={`${activeChipLabel} revenue`}
+            value={formatCurrency(data?.period.revenue ?? 0)}
+            icon={IndianRupee}
+            accent="primary"
+            hint={`${formatNumber(data?.period.invoicesCount ?? 0)} bills`}
+            loading={isLoading}
+          />
+          <StatCard
+            title="Weight sold"
+            value={(data?.period.weightSoldGm ?? 0) > 0 ? formatWeight(data?.period.weightSoldGm ?? 0) : "—"}
+            icon={Scale}
+            accent="teal"
+            hint="Line weights from the bills"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Material received"
+            value={(data?.period.materialReceivedGm ?? 0) > 0 ? formatWeight(data?.period.materialReceivedGm ?? 0) : "—"}
+            icon={Recycle}
+            accent="amber"
+            hint={`₹${formatNumber(data?.period.materialReceivedValue ?? 0)} assessed`}
+            loading={isLoading}
+          />
+          <StatCard
+            title="Avg sale"
+            value={formatCurrency(
+              (data?.period.invoicesCount ?? 0) > 0 ? (data?.period.revenue ?? 0) / (data?.period.invoicesCount ?? 1) : 0,
+            )}
+            icon={TrendingUp}
+            accent="primary"
+            hint={`${activeChipLabel} · ${formatNumber(data?.period.invoicesCount ?? 0)} bills`}
+            loading={isLoading}
+          />
+        </div>
+      </div>
+
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

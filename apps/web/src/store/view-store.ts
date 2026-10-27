@@ -5,6 +5,7 @@ import { createAppStore } from "@munim/store"
 export type ViewKey =
   | "dashboard"
   | "products"
+  | "articles"
   | "sales"
   | "invoices"
   | "orders"
@@ -21,6 +22,7 @@ export type ViewKey =
 const VIEW_KEYS: ViewKey[] = [
   "dashboard",
   "products",
+  "articles",
   "sales",
   "invoices",
   "orders",

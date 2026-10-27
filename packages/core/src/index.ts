@@ -22,6 +22,7 @@ export * from "./security/index.js";
 
 /* Help — the shared PricingGuide wording rendered by web, desktop & mobile */
 export * from "./help/pricingGuide.js";
+export * from "./help/helpCenter.js";
 
 /* Pricing — dynamic metal pricing (gold karats + silver + labour), shared by
  * every app + the API: `priceProduct` is THE formula; gold.ts holds the rate
@@ -47,6 +48,13 @@ export {
   type BarcodeSvgOptions,
 } from "./utils/barcode.js";
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
+export {
+  PAYMENT_METHOD_PRESETS,
+  CUSTOM_PAYMENT_METHOD,
+  paymentMethodLabel,
+  isPresetPaymentMethod,
+  type PaymentMethodId,
+} from "./utils/paymentMethods.js";
 export { newId } from "./utils/id.js";
 export { swatchColor } from "./utils/swatch.js";
 export {
@@ -64,6 +72,7 @@ export * from "./serialize/index.js";
 
 /* Services */
 export * from "./services/catalog.js";
+export * from "./services/articles.js";
 export * from "./services/products.js";
 export * from "./services/invoices.js";
 export * from "./services/orders.js";

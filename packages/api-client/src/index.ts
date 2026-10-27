@@ -20,6 +20,7 @@ import { jobLetters } from "./endpoints/job-letters.js";
 import { reports } from "./endpoints/reports.js";
 import { settings } from "./endpoints/settings.js";
 import { catalog } from "./endpoints/catalog.js";
+import { articles } from "./endpoints/articles.js";
 import { goldRates } from "./endpoints/gold-rates.js";
 import { upload } from "./endpoints/upload.js";
 export type { UploadableFile, UploadResult } from "./endpoints/upload.js";
@@ -52,6 +53,7 @@ export type ApiClient = {
   reports: ReturnType<typeof reports>;
   settings: ReturnType<typeof settings>;
   catalog: ReturnType<typeof catalog>;
+  articles: ReturnType<typeof articles>;
   goldRates: ReturnType<typeof goldRates>;
   upload: ReturnType<typeof upload>;
   health: ReturnType<typeof health>;
@@ -78,6 +80,7 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     reports: reports(http),
     settings: settings(http),
     catalog: catalog(http),
+    articles: articles(http),
     goldRates: goldRates(http),
     upload: upload(http),
     health: health(http),

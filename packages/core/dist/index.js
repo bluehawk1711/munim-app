@@ -17,6 +17,7 @@ export * from "./billing/index.js";
 export * from "./security/index.js";
 /* Help — the shared PricingGuide wording rendered by web, desktop & mobile */
 export * from "./help/pricingGuide.js";
+export * from "./help/helpCenter.js";
 /* Pricing — dynamic metal pricing (gold karats + silver + labour), shared by
  * every app + the API: `priceProduct` is THE formula; gold.ts holds the rate
  * table utilities; labour.ts the Fixed/Per-Gram/Percent methods; labels.ts the
@@ -31,6 +32,7 @@ export { numberToWords, amountInWords } from "./utils/numberToWords.js";
 export { generateSku, generateInvoiceNumber, generateOrderNumber, stripCodePrefix, codeMatches } from "./utils/codes.js";
 export { normalizeBarcode, isEan13, ean13CheckDigit, generateEan13, barcodeSvg, ean13Svg, code39Svg, } from "./utils/barcode.js";
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
+export { PAYMENT_METHOD_PRESETS, CUSTOM_PAYMENT_METHOD, paymentMethodLabel, isPresetPaymentMethod, } from "./utils/paymentMethods.js";
 export { newId } from "./utils/id.js";
 export { swatchColor } from "./utils/swatch.js";
 export { uploadImageToCloudinary, uploadImageToCloudinarySigned, } from "./utils/cloudinary.js";
@@ -40,6 +42,7 @@ export * from "./validators/index.js";
 export * from "./serialize/index.js";
 /* Services */
 export * from "./services/catalog.js";
+export * from "./services/articles.js";
 export * from "./services/products.js";
 export * from "./services/invoices.js";
 export * from "./services/orders.js";

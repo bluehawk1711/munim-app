@@ -1,0 +1,155 @@
+# Wrote~/.opencode/plan/munim-production-grade-plan.md
+# Munim — Production-Grade Parity Plan
+
+Status: **PLAN — awaiting user approval + agent switch out of Plan mode.**
+Scope per user request (Oct 2026): payments everywhere, dashboard/reports weight+material
+metrics with period filters, Article entity + analytics page, desktop bulk-edit page,
+full Help/documentation, web responsiveness, full 3-app parity.
+
+---
+
+## Phase 0 — Finish the in-flight karat-line work (UNCOMMITTED in tree)
+
+The previous session implemented, but did NOT finish verifying (build interrupted):
+- Core: `GoldRateKaratMode` ("off"|"base"|"product"|"custom") + `goldRateKaratText` in
+  `BillTemplateSettings`; `firstGoldKarat()`, `goldRateKaratLine()`; `rateRowsOf` +
+  `renderBillText(bill, settings?)` wired; zod validator extended; barrel exports.
+- UI: `BillTemplateOptions` — required props + karat-mode Select + custom text Input.
+- Web/desktop/mobile billing: state + settings payload + edit-load restore + rate badge
+  (product karat resolved via `firstGoldKarat`) + template-options UI (mobile segments).
+- Mobile fixes: EditProductModal hides plain "Weight" for Gold (parity); ProductsScreen
+  shows `{net} (net)` for gold rows (parity).
+
+**Todo:** rebuild `@munim/core` + `@munim/ui` dists → typecheck all 5 packages →
+browser-verify billing karat line (form badge + printed PDF/HTML) → ask user → commit.
+
+---
+
+## Phase 1 — Payments: custom methods + paid/due shown properly (all 3 apps)
+
+Findings: backend payment `method` is already a free string (`z.string().max(40)`) and
+nothing filters by "cash"/"online" — the gap is UI. Web/desktop orders already have
+RecordPaymentDialog + paid/due lines; mobile order payments are amount-only (no
+method/note); bill forms hardcode Cash/Online.
+
+1. **Shared `PaymentMethodPicker`** in `@munim/ui`: presets Cash · UPI · Card · Cheque ·
+   Bank transfer + "Custom…" free text (max 40). Replace Cash/Online segments in:
+   web/desktop/mobile bill forms ("Amount paid now"), `RecordPaymentDialog`
+   (invoices + orders, all 3 apps), mobile order payment sheet.
+2. **Bill-form paid/due strip**: live "Paid ₹X · Due ₹Y" summary near the totals on
+   New Bill in all 3 apps (total − discount − material-returned value − paid).
+3. **Mobile parity**: order + invoice record-payment gains method + note.
+4. **Order payment history**: new `order_payments` ledger table (mirrors invoice
+   payments), `POST /api/orders/:id/payments` records + returns updated order,
+   `GET /api/orders/:id/payments` lists; Payments section in order detail on all 3.
+5. **Invoice detail payments-section parity** on desktop + mobile (web has it).
+
+## Phase 2 — Dashboard & Reports: weight sold + material received + period filters
+
+Findings: `DashboardStats` has no period filter and no weight/material KPIs; reports
+have free date inputs only; bills carry `materialReturnedWeight/Value/Title`.
+
+1. **Core `getDashboard(db, period?)`**: optional `{from,to}` + new KPIs:
+   `totalWeightSoldGm` (line-level frozen `pricing.weightGm` × preferred over product
+   weight), `materialReceived` (parsed gm sum of `materialReturnedWeight`),
+   `materialReceivedValue`. Report rows gain the same two aggregates + CSV columns.
+2. **UI (all 3)**: Dashboard period chips (Today / This week / This month / Custom) +
+   new KPI tiles; Reports quick-filter chips (Today / This week / This month / Custom
+   dates) feeding existing start/end params; totals row shows weight sold + material
+   received; CSV export includes them.
+
+## Phase 3 — Articles (behave like category) + dedicated page + analytics (all 3)
+
+Findings: categories are a dedicated `categories` table with `products.categoryId`;
+articles will mirror this exactly.
+
+1. **Schema**: `articles` (id, name unique, code?, description?, createdAt) +
+   `products.articleId` FK (set null). `drizzle-kit push` + generated SQL committed.
+2. **Core services + API**: articles CRUD; product create/update/list accepts +
+   joins article (filter, search, dropdown); `GET /api/articles/analytics`
+   (per-article stock count/value, sold units, sold weight gm, revenue, last-sale,
+   6-month trend — reusing report query patterns).
+3. **UI (all 3)**: Articles page — CRUD table/dialogs + analytics section (top
+   articles by revenue/weight/stock-value, per-article detail with monthly trend,
+   reusing dashboard/report chart components). Product form gains "Article" select
+   next to Category; products table gains Article column + filter.
+4. Nav entries + `docs/features.md`.
+
+## Phase 4 — Bulk product edit (desktop page + web parity)
+
+1. **API**: `PATCH /api/products/bulk` — `{ids[], patch{categoryId?, articleId?,
+   priceMode?, labourType?, labourValue?, silverPercentage?, stockDelta?, active?}}`,
+   zod-validated, returns count, writes activity log.
+2. **Desktop "Bulk Edit" page**: filter bar (type/category/article/search) → checkbox
+   table + select-all → patch panel → confirm → result toast. Separate sidebar page.
+3. **Web**: same page (AGENTS §4b parity rule) unless user opts desktop-only.
+
+## Phase 5 — Help overhaul + exhaustive documentation (all 3)
+
+1. **Shared structured help content** in `@munim/ui` (sections data): every page, every
+   bill field (each one explained), every filter, every template toggle, every report
+   type — rendered as searchable accordions with deep links; web/desktop Help pages
+   and mobile HelpScreen consume the same content.
+2. **Repo docs**: `docs/pages.md` mirroring the content; `docs/features.md` updated.
+
+## Phase 6 — Web responsiveness + production-grade polish
+
+1. Audit every web page's top filter bars/headers → flex-wrap + stacking under `lg`,
+   uniform control heights, responsive dialogs, horizontally scrollable tables;
+   browser-act verification at 1280 / 900 / 600 px.
+2. Desktop/mobile sweep: empty states, shimmer skeletons, error handling.
+3. Full lint + typecheck + build all packages; commit per phase (ask before commit —
+   standing agreement).
+
+## Verification rules (every phase)
+- No `any`/`unknown`; business logic in core; web⇄desktop parity; mobile parity for
+  all listed features; browser-act for web UI verification; docs updated in same
+  change; ask before committing.
+
++Thought · 23.1s
+I researched the whole codebase and saved the plan to C:\Users\Dell\.opencode\plan\munim-production-grade-plan.md. Here's the plan with what I found:
+Munim Production-Grade Plan — 7 phases
+Phase 0 — Finish in-flight work ⚠️
+The karat-line feature from our last session is implemented but unverified (the build got interrupted when plan-mode kicked in) and uncommitted. First: rebuild core+ui dists → typecheck all 5 packages → browser-verify → commit.
+Phase 1 — Payments everywhere (all 3 apps)
+Found: the backend already accepts any payment method string (nothing filters by "cash"/"online") — the gap is pure UI. Web/desktop orders already show paid/due + record payment; mobile order payments are amount-only (no method/note); bill forms hardcode Cash/Online.
+→ Shared PaymentMethodPicker (Cash · UPI · Card · Cheque · Bank + "Custom…" text) in every bill form + payment dialog; live "Paid ₹X · Due ₹Y" strip on New Bill in all 3 apps; new order payment-history ledger + API; desktop/mobile invoice payment-history parity.
+Phase 2 — Dashboard & Reports: weight sold + material received
+Found: getDashboard has no date filter and no weight/material KPIs; bills already store materialReturnedWeight/Value.
+→ Core: optional period + totalWeightSoldGm (from frozen line weights) + materialReceived KPIs, added to report rows + CSV. UI (all 3): Today / This week / This month / Custom chips on Dashboard + Reports.
+Phase 3 — Articles (like category) + analytics page (all 3)
+Found: categories are a dedicated table with products.categoryId — articles mirror this exactly.
+→ articles table + products.articleId; full CRUD + filter + product-form select; new Articles page with per-article analytics (stock value, sold weight, revenue, 6-month trend — reusing report/dashboard chart code); API + hooks + nav + docs.
+Phase 4 — Bulk product edit
+→ New PATCH /api/products/bulk endpoint + a separate desktop Bulk Edit page (filter → checkbox table → batch patch panel). Web gets it too for parity (your call — see below).
+Phase 5 — Help overhaul + documentation
+→ Structured, searchable help content in @munim/ui shared by all 3 apps: every page, every bill field explained, every filter described; mirrored in docs/pages.md.
+Phase 6 — Web responsiveness + polish
+→ Fix every web filter bar (flex-wrap/stacking under lg), responsive dialogs/tables, verify at 1280/900/600px with browser-act; full lint/typecheck/build; commit per phase.
+A few decisions before I start:
+# Questions
+How should the "custom payment option" work?
+Presets + Custom… text (Recommended)
+You said bulk-edit is a desktop page — but the repo rule is strict web⇄desktop parity. Desktop-only, or both?
+Desktop + Web (Recommended)
+"Material received" on the dashboard/reports — I plan to use the bill's existing "Material Returned" fields (old material given by customer: weight + value). Correct?
+Yes — reuse those fields (Recommended)
+What fields should an Article have? (behaving like category = name + product assignment)
+Name + code + description (Recommended)
++Thought · 7.9s
+All four decisions confirmed as recommended. Let me record them in the plan file:
+← Edit~/.opencode/plan/munim-production-grade-plan.md
+# Munim — Production-Grade Parity Plan
+
+Status: **PLAN — awaiting user approval + agent switch out of Plan mode.**
+Status: **PLAN — user approved all decisions (see below). Needs agent switch out of
+Plan mode to implement.**
+
+## Confirmed decisions (user, this session)
+1. Payment methods = **presets (Cash · UPI · Card · Cheque · Bank transfer) + "Custom…" free text** — no settings-managed list.
+2. Bulk edit = **desktop + web** (shared API, both pages).
+3. "Material received" = **reuse the bill's existing Material Returned fields** (weight + value).
+4. Article = **name (unique) + optional short code + optional description**, product form select beside Category.
+Scope per user request (Oct 2026): payments everywhere, dashboard/reports weight+material
+metrics with period filters, Article entity + analytics page, desktop bulk-edit page,
+full Help/documentation, web responsiveness, full 3-app parity.

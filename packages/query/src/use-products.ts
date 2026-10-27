@@ -4,6 +4,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import type {
+  BulkProductPatch,
   ProductDto,
   ProductFilters,
   ProductFormValues,
@@ -176,6 +177,27 @@ export function useAdjustStock() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.dashboard });
+      qc.invalidateQueries({ queryKey: qk.reports.all });
+    },
+  });
+}
+
+/** PATCH /api/products/bulk — one patch across many selected products. */
+export function useBulkUpdateProducts() {
+  const getClient = useApiClient();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      ids: string[];
+      patch: BulkProductPatch;
+    }): Promise<{ count: number }> => {
+      const api = await getClient();
+      return api.products.bulkUpdate(input);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk.products.all });
+      qc.invalidateQueries({ queryKey: qk.articles.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
       qc.invalidateQueries({ queryKey: qk.reports.all });
     },

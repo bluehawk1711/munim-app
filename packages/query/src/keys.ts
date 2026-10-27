@@ -38,6 +38,7 @@ export const qk = {
     all: ["orders"] as const,
     list: (filters: OrderFilters) => ["orders", "list", filters] as const,
     detail: (id: string) => ["orders", "detail", id] as const,
+    payments: (id: string) => ["orders", "payments", id] as const,
   },
 
   sales: {
@@ -71,6 +72,12 @@ export const qk = {
   catalog: {
     all: ["catalog"] as const,
     list: (kind: CatalogKind) => ["catalog", kind] as const,
+  },
+
+  articles: {
+    all: ["articles"] as const,
+    list: ["articles", "list"] as const,
+    analytics: ["articles", "analytics"] as const,
   },
 
   reports: {

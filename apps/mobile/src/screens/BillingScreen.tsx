@@ -1,4 +1,4 @@
-﻿import React, {useMemo, useState} from 'react';
+import React, {useMemo, useState} from 'react';
 import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, StyleProp, Switch, Text, TextInput, View, ViewStyle} from 'react-native';
 import * as Print from 'expo-print';
 import {ChevronDown, Search} from 'lucide-react-native';
@@ -6,7 +6,10 @@ import {
   applyGoldBaseRate,
   buildBillDocument,
   calcNetWeight,
+  CUSTOM_PAYMENT_METHOD,
+  firstGoldKarat,
   GOLD_ESTIMATE_COLUMNS,
+  PAYMENT_METHOD_PRESETS,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
@@ -25,6 +28,7 @@ import {
   type BillTemplateSettings,
   type BillLinePricingOverrides,
   type EstimateColumnId,
+  type GoldRateKaratMode,
   type LabourType,
   type PartyDto,
   type InvoiceDto,
@@ -749,6 +753,7 @@ function TotalsBlock({
   materialReturned,
   materialTitle,
   total,
+  paid,
 }: {
   styles: ReturnType<typeof makeStyles>;
   label: string;
@@ -758,6 +763,8 @@ function TotalsBlock({
   materialReturned: number;
   materialTitle?: string;
   total: number;
+  /** Live paid/due strip — what's being handed over vs still owed. */
+  paid?: number;
 }) {
   return (
     <View>
@@ -788,6 +795,19 @@ function TotalsBlock({
       <Text style={styles.total}>
         {label}: {money(total)}
       </Text>
+      {typeof paid === 'number' ? (
+        <View style={styles.paidDueStrip}>
+          <Text style={styles.paidDueLabel}>
+            Paid <Text style={styles.paidDueValue}>{money(paid)}</Text>
+          </Text>
+          <Text style={styles.paidDueLabel}>
+            Due{' '}
+            <Text style={[styles.paidDueValue, total - paid > 0 && {color: colors.warning}]}>
+              {money(Math.max(0, total - paid))}
+            </Text>
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -834,8 +854,12 @@ export function BillingScreen() {
   const [silverRateLine, setSilverRateLine] = useState(true);
   // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
   const [signSuffix, setSignSuffix] = useState(true);
+  // Purity line under the gold rate row — shop base / this bill's product
+  // karat / custom text / nothing (see GoldRateKaratMode).
+  const [goldRateKaratMode, setGoldRateKaratMode] = useState<GoldRateKaratMode>('base');
+  const [goldRateKaratText, setGoldRateKaratText] = useState('');
   // How the advance is coming in — Cash / Online + optional reference note.
-  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash');
+  const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [paymentNote, setPaymentNote] = useState('');
 
   // ── Estimate column toggles — per METAL (gold grid ≠ silver field list) ─
@@ -889,8 +913,32 @@ export function BillingScreen() {
     goldRateLine,
     silverRateLine,
     signSuffix,
+    goldRateKaratMode,
+    goldRateKaratText,
     hiddenColumns: {gold: hiddenGold, silver: hiddenSilver},
   };
+
+  /** Badge text for the gold-rate purity line — the form-side twin of core's
+   *  `goldRateKaratLine`: off → nothing; custom → the operator's text;
+   *  product → the first gold line's karat (the selected product's);
+   *  base → the shop base karat. */
+  function rateKaratBadge(): string | null {
+    if (goldRateKaratMode === 'off') return null;
+    if (goldRateKaratMode === 'custom') return goldRateKaratText.trim() || null;
+    if (goldRateKaratMode === 'product') {
+      const karat = firstGoldKarat(
+        lines
+          .filter(l => l.productName.trim())
+          .map(l => {
+            const bd = lineBreakdown(l);
+            return {pricing: bd ? invoicePricingFromBreakdown(bd) : null, purity: l.purity || null};
+          }),
+      );
+      return karat != null && karat > 0 ? `${karat}K` : null;
+    }
+    return goldRates?.baseKarat && goldRates.baseKarat > 0 ? `Base ${goldRates.baseKarat}K` : null;
+  }
+  const rateKaratBadgeText = rateKaratBadge();
 
   // ── Bill 2 — only used in 2-in-1 "Separate" mode ───────────────────────
   const [secondCustomer, setSecondCustomer] = useState('');
@@ -1307,6 +1355,8 @@ export function BillingScreen() {
     setGoldRateLine(st?.goldRateLine ?? true);
     setSilverRateLine(st?.silverRateLine ?? true);
     setSignSuffix(st?.signSuffix ?? true);
+    setGoldRateKaratMode(st?.goldRateKaratMode ?? 'base');
+    setGoldRateKaratText(st?.goldRateKaratText ?? '');
     setHiddenGold(st?.hiddenColumns?.gold ?? []);
     setHiddenSilver(st?.hiddenColumns?.silver ?? []);
 
@@ -1492,9 +1542,9 @@ export function BillingScreen() {
       return;
     }
     try {
-      let message = renderBillText(preview);
+      let message = renderBillText(preview, billTemplateSettings);
       if (twoInOne && secondPreview) {
-        message = `${message}\n\n──────────\n\n${renderBillText(secondPreview)}`;
+        message = `${message}\n\n──────────\n\n${renderBillText(secondPreview, billTemplateSettings)}`;
       }
       await Share.share({message});
     } catch {
@@ -1702,6 +1752,48 @@ export function BillingScreen() {
             />
           </View>
 
+          {/* Purity under the gold rate row — shown only while the row itself
+              is on. "Product's" prints the bill's first gold line's karat. */}
+          {goldRateLine ? (
+            <>
+              <Text style={styles.optLabel}>Karat line under gold rate</Text>
+              <View style={styles.segmentRow}>
+                {([
+                  {id: 'off', label: 'Off'},
+                  {id: 'base', label: 'Base'},
+                  {id: 'product', label: "Product's"},
+                  {id: 'custom', label: 'Custom'},
+                ] as const).map(opt => (
+                  <Pressable
+                    key={opt.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Karat line: ${opt.label}`}
+                    onPress={() => {
+                      selectionTick();
+                      setGoldRateKaratMode(opt.id);
+                    }}
+                    style={({pressed}) => [
+                      styles.segment,
+                      goldRateKaratMode === opt.id && styles.segmentActive,
+                      pressed && {opacity: 0.75},
+                    ]}>
+                    <Text style={[styles.segmentText, goldRateKaratMode === opt.id && styles.segmentTextActive]}>
+                      {opt.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {goldRateKaratMode === 'custom' ? (
+                <Field
+                  label="Custom karat text"
+                  value={goldRateKaratText}
+                  onChangeText={setGoldRateKaratText}
+                  placeholder="e.g. 22K hallmark"
+                />
+              ) : null}
+            </>
+          ) : null}
+
           {!editing && twoInOne ? (
             <>
               <Text style={styles.optLabel}>Mode</Text>
@@ -1802,6 +1894,13 @@ export function BillingScreen() {
             onChangeText={handleGoldRateChange}
             keyboardType="numeric"
             placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
+            rightElement={
+              rateKaratBadgeText ? (
+                <View style={styles.goldCaretBadge}>
+                  <Text style={styles.goldCaretBadgeText}>{rateKaratBadgeText}</Text>
+                </View>
+              ) : null
+            }
           />
           <Field
             label={
@@ -1843,32 +1942,43 @@ export function BillingScreen() {
           <View>
             <Text style={styles.optLabel}>Paid via</Text>
             <View style={styles.segmentRow}>
-              {(['cash', 'online'] as const).map(m => (
+              {[...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})), {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'}].map(m => (
                 <Pressable
-                  key={m}
+                  key={m.id}
                   accessibilityRole="button"
-                  accessibilityLabel={m === 'cash' ? 'Cash payment' : 'Online payment'}
+                  accessibilityLabel={`Pay by ${m.label}`}
                   onPress={() => {
                     selectionTick();
-                    setPaymentMethod(m);
+                    // Custom… starts empty so the operator types the real
+                    // method; a preset stores its id.
+                    setPaymentMethod(m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
                   }}
                   style={({pressed}) => [
                     styles.segment,
-                    paymentMethod === m && styles.segmentActive,
+                    (paymentMethod === m.id || (m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod))) && styles.segmentActive,
                     pressed && {opacity: 0.75},
                   ]}>
-                  <Text style={[styles.segmentText, paymentMethod === m && styles.segmentTextActive]}>
-                    {m === 'cash' ? 'Cash' : 'Online'}
+                  <Text style={[styles.segmentText, (paymentMethod === m.id || (m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod))) && styles.segmentTextActive]}>
+                    {m.label}
                   </Text>
                 </Pressable>
               ))}
             </View>
+            {!PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod) ? (
+              <Field
+                label="Custom method"
+                value={paymentMethod}
+                onChangeText={setPaymentMethod}
+                placeholder="e.g. Paytm, cheque no…"
+                maxLength={40}
+              />
+            ) : null}
           </View>
           <Field
             label="Payment note (optional)"
             value={paymentNote}
             onChangeText={setPaymentNote}
-            placeholder={paymentMethod === 'online' ? 'UPI id / transaction no.' : 'e.g. cash in hand'}
+            placeholder={paymentMethod === 'online' || (paymentMethod !== '' && paymentMethod !== 'cash') ? 'UPI id / transaction no.' : 'e.g. cash in hand'}
             maxLength={120}
           />
           <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
@@ -1881,6 +1991,7 @@ export function BillingScreen() {
             materialReturned={Number(materialReturnedValue) || 0}
             materialTitle={materialReturnedTitle}
             total={total}
+            paid={Number(paid) || 0}
           />
           <Button
             title={
@@ -2234,6 +2345,32 @@ const makeStyles = () =>
       textAlign: 'center',
     },
     row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+    paidDueStrip: {
+      flexDirection: 'row' as const,
+      justifyContent: 'space-between' as const,
+      alignItems: 'center' as const,
+      backgroundColor: colors.mutedSoft,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    paidDueLabel: {fontSize: typography.caption, color: colors.muted},
+    paidDueValue: {fontWeight: '700' as const, color: colors.text},
+    /** Small pill showing which karat the gold-rate field is priced at. */
+    goldCaretBadge: {
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      backgroundColor: colors.primary + '22',
+    },
+    goldCaretBadgeText: {
+      fontSize: 11,
+      fontWeight: '700' as const,
+      color: colors.primary,
+    },
     name: {fontSize: 15, fontWeight: '600', color: colors.text},
     meta: {fontSize: 12, color: colors.muted, marginTop: 2},
   });

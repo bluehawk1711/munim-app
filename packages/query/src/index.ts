@@ -20,6 +20,7 @@ export {
   useUpdateProduct,
   useDeleteProduct,
   useAdjustStock,
+  useBulkUpdateProducts,
   useBackfillBarcodes,
   useSyncProductPrices,
   useInventoryStats,
@@ -37,6 +38,7 @@ export {
 export {
   useOrders,
   useOrder,
+  useOrderPayments,
   useCreateOrder,
   useUpdateOrder,
   useGenerateOrderBill,
@@ -66,6 +68,18 @@ export {
   useDeleteCatalogItem,
 } from "./use-catalog.js";
 export type { CatalogItem, CatalogKind } from "./use-catalog.js";
+export {
+  useArticles,
+  useArticlesAnalytics,
+  useCreateArticle,
+  useUpdateArticle,
+  useDeleteArticle,
+} from "./use-articles.js";
+export type {
+  ArticleDto,
+  ArticleInput,
+  ArticlesAnalytics,
+} from "./use-articles.js";
 export {
   useJobLetters,
   useSaveJobLetter,

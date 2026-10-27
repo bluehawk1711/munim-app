@@ -1,6 +1,6 @@
 "use client"
 
-import { PricingGuide } from "@munim/ui"
+import { HelpCenter, PricingGuide } from "@munim/ui"
 import { BadgeIndianRupee, LifeBuoy } from "lucide-react"
 import { useAppStore } from "@/store/view-store"
 
@@ -39,6 +39,9 @@ export function HelpView() {
           </button>
         </div>
       </div>
+      {/* Shared searchable Help Center (same content as desktop + mobile). */}
+      <HelpCenter />
+
       <div className="text-muted-foreground mb-1 flex items-center gap-2 text-xs">
         <LifeBuoy className="h-3.5 w-3.5" />
         Prices · rates · labels · barcodes

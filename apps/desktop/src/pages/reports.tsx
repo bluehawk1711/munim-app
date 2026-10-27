@@ -14,7 +14,7 @@ import {
   ShoppingCart,
   TrendingUp,
 } from "lucide-react";
-import type { ReportType } from "@munim/core";
+import { dashboardPresetRange, type ReportType } from "@munim/core";
 import { getApi } from "@/lib/api";
 import { useDashboard, useReport, useQueryState } from "@munim/query";
 import { money, formatWeight, monthLabelToDate } from "@/lib/format";
@@ -185,7 +185,25 @@ export function ReportsPage() {
         </div>
       </div>
 
-      {/* ── Report window bar ───────────────────────────────────────── */}
+      {/* ── Quick range + report window bar ──────────────────────── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-muted-foreground text-xs">Quick range:</span>
+        {(["today", "week", "month"] as const).map((key) => (
+          <Button
+            key={key}
+            variant="outline"
+            size="sm"
+            className="h-8 rounded-full px-3 text-xs"
+            onClick={() => {
+              const range = dashboardPresetRange(key);
+              setStartDate(range.from);
+              setEndDate(range.to);
+            }}
+          >
+            {key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
+          </Button>
+        ))}
+      </div>
       <Card>
         <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-end">
           <div className="flex-1 space-y-1.5">
@@ -241,7 +259,10 @@ export function ReportsPage() {
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <HeroSubMetric label="Sold Qty" value={String(totals?.soldQuantity ?? 0)} />
-              <HeroSubMetric label="Weight Sold" value={totals && totals.soldWeight > 0 ? formatWeight(totals.soldWeight) : "—"} />
+              <HeroSubMetric
+                label="Weight Sold"
+                value={totals && (totals.weightSoldGm ?? 0) > 0 ? formatWeight(totals.weightSoldGm) : "—"}
+              />
             </div>
           </CardContent>
         </Card>
@@ -276,11 +297,18 @@ export function ReportsPage() {
               <div className="bg-primary/10 text-primary rounded-lg p-1.5"><Scale className="h-4 w-4" /></div>
             </div>
             <p className="mt-1 text-2xl font-bold tracking-tight">
-              {totals && totals.soldWeight > 0 ? formatWeight(totals.soldWeight) : "—"}
+              {totals && (totals.weightSoldGm ?? 0) > 0 ? formatWeight(totals.weightSoldGm) : "—"}
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               <HeroSubMetric label="Stock On Hand" value={String(totals?.stock ?? 0)} />
-              <HeroSubMetric label="Weight Pct" value={totals && totals.stock > 0 ? `${Math.round((totals.soldQuantity / totals.stock) * 100)}%` : "—"} />
+              <HeroSubMetric
+                label="Material In"
+                value={
+                  totals && ((totals.materialReceivedGm ?? 0) > 0 || (totals.materialReceivedValue ?? 0) > 0)
+                    ? `${(totals.materialReceivedGm ?? 0) > 0 ? formatWeight(totals.materialReceivedGm) + " · " : ""}₹${money(totals.materialReceivedValue)}`
+                    : "—"
+                }
+              />
             </div>
           </CardContent>
         </Card>
@@ -553,10 +581,23 @@ export function ReportsPage() {
               {totals && report.rows.length > 0 && (
                 <>
                   <Separator />
-                  <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
                     <TotalCard label="Total Stock" value={String(totals.stock)} />
                     <TotalCard label="Total Sold" value={String(totals.soldQuantity)} />
-                    <TotalCard label="Weight Sold" value={totals.soldWeight > 0 ? formatWeight(totals.soldWeight) : "—"} icon={Scale} />
+                    <TotalCard
+                      label="Weight Sold"
+                      value={(totals.weightSoldGm ?? 0) > 0 ? formatWeight(totals.weightSoldGm) : "—"}
+                      icon={Scale}
+                    />
+                    <TotalCard
+                      label="Material Received"
+                      value={
+                        (totals.materialReceivedGm ?? 0) > 0 || (totals.materialReceivedValue ?? 0) > 0
+                          ? `${(totals.materialReceivedGm ?? 0) > 0 ? formatWeight(totals.materialReceivedGm) + " · " : ""}₹${money(totals.materialReceivedValue)}`
+                          : "—"
+                      }
+                      icon={Scale}
+                    />
                     <TotalCard label="Total Revenue" value={money(totals.revenue)} accent />
                     <TotalCard label="Total Profit" value={money(totals.profit)} />
                   </div>

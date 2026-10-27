@@ -18,7 +18,7 @@ import {
   Pencil,
 } from "lucide-react"
 import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, InvoicePaymentLine, RecordPaymentDialog, ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, type RecordPaymentSubmit } from "@munim/ui"
-import { buildBillDocument, generateBillPDF, mergeBillTemplateSettings, type BillShopDetails, type InvoiceDto } from "@munim/core"
+import { buildBillDocument, generateBillPDF, mergeBillTemplateSettings, paymentMethodLabel, type BillShopDetails, type InvoiceDto } from "@munim/core"
 import { useGoldRates } from "@munim/query"
 
 import { useInvoices, useDeleteInvoice, useRecordPayment, useInvoicePayments } from "@/hooks/use-invoices"
@@ -99,7 +99,7 @@ export function InvoicesView() {
         note: submit.note || undefined,
       })
       toast.success("Payment recorded", {
-        description: `${formatCurrency(submit.amount)} received · ${submit.method === "online" ? "Online" : "Cash"}`,
+        description: `${formatCurrency(submit.amount)} received · ${paymentMethodLabel(submit.method)}`,
       })
       setPaying(null)
     } catch (err) {

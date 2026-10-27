@@ -14,17 +14,28 @@ import {
   HandCoins,
   PackageSearch,
   Plus,
+  Recycle,
+  Scale,
   Settings,
   TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
-import { buildBillDocument, formatDate, mergeBillTemplateSettings, type BillShopDetails, type InvoiceDto } from "@munim/core";
+import {
+  buildBillDocument,
+  dashboardPresetRange,
+  formatDate,
+  mergeBillTemplateSettings,
+  type BillShopDetails,
+  type DashboardPeriod,
+  type DashboardPreset,
+  type InvoiceDto,
+} from "@munim/core";
 import { useDashboard, useInvoices, useProducts, useQueryState, useSettings, useGoldRates } from "@munim/query";
-import { money, monthLabelToDate } from "@/lib/format";
+import { money, formatWeight, monthLabelToDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { navigate } from "@/lib/navigation";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@munim/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@munim/ui";
 import { AreaChart, Area } from "@/components/charts/area-chart";
 import { LineChart, Line } from "@/components/charts/line-chart";
 import RadarChart from "@/components/charts/radar-chart";
@@ -162,8 +173,27 @@ function invoiceToBillDocument(
 
 /* ─── Page ───────────────────────────────────────────────────────────── */
 
+/* ─── Period chips (scope the KPI grid below) ────────────────────────── */
+
+const PERIOD_CHIPS = [
+  { key: "today" as const, label: "Today" },
+  { key: "week" as const, label: "This week" },
+  { key: "month" as const, label: "This month" },
+  { key: "custom" as const, label: "Custom" },
+];
+
 export function DashboardPage() {
-  const { data, error, loading, reload } = useQueryState(useDashboard());
+  // Period chips scope the four KPI tiles (Today / This week / This month /
+  // Custom date range). Default: this month.
+  const [preset, setPreset] = useState<DashboardPreset | "custom">("month");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const period: DashboardPeriod =
+    preset === "custom"
+      ? { from: customFrom || undefined, to: customTo || undefined }
+      : dashboardPresetRange(preset);
+  const activeChipLabel = PERIOD_CHIPS.find((c) => c.key === preset)?.label ?? "Period";
+  const { data, error, loading, reload } = useQueryState(useDashboard(period));
   const { data: settings } = useQueryState(useSettings());
   const { data: goldRates } = useQueryState(useGoldRates());
   const [trajMode, setTrajMode] = useState<"revenue" | "orders">("revenue");
@@ -305,6 +335,73 @@ export function DashboardPage() {
           <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/parties")}>
             <Users className="h-4 w-4" /> Khata Entry
           </Button>
+        </div>
+      </div>
+
+      {/* Period KPIs — chips scope these four tiles */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {PERIOD_CHIPS.map((chip) => (
+            <Button
+              key={chip.key}
+              size="sm"
+              variant={preset === chip.key ? "default" : "outline"}
+              className="h-8 rounded-full px-3 text-xs"
+              onClick={() => setPreset(chip.key)}
+            >
+              {chip.label}
+            </Button>
+          ))}
+          {preset === "custom" ? (
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                aria-label="Period from date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-8 w-[150px] text-xs"
+              />
+              <span className="text-muted-foreground text-xs">→</span>
+              <Input
+                type="date"
+                aria-label="Period to date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-8 w-[150px] text-xs"
+              />
+            </div>
+          ) : null}
+          {preset === "custom" && customFrom && customTo && customFrom > customTo ? (
+            <span className="text-destructive text-xs">Start date must be on or before end date.</span>
+          ) : null}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label={`${activeChipLabel} revenue`}
+            value={money(data.period.revenue)}
+            sub={`${data.period.invoicesCount} bills in period`}
+            icon={Banknote}
+          />
+          <StatCard
+            label="Weight sold"
+            value={data.period.weightSoldGm > 0 ? formatWeight(data.period.weightSoldGm) : "—"}
+            sub="Line weights from the bills"
+            icon={Scale}
+          />
+          <StatCard
+            label="Material received"
+            value={data.period.materialReceivedGm > 0 ? formatWeight(data.period.materialReceivedGm) : "—"}
+            sub={`₹${money(data.period.materialReceivedValue)} assessed`}
+            icon={Recycle}
+          />
+          <StatCard
+            label="Avg sale"
+            value={money(
+              data.period.invoicesCount > 0 ? data.period.revenue / data.period.invoicesCount : 0,
+            )}
+            sub={`${activeChipLabel} · ${data.period.invoicesCount} bills`}
+            icon={TrendingUp}
+          />
         </div>
       </div>
 

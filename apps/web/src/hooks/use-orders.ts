@@ -7,6 +7,7 @@
 import {
   useOrders,
   useOrder,
+  useOrderPayments,
   useCreateOrder,
   useUpdateOrder,
   useDeleteOrder,
@@ -17,6 +18,7 @@ import {
 export {
   useOrders,
   useOrder,
+  useOrderPayments,
   useCreateOrder,
   useUpdateOrder,
   useDeleteOrder,

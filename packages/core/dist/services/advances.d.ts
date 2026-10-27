@@ -63,12 +63,14 @@ export declare function recordPayment(db: DbClient, input: PaymentInput): Promis
     note: string | null;
     partyId: string | null;
     invoiceId: string | null;
+    orderId: string | null;
     method: string | null;
 } | undefined>;
 export declare function listPayments(db: DbClient, partyId?: string): Promise<{
     id: string;
     partyId: string | null;
     invoiceId: string | null;
+    orderId: string | null;
     direction: "IN" | "OUT";
     amount: number;
     method: string | null;

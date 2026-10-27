@@ -233,6 +233,8 @@ export type ReportRow = {
   weightUnit: string
   /** Total weight sold (quantity × unit weight). */
   soldWeight: number
+  /** Line-level weight sold (gm) — frozen pricing.weightGm × qty. */
+  soldWeightGm: number
   revenue: number
   profit: number
 }
@@ -247,7 +249,12 @@ export type ReportData = {
     stock: number
     soldQuantity: number
     soldWeight: number
+    /** Line-level weight sold (gm). */
+    weightSoldGm: number
     revenue: number
     profit: number
+    /** Old material handed in by customers (grams + assessed ₹). */
+    materialReceivedGm: number
+    materialReceivedValue: number
   }
 }

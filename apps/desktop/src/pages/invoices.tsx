@@ -14,7 +14,7 @@ import {
   Eye,
   Pencil,
 } from "lucide-react";
-import { buildBillDocument, formatDate, formatCurrency, mergeBillTemplateSettings, type BillShopDetails } from "@munim/core";
+import { buildBillDocument, formatDate, formatCurrency, mergeBillTemplateSettings, paymentMethodLabel, type BillShopDetails } from "@munim/core";
 import type { InvoiceDto, InvoiceFilters, SettingsDto } from "@munim/api-client";
 import {
   useInvoices,
@@ -132,7 +132,7 @@ export function InvoicesPage() {
         note: submit.note || undefined,
       });
       toast.success("Payment recorded", {
-        description: `${formatCurrency(submit.amount)} received · ${submit.method === "online" ? "Online" : "Cash"}`,
+        description: `${formatCurrency(submit.amount)} received · ${paymentMethodLabel(submit.method)}`,
       });
       setPaying(null);
     } catch (err) {

@@ -42,10 +42,13 @@ scratch. Adapted: branding (Munim), feature screens, wiring to core, CI.
 
 `apps/mobile` is scaffolded from the official RN community template at stable
 tag **0.86.2** (TypeScript, bare RN with `android/` + `ios/`) — not built from
-scratch. It is bare RN (not Expo); Android dev builds go through **EAS Build**.
+scratch. It is bare RN (not Expo); Android builds run through the **manual
+Gradle workflow / local scripts** (ADR-013 — `eas.json` is still in the repo
+but CI no longer uses EAS).
 
 ### ADR-006 — Mobile Android builds via EAS Build CLI
-**Status:** Accepted
+**Status:** **Superseded** for CI by ADR-013 (manual Gradle workflow) —
+`eas.json` stays for local EAS builds
 
 `eas.json` profiles: `development` → debug APK (`:app:assembleDebug`,
 `buildType: apk`, `distribution: internal`); `preview`/`release` for
@@ -252,8 +255,9 @@ pnpm --filter @munim/core build
 
 | Path | What it is |
 |---|---|
-| `packages/core/src/db/schema.ts` | All tables (products, invoices, items, parties, advances, payments, job letters, settings, activity) |
-| `packages/core/src/services/*` | Business logic: products, invoices, parties, advances, payments, jobLetters, dashboard, settings, activity |
+| `packages/core/src/db/schema.ts` | All tables (products, invoices, items, orders, parties, advances, payments, job letters, settings, activity, colors, sizes, categories, articles) |
+| `packages/core/src/services/*` | Business logic: activity, advances, articles, catalog, dashboard, goldRates, invoices, jobLetters, orders, parties, products, settings (sales, reports, payments, stock are functions inside these) |
+| `packages/core/src/help/*` | Structured Help Center + Pricing guide content (rendered by all 3 apps; mirrored in `docs/pages.md`) |
 | `packages/core/src/billing/*` | Shared bill/invoice generation (all 3 apps) |
 | `packages/core/src/security/*` | PIN hashing/verify (pure-TS SHA-256) |
 | `packages/core/src/validators/*` | Shared zod request schemas (API + web) |
@@ -265,9 +269,8 @@ pnpm --filter @munim/core build
 | `packages/store/*` | Shared Zustand client-state factory (active view, search, filters, sell dialog) |
 | `packages/ui/src/components/*` | Shared UI kit (web + desktop render from here) |
 | `packages/theme/src/tokens.ts` | Design tokens — 5 themes × light/dark (single source of truth) |
-| `apps/web/src/app/api/*` | Thin Next.js route adapters calling core services |
 | `apps/web/src/views/*` | Web UI screens |
 | `apps/desktop/src/pages/*` | Desktop screens (Tauri) |
 | `apps/mobile/src/screens/*` | Mobile screens (RN) |
 | `docs/features.md` | Feature × platform matrix (which app has what) |
-| `.github/workflows/*` | Desktop build + mobile EAS build + web + lint + db-migrate CI |
+| `.github/workflows/*` | Desktop build (tauri-action) + mobile Gradle build (manual) + web + lint + db-migrate CI |

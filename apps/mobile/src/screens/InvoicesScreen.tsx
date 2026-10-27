@@ -9,11 +9,14 @@ import {
   View,
 } from 'react-native';
 import * as Print from 'expo-print';
-import {Search, Trash2, Share2, Pencil} from 'lucide-react-native';
+import {History, Search, Trash2, Share2, Pencil} from 'lucide-react-native';
 import {
   buildBillDocument,
+  CUSTOM_PAYMENT_METHOD,
   formatDate,
   mergeBillTemplateSettings,
+  PAYMENT_METHOD_PRESETS,
+  paymentMethodLabel,
   renderBillHtml,
   type InvoiceFilters,
   type InvoiceDto,
@@ -21,6 +24,7 @@ import {
 import {
   useDeleteInvoice,
   useGoldRates,
+  useInvoicePayments,
   useInvoices,
   useQueryState,
   useRecordInvoicePayment,
@@ -114,7 +118,12 @@ export function InvoicesScreen() {
 
   const [paying, setPaying] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [payMethod, setPayMethod] = useState<string>('cash');
+  const [payNote, setPayNote] = useState('');
   const [payBusy, setPayBusy] = useState(false);
+  /** Payment-history sheet — the invoice's full trail. */
+  const [payHistory, setPayHistory] = useState<InvoiceDto | null>(null);
+  const {data: historyRows} = useInvoicePayments(payHistory?.id ?? null);
   const [deleting, setDeleting] = useState<InvoiceDto | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [exporting, setExporting] = useState<InvoiceDto | null>(null);
@@ -135,6 +144,8 @@ export function InvoicesScreen() {
   function openPayment(inv: InvoiceDto) {
     setPaying(inv);
     setPayAmount(String(Math.max(0, inv.total - inv.amountPaid)));
+    setPayMethod('cash');
+    setPayNote('');
   }
 
   /** EDIT BILL — More → Billing in edit mode, pre-filled with this invoice. */
@@ -153,7 +164,11 @@ export function InvoicesScreen() {
     }
     setPayBusy(true);
     try {
-      await recordPayment.mutateAsync({amount, method: 'cash'});
+      await recordPayment.mutateAsync({
+        amount,
+        method: payMethod || 'cash',
+        note: payNote.trim() || undefined,
+      });
       successFeedback(`Payment of ${money(amount)} recorded for ${paying.invoiceNumber}`);
       setPaying(null);
     } catch {
@@ -344,6 +359,15 @@ export function InvoicesScreen() {
                       accessibilityLabel={`Share ${item.invoiceNumber}`}>
                       <Share2 size={16} color={colors.primary} />
                     </Pressable>
+                    {item.amountPaid > 0 ? (
+                      <Pressable
+                        onPress={() => setPayHistory(item)}
+                        hitSlop={8}
+                        style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}]}
+                        accessibilityLabel={`Payment history for ${item.invoiceNumber}`}>
+                        <History size={16} color={colors.primary} />
+                      </Pressable>
+                    ) : null}
                     <Button
                       title="Pay"
                       variant="outline"
@@ -389,6 +413,43 @@ export function InvoicesScreen() {
         }
       />
 
+      {/* Payment history — the invoice's full trail (amount · method · note · date) */}
+      <ModalSheet
+        visible={!!payHistory}
+        title={payHistory ? `Payments — ${payHistory.invoiceNumber}` : ''}
+        onClose={() => setPayHistory(null)}
+        dismissable
+        centered
+        scrollable>
+        {payHistory ? (
+          (historyRows?.length ?? 0) > 0 ? (
+            <View style={{gap: 8}}>
+              <Text style={styles.payLabel}>
+                {money(payHistory.amountPaid)} received of {money(payHistory.total)}
+              </Text>
+              {historyRows?.map(p => (
+                <View key={p.id} style={styles.historyRow}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.historyAmount}>
+                      {money(p.amount)}{' '}
+                      <Text style={styles.historyMethod}>{paymentMethodLabel(p.method)}</Text>
+                    </Text>
+                    {p.note ? <Text style={styles.historyNote}>{p.note}</Text> : null}
+                  </View>
+                  <Text style={styles.historyDate}>{formatDate(p.date)}</Text>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.payLabel}>
+              {payHistory.amountPaid > 0
+                ? `${money(payHistory.amountPaid)} was received before payment history tracking — new payments will list here.`
+                : 'No payments recorded yet.'}
+            </Text>
+          )
+        ) : null}
+      </ModalSheet>
+
       {/* Record payment — centered modal */}
       <ModalSheet
         visible={!!paying}
@@ -414,6 +475,48 @@ export function InvoicesScreen() {
               value={payAmount}
               onChangeText={setPayAmount}
               keyboardType="numeric"
+            />
+            <View style={styles.payMethodWrap}>
+              <Text style={styles.payLabel}>Paid via</Text>
+              <View style={styles.payMethodRow}>
+                {[...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})), {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'}].map(m => {
+                  const customActive = m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === payMethod);
+                  const active = payMethod === m.id || customActive;
+                  return (
+                    <Pressable
+                      key={m.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Pay by ${m.label}`}
+                      onPress={() => {
+                        selectionTick();
+                        setPayMethod(m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
+                      }}
+                      style={({pressed}) => [
+                        styles.payMethodChip,
+                        active && styles.payMethodChipActive,
+                        pressed && {opacity: 0.75},
+                      ]}>
+                      <Text style={[styles.payMethodText, active && styles.payMethodTextActive]}>{m.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {!PAYMENT_METHOD_PRESETS.some(p => p.id === payMethod) ? (
+                <Field
+                  label="Custom method"
+                  value={payMethod}
+                  onChangeText={setPayMethod}
+                  placeholder="e.g. Paytm, cheque no…"
+                  maxLength={40}
+                />
+              ) : null}
+            </View>
+            <Field
+              label="Note (optional)"
+              value={payNote}
+              onChangeText={setPayNote}
+              placeholder="UPI id / txn no. / cash in hand"
+              maxLength={120}
             />
             <Button
               title={payBusy ? 'Saving…' : 'Confirm payment'}
@@ -513,6 +616,44 @@ const makeStyles = () =>
     },
     payLabel: {fontSize: 11, color: colors.muted, fontWeight: '600'},
     payValue: {fontSize: 17, fontWeight: '700', color: colors.text, marginTop: 2},
+    payMethodWrap: {marginBottom: 12, gap: 6},
+    payMethodRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 6},
+    payMethodChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    payMethodChipActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    payMethodText: {fontSize: 12, fontWeight: '600', color: colors.muted},
+    payMethodTextActive: {color: colors.onPrimary},
+    historyRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    historyAmount: {fontSize: 14, fontWeight: '700' as const, color: colors.text},
+    historyMethod: {
+      fontSize: 10,
+      fontWeight: '700' as const,
+      color: colors.primary,
+      backgroundColor: colors.mutedSoft,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      overflow: 'hidden' as const,
+      textTransform: 'uppercase' as const,
+    },
+    historyNote: {fontSize: 11, color: colors.muted, marginTop: 2},
+    historyDate: {fontSize: 11, color: colors.muted},
     deleteNote: {
       fontSize: 13,
       color: colors.muted,

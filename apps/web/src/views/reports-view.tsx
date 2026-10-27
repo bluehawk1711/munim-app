@@ -27,7 +27,7 @@ import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDes
 
 import { useReport } from "@/hooks/use-dashboard"
 import { exportReportToExcel, exportReportToPdf } from "@/lib/export"
-import { reportToCsv } from "@munim/core"
+import { reportToCsv, dashboardPresetRange } from "@munim/core"
 import { formatCurrency, formatNumber, formatDateTime, formatWeight } from "@/lib/format"
 import type { ReportType } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -140,6 +140,25 @@ export function ReportsView() {
           </div>
 
           <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              Quick range — sets the dates below.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {(["today", "week", "month"] as const).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    const range = dashboardPresetRange(key)
+                    setStartDate(range.from)
+                    setEndDate(range.to)
+                  }}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
+                >
+                  {key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
+                </button>
+              ))}
+            </div>
             <p className="text-[11px] text-muted-foreground">
               Date range — optional, applies to any report type. Leave blank for the default period.
             </p>
@@ -300,10 +319,23 @@ export function ReportsView() {
                 {report.rows.length > 0 && (
                   <>
                     <Separator />
-                    <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
                       <TotalCard label="Total Stock" value={formatNumber(report.totals.stock)} icon={Package} />
                       <TotalCard label="Total Sold" value={formatNumber(report.totals.soldQuantity)} icon={ShoppingCart} />
-                      <TotalCard label="Weight Sold" value={report.totals.soldWeight > 0 ? formatWeight(report.totals.soldWeight) : "—"} icon={Weight} />
+                      <TotalCard
+                        label="Weight Sold"
+                        value={(report.totals.weightSoldGm ?? 0) > 0 ? formatWeight(report.totals.weightSoldGm) : "—"}
+                        icon={Weight}
+                      />
+                      <TotalCard
+                        label="Material Received"
+                        value={
+                          (report.totals.materialReceivedGm ?? 0) > 0 || (report.totals.materialReceivedValue ?? 0) > 0
+                            ? `${(report.totals.materialReceivedGm ?? 0) > 0 ? formatWeight(report.totals.materialReceivedGm) + " · " : ""}₹${formatNumber(report.totals.materialReceivedValue ?? 0)}`
+                            : "—"
+                        }
+                        icon={Weight}
+                      />
                       <TotalCard label="Total Revenue" value={formatCurrency(report.totals.revenue)} icon={TrendingUp} accent />
                     </div>
                   </>

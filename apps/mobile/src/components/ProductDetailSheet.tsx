@@ -178,6 +178,12 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
             <Text style={styles.detailValue}>{product.category}</Text>
           </View>
         ) : null}
+        {product.article ? (
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>Article</Text>
+            <Text style={styles.detailValue}>{product.article}</Text>
+          </View>
+        ) : null}
         {product.weight != null ? (
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Gross Weight</Text>

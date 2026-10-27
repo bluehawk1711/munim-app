@@ -10,6 +10,7 @@ import type {
   OrderFormValues,
   OrderPaymentValues,
   OrderUpdateValues,
+  PaymentDto,
 } from "@munim/core";
 import { useApiClient } from "./provider.js";
 import { qk } from "./keys.js";
@@ -93,10 +94,25 @@ export function useRecordOrderPayment() {
       const api = await getClient();
       return api.orders.recordPayment(id, values);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: qk.orders.all });
+      qc.invalidateQueries({ queryKey: qk.orders.payments(variables.id) });
       qc.invalidateQueries({ queryKey: qk.dashboard });
     },
+  });
+}
+
+/** GET /api/orders/:id/payments — the order's payment trail (advances,
+ *  part-payments). Same shape as the invoice payments list. */
+export function useOrderPayments(id: string | null) {
+  const getClient = useApiClient();
+  return useQuery({
+    queryKey: qk.orders.payments(id ?? ""),
+    queryFn: async (): Promise<PaymentDto[]> => {
+      const api = await getClient();
+      return api.orders.listPayments(id ?? "");
+    },
+    enabled: !!id,
   });
 }
 

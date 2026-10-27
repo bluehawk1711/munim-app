@@ -1,10 +1,12 @@
-import React from 'react';
-import {Platform, ScrollView, StyleSheet, Text, View} from 'react-native';
-import {BadgeIndianRupee, Calculator, IndianRupee, Percent, RefreshCw, ScanLine, Scale, Tag} from 'lucide-react-native';
+import React, {useState} from 'react';
+import {Platform, ScrollView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {BadgeIndianRupee, Calculator, ChevronDown, IndianRupee, Percent, RefreshCw, ScanLine, Scale, Search, Tag} from 'lucide-react-native';
 import {
   PRICING_GUIDE,
+  searchHelp,
   type GuideBlock,
   type GuideSpan,
+  type HelpSection,
   type PricingGuideSectionKey,
 } from '@munim/core';
 import {Card, Screen, colors} from '../components/ui';
@@ -129,6 +131,25 @@ function Block({block, styles}: {block: GuideBlock; styles: ReturnType<typeof ma
 
 export function HelpScreen() {
   const styles = useThemeStyles(makeStyles);
+  // Shared searchable Help Center (same content web/desktop render via
+  // @munim/ui's <HelpCenter /> — core owns the text, apps own the widgets).
+  const [query, setQuery] = useState('');
+  const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+  const sections = searchHelp(query);
+  const topicCount = sections.reduce((n, s) => n + s.entries.length, 0);
+
+  function toggle(id: string) {
+    setOpenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
   return (
     <Screen>
       <ScrollView
@@ -137,6 +158,78 @@ export function HelpScreen() {
         {...headerScrollHandlers}>
         <HomeHeader title="Help" />
         <View style={{gap: 12, paddingHorizontal: 16, marginTop: 4}}>
+          {/* Search box */}
+          <View style={styles.searchBox}>
+            <Search size={15} color={colors.muted} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search help — pages, bill fields, reports…"
+              placeholderTextColor={colors.muted}
+              style={styles.searchInput}
+              autoCorrect={false}
+              returnKeyType="search"
+            />
+          </View>
+
+          {/* Help Center topics (shared content) */}
+          <Text style={styles.subhead}>
+            All topics{query ? ` · ${topicCount} found` : ''}
+          </Text>
+          {sections.length === 0 ? (
+            <Text style={styles.emptyText}>
+              No help for “{query}”. Try a page (Dashboard), a field (Material
+              Returned) or a report (Low Stock).
+            </Text>
+          ) : (
+            sections.map((section: HelpSection) => (
+              <View key={section.id} style={styles.topicSection}>
+                <Text style={styles.sectionTitle}>{section.title}</Text>
+                {section.entries.map(entry => {
+                  const open = openIds.has(entry.id);
+                  return (
+                    <View key={entry.id} style={styles.entryBox}>
+                      <View style={styles.entryHead}>
+                        <Text
+                          style={styles.entryTitle}
+                          onPress={() => toggle(entry.id)}
+                          numberOfLines={2}>
+                          {entry.title}
+                        </Text>
+                        <Text
+                          onPress={() => toggle(entry.id)}
+                          style={styles.chevron}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Toggle ${entry.title}`}>
+                          <ChevronDown
+                            size={16}
+                            color={colors.muted}
+                            style={open ? {transform: [{rotate: '180deg'}]} : undefined}
+                          />
+                        </Text>
+                      </View>
+                      {open ? (
+                        <View style={{gap: 6, paddingBottom: 10}}>
+                          {entry.body.map((para, i) => (
+                            <Text key={i} style={styles.entryBody}>
+                              {para}
+                            </Text>
+                          ))}
+                          {entry.bullets?.map((b, i) => (
+                            <Text key={`b${i}`} style={styles.entryBullet}>
+                              • {b}
+                            </Text>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </View>
+            ))
+          )}
+
+          <Text style={styles.subhead}>Pricing guide</Text>
           {PRICING_GUIDE.map(section => {
             const Icon = SECTION_ICONS[section.key];
             return (
@@ -168,6 +261,46 @@ const spanStyles = (c: typeof colors) =>
 
 const makeStyles = (c: typeof colors) =>
   StyleSheet.create({
+    searchBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderWidth: 1,
+      borderColor: c.border,
+      backgroundColor: c.accent,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      height: 40,
+    },
+    searchInput: {flex: 1, fontSize: 14, color: c.text, padding: 0},
+    subhead: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: c.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginTop: 4,
+    },
+    emptyText: {fontSize: 13, color: c.muted, lineHeight: 19},
+    topicSection: {gap: 6},
+    sectionTitle: {fontSize: 14, fontWeight: '700', color: c.text},
+    entryBox: {
+      borderWidth: 1,
+      borderColor: c.border,
+      borderRadius: 10,
+      backgroundColor: c.bg,
+    },
+    entryHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    entryTitle: {flex: 1, fontSize: 13, fontWeight: '600', color: c.text},
+    chevron: {paddingHorizontal: 2},
+    entryBody: {fontSize: 13, lineHeight: 19, color: c.muted},
+    entryBullet: {fontSize: 13, lineHeight: 19, color: c.muted},
     headRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10},
     headTitle: {fontSize: 14, fontWeight: '700', color: c.text},
     formulaBox: {
