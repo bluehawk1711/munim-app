@@ -37,7 +37,7 @@ import {
   useRecordOrderPayment,
   useSettings,
   useGoldRates,
-  useProducts,
+  useAllProducts,
   useParties,
   useQueryState,
   useApiClient,
@@ -250,8 +250,8 @@ function OrderFormDialog({
   const [saving, setSaving] = useState(false);
   const createOrder = useCreateOrder();
   const updateOrder = useUpdateOrder();
-  const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
-  const allProducts = allProductsData?.products;
+  const { data: allProductsData } = useQueryState(useAllProducts());
+  const allProducts = allProductsData;
   const { data: parties } = useQueryState(useParties());
   const getClient = useApiClient();
 

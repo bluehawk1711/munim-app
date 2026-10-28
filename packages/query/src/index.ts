@@ -13,6 +13,7 @@ export { useQueryState } from "./use-query-state.js";
 export { useDashboard } from "./use-dashboard.js";
 export {
   useProducts,
+  useAllProducts,
   useProductMeta,
   useProductByBarcode,
   useProductMovements,

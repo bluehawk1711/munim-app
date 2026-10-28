@@ -6,7 +6,7 @@ import { Button, Input, NumberInput, Label, Card, CardContent, Checkbox, Separat
 import { useCreateInvoice, useInvoice, useUpdateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
-import { useProducts, useSyncProductPrices } from "@/hooks/use-products"
+import { useAllProducts, useSyncProductPrices } from "@/hooks/use-products"
 import { useApiClient, useGoldRates } from "@munim/query"
 import {
   applyGoldBaseRate,
@@ -178,9 +178,9 @@ export function BillingView() {
   const createInvoice = useCreateInvoice()
   const { data: settings } = useSettings()
   const { data: parties } = useParties()
-  const { data: productData } = useProducts({ pageSize: 1000 })
+  const { data: productData } = useAllProducts()
   const { data: goldRates } = useGoldRates()
-  const products = productData?.products ?? []
+  const products = productData ?? []
   const getClient = useApiClient()
   const goldBaseRate = goldRates?.baseRatePerGram ?? null
 

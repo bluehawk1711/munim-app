@@ -62,7 +62,7 @@ import {
   useGenerateOrderBill,
   useRecordOrderPayment,
 } from "@/hooks/use-orders"
-import { useProducts } from "@/hooks/use-products"
+import { useAllProducts } from "@/hooks/use-products"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings, type ShopSettings } from "@/hooks/use-settings"
 import { useAppStore } from "@/store/view-store"
@@ -243,8 +243,8 @@ function OrderFormDialog({
   const createOrder = useCreateOrder()
   const updateOrder = useUpdateOrder()
   const saving = createOrder.isPending || updateOrder.isPending
-  const { data: allProductsData } = useProducts({ pageSize: 1000 })
-  const allProducts = allProductsData?.products
+  const { data: allProductsData } = useAllProducts()
+  const allProducts = allProductsData
   const { data: parties } = useParties()
   const getClient = useApiClient()
 

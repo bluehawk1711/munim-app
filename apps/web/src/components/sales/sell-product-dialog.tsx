@@ -25,7 +25,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 
 
 
-import { useProducts, useSyncProductPrices } from "@/hooks/use-products"
+import { useAllProducts, useSyncProductPrices } from "@/hooks/use-products"
 import { useCreateSale } from "@/hooks/use-sales"
 import { classifyProduct, saleSchema, type SaleFormValues } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
@@ -44,8 +44,8 @@ export function SellProductDialog() {
   // Fetch the full catalog (not just page 1) so every product — including
   // ones on pages 2+ of the Products view — is searchable and selectable.
   // The query only runs while the dialog is open to avoid an always-on fetch.
-  const { data, isLoading } = useProducts({ pageSize: 1000 }, { enabled: open })
-  const catalog = data?.products ?? []
+  const { data, isLoading } = useAllProducts({ enabled: open })
+  const catalog = data ?? []
   const createSale = useCreateSale()
   const syncPrices = useSyncProductPrices()
   /** Set after "Recalculate prices" so the picked price refreshes once the

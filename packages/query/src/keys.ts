@@ -19,6 +19,8 @@ export const qk = {
   products: {
     all: ["products"] as const,
     list: (filters: ProductFilters) => ["products", "list", filters] as const,
+    /** Every product, paged together — used by pickers that must search the whole catalog. */
+    allPages: ["products", "all-pages"] as const,
     detail: (id: string) => ["products", "detail", id] as const,
     meta: ["products", "meta"] as const,
     stats: ["products", "stats"] as const,

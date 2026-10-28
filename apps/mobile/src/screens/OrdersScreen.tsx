@@ -39,6 +39,7 @@ import {
   useOrders,
   useParties,
   useProducts,
+  useAllProducts,
   useQueryState,
   useRecordOrderPayment,
   useSettings,
@@ -439,8 +440,8 @@ export function OrdersScreen() {
   const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
   const generateBill = useGenerateOrderBill();
-  const {data: productsData} = useQueryState(useProducts({pageSize: 1000}));
-  const products = productsData?.products;
+  const {data: productsData} = useQueryState(useAllProducts());
+  const products = productsData;
   const {data: parties} = useQueryState(useParties());
   const {data: settings} = useQueryState(useSettings());
   const {data: goldRates} = useGoldRates();

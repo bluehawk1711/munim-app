@@ -43,6 +43,7 @@ import {
   useInvoice,
   useParties,
   useProducts,
+  useAllProducts,
   useQueryState,
   useSettings,
   useSyncProductPrices,
@@ -816,8 +817,8 @@ export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: settings} = useQueryState(useSettings());
   const {data: parties} = useQueryState(useParties());
-  const {data: productsData} = useQueryState(useProducts({pageSize: 500}));
-  const products = productsData?.products;
+  const {data: productsData} = useQueryState(useAllProducts());
+  const products = productsData;
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
 
@@ -987,7 +988,7 @@ export function BillingScreen() {
    *  the line isn't an auto-priced Gold/Silver product. */
   function lineBreakdown(line: LineState, ctx: PricingContext = billPricingContext): PriceBreakdown | null {
     if (!line.productId) return null;
-    const p = productsData?.products.find(x => x.id === line.productId);
+    const p = productsData?.find(x => x.id === line.productId);
     if (!p || p.priceMode !== 'auto' || (p.type !== 'Gold' && p.type !== 'Silver')) return null;
     const parsed = Number(line.weight);
     const editedWeight = line.weight.trim() !== '' && Number.isFinite(parsed) ? parsed : null;
@@ -1072,7 +1073,7 @@ export function BillingScreen() {
   function repriceMetalWith(prev: LineState[], metal: 'Gold' | 'Silver', ctx: PricingContext): LineState[] {
     return prev.map(line => {
       if (!line.productId) return line;
-      const p = productsData?.products.find(x => x.id === line.productId);
+      const p = productsData?.find(x => x.id === line.productId);
       if (!p || p.type !== metal || p.priceMode !== 'auto') return line;
       return applyBreakdown(line, lineBreakdown(line, ctx));
     });
@@ -1098,7 +1099,7 @@ export function BillingScreen() {
    *  (null → no strip: no product / manual price / non-metal). */
   function pricingViewFor(line: LineState): {metal: 'Gold' | 'Silver'; breakdown: PriceBreakdown} | null {
     if (!line.productId) return null;
-    const p = productsData?.products.find(x => x.id === line.productId);
+    const p = productsData?.find(x => x.id === line.productId);
     if (!p || p.priceMode !== 'auto' || (p.type !== 'Gold' && p.type !== 'Silver')) return null;
     const bd = lineBreakdown(line);
     if (!bd) return null;
@@ -1215,7 +1216,7 @@ export function BillingScreen() {
         // its nag/chejat derivation inputs for their own bill columns; silver
         // keeps the plain Weight field.
         const isGold = l.productId
-          ? productsData?.products.find(x => x.id === l.productId)?.type === 'Gold'
+          ? productsData?.find(x => x.id === l.productId)?.type === 'Gold'
           : false;
         const net = isGold ? goldNetGrams(l) : null;
         return {
