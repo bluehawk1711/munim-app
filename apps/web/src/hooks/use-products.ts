@@ -7,6 +7,7 @@
  */
 import {
   useProducts,
+  useAllProducts,
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,
@@ -18,6 +19,7 @@ import {
 
 export {
   useProducts,
+  useAllProducts,
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,

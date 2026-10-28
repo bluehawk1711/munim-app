@@ -62,6 +62,31 @@ export function useProducts(
   });
 }
 
+/**
+ * GET /api/products — EVERY product, not just the first page.
+ *
+ * The API caps `pageSize` at 1000, so a single request silently hides older
+ * SKUs once the catalog grows past that. Bill/order pickers need to find any
+ * product, so this pages through the list and concatenates the results.
+ */
+export function useAllProducts(options?: { enabled?: boolean }) {
+  const getClient = useApiClient();
+  return useQuery({
+    queryKey: qk.products.allPages,
+    queryFn: async () => {
+      const api = await getClient();
+      const first = await api.products.list({ page: 1, pageSize: 1000 });
+      const rest = await Promise.all(
+        Array.from({ length: Math.max(0, first.pagination.totalPages - 1) }, (_, i) =>
+          api.products.list({ page: i + 2, pageSize: 1000 }),
+        ),
+      );
+      return [...first.products, ...rest.flatMap((page) => page.products)];
+    },
+    enabled: options?.enabled,
+  });
+}
+
 /** GET /api/products/meta — the color/size/category option lists. */
 export function useProductMeta(options?: { enabled?: boolean }) {
   const getClient = useApiClient();

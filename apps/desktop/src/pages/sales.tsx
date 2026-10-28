@@ -12,7 +12,7 @@ import {
 import { classifyProduct, formatCurrency } from "@munim/core";
 import type { InvoiceDto } from "@munim/api-client";
 import {
-  useProducts,
+  useAllProducts,
   useInvoices,
   useCreateSale,
   useSyncProductPrices,
@@ -72,8 +72,8 @@ export function SalesPage() {
   const [undoOpen, setUndoOpen] = useState(false);
   const [undoing, setUndoing] = useState(false);
 
-  const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
-  const allProducts = allProductsData?.products;
+  const { data: allProductsData } = useQueryState(useAllProducts());
+  const allProducts = allProductsData;
 
   const { startDate, endDate } = rangeToDates(range);
   const { data: recent, loading: loadingRecent, refetching } = useQueryState(

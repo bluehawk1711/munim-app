@@ -27,7 +27,7 @@ import {
 import type { InvoiceDto, SettingsDto } from "@munim/api-client";
 import {
   useSettings,
-  useProducts,
+  useAllProducts,
   useParties,
   useCreateInvoice,
   useUpdateInvoice,
@@ -336,8 +336,8 @@ export function BillingPage() {
   const { data: settings } = useQueryState(useSettings());
   const { data: goldRates } = useQueryState(useGoldRates());
   const billRates = { gold: goldRates?.baseRatePerGram ?? null, silver: settings?.silverRatePerGram ?? null, karat: goldRates?.baseKarat ?? null };
-  const { data: allProductsData } = useQueryState(useProducts({ pageSize: 1000 }));
-  const allProducts = allProductsData?.products;
+  const { data: allProductsData } = useQueryState(useAllProducts());
+  const allProducts = allProductsData;
   const { data: parties } = useQueryState(useParties());
   // const { data: list, loading: loadingList } = useQueryState(useInvoices({ pageSize: 100 }));
   const createInvoice = useCreateInvoice();
