@@ -340,7 +340,7 @@ export function estimateWeightLines(line: BillLineInput, signs = false): string[
   if (line.chejatWeight != null && line.chejatWeight > 0)
     parts.push(`Chejat: ${line.chejatWeight.toFixed(3)}${signs ? " +" : ""}`);
   if (line.nagLessWeight != null && line.nagLessWeight > 0)
-    parts.push(`Nag: ${line.nagLessWeight.toFixed(3)}${signs ? " −" : ""}`);
+    parts.push(`Nag: ${line.nagLessWeight.toFixed(3)}${signs ? " -" : ""}`);
   return parts;
 }
 
