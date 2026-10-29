@@ -870,6 +870,8 @@ export function BillingView() {
         const secondPayload: CreateInvoiceInput = {
           ...basePayload,
           customerName: secondCustomerName,
+          customerPhone: secondCustomerPhone,
+          customerAddress: secondCustomerAddress,
           partyId: secondPartyId && secondPartyId !== "__none" ? secondPartyId : undefined,
           items: lineItems(secondItems),
           deliveryCharge: secondDeliveryCharge,
