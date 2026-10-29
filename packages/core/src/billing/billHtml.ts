@@ -375,7 +375,7 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
   const hasCnCol = cols.some((c) => c.id === "chejatNag");
   const cnTotals: string[] = [];
   if (hasCnCol && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}${s.signSuffix ? " +" : ""}`);
-  if (hasCnCol && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${s.signSuffix ? " −" : ""}`);
+  if (hasCnCol && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${s.signSuffix ? " -" : ""}`);
   const sumNet = cols.some((c) => c.id === "netWeight") ? estimateNetWeightTotal(bill.lines) : null;
 
   const adjRows: string[] = [];
@@ -406,7 +406,7 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
  <div class="inner">
   <div class="letterhead">
     <div class="shop">${esc(bill.shop.name)}</div>
-    <div class="contact">${esc([bill.shop.address ?? "", bill.shop.phones.length ? `Tel: ${bill.shop.phones.join(" | ")}` : ""].filter(Boolean).join("  ·  "))}</div>
+    <div class="contact">${esc([bill.shop.address ?? "", bill.shop.phones.length ? `Tel: ${bill.shop.phones.join(" | ")}` : ""].filter(Boolean).join("  -  "))}</div>
     <div class="est">ESTIMATE</div>
   </div>
   <div class="hbox">

@@ -272,7 +272,10 @@ function drawEcommerceBill(
     bill.shop.phones.length ? `Tel: ${bill.shop.phones.join(" | ")}` : "",
   ].filter(Boolean);
   if (contactBits.length) {
-    doc.text(contactBits.join("  ·  "), pageWidth / 2, yOffset + 13.5, { align: "center" });
+    // ASCII separator only: the embedded bill font is a glyph subset without
+    // "·", and jsPDF silently DROPS the rest of a string at an unknown glyph
+    // (the shop phone vanished after the old "  ·  " separator).
+    doc.text(contactBits.join("  -  "), pageWidth / 2, yOffset + 13.5, { align: "center" });
   }
   doc.setTextColor(colors.primary[0], colors.primary[1], colors.primary[2]);
   doc.setFont("notosans", "bold");
@@ -538,7 +541,7 @@ function drawEcommerceBill(
   // Merged Chejat/Nag totals cell stacks its prefixed sums (like row cells).
   const cnTotals: string[] = [];
   if (split && iChejatNag >= 0 && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}${settings.signSuffix ? " +" : ""}`);
-  if (split && iChejatNag >= 0 && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${settings.signSuffix ? " −" : ""}`);
+  if (split && iChejatNag >= 0 && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${settings.signSuffix ? " -" : ""}`);
   const sumNet = split && iNetWeight >= 0 ? estimateNetWeightTotal(bill.lines) : null;
   const totalsTop = itemY;
 
