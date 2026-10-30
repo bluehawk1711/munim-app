@@ -42,6 +42,7 @@ import { money } from "@/lib/format";
 import { navigate, useUrlSearch } from "@/lib/navigation";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { toast } from "@munim/ui";
+import { useAppStore } from "@/lib/store";
 import { PageHeader } from "@/components/page-header";
 import {
   Button,
@@ -249,6 +250,8 @@ export function BillingPage() {
   const billRates = { gold: goldRates?.baseRatePerGram ?? null, silver: settings?.silverRatePerGram ?? null, karat: goldRates?.baseKarat ?? null };
   const { data: allProductsData } = useQueryState(useAllProducts());
   const allProducts = allProductsData;
+  const pendingBillProductId = useAppStore((s) => s.pendingBillProductId);
+  const takeBillProduct = useAppStore((s) => s.takeBillProduct);
   const { data: parties } = useQueryState(useParties());
   // const { data: list, loading: loadingList } = useQueryState(useInvoices({ pageSize: 100 }));
   const createInvoice = useCreateInvoice();
@@ -818,6 +821,23 @@ export function BillingPage() {
       return idx >= 0 ? prev.map((l, i) => (i === idx ? line : l)) : [...prev, line];
     });
   }
+
+  // A "Quick Sale" on the products page staged this product before navigating
+  // here — land it on the first empty line (else append), like the picker.
+  // Wait for the catalog so a slow load can't silently drop the product.
+  useEffect(() => {
+    if (!pendingBillProductId || !allProducts) return;
+    const stagedId = takeBillProduct();
+    if (!stagedId) return;
+    const product = allProducts.find((p) => p.id === stagedId);
+    if (!product) {
+      toast.error("That product is no longer available");
+      return;
+    }
+    addPickedProduct(product);
+    // addPickedProduct is stable enough here: the store takes the id once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingBillProductId, allProducts, takeBillProduct]);
 
   function lineItems(list: LineState[]) {
     return list

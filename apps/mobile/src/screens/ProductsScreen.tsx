@@ -64,7 +64,8 @@ import {ProductDetailSheet} from '../components/ProductDetailSheet';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {EditProductModal} from '../components/EditProductModal';
 import {AdjustStockModal} from '../components/AdjustStockModal';
-import {QuickSaleSheet} from '../components/quick-sale-sheet';
+import {useAppStore} from '../lib/store';
+import {useNavStore} from '../lib/nav-store';
 import {useThemeStyles} from '../theme';
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
@@ -255,26 +256,37 @@ export function ProductsScreen() {
   const [scanMsg, setScanMsg] = useState('');
   const [scanCode, setScanCode] = useState<string | null>(null);
   const scanQ = useProductByBarcode(scanCode);
-  const [saleProduct, setSaleProduct] = useState<ProductDto | null>(null);
 
   // Backfill
   const [backfilling, setBackfilling] = useState(false);
 
-  // Barcode scan result handler — a found product opens the QuickSaleSheet
-  // (instant counter sale) instead of the edit form.
+  /** Quick sale → stage the product on a new bill, then open More → Billing. */
+  function sendToBill(product: ProductDto) {
+    if (product.stock <= 0) {
+      errorFeedback(`${product.name} is out of stock`);
+      return;
+    }
+    useAppStore.getState().stageBillProduct(product.id);
+    useNavStore.getState().openMore('billing');
+    useAppStore.getState().setActiveView('more');
+    successFeedback(`${product.name} added to a new bill`);
+  }
+
+  // Barcode scan result handler — a found product is staged on the new bill.
   useEffect(() => {
     if (!scanCode) return;
     if (scanQ.data) {
       scanningRef.current = false;
       setScanOpen(false);
-      setSaleProduct(scanQ.data);
       setScanCode(null);
+      sendToBill(scanQ.data);
     } else if (scanQ.isError) {
       scanningRef.current = false;
       const notFound = scanQ.error instanceof ApiClientError && scanQ.error.status === 404;
       setScanMsg(notFound ? `No product with barcode ${scanCode}` : 'Lookup failed');
       setScanCode(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanCode, scanQ.data, scanQ.isError, scanQ.error]);
 
   // Filtered list
@@ -578,7 +590,7 @@ export function ProductsScreen() {
         onClose={() => setDetailTarget(null)}
         onEdit={handleDetailEdit}
         onAdjust={handleDetailAdjust}
-        onSell={p => { setDetailTarget(null); setSaleProduct(p); }}
+        onSell={p => { setDetailTarget(null); sendToBill(p); }}
       />
 
       {/* Product form sheet — centered modal */}
@@ -622,9 +634,8 @@ export function ProductsScreen() {
         onCancel={() => setDeleteTarget(null)}
       />
 
-      {/* Camera scanner (shared) — found products open the QuickSaleSheet */}
+      {/* Camera scanner (shared) — found products land on the new bill */}
       <BarcodeScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onDetected={handleScanDetected} message={scanMsg} />
-      <QuickSaleSheet product={saleProduct} onClose={() => setSaleProduct(null)} />
     </Screen>
   );
 }

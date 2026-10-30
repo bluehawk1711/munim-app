@@ -39,12 +39,11 @@ import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 import {Badge, Card, Empty, ErrorBox, Loading, Screen} from '../components/ui';
 import {LineChart, BarChart, DonutChart} from '../components/charts';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
-import {QuickSaleSheet} from '../components/quick-sale-sheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useTheme, useThemeStyles} from '../theme';
 import {useAppStore} from '../lib/store';
 import {useNavStore, type InvoiceStatusFilter} from '../lib/nav-store';
-import {selectionTick, actionPress, errorFeedback} from '../lib/haptics';
+import {selectionTick, actionPress, errorFeedback, successFeedback} from '../lib/haptics';
 import type {MobileColors} from '@munim/theme';
 
 /** Server status label → invoice status filter (for deep-linking). */
@@ -91,24 +90,36 @@ export function HomeScreen() {
   // ── Scan-to-sell (header scan button) ───────────────────────────────────
   const [scanOpen, setScanOpen] = useState(false);
   const [scanCode, setScanCode] = useState<string | null>(null);
-  const [saleProduct, setSaleProduct] = useState<ProductDto | null>(null);
   const scanningRef = useRef(false);
   const scanQ = useProductByBarcode(scanCode);
 
-  // Scan result → open the instant-sale dialog with the found product.
+  /** Quick sale → stage the product on a new bill, then open More → Billing. */
+  function sendToBill(product: ProductDto) {
+    if (product.stock <= 0) {
+      errorFeedback(`${product.name} is out of stock`);
+      return;
+    }
+    useAppStore.getState().stageBillProduct(product.id);
+    useNavStore.getState().openMore('billing');
+    useAppStore.getState().setActiveView('more');
+    successFeedback(`${product.name} added to a new bill`);
+  }
+
+  // Scan result → land the product on the new bill.
   useEffect(() => {
     if (!scanCode) return;
     if (scanQ.data) {
       scanningRef.current = false;
       setScanOpen(false);
-      setSaleProduct(scanQ.data);
       setScanCode(null);
+      sendToBill(scanQ.data);
     } else if (scanQ.isError) {
       scanningRef.current = false;
       const notFound = scanQ.error instanceof ApiClientError && scanQ.error.status === 404;
       errorFeedback(notFound ? `No product with barcode ${scanCode}` : 'Barcode lookup failed');
       setScanCode(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanCode, scanQ.data, scanQ.isError, scanQ.error]);
 
   /** Camera frame → remember the code; lookup resolves in the effect. */
@@ -497,9 +508,8 @@ export function HomeScreen() {
         </ScrollView>
       )}
 
-      {/* Scan-to-sell: camera scanner + instant sale dialog */}
+      {/* Scan-to-bill: camera scanner → product lands on the new bill */}
       <BarcodeScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onDetected={handleScanDetected} />
-      <QuickSaleSheet product={saleProduct} onClose={() => setSaleProduct(null)} />
     </Screen>
   );
 }

@@ -23,7 +23,7 @@ import {
   Tag,
   Eye,
 } from "lucide-react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, BarcodeSvg } from "@munim/ui"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, BarcodeSvg, Tooltip, SkuCopyButton } from "@munim/ui"
 import { classifyProduct } from "@munim/core"
 
 const PRODUCT_TYPE_COLORS: Record<string, string> = {
@@ -292,22 +292,27 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
           const p = row.original
           return (
             <div className="flex items-center justify-end gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5"
-                onClick={() => onSell(p)}
-                disabled={p.stock <= 0}
-              >
-                <ShoppingCart className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Sell</span>
-              </Button>
+              <SkuCopyButton sku={p.sku} className="h-8 w-8" />
+              <Tooltip label="Add to bill">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-8 w-8"
+                  onClick={() => onSell(p)}
+                  disabled={p.stock <= 0}
+                  aria-label={`Add ${p.name} to a new bill`}
+                >
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                </Button>
+              </Tooltip>
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Product actions">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
+                <Tooltip label="More actions">
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon-sm" className="h-8 w-8" aria-label="Product actions">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </Tooltip>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => onViewDetails(p)}>
@@ -320,7 +325,7 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
                     <SlidersHorizontal className="mr-2 h-4 w-4" /> Adjust stock
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onSell(p)} disabled={p.stock <= 0}>
-                    <ShoppingCart className="mr-2 h-4 w-4" /> Sell this item
+                    <ShoppingCart className="mr-2 h-4 w-4" /> Add to bill
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => onPrintLabel(p)}>
                     <Tag className="mr-2 h-4 w-4" /> Print label

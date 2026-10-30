@@ -177,6 +177,8 @@ type PickableProduct = {
 
 export function BillingView() {
   const setView = useAppStore((s) => s.setActiveView)
+  const pendingBillProductId = useAppStore((s) => s.pendingBillProductId)
+  const takeBillProduct = useAppStore((s) => s.takeBillProduct)
   const createInvoice = useCreateInvoice()
   const { data: settings } = useSettings()
   const { data: parties } = useParties()
@@ -574,6 +576,27 @@ export function BillingView() {
     // CURRENT rates (picking after a rate edit still lands the right price).
     return repriceLine({ ...base, ...pricingDefaultsFor(base) })
   }
+
+  // Quick Sale staged this product before navigating here — land it on the
+  // first empty line (else append), exactly like the picker does.
+  React.useEffect(() => {
+    if (!pendingBillProductId || !productData) return
+    const stagedId = takeBillProduct()
+    if (!stagedId) return
+    const product = productData.find((p) => p.id === stagedId)
+    if (!product) {
+      toast.error("That product is no longer available")
+      return
+    }
+    const item = lineFromProduct(product)
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => !it.productName.trim())
+      return idx >= 0 ? prev.map((it, i) => (i === idx ? item : it)) : [...prev, item]
+    })
+    // lineFromProduct is intentionally read from this render — the effect
+    // fires once per staged product, guarded by the store taking it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingBillProductId, productData, takeBillProduct])
 
   /**
    * Fast entry: a USB scanner types the code (or the user types an SKU) +

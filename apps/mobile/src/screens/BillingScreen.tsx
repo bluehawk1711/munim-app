@@ -69,6 +69,7 @@ import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
+import {useAppStore} from '../lib/store';
 import {rs, spacing, typography, radii} from '../lib/responsive';
 import {StyleSheet as RNStyleSheet} from 'react-native';
 
@@ -985,6 +986,8 @@ export function BillingScreen() {
   const {data: parties} = useQueryState(useParties());
   const {data: productsData} = useQueryState(useAllProducts());
   const products = productsData;
+  const pendingBillProductId = useAppStore(s => s.pendingBillProductId);
+  const takeBillProduct = useAppStore(s => s.takeBillProduct);
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
 
@@ -1430,6 +1433,27 @@ export function BillingScreen() {
     });
     successFeedback(`Added ${product.name}`);
   }
+
+  // Quick Sale staged a product before opening this screen — land it on the
+  // first empty line (else append), like the picker. Wait for the catalog.
+  React.useEffect(() => {
+    if (!pendingBillProductId || !productsData) return;
+    const stagedId = takeBillProduct();
+    if (!stagedId) return;
+    const product = productsData.find(p => p.id === stagedId);
+    if (!product) {
+      errorFeedback('That product is no longer available');
+      return;
+    }
+    const row = pickLine(emptyLine(), product.id, product);
+    setLines(prev => {
+      const idx = prev.findIndex(l => !l.productId && !l.productName.trim());
+      return idx >= 0 ? prev.map((l, i) => (i === idx ? row : l)) : [...prev, row];
+    });
+    successFeedback(`Added ${product.name}`);
+    // pickLine reads the bill's current rates; the store takes the id once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingBillProductId, productsData, takeBillProduct]);
 
   function collectItems(list: LineState[]) {
     return list

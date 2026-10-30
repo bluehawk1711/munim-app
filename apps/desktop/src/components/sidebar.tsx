@@ -1,81 +1,79 @@
-import * as m from "motion/react-m";
-import { LayoutDashboard, Package, Palette, Tag, FileText, Receipt, ClipboardList, Users, HandCoins, ScrollText, BarChart3, Settings, CircleHelp } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  LayoutDashboard,
+  Package,
+  Palette,
+  Tag,
+  FileText,
+  Receipt,
+  ClipboardList,
+  Boxes,
+  Users,
+  HandCoins,
+  ShoppingCart,
+  FileBarChart,
+  Settings,
+  CircleHelp,
+} from "lucide-react";
+import { SidebarBrand, SidebarFooter, SidebarNav, type SidebarNavSection } from "@munim/ui";
 import { navigate } from "@/lib/navigation";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/products", label: "Products & Stock", icon: Package },
-  { href: "/catalog", label: "Catalog", icon: Palette },
-  { href: "/articles", label: "Articles", icon: Tag },
-  // Sales page is useless for now — New Bill + Invoices cover selling, so the
-  // /sales entry is hidden from the sidebar (route kept for direct URLs).
-  { href: "/billing", label: "New Bill", icon: FileText },
-  { href: "/invoices", label: "Invoices", icon: Receipt },
-  { href: "/orders", label: "Orders", icon: ClipboardList },
-  { href: "/parties", label: "Parties & Khata", icon: Users },
-  { href: "/advances", label: "Advances", icon: HandCoins },
-  { href: "/job-letters", label: "Job Letters", icon: ScrollText },
-  { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/settings", label: "Settings", icon: Settings },
-  { href: "/help", label: "Help", icon: CircleHelp },
-] as const;
+/** Same sections, order, labels and copy as the web sidebar — the shared
+ *  @munim/ui component renders both, so the two apps cannot drift. */
+const NAV_SECTIONS: SidebarNavSection[] = [
+  {
+    label: "Overview",
+    items: [
+      { key: "/", label: "Dashboard", icon: LayoutDashboard, description: "Overview & analytics" },
+    ],
+  },
+  {
+    label: "Inventory",
+    items: [
+      { key: "/products", label: "Products", icon: Package, description: "Manage inventory" },
+      { key: "/articles", label: "Articles", icon: Tag, description: "Designs & analytics" },
+      { key: "/sales", label: "Sales", icon: ShoppingCart, description: "Sell & history" },
+      { key: "/catalog", label: "Catalog", icon: Palette, description: "Colors, sizes & categories" },
+    ],
+  },
+  {
+    label: "Billing & Docs",
+    items: [
+      { key: "/invoices", label: "Invoices", icon: Receipt, description: "All bills & statuses" },
+      { key: "/orders", label: "Orders", icon: ClipboardList, description: "Quotes — bill later" },
+      { key: "/billing", label: "New Bill", icon: Boxes, description: "Create a bill / invoice" },
+      { key: "/job-letters", label: "Job Letters", icon: FileText, description: "Offer letters" },
+    ],
+  },
+  {
+    label: "Khata",
+    items: [
+      { key: "/parties", label: "Parties", icon: Users, description: "Customers, suppliers, workers" },
+      { key: "/advances", label: "Advances", icon: HandCoins, description: "Who owes whom" },
+    ],
+  },
+  {
+    label: "Insights",
+    items: [
+      { key: "/reports", label: "Reports", icon: FileBarChart, description: "Export & analyze" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      { key: "/settings", label: "Settings", icon: Settings, description: "Shop profile & database" },
+      { key: "/help", label: "Help", icon: CircleHelp, description: "Pricing guide & how-to" },
+    ],
+  },
+];
 
 export function Sidebar({ current }: { current: string }) {
   return (
-    <aside className="bg-card flex w-56 shrink-0 flex-col border-r">
-      <div className="flex h-14 items-center gap-2 border-b px-4">
-        <m.div
-          initial={{ scale: 0.6, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: "spring", stiffness: 260, damping: 18 }}
-          className="bg-primary flex h-7 w-7 items-center justify-center rounded-lg text-sm font-bold text-primary-foreground"
-        >
-          M
-        </m.div>
-        <div className="leading-tight">
-          <p className="text-sm font-semibold">Munim</p>
-          <p className="text-muted-foreground text-[11px]">Shop Manager</p>
-        </div>
+    <aside className="bg-sidebar flex w-64 shrink-0 flex-col border-r border-sidebar-border">
+      <SidebarBrand />
+      <div className="flex-1 overflow-y-auto">
+        <SidebarNav sections={NAV_SECTIONS} activeKey={current} onNavigate={navigate} />
       </div>
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-2">
-        {NAV_ITEMS.map((item) => {
-          const active = current === item.href;
-          const Icon = item.icon;
-          return (
-            <button
-              key={item.href}
-              type="button"
-              onClick={() => navigate(item.href)}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-              )}
-            >
-              {active && (
-                <m.span
-                  layoutId="sidebar-active-pill"
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  className="bg-primary/12 absolute inset-0 rounded-md"
-                />
-              )}
-              <Icon
-                className={cn(
-                  "relative h-4 w-4 transition-transform duration-200 group-hover:scale-110",
-                  active && "text-primary",
-                )}
-              />
-              <span className="relative">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-      <div className="border-t p-3 text-[11px] leading-relaxed text-muted-foreground">
-        Shared Neon database — live across web, desktop & mobile.
-      </div>
+      <SidebarFooter />
     </aside>
   );
 }
