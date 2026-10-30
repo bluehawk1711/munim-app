@@ -52,6 +52,10 @@ export function useCreateOrder() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.orders.all });
+      // The advance taken at the counter is a ledger payment for the party.
+      qc.invalidateQueries({ queryKey: qk.parties.all });
+      qc.invalidateQueries({ queryKey: qk.advances.all });
+      qc.invalidateQueries({ queryKey: qk.payments.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
     },
   });
@@ -74,6 +78,11 @@ export function useUpdateOrder() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.orders.all });
+      // Editing the advance, the lines or the party re-writes the ledger rows.
+      qc.invalidateQueries({ queryKey: qk.parties.all });
+      qc.invalidateQueries({ queryKey: qk.advances.all });
+      qc.invalidateQueries({ queryKey: qk.payments.all });
+      qc.invalidateQueries({ queryKey: qk.dashboard });
     },
   });
 }
@@ -97,6 +106,9 @@ export function useRecordOrderPayment() {
     onSuccess: (_data, variables) => {
       qc.invalidateQueries({ queryKey: qk.orders.all });
       qc.invalidateQueries({ queryKey: qk.orders.payments(variables.id) });
+      qc.invalidateQueries({ queryKey: qk.parties.all });
+      qc.invalidateQueries({ queryKey: qk.advances.all });
+      qc.invalidateQueries({ queryKey: qk.payments.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
     },
   });
@@ -130,6 +142,10 @@ export function useGenerateOrderBill() {
       qc.invalidateQueries({ queryKey: qk.invoices.all });
       qc.invalidateQueries({ queryKey: qk.sales.all });
       qc.invalidateQueries({ queryKey: qk.products.all });
+      // The advance rows move from the order onto the new invoice.
+      qc.invalidateQueries({ queryKey: qk.parties.all });
+      qc.invalidateQueries({ queryKey: qk.advances.all });
+      qc.invalidateQueries({ queryKey: qk.payments.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
     },
   });
@@ -146,6 +162,10 @@ export function useDeleteOrder() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk.orders.all });
+      // The order's advance rows are deleted with it (FK cascade).
+      qc.invalidateQueries({ queryKey: qk.parties.all });
+      qc.invalidateQueries({ queryKey: qk.advances.all });
+      qc.invalidateQueries({ queryKey: qk.payments.all });
       qc.invalidateQueries({ queryKey: qk.dashboard });
     },
   });

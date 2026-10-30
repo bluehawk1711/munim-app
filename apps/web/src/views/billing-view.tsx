@@ -1,8 +1,8 @@
 "use client"
 
 import * as React from "react"
-import { Plus, Save, Zap, FileText, X, Loader2, Trash2, Printer, Receipt, RefreshCw, Copy, FileDown, CheckCircle2 } from "lucide-react"
-import { Button, Input, NumberInput, Label, Card, CardContent, Checkbox, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, BillLinePricingStrip, EstimateColumnToggles, ProductSearchSelect, BarcodeLookupInput, PaymentMethodPicker, type BillLinePricingStripValue, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
+import { Plus, Zap, X, Loader2, Trash2, Printer, RefreshCw, Copy, FileDown, CheckCircle2 } from "lucide-react"
+import { Button, Input, NumberInput, Label, Card, CardContent, CardHeader, CardTitle, Checkbox, Separator, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Badge, BillTemplateOptions, BillLinePricingStrip, EstimateColumnToggles, ProductSearchSelect, BarcodeLookupInput, CameraScanButton, PaymentMethodPicker, BillPreviewFrame, Dialog, DialogContent, DialogHeader, DialogTitle, type BillLinePricingStripValue, type BillTemplate, type BillClassicColor, type BillMode } from "@munim/ui"
 import { useCreateInvoice, useInvoice, useUpdateInvoice, type CreateInvoiceInput } from "@/hooks/use-invoices"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings } from "@/hooks/use-settings"
@@ -13,20 +13,22 @@ import {
   buildBillDocument,
   calcNetWeight,
   firstGoldKarat,
+  generateBillPDF,
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
+  PURITY_PRESETS,
+  renderBillHtml,
   resolveGoldRateTable,
   weightTextToGrams,
   type BillDocument,
   type EstimateColumnId,
   type GoldRateKaratMode,
   type InvoiceDto,
+  type InvoiceFormValues,
   type PriceBreakdown,
 } from "@munim/core"
-import { generateBillPDF, type InvoiceFormValues } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
-import { CameraScanButton } from "@/components/camera-scan-button"
 import { formatCurrency } from "@/lib/format"
 import { toast } from "@munim/ui"
 
@@ -217,6 +219,9 @@ export function BillingView() {
   // karat / custom text / nothing (see GoldRateKaratMode).
   const [goldRateKaratMode, setGoldRateKaratMode] = React.useState<GoldRateKaratMode>("base")
   const [goldRateKaratText, setGoldRateKaratText] = React.useState("")
+  // Karat PICKED in the "Pick a karat…" source — prints under the gold rate
+  // even when neither the product nor the shop has a karat set.
+  const [goldRateKaratValue, setGoldRateKaratValue] = React.useState(22)
   // Estimate columns turned off on THIS bill (per metal) — saved with the
   // bill so reprints match what the shop chose to show.
   const [hiddenGold, setHiddenGold] = React.useState<EstimateColumnId[]>([])
@@ -224,6 +229,16 @@ export function BillingView() {
   // How the advance is coming in — Cash / Online + optional reference note.
   const [paymentMethod, setPaymentMethod] = React.useState<string>("cash")
   const [paymentNote, setPaymentNote] = React.useState("")
+  // Fullscreen lightbox for the live bill preview (click the preview to open).
+  const [previewOpen, setPreviewOpen] = React.useState(false)
+  React.useEffect(() => {
+    if (!previewOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreviewOpen(false)
+    }
+    window.addEventListener("keydown", onKey)
+    return () => window.removeEventListener("keydown", onKey)
+  }, [previewOpen])
 
   // Per-bill gold base ₹/g — prefilled with the shop's rate; editing it
   // re-prices every auto-priced gold line as you type (Phase 4b).
@@ -263,6 +278,9 @@ export function BillingView() {
   const [secondItems, setSecondItems] = React.useState<LineItem[]>([emptyLine()])
   const [secondDeliveryCharge, setSecondDeliveryCharge] = React.useState(0)
   const [secondDiscount, setSecondDiscount] = React.useState(0)
+  const [secondMaterialReturnedWeight, setSecondMaterialReturnedWeight] = React.useState("")
+  const [secondMaterialReturnedValue, setSecondMaterialReturnedValue] = React.useState(0)
+  const [secondMaterialReturnedTitle, setSecondMaterialReturnedTitle] = React.useState("")
   const [secondAmountPaid, setSecondAmountPaid] = React.useState(0)
 
   // ── EDIT MODE — `?view=billing&edit=<invoiceId>` ────────────────────────
@@ -588,7 +606,10 @@ export function BillingView() {
   const paid = markPaid ? total : Math.min(amountPaid, total)
 
   const secondSubtotal = secondItems.reduce((s, it) => s + it.quantity * it.price, 0)
-  const secondTotal = Math.max(0, secondSubtotal + secondDeliveryCharge - secondDiscount)
+  const secondTotal = Math.max(
+    0,
+    secondSubtotal + secondDeliveryCharge - secondDiscount - secondMaterialReturnedValue,
+  )
   const secondPaid = markPaid ? secondTotal : Math.min(secondAmountPaid, secondTotal)
 
   function updateItem(index: number, patch: Partial<LineItem>) {
@@ -617,6 +638,16 @@ export function BillingView() {
     }
   }
 
+  /** Per-row swap — replaces exactly that row (never touches other lines). */
+  function makeRowPicker(setter: React.Dispatch<React.SetStateAction<LineItem[]>>) {
+    return (index: number, productId: string) => {
+      const p = products.find((x) => x.id === productId)
+      if (!p) return
+      const item = lineFromProduct(p)
+      setter((prev) => prev.map((it, i) => (i === index ? item : it)))
+    }
+  }
+
   // Typed against the create payload's own settings shape (the zod output
   // type) rather than the optional-fielded snapshot model — the payload
   // requires every key present.
@@ -632,6 +663,7 @@ export function BillingView() {
       signSuffix,
       goldRateKaratMode,
       goldRateKaratText,
+      goldRateKaratValue,
       hiddenColumns: { gold: hiddenGold, silver: hiddenSilver },
     }
   }
@@ -643,6 +675,7 @@ export function BillingView() {
   function rateKaratBadge(): string | null {
     if (goldRateKaratMode === "off") return null
     if (goldRateKaratMode === "custom") return goldRateKaratText.trim() || null
+    if (goldRateKaratMode === "karat") return `${goldRateKaratValue}K`
     if (goldRateKaratMode === "product") {
       const karat = firstGoldKarat(
         items
@@ -745,6 +778,9 @@ export function BillingView() {
       deliveryCharge: secondDeliveryCharge,
       discount: secondDiscount,
       amountPaid: secondPaid,
+      materialReturnedWeight: secondMaterialReturnedWeight || undefined,
+      materialReturnedValue: secondMaterialReturnedValue,
+      materialReturnedTitle: secondMaterialReturnedTitle || undefined,
     })
   }
 
@@ -876,6 +912,9 @@ export function BillingView() {
           items: lineItems(secondItems),
           deliveryCharge: secondDeliveryCharge,
           discount: secondDiscount,
+          materialReturnedWeight: secondMaterialReturnedWeight || undefined,
+          materialReturnedValue: secondMaterialReturnedValue,
+          materialReturnedTitle: secondMaterialReturnedTitle || undefined,
           amountPaid: secondPaid,
         }
         const secondInvoice = await createInvoice.mutateAsync(secondPayload)
@@ -915,6 +954,9 @@ export function BillingView() {
     setSecondItems([emptyLine()])
     setSecondDeliveryCharge(0)
     setSecondDiscount(0)
+    setSecondMaterialReturnedWeight("")
+    setSecondMaterialReturnedValue(0)
+    setSecondMaterialReturnedTitle("")
     setSecondAmountPaid(0)
     goldRateTouched.current = false
     setGoldRateInput(goldBaseRate != null ? String(goldBaseRate) : "")
@@ -947,6 +989,9 @@ export function BillingView() {
     setSecondPartyId("")
     setSecondDiscount(0)
     setSecondDeliveryCharge(0)
+    setSecondMaterialReturnedWeight("")
+    setSecondMaterialReturnedValue(0)
+    setSecondMaterialReturnedTitle("")
     setSecondAmountPaid(0)
     setSecondItems([emptyLine()])
 
@@ -961,6 +1006,7 @@ export function BillingView() {
     setSignSuffix(st?.signSuffix ?? true)
     setGoldRateKaratMode(st?.goldRateKaratMode ?? "base")
     setGoldRateKaratText(st?.goldRateKaratText ?? "")
+    setGoldRateKaratValue(st?.goldRateKaratValue ?? 22)
     setHiddenGold(st?.hiddenColumns?.gold ?? [])
     setHiddenSilver(st?.hiddenColumns?.silver ?? [])
 
@@ -1019,141 +1065,71 @@ export function BillingView() {
   const rateKaratBadgeText = rateKaratBadge()
 
   return (
-    <div className="space-y-4">
-      {/* Header settings */}
-      <Card>
-        <CardContent className="space-y-4 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold">{editing ? "Edit Bill" : "New Bill / Invoice"}</h2>
-                <p className="text-xs text-muted-foreground">
-                  {editing
-                    ? `Editing ${editInvoice?.invoiceNumber ?? "…"} · ${shop.shopName}`
-                    : `Template · ${shop.shopName}`}
-                </p>
-              </div>
-            </div>
-            <BillTemplateOptions
-              template={template}
-              classicColor={classicColor}
-              twoInOne={twoInOne}
-              mode={mode}
-              weightAfterName={weightAfterName}
-              goldRateLine={goldRateLine}
-              silverRateLine={silverRateLine}
-              signSuffix={signSuffix}
-              goldRateKaratMode={goldRateKaratMode}
-              goldRateKaratText={goldRateKaratText}
-              onGoldRateKaratMode={(next) => {
-                setGoldRateKaratMode(next)
-                toast.success(`Karat line: ${next === "off" ? "hidden" : next === "base" ? "shop base" : next === "product" ? "product's karat" : "custom text"}`)
-              }}
-              onGoldRateKaratText={setGoldRateKaratText}
-              onSignSuffix={(next) => {
-                setSignSuffix(next)
-                toast.success(next ? "Chejat/Nag signs shown" : "Chejat/Nag signs hidden")
-              }}
-              onWeightAfterName={(next) => {
-                setWeightAfterName(next)
-                toast.success(next ? "Weight column shown" : "Weight column hidden")
-              }}
-              onGoldRateLine={(next) => {
-                setGoldRateLine(next)
-                toast.success(next ? "Gold rate line shown" : "Gold rate line hidden")
-              }}
-              onSilverRateLine={(next) => {
-                setSilverRateLine(next)
-                toast.success(next ? "Silver rate line shown" : "Silver rate line hidden")
-              }}
-              onTemplate={(next) => {
-                setTemplate(next)
-                toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template", {
-                  description: "Applied to this bill",
-                })
-              }}
-              onClassicColor={(next) => {
-                setClassicColor(next)
-                toast.success(next === "red" ? "Red theme" : "Yellow theme", {
-                  description: "Bill accent color updated",
-                })
-              }}
-              onTwoInOne={(next) => {
-                setTwoInOne(next)
-                toast.success(next ? "2-in-1 bill enabled" : "2-in-1 bill disabled")
-              }}
-              onMode={(next) => {
-                setMode(next)
-                toast.success(next === "duplicate" ? "Duplicate mode" : "Separate mode", {
-                  description: next === "duplicate" ? "Two identical bills on one page" : "Two different bills on one page",
-                })
-              }}
-            />
-          </div>
-
-          {/* Estimate column visibility — same toggles desktop shows, so the
-              printed grid can be trimmed per metal. */}
-          <EstimateColumnToggles
-            template={template}
-            hiddenGold={hiddenGold}
-            hiddenSilver={hiddenSilver}
-            onToggle={(metal, column) => {
-              const setter = metal === "gold" ? setHiddenGold : setHiddenSilver
-              setter((prev) => (prev.includes(column) ? prev.filter((c) => c !== column) : [...prev, column]))
-            }}
-          />
-
-          <Separator />
-
-          {/* Bill to / details */}
-          <div className="grid gap-4 lg:grid-cols-3">
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bill To</p>
-              <div className="space-y-2">
-                <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name" className="h-9" />
-                <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Phone" className="h-9" />
-                <Input value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} placeholder="Address" className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Link to khata party</Label>
-                <Select value={partyId} onValueChange={(v) => {
-                  setPartyId(v)
-                  const p = parties?.find((x) => x.id === v)
-                  if (p) {
-                    setCustomerName(p.name)
-                    if (p.phone) setCustomerPhone(p.phone)
-                    if (p.address) setCustomerAddress(p.address)
-                  }
-                }}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="None (walk-in)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none">None (walk-in)</SelectItem>
-                    {parties?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Invoice Details</p>
-              <div className="space-y-2">
+    <div className="space-y-5">
+      <div className="grid gap-5 xl:grid-cols-3">
+        {/* LEFT — details, items, on-save and actions. The live preview and
+            bill style options sit in the right rail, same as desktop. */}
+        <div className="space-y-5 xl:col-span-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">
+                Bill details
+                {editing && (
+                  <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+                    {editInvoice?.invoiceNumber ?? "…"}
+                  </span>
+                )}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Date</Label>
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-9" />
+                  <Label htmlFor="b-cust">Customer</Label>
+                  <Input id="b-cust" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Walk-in customer" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Gold karat rate (₹/g)</Label>
+                  <Label htmlFor="b-phone">Phone</Label>
+                  <Input id="b-phone" value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-addr">Address</Label>
+                  <Input id="b-addr" value={customerAddress} onChange={(e) => setCustomerAddress(e.target.value)} />
+                </div>
+                <div className="space-y-1.5 sm:col-span-3">
+                  <Label htmlFor="b-party">Link to khata party</Label>
+                  <Select value={partyId} onValueChange={(v) => {
+                    setPartyId(v)
+                    const p = parties?.find((x) => x.id === v)
+                    if (p) {
+                      setCustomerName(p.name)
+                      if (p.phone) setCustomerPhone(p.phone)
+                      if (p.address) setCustomerAddress(p.address)
+                    }
+                  }}>
+                    <SelectTrigger id="b-party" className="w-full"><SelectValue placeholder="None (walk-in)" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none">None (walk-in)</SelectItem>
+                      {parties?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-date">Date</Label>
+                  <Input id="b-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="b-gold-rate">Gold karat rate (₹/g)</Label>
                   <Input
+                    id="b-gold-rate"
                     type="number"
                     min={0}
                     step="any"
                     value={goldRateInput}
                     onChange={(e) => handleGoldRateChange(e.target.value)}
                     placeholder={goldBaseRate != null ? String(goldBaseRate) : "—"}
-                    className="h-9"
                   />
                   <div className="flex items-center gap-2">
                     <p className="text-[11px] text-muted-foreground">Editing re-prices gold lines on this bill.</p>
@@ -1165,15 +1141,15 @@ export function BillingView() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Silver rate (₹/10g)</Label>
+                  <Label htmlFor="b-silver-rate">Silver rate (₹/10g)</Label>
                   <Input
+                    id="b-silver-rate"
                     type="number"
                     min={0}
                     step="any"
                     value={silverRateInput}
                     onChange={(e) => handleSilverRateChange(e.target.value)}
                     placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : "—"}
-                    className="h-9"
                   />
                   <p className="text-[11px] text-muted-foreground">
                     {billSilverRate != null ? `≈ ₹${billSilverRate.toFixed(2)}/g · ` : ""}
@@ -1181,236 +1157,151 @@ export function BillingView() {
                   </p>
                 </div>
               </div>
-            </div>
 
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">From {shop.shopName}</p>
-              <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">{shop.shopName}</p>
-                <p className="mt-1">{shop.shopAddress}</p>
-                <p className="mt-1">Ph: {Array.isArray(shop.shopPhones) ? shop.shopPhones.join(" · ") : ""}</p>
-                {shop.shopEmail && <p className="mt-1">{shop.shopEmail}</p>}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Bill 1 line items */}
-      <div className="flex justify-end">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleRecalcPrices}
-          disabled={syncPrices.isPending}
-          className="h-9 gap-1.5"
-        >
-          <RefreshCw className={syncPrices.isPending ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
-          {syncPrices.isPending ? "Recalculating…" : "Recalculate prices"}
-        </Button>
-      </div>
-      <BillItemsCard
-        title={distinct ? "Bill 1" : undefined}
-        items={items}
-        setItems={setItems}
-        onWeightChange={makeWeightHandler(setItems)}
-        onBasisChange={makeBasisHandler(setItems)}
-        onPricingChange={(i, patch) => handlePricingChange(setItems, i, patch)}
-        pricing={(i) => (items[i] ? pricingViewFor(items[i]) : null)}
-        products={products}
-        onPickProduct={makePicker(setItems)}
-        onBarcodeLookup={handleBarcodeLookup(setItems)}
-        charges={{
-          delivery: deliveryCharge,
-          discount,
-          subtotal,
-          total,
-          onDelivery: setDeliveryCharge,
-          onDiscount: setDiscount,
-        }}
-      />
-
-      {/* Second bill — only when 2-in-1 "Separate" is selected */}
-      {distinct && (
-        <>
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Receipt className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-semibold">Second Bill — separate</h3>
-                    <Badge variant="secondary">Bill 2</Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    A different customer &amp; items; printed on the bottom half of the 2-in-1 page.
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-3">
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bill To</p>
-                  <div className="space-y-2">
-                    <Input value={secondCustomerName} onChange={(e) => setSecondCustomerName(e.target.value)} placeholder="Customer name" className="h-9" />
-                    <Input value={secondCustomerPhone} onChange={(e) => setSecondCustomerPhone(e.target.value)} placeholder="Phone" className="h-9" />
-                    <Input value={secondCustomerAddress} onChange={(e) => setSecondCustomerAddress(e.target.value)} placeholder="Address" className="h-9" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Link to khata party</Label>
-                    <Select value={secondPartyId} onValueChange={(v) => {
-                      setSecondPartyId(v)
-                      const p = parties?.find((x) => x.id === v)
-                      if (p) {
-                        setSecondCustomerName(p.name)
-                        if (p.phone) setSecondCustomerPhone(p.phone)
-                        if (p.address) setSecondCustomerAddress(p.address)
-                      }
-                    }}>
-                      <SelectTrigger className="h-9"><SelectValue placeholder="None (walk-in)" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none">None (walk-in)</SelectItem>
-                        {parties?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Payment</p>
-                  <div className="space-y-2">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Amount paid now (₹)</Label>
-                      <NumberInput min={0} value={secondAmountPaid} onValueChange={(v) => setSecondAmountPaid(v ?? 0)} className="h-9" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Summary</p>
-                  <div className="rounded-lg border bg-muted/40 p-3 text-xs">
-                    <Row label="Subtotal" value={formatCurrency(secondSubtotal)} />
-                    {secondDeliveryCharge > 0 && <Row label="Delivery" value={formatCurrency(secondDeliveryCharge)} />}
-                    {secondDiscount > 0 && <Row label="Discount" value={`−${formatCurrency(secondDiscount)}`} />}
-                    <div className="mt-1.5 flex items-center justify-between border-t pt-1.5">
-                      <span className="font-semibold">Total</span>
-                      <span className="text-base font-bold tabular-nums">{formatCurrency(secondTotal)}</span>
-                    </div>
-                    {secondPaid > 0 && (
-                      <p className="mt-1 text-muted-foreground">
-                        Paying now: {formatCurrency(secondPaid)} · Balance: {formatCurrency(secondTotal - secondPaid)}
-                      </p>
-                    )}
-                  </div>
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="b-notes">Notes / terms</Label>
+                <textarea
+                  id="b-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Thank you for your business!"
+                  rows={3}
+                  className="w-full resize-none rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
               </div>
             </CardContent>
           </Card>
-          <BillItemsCard
-            title="Bill 2"
-            items={secondItems}
-            setItems={setSecondItems}
-            onWeightChange={makeWeightHandler(setSecondItems)}
-            onBasisChange={makeBasisHandler(setSecondItems)}
-            onPricingChange={(i, patch) => handlePricingChange(setSecondItems, i, patch)}
-            pricing={(i) => (secondItems[i] ? pricingViewFor(secondItems[i]) : null)}
+
+          {/* Bill 1 line items + charges + payment */}
+          <BillItemsPanel
+            title="Items"
+            onRecalc={handleRecalcPrices}
+            recalcPending={syncPrices.isPending}
+            items={items}
+            setItems={setItems}
+            onWeightChange={makeWeightHandler(setItems)}
+            onBasisChange={makeBasisHandler(setItems)}
+            onPricingChange={(i, patch) => handlePricingChange(setItems, i, patch)}
+            pricing={(i) => (items[i] ? pricingViewFor(items[i]) : null)}
             products={products}
-            onPickProduct={makePicker(setSecondItems)}
-            onBarcodeLookup={handleBarcodeLookup(setSecondItems)}
-            charges={{
-              delivery: secondDeliveryCharge,
-              discount: secondDiscount,
-              subtotal: secondSubtotal,
-              total: secondTotal,
-              onDelivery: setSecondDeliveryCharge,
-              onDiscount: setSecondDiscount,
+            onPickProduct={makePicker(setItems)}
+            onPickProductAt={makeRowPicker(setItems)}
+            onBarcodeLookup={handleBarcodeLookup(setItems)}
+            adjustments={{
+              delivery: deliveryCharge,
+              discount,
+              onDelivery: setDeliveryCharge,
+              onDiscount: setDiscount,
+              paid,
+              onPaid: setAmountPaid,
+              materialTitle: materialReturnedTitle,
+              onMaterialTitle: setMaterialReturnedTitle,
+              materialWeight: materialReturnedWeight,
+              onMaterialWeight: setMaterialReturnedWeight,
+              materialValue: materialReturnedValue,
+              onMaterialValue: setMaterialReturnedValue,
+              paymentMethod,
+              onPaymentMethod: setPaymentMethod,
+              paymentNote,
+              onPaymentNote: setPaymentNote,
+            }}
+            totals={{
+              subtotal,
+              discount,
+              delivery: deliveryCharge,
+              materialReturned: materialReturnedValue,
+              materialTitle: materialReturnedTitle,
+              total,
+              paid,
             }}
           />
-        </>
-      )}
 
-      {/* Summary + actions */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <Label className="text-xs">Notes / terms</Label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Thank you for your business!"
-              rows={4}
-              className="w-full resize-none rounded-lg border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring"
+          {/* Second bill — only when 2-in-1 "Separate" is selected */}
+          {distinct && (
+            <BillItemsPanel
+              title="Second Bill — separate"
+              badge="Bill 2"
+              header={
+                <>
+                  <p className="text-xs text-muted-foreground">
+                    A different customer &amp; items; printed on the bottom half of the 2-in-1 page.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sb-cust">Customer</Label>
+                      <Input id="sb-cust" value={secondCustomerName} onChange={(e) => setSecondCustomerName(e.target.value)} placeholder="Walk-in customer" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sb-phone">Phone</Label>
+                      <Input id="sb-phone" value={secondCustomerPhone} onChange={(e) => setSecondCustomerPhone(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="sb-addr">Address</Label>
+                      <Input id="sb-addr" value={secondCustomerAddress} onChange={(e) => setSecondCustomerAddress(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-3">
+                      <Label htmlFor="sb-party">Link to khata party</Label>
+                      <Select value={secondPartyId} onValueChange={(v) => {
+                        setSecondPartyId(v)
+                        const p = parties?.find((x) => x.id === v)
+                        if (p) {
+                          setSecondCustomerName(p.name)
+                          if (p.phone) setSecondCustomerPhone(p.phone)
+                          if (p.address) setSecondCustomerAddress(p.address)
+                        }
+                      }}>
+                        <SelectTrigger id="sb-party" className="w-full"><SelectValue placeholder="None (walk-in)" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none">None (walk-in)</SelectItem>
+                          {parties?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </>
+              }
+              items={secondItems}
+              setItems={setSecondItems}
+              onWeightChange={makeWeightHandler(setSecondItems)}
+              onBasisChange={makeBasisHandler(setSecondItems)}
+              onPricingChange={(i, patch) => handlePricingChange(setSecondItems, i, patch)}
+              pricing={(i) => (secondItems[i] ? pricingViewFor(secondItems[i]) : null)}
+              products={products}
+              onPickProduct={makePicker(setSecondItems)}
+              onPickProductAt={makeRowPicker(setSecondItems)}
+              onBarcodeLookup={handleBarcodeLookup(setSecondItems)}
+              adjustments={{
+                delivery: secondDeliveryCharge,
+                discount: secondDiscount,
+                onDelivery: setSecondDeliveryCharge,
+                onDiscount: setSecondDiscount,
+                paid: secondPaid,
+                onPaid: setSecondAmountPaid,
+                materialTitle: secondMaterialReturnedTitle,
+                onMaterialTitle: setSecondMaterialReturnedTitle,
+                materialWeight: secondMaterialReturnedWeight,
+                onMaterialWeight: setSecondMaterialReturnedWeight,
+                materialValue: secondMaterialReturnedValue,
+                onMaterialValue: setSecondMaterialReturnedValue,
+              }}
+              totals={{
+                subtotal: secondSubtotal,
+                discount: secondDiscount,
+                delivery: secondDeliveryCharge,
+                materialReturned: secondMaterialReturnedValue,
+                materialTitle: secondMaterialReturnedTitle,
+                total: secondTotal,
+                paid: secondPaid,
+              }}
             />
-            <div className="space-y-1.5">
-              <Label className="text-xs">Material returned title</Label>
-              <Input value={materialReturnedTitle} onChange={(e) => setMaterialReturnedTitle(e.target.value)} placeholder="Material Returned" className="h-9" />
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Material returned weight</Label>
-                <Input value={materialReturnedWeight} onChange={(e) => setMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Material returned value (₹)</Label>
-                <NumberInput min={0} value={materialReturnedValue} onValueChange={(v) => setMaterialReturnedValue(v ?? 0)} className="h-9" />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Amount paid now (₹)</Label>
-              <NumberInput min={0} value={amountPaid} onValueChange={(v) => setAmountPaid(v ?? 0)} className="h-9" />
-              {/* How the advance is coming in — printed on the invoice's
-                  Payments trail (preset method or Custom + optional reference). */}
-              <PaymentMethodPicker value={paymentMethod} onChange={setPaymentMethod} />
-              <Input
-                value={paymentNote}
-                maxLength={120}
-                onChange={(e) => setPaymentNote(e.target.value)}
-                placeholder={paymentMethod === "online" || (paymentMethod && paymentMethod !== "cash") ? "UPI id / transaction no. (optional)" : "Note (optional)"}
-                className="h-9"
-              />
-            </div>
-          </CardContent>
-        </Card>
+          )}
 
-        <Card>
-          <CardContent className="space-y-2.5 p-4">
-            <Row label="Subtotal" value={formatCurrency(subtotal)} />
-            {deliveryCharge > 0 && <Row label="Delivery" value={formatCurrency(deliveryCharge)} />}
-            {discount > 0 && <Row label="Discount" value={`−${formatCurrency(discount)}`} />}
-            {materialReturnedValue > 0 && (
-              <Row
-                label={`${materialReturnedTitle.trim() || "Material Returned"}${materialReturnedWeight ? ` (${materialReturnedWeight})` : ""}`}
-                value={`−${formatCurrency(materialReturnedValue)}`}
-              />
-            )}
-            <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold">Total</span>
-              <span className="text-2xl font-bold tabular-nums">{formatCurrency(total)}</span>
-            </div>
-            {distinct && (
-              <p className="text-xs text-muted-foreground">
-                + Second bill total: <span className="font-semibold text-foreground">{formatCurrency(secondTotal)}</span>
-              </p>
-            )}
-            {paid > 0 ? (
-              <p className="text-xs text-muted-foreground">Paying now: {formatCurrency(paid)} · Balance: {formatCurrency(total - paid)}</p>
-            ) : null}
-            {/* Live paid/due strip — what the customer is handing over vs
-                what they still owe on this bill. */}
-            <div className="flex items-center justify-between rounded-lg bg-muted/50 px-3 py-2 text-xs">
-              <span className="text-muted-foreground">
-                Paid <span className="font-semibold text-foreground tabular-nums">{formatCurrency(paid)}</span>
-              </span>
-              <span className="text-muted-foreground">
-                Due <span className={`font-semibold tabular-nums ${total - paid > 0 ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`}>{formatCurrency(Math.max(0, total - paid))}</span>
-              </span>
-            </div>
-
-            {/* Creation options — auto-save the PDF and/or mark fully paid */}
-            <div className="space-y-2 rounded-lg border bg-muted/40 p-2.5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">On save</p>
+          {/* Creation options — auto-save the PDF and/or mark fully paid */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">On save</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
               <label className="flex items-center gap-2.5 text-sm">
                 <Checkbox
                   checked={autoSavePdf}
@@ -1440,62 +1331,218 @@ export function BillingView() {
                   </span>
                 </span>
               </label>
-            </div>
+            </CardContent>
+          </Card>
 
-            <div className="flex flex-wrap gap-2 pt-2">
-              {editing ? (
-                <Button variant="outline" onClick={cancelEdit} className="gap-1.5">
-                  <X className="h-4 w-4" /> Cancel
-                </Button>
-              ) : (
-                <Button variant="outline" onClick={reset} className="gap-1.5">
-                  <Trash2 className="h-4 w-4" /> Clear
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const settings = buildSettings()
-                  if (distinct) {
-                    generateBillPDF(buildFirstBill(), settings, buildSecondBill())
-                  } else {
-                    generateBillPDF(buildFirstBill(), settings)
-                  }
-                }}
-                className="gap-1.5"
-              >
-                <Printer className="h-4 w-4" /> Preview PDF
+          <div className="flex flex-wrap gap-2">
+            {editing ? (
+              <Button variant="outline" onClick={cancelEdit} className="gap-1.5">
+                <X className="h-4 w-4" /> Cancel
               </Button>
-              <Button
-                onClick={handleSaveAndPrint}
-                className="ml-auto gap-1.5"
-                disabled={
-                  createInvoice.isPending ||
-                  updateInvoice.isPending ||
-                  (editing && !editInvoice)
+            ) : (
+              <Button variant="outline" onClick={reset} className="gap-1.5">
+                <Trash2 className="h-4 w-4" /> Clear
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              onClick={() => {
+                const settings = buildSettings()
+                if (distinct) {
+                  generateBillPDF(buildFirstBill(), settings, buildSecondBill())
+                } else {
+                  generateBillPDF(buildFirstBill(), settings)
                 }
-              >
-                {createInvoice.isPending || updateInvoice.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                {editing ? "Save changes" : "Save & Generate Bill"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+              }}
+              className="gap-1.5"
+            >
+              <Printer className="h-4 w-4" /> Preview PDF
+            </Button>
+          </div>
+
+          <Button
+            className="w-full"
+            onClick={handleSaveAndPrint}
+            disabled={
+              createInvoice.isPending ||
+              updateInvoice.isPending ||
+              (editing && !editInvoice)
+            }
+          >
+            {createInvoice.isPending || updateInvoice.isPending ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Zap className="mr-1.5 h-4 w-4" />
+            )}
+            {editing
+              ? `Save changes — ${formatCurrency(total)}`
+              : `Create invoice — ${formatCurrency(total)}${distinct ? ` + ${formatCurrency(secondTotal)}` : ""}`}
+          </Button>
+        </div>
+
+        {/* RIGHT — live preview + bill style, the same rail desktop shows */}
+        <div className="space-y-5">
+          <Card className="h-fit">
+            <CardHeader>
+              <CardTitle className="text-sm">Bill preview</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <BillPreviewFrame
+                html={renderBillHtml(buildFirstBill(), buildSettings())}
+                onClick={() => setPreviewOpen(true)}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Live preview of the bill you are building — click it to enlarge. Updates as you type, before saving.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm">Bill style</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <BillTemplateOptions
+                template={template}
+                classicColor={classicColor}
+                twoInOne={twoInOne}
+                mode={mode}
+                weightAfterName={weightAfterName}
+                goldRateLine={goldRateLine}
+                silverRateLine={silverRateLine}
+                signSuffix={signSuffix}
+                goldRateKaratMode={goldRateKaratMode}
+                goldRateKaratText={goldRateKaratText}
+                karatPicker
+                goldRateKaratValue={goldRateKaratValue}
+                onGoldRateKaratValue={(next) => {
+                  setGoldRateKaratValue(next)
+                  toast.success(`Karat line: ${next}K`)
+                }}
+                onGoldRateKaratMode={(next) => {
+                  setGoldRateKaratMode(next)
+                  toast.success(`Karat line: ${
+                    next === "off"
+                      ? "hidden"
+                      : next === "base"
+                        ? "shop base"
+                        : next === "product"
+                          ? "product's karat"
+                          : next === "karat"
+                            ? `${goldRateKaratValue}K`
+                            : "custom text"
+                  }`)
+                }}
+                onGoldRateKaratText={setGoldRateKaratText}
+                onSignSuffix={(next) => {
+                  setSignSuffix(next)
+                  toast.success(next ? "Chejat/Nag signs shown" : "Chejat/Nag signs hidden")
+                }}
+                onWeightAfterName={(next) => {
+                  setWeightAfterName(next)
+                  toast.success(next ? "Weight column shown" : "Weight column hidden")
+                }}
+                onGoldRateLine={(next) => {
+                  setGoldRateLine(next)
+                  toast.success(next ? "Gold rate line shown" : "Gold rate line hidden")
+                }}
+                onSilverRateLine={(next) => {
+                  setSilverRateLine(next)
+                  toast.success(next ? "Silver rate line shown" : "Silver rate line hidden")
+                }}
+                onTemplate={(next) => {
+                  setTemplate(next)
+                  toast.success(next === "jewellery" ? "Classic Jewellery template" : "Modern E-commerce template", {
+                    description: "Applied to this bill",
+                  })
+                }}
+                onClassicColor={(next) => {
+                  setClassicColor(next)
+                  toast.success(next === "red" ? "Red theme" : "Yellow theme", {
+                    description: "Bill accent color updated",
+                  })
+                }}
+                onTwoInOne={(next) => {
+                  setTwoInOne(next)
+                  toast.success(next ? "2-in-1 bill enabled" : "2-in-1 bill disabled")
+                }}
+                onMode={(next) => {
+                  setMode(next)
+                  toast.success(next === "duplicate" ? "Duplicate mode" : "Separate mode", {
+                    description: next === "duplicate" ? "Two identical bills on one page" : "Two different bills on one page",
+                  })
+                }}
+              />
+
+              {editing && (
+                <p className="text-[11px] text-muted-foreground">
+                  2-in-1 pairs bills when CREATING. An edit always updates this single bill — its saved print style is preserved.
+                </p>
+              )}
+
+              <Separator />
+
+              {/* Estimate column visibility — same toggles desktop shows, so the
+                  printed grid can be trimmed per metal. */}
+              <EstimateColumnToggles
+                template={template}
+                hiddenGold={hiddenGold}
+                hiddenSilver={hiddenSilver}
+                onToggle={(metal, column) => {
+                  const setter = metal === "gold" ? setHiddenGold : setHiddenSilver
+                  setter((prev) => (prev.includes(column) ? prev.filter((c) => c !== column) : [...prev, column]))
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="max-w-3xl p-4">
+          <DialogHeader>
+            <DialogTitle>Bill preview</DialogTitle>
+          </DialogHeader>
+          <div className="h-[75vh]">
+            <BillPreviewFrame html={renderBillHtml(buildFirstBill(), buildSettings())} fit="contain" />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
 /**
- * Product picker + line-items table. Shared by Bill 1 and the second bill in
- * 2-in-1 "Separate" mode so both bills get the same editing experience.
+ * One bill's editing surface: product pick, line table, charges, payment and
+ * live totals in a single card — the arrangement desktop uses. Bill 1 and the
+ * second bill of a 2-in-1 "Separate" page share it.
  */
-function BillItemsCard({
+type BillPanelAdjustments = {
+  delivery: number
+  discount: number
+  onDelivery: (n: number) => void
+  onDiscount: (n: number) => void
+  paid: number
+  onPaid: (n: number) => void
+  materialTitle: string
+  onMaterialTitle: (v: string) => void
+  materialWeight: string
+  onMaterialWeight: (v: string) => void
+  materialValue: number
+  onMaterialValue: (n: number) => void
+  /** Bill 1 only — how the money came in, printed on the Payments trail. */
+  paymentMethod?: string
+  onPaymentMethod?: (v: string) => void
+  paymentNote?: string
+  onPaymentNote?: (v: string) => void
+}
+
+function BillItemsPanel({
   title,
+  badge,
+  header,
+  onRecalc,
+  recalcPending,
   items,
   setItems,
   onWeightChange,
@@ -1503,11 +1550,18 @@ function BillItemsCard({
   onPricingChange,
   pricing,
   products,
-  charges,
+  adjustments,
+  totals,
   onBarcodeLookup,
   onPickProduct,
+  onPickProductAt,
 }: {
-  title?: string
+  title: string
+  badge?: string
+  /** Rendered above the product picker (the second bill's customer fields). */
+  header?: React.ReactNode
+  onRecalc?: () => void
+  recalcPending?: boolean
   items: LineItem[]
   setItems: React.Dispatch<React.SetStateAction<LineItem[]>>
   /** Weight edits re-price the line (core engine) — passed down from BillingView. */
@@ -1519,20 +1573,23 @@ function BillItemsCard({
   /** Live pricing view per line (metal + breakdown) — null → no strip. */
   pricing?: (index: number) => { metal: "Gold" | "Silver"; breakdown: PriceBreakdown } | null
   products: PickableProduct[]
+  adjustments: BillPanelAdjustments
+  totals: {
+    subtotal: number
+    discount: number
+    delivery: number
+    materialReturned: number
+    materialTitle: string
+    total: number
+    paid: number
+  }
   /** Optional USB-scanner fast entry — resolves on a hit, throws on a miss. */
   onBarcodeLookup?: (code: string) => Promise<unknown>
   /** Picking a product is owned by BillingView (it needs the FULL product
    *  record to materialise the line's editable pricing fields). */
   onPickProduct: (productId: string) => void
-  /** Delivery + discount inputs and live totals — rendered below the rows. */
-  charges?: {
-    delivery: number
-    discount: number
-    subtotal: number
-    total: number
-    onDelivery: (n: number) => void
-    onDiscount: (n: number) => void
-  }
+  /** Per-row swap — replaces THAT row's product (same pricing defaults). */
+  onPickProductAt: (index: number, productId: string) => void
 }) {
   function updateItem(index: number, patch: Partial<LineItem>) {
     setItems((prev) => prev.map((it, i) => (i === index ? { ...it, ...patch } : it)))
@@ -1542,44 +1599,67 @@ function BillItemsCard({
     setItems((prev) => prev.filter((_, i) => i !== index))
   }
 
+  // Per-card id so Bill 1 and Bill 2 don't emit duplicate datalist ids.
+  const purityListId = React.useId()
+  const fieldId = React.useId()
+
   return (
-    <>
-      {title && (
-        <p className="px-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </p>
-      )}
-      <Card>
-        <CardContent className="p-4">
-          <Label className="text-xs">Add from stock (auto-fills price & details)</Label>
-          <div className="mt-1.5">
-            <ProductSearchSelect
-              products={products}
-              disableOutOfStock
-              placeholder="Search product…"
-              onSelect={(p) => onPickProduct(p.id)}
-            />
-          </div>
-          {onBarcodeLookup ? (
-            <div className="mt-2 flex items-center gap-2">
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            {title}
+            {badge && <Badge variant="secondary">{badge}</Badge>}
+          </CardTitle>
+          {onRecalc && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onRecalc}
+              disabled={recalcPending}
+              className="h-7 gap-1 px-2 text-[11px]"
+            >
+              <RefreshCw className={recalcPending ? "h-3 w-3 animate-spin" : "h-3 w-3"} />
+              {recalcPending ? "Recalculating…" : "Recalculate prices"}
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <datalist id={purityListId}>
+          {PURITY_PRESETS.map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
+        {header}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Add from stock (auto-fills price &amp; details)</Label>
+          <ProductSearchSelect
+            products={products}
+            disableOutOfStock
+            placeholder="Search product…"
+            onSelect={(p) => onPickProduct(p.id)}
+          />
+        </div>
+        {onBarcodeLookup ? (
+          <div className="space-y-1.5">
+            <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
+            <div className="flex items-center gap-2">
               <BarcodeLookupInput
                 onLookup={onBarcodeLookup}
-                placeholder="Or scan barcode / type SKU to add…"
-                className="flex-1"
+                placeholder="Scan barcode or type SKU…"
+                className="flex-1 sm:max-w-[320px]"
               />
               {/* Camera scan — mobile's scan-to-bill on a phone/laptop camera. */}
               <CameraScanButton onDetected={onBarcodeLookup} label="Scan barcode to add an item" />
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardContent className="p-0">
-          <div className="hidden grid-cols-[1fr_70px_110px_110px_40px] gap-3 border-b px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
+          </div>
+        ) : null}
+        <div className="overflow-hidden rounded-lg border">
+          <div className="hidden grid-cols-[1fr_70px_110px_110px_40px] gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
             <span>Product / description</span>
             <span className="text-center">Qty</span>
-            <span className="text-center">Rate</span>
+            <span className="text-center">Price</span>
             <span className="text-right">Amount</span>
             <span />
           </div>
@@ -1595,10 +1675,16 @@ function BillItemsCard({
               return (
               <div key={idx} className="grid grid-cols-1 gap-2 px-4 py-3 sm:grid-cols-[1fr_70px_110px_110px_40px] sm:items-center">
                 <div className="space-y-1.5">
+                  <ProductSearchSelect
+                    products={products}
+                    disableOutOfStock
+                    placeholder={item.productId ? "Swap product…" : "Search from stock…"}
+                    onSelect={(p) => onPickProductAt(idx, p.id)}
+                  />
                   <Input
                     value={item.productName}
                     onChange={(e) => updateItem(idx, { productName: e.target.value })}
-                    placeholder="Product name"
+                    placeholder="Or type item name"
                     className="h-9"
                   />
                   <Input
@@ -1608,21 +1694,26 @@ function BillItemsCard({
                     className="h-8 text-xs"
                   />
                   <div className="flex gap-1.5">
-                    <NumberInput
-                      min={0}
-                      value={item.weight}
-                      onValueChange={(value) =>
-                        onWeightChange
-                          ? onWeightChange(idx, value == null ? "" : String(value))
-                          : updateItem(idx, { weight: value })
-                      }
-                      placeholder="Weight"
-                      className="h-8 text-xs"
-                    />
+                    {/* Gold prices on the derived NET weight (G. Wt. − Nag +
+                        Chejat) — its Weight input is disabled, same as desktop. */}
+                    {!isGold && (
+                      <NumberInput
+                        min={0}
+                        value={item.weight}
+                        onValueChange={(value) =>
+                          onWeightChange
+                            ? onWeightChange(idx, value == null ? "" : String(value))
+                            : updateItem(idx, { weight: value })
+                        }
+                        placeholder="Weight"
+                        className="h-8 text-xs"
+                      />
+                    )}
                     <Input
                       value={item.purity ?? ""}
                       onChange={(e) => updateItem(idx, { purity: e.target.value })}
                       placeholder="Purity 22K"
+                      list={purityListId}
                       className="h-8 w-24 text-xs"
                     />
                     <Input
@@ -1680,25 +1771,6 @@ function BillItemsCard({
                       <span className="text-[11px] text-muted-foreground">Net = G. Wt. − Nag + Chejat</span>
                     </div>
                   )}
-                  {item.productId && (() => {
-                    const selectedProduct = products.find(p => p.id === item.productId)
-                    if (selectedProduct?.type !== "Silver") return null
-                    return (
-                      <div className="flex items-center gap-2">
-                        <NumberInput
-                          min={0}
-                          max={100}
-                          value={item.silverPercentage ?? 100}
-                          onValueChange={(value) => updateItem(idx, { silverPercentage: value ?? 100 })}
-                          className="h-8 w-20 text-xs"
-                          placeholder="Silver %"
-                        />
-                        <span className="text-[11px] text-muted-foreground">
-                          Silver % — {item.quantity}gm @ {item.silverPercentage ?? 100}% = {(item.quantity * (item.silverPercentage ?? 100) / 100).toFixed(1)}gm
-                        </span>
-                      </div>
-                    )
-                  })()}
                 </div>
                 <NumberInput
                   min={0}
@@ -1766,44 +1838,125 @@ function BillItemsCard({
               )
             })}
           </div>
-          <div className="border-t p-3">
+          <div className="border-t p-2">
             <Button variant="outline" size="sm" onClick={() => setItems((prev) => [...prev, emptyLine()])} className="gap-1.5">
               <Plus className="h-4 w-4" /> Add line item
             </Button>
-            {charges && (
-              <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Delivery charge (₹)</Label>
-                  <NumberInput min={0} value={charges.delivery} onValueChange={(v) => charges!.onDelivery(v ?? 0)} className="h-9" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Discount (₹)</Label>
-                  <NumberInput min={0} value={charges.discount} onValueChange={(v) => charges!.onDiscount(v ?? 0)} className="h-9" />
-                </div>
-                <div className="bg-muted/40 min-w-48 rounded-lg border p-2.5 text-xs">
-                  <Row label="Subtotal" value={formatCurrency(charges.subtotal)} />
-                  {charges.delivery > 0 && <Row label="Delivery" value={`+${formatCurrency(charges.delivery)}`} />}
-                  {charges.discount > 0 && <Row label="Discount" value={`−${formatCurrency(charges.discount)}`} />}
-                  <div className="mt-1 flex items-center justify-between border-t pt-1">
-                    <span className="font-semibold">Total</span>
-                    <span className="text-sm font-bold tabular-nums">{formatCurrency(charges.total)}</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
-        </CardContent>
-      </Card>
-    </>
+        </div>
+
+        <Separator />
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${fieldId}-disc`}>Discount (₹)</Label>
+            <NumberInput id={`${fieldId}-disc`} min={0} value={adjustments.discount} onValueChange={(v) => adjustments.onDiscount(v ?? 0)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${fieldId}-delivery`}>Delivery charge (₹)</Label>
+            <NumberInput id={`${fieldId}-delivery`} min={0} value={adjustments.delivery} onValueChange={(v) => adjustments.onDelivery(v ?? 0)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${fieldId}-paid`}>Amount paid now (₹)</Label>
+            <NumberInput id={`${fieldId}-paid`} min={0} value={adjustments.paid} onValueChange={(v) => adjustments.onPaid(v ?? 0)} />
+          </div>
+        </div>
+
+        {adjustments.onPaymentMethod && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* How the money is coming in — preset method or Custom + the
+                optional reference (printed in the Payments trail). */}
+            <PaymentMethodPicker
+              label="Paid via"
+              value={adjustments.paymentMethod ?? "cash"}
+              onChange={adjustments.onPaymentMethod}
+            />
+            <div className="space-y-1.5">
+              <Label htmlFor={`${fieldId}-pay-note`}>Payment note (optional)</Label>
+              <Input
+                id={`${fieldId}-pay-note`}
+                value={adjustments.paymentNote ?? ""}
+                maxLength={120}
+                onChange={(e) => adjustments.onPaymentNote?.(e.target.value)}
+                placeholder={
+                  adjustments.paymentMethod && adjustments.paymentMethod !== "cash"
+                    ? "UPI id / transaction no."
+                    : "e.g. cash in hand"
+                }
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor={`${fieldId}-mr-title`}>Material returned title</Label>
+            <Input
+              id={`${fieldId}-mr-title`}
+              value={adjustments.materialTitle}
+              onChange={(e) => adjustments.onMaterialTitle(e.target.value)}
+              placeholder="Material Returned"
+            />
+            <Label htmlFor={`${fieldId}-mr-weight`}>Material returned weight</Label>
+            <Input
+              id={`${fieldId}-mr-weight`}
+              value={adjustments.materialWeight}
+              onChange={(e) => adjustments.onMaterialWeight(e.target.value)}
+              placeholder="e.g. 5gm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`${fieldId}-mr-value`}>Material returned value (₹)</Label>
+            <NumberInput
+              id={`${fieldId}-mr-value`}
+              min={0}
+              value={adjustments.materialValue}
+              onValueChange={(v) => adjustments.onMaterialValue(v ?? 0)}
+            />
+          </div>
+        </div>
+
+        {/* Live math: subtotal − discount + delivery − material = total, so the
+            auto-calc (and the balance still owed) is always visible. */}
+        <div className="bg-muted/50 space-y-1.5 rounded-lg border p-3 text-sm">
+          <p className="flex justify-between">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="tabular-nums">{formatCurrency(totals.subtotal)}</span>
+          </p>
+          {totals.discount > 0 && (
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Discount</span>
+              <span className="tabular-nums">−{formatCurrency(totals.discount)}</span>
+            </p>
+          )}
+          {totals.delivery > 0 && (
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">Delivery</span>
+              <span className="tabular-nums">+{formatCurrency(totals.delivery)}</span>
+            </p>
+          )}
+          {totals.materialReturned > 0 && (
+            <p className="flex justify-between">
+              <span className="text-muted-foreground">{totals.materialTitle.trim() || "Material Returned"}</span>
+              <span className="tabular-nums">−{formatCurrency(totals.materialReturned)}</span>
+            </p>
+          )}
+          <p className="flex justify-between border-t pt-1.5">
+            <span className="font-semibold">Total</span>
+            <span className="font-bold tabular-nums">{formatCurrency(totals.total)}</span>
+          </p>
+          <p className="flex justify-between">
+            <span className="text-muted-foreground">Paid now</span>
+            <span className="tabular-nums">{formatCurrency(totals.paid)}</span>
+          </p>
+          <p className="flex justify-between">
+            <span className="text-muted-foreground">Balance due</span>
+            <span className="font-semibold tabular-nums">{formatCurrency(Math.max(0, totals.total - totals.paid))}</span>
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium tabular-nums">{value}</span>
-    </div>
-  )
-}
 

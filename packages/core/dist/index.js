@@ -33,7 +33,7 @@ export { generateSku, generateInvoiceNumber, generateOrderNumber, stripCodePrefi
 export { normalizeBarcode, isEan13, ean13CheckDigit, generateEan13, barcodeSvg, ean13Svg, code39Svg, } from "./utils/barcode.js";
 export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
 export { PAYMENT_METHOD_PRESETS, CUSTOM_PAYMENT_METHOD, paymentMethodLabel, isPresetPaymentMethod, } from "./utils/paymentMethods.js";
-export { newId } from "./utils/id.js";
+export { newId, idOrNull } from "./utils/id.js";
 export { swatchColor } from "./utils/swatch.js";
 export { uploadImageToCloudinary, uploadImageToCloudinarySigned, } from "./utils/cloudinary.js";
 /* Validators — shared zod request schemas (API + web) */

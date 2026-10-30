@@ -29,6 +29,34 @@ const KARAT_OPTIONS = Array.from({length: 25}, (_, karat) => ({
   value: String(karat),
 }));
 
+/**
+ * Free-text "create new value" row inside a catalog picker — web and desktop
+ * both offer "New color… / New size… / New category… / New article…", so
+ * mobile must allow the same thing instead of being limited to the catalog.
+ */
+function NewValueRow({label, placeholder, onAdd}: {label: string; placeholder: string; onAdd: (value: string) => void}) {
+  const styles = useThemeStyles(c =>
+    StyleSheet.create({
+      row: {flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.sm},
+    }),
+  );
+  const [draft, setDraft] = useState('');
+  function commit() {
+    const value = draft.trim();
+    if (!value) return;
+    onAdd(value);
+    setDraft('');
+  }
+  return (
+    <View style={styles.row}>
+      <View style={{flex: 1}}>
+        <Field label={label} value={draft} onChangeText={setDraft} placeholder={placeholder} maxLength={40} />
+      </View>
+      <Button title="Add" size="small" onPress={commit} />
+    </View>
+  );
+}
+
 type EditProductModalProps = {
   visible: boolean;
   onClose: () => void;
@@ -62,11 +90,18 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         borderColor: c.border,
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: spacing.md,
+        marginBottom: spacing.sm,
         overflow: 'hidden',
       },
       imagePickerThumb: {width: '100%', height: '100%'},
       imagePickerText: {fontSize: typography.secondary, color: c.muted, fontWeight: '600'},
+      imagePickerLabel: {fontSize: 12, color: c.muted, fontWeight: '600', marginBottom: 5},
+      imageActions: {flexDirection: 'row', alignItems: 'center', gap: spacing.lg, marginBottom: spacing.xs},
+      imageActionText: {fontSize: typography.secondary, color: c.primary, fontWeight: '600'},
+      imageRemoveText: {fontSize: typography.secondary, color: c.danger, fontWeight: '600'},
+      imageHint: {fontSize: 11, color: c.muted, marginBottom: spacing.md},
+      hint: {fontSize: 11, color: c.muted, marginTop: -spacing.sm, marginBottom: spacing.sm},
+      marginText: {fontSize: 12, color: c.muted, marginBottom: spacing.sm},
       goldBox: {
         borderWidth: 1,
         borderColor: c.border,
@@ -130,10 +165,13 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
   const [chejatWeight, setChejatWeight] = useState('');
   const [netWeight, setNetWeight] = useState('');
   const [purity, setPurity] = useState('');
+  const [barcode, setBarcode] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [stock, setStock] = useState('1');
+  const [lowStock, setLowStock] = useState('5');
   const [buy, setBuy] = useState('0');
   const [sell, setSell] = useState('0');
+  const [notes, setNotes] = useState('');
   const [silverPercentage, setSilverPercentage] = useState('100');
   const [goldKarat, setGoldKarat] = useState('0');
   const [labourType, setLabourType] = useState<LabourType>('PERCENT');
@@ -194,6 +232,12 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
     );
   }, [type, priceMode, weight, weightUnit, selectedKarat, silverPercentage, labourType, labourValue, netWeight, nagRate, povayiRate, otherCharges, silverProductRate, sell, karatTable, silverRatePerGram, defaultLabour]);
 
+  /** Same margin readout as web/desktop (blank when not profitable). */
+  const margin =
+    Number(sell) - Number(buy) > 0
+      ? (((Number(sell) - Number(buy)) / (Number(sell) || 1)) * 100).toFixed(0)
+      : null;
+
   const catalogColors = useMemo(() => (colorsCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [colorsCatalog]);
   const catalogSizes = useMemo(() => (sizesCatalog ?? []).map((s: {name: string}) => ({label: s.name, value: s.name})), [sizesCatalog]);
   const catalogCategories = useMemo(() => (categoriesCatalog ?? []).map((c: {name: string}) => ({label: c.name, value: c.name})), [categoriesCatalog]);
@@ -205,7 +249,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       setName(product.name);
       setType(product.type ?? 'Gold');
       setColor(product.color);
-      setSize(product.size);
+      setSize(product.size || 'Standard');
       setCategory(product.category ?? '');
       setSubCategory(product.subCategory ?? '');
       setArticle(product.article ?? '');
@@ -218,10 +262,13 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       setChejatWeight(product.chejatWeight ?? '');
       setNetWeight(product.netWeight ?? '');
       setPurity(product.purity ?? '');
+      setBarcode(product.barcode ?? '');
       setImageUrl(product.imageUrl ?? '');
       setStock(String(product.stock));
+      setLowStock(String(product.lowStockThreshold));
       setBuy(String(product.purchasePrice));
       setSell(String(product.sellingPrice));
+      setNotes(product.notes ?? '');
       setSilverPercentage(String(product.silverPercentage ?? 100));
       setGoldKarat(String(product.goldKarat ?? 0));
       setLabourType(product.labourType);
@@ -234,7 +281,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       setName('');
       setType('Gold');
       setColor('');
-      setSize('');
+      setSize('Standard');
       setCategory('');
       setSubCategory('');
       setWeight('');
@@ -246,10 +293,13 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       setChejatWeight('');
       setNetWeight('');
       setPurity('');
+      setBarcode('');
       setImageUrl('');
       setStock('1');
+      setLowStock('5');
       setBuy('0');
       setSell('0');
+      setNotes('');
       setSilverPercentage('100');
       setGoldKarat('0');
       setLabourType('PERCENT');
@@ -356,8 +406,12 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         otherCharges: otherCharges.trim() === '' ? null : Math.max(0, Number(otherCharges) || 0),
         silverRatePerGram: silverProductRate.trim() === '' ? null : Math.max(0, Number(silverProductRate) || 0),
         purity: purity.trim() || undefined,
+        // Always sent: "" clears the stored barcode (a blank one is
+        // auto-generated on create, like web/desktop).
+        barcode: barcode.trim(),
         imageUrl: imageUrl.trim() || undefined,
         stock: Math.max(0, Number(stock) || 0),
+        lowStockThreshold: Math.max(0, Number(lowStock) || 0),
         purchasePrice: Number(buy) || 0,
         sellingPrice: Number(sell) || 0,
         silverPercentage: Number(silverPercentage) || 100,
@@ -365,6 +419,9 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         labourType,
         labourValue: labourValue.trim() === '' ? null : Math.max(0, Number(labourValue) || 0),
         priceMode,
+        // Always sent: "" clears the stored notes (updateProduct nulls an
+        // omitted notes field, which would wipe them on every quick save).
+        notes: notes.trim(),
       };
       if (isEdit) {
         await updateProduct.mutateAsync({id: product.id, values: input});
@@ -386,17 +443,17 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
     <>
       <ModalSheet visible={visible} size="xl" title={isEdit ? `Edit — ${product.name}` : 'Add product'} onClose={onClose} dismissable={!saving && !uploading} centered scrollable>
         {!isBillMode && (
-          <Field label="Name" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" />
+          <Field label="Product name *" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" maxLength={120} />
         )}
         {!isBillMode && (
           <SelectField label="Type" value={type} placeholder="Select type" onPress={() => setTypePickerOpen(true)} />
         )}
-        {isEdit && product && (
-          <View style={styles.skuRow}>
-            <View style={{flex: 1}}>
-              <Text style={styles.skuLabel}>SKU</Text>
-              <Text style={styles.skuValue}>{product.sku}</Text>
-            </View>
+        <View style={styles.skuRow}>
+          <View style={{flex: 1}}>
+            <Text style={styles.skuLabel}>SKU</Text>
+            <Text style={styles.skuValue}>{product?.sku ?? 'Auto-generated on save'}</Text>
+          </View>
+          {product ? (
             <Pressable
               onPress={() => {
                 copyText(product.sku);
@@ -405,31 +462,51 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
               style={styles.skuCopyBtn}>
               <Text style={styles.skuCopyText}>Copy</Text>
             </Pressable>
-          </View>
-        )}
+          ) : null}
+        </View>
         {!isBillMode && (
-          <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
-            {imageUrl ? (
-              <Image source={{uri: imageUrl}} style={styles.imagePickerThumb} />
-            ) : (
-              <Text style={styles.imagePickerText}>{uploading ? 'Uploading…' : '+ Add image'}</Text>
-            )}
-          </Pressable>
+          <>
+            <Field label="Barcode" value={barcode} onChangeText={setBarcode} placeholder="e.g. 8901234567890" maxLength={80} />
+            <Text style={styles.hint}>Leave blank to auto-generate an EAN-13.</Text>
+          </>
         )}
         {!isBillMode && (
           <>
-            <SelectField label="Color" value={color} placeholder="Select color (optional)" onPress={() => setColorPickerOpen(true)} />
-            <SelectField label="Size" value={size} placeholder="Select size (optional)" onPress={() => setSizePickerOpen(true)} />
-            <SelectField label="Category" value={category} placeholder="Select category (optional)" onPress={() => setCategoryPickerOpen(true)} />
+            <Text style={styles.imagePickerLabel}>Product image</Text>
+            <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>
+              {imageUrl ? (
+                <Image source={{uri: imageUrl}} style={styles.imagePickerThumb} />
+              ) : (
+                <Text style={styles.imagePickerText}>{uploading ? 'Uploading…' : '+ Add image'}</Text>
+              )}
+            </Pressable>
+            {imageUrl ? (
+              <View style={styles.imageActions}>
+                <Pressable onPress={handlePickImage} disabled={uploading} hitSlop={6}>
+                  <Text style={styles.imageActionText}>Replace image</Text>
+                </Pressable>
+                <Pressable onPress={() => setImageUrl('')} hitSlop={6}>
+                  <Text style={styles.imageRemoveText}>Remove image</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <Text style={styles.imageHint}>JPG, PNG or WebP · up to 5 MB · hosted on Cloudinary</Text>
+          </>
+        )}
+        {!isBillMode && (
+          <>
+            <SelectField label="Color" value={color} placeholder="Select color" onPress={() => setColorPickerOpen(true)} />
+            <SelectField label="Size *" value={size} placeholder="Select size" onPress={() => setSizePickerOpen(true)} />
+            <SelectField label="Category" value={category} placeholder="Select category" onPress={() => setCategoryPickerOpen(true)} />
             {type === 'Silver' && (
               <SelectField
                 label="Silver sub-category"
                 value={subCategory}
-                placeholder="Select sub-category (optional)"
+                placeholder="Select sub-category"
                 onPress={() => setSubCategoryPickerOpen(true)}
               />
             )}
-            <SelectField label="Article" value={article} placeholder="Select article (optional)" onPress={() => setArticlePickerOpen(true)} />
+            <SelectField label="Article" value={article} placeholder="Select article" onPress={() => setArticlePickerOpen(true)} />
           </>
         )}
         {/* Gold prices on the derived NET weight — the plain Weight input is a
@@ -476,6 +553,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
               </View>
             </View>
             <Field label="Nag rate (₹)" value={nagRate} onChangeText={setNagRate} placeholder="e.g. 5" />
+            <Text style={styles.hint}>Flat ₹ added to the gold auto price.</Text>
             <View style={{flexDirection: 'row', gap: spacing.sm}}>
               <View style={{flex: 1}}>
                 <Field
@@ -496,7 +574,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             </View>
             <View>
               <Field label="Net weight" value={netWeight} onChangeText={setNetWeight} placeholder="e.g. 19" />
-              <Text style={styles.netHint}>Auto = gross − nag + chejat. You can still edit it by hand.</Text>
+              <Text style={styles.netHint}>Auto = gross − nag + chejat. Edit freely — it re-fills when the weights above change.</Text>
             </View>
           </>
         )}
@@ -549,7 +627,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
               </View>
             </View>
             <Text style={styles.goldPreview}>
-              Flat amounts added to the auto price (both metals). Blank = none.
+              Flat amounts added to the auto price (povayi + other; gold also gets the nag rate). Empty means none.
             </Text>
             {metalPreview ? (
               <Text style={styles.goldPreview}>
@@ -582,11 +660,14 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
           </View>
         )}
         {!isBillMode && (
-          <Field label="Stock" value={stock} onChangeText={setStock} keyboardType="decimal-pad" />
+          <>
+            <Field label="Current stock" value={stock} onChangeText={setStock} keyboardType="decimal-pad" />
+            <Field label="Low stock alert at" value={lowStock} onChangeText={setLowStock} keyboardType="decimal-pad" />
+          </>
         )}
-        <Field label="Buy price" value={buy} onChangeText={setBuy} keyboardType="decimal-pad" />
+        <Field label="Purchase price (₹)" value={buy} onChangeText={setBuy} keyboardType="decimal-pad" />
         <Field
-          label={priceMode === 'auto' && (type === 'Gold' || type === 'Silver') ? 'Sell price — calculated' : 'Sell price'}
+          label="Selling price (₹)"
           value={
             priceMode === 'auto' && metalPreview?.source === 'auto' ? String(metalPreview.price) : sell
           }
@@ -594,6 +675,18 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
           keyboardType="decimal-pad"
           editable={!(priceMode === 'auto' && (type === 'Gold' || type === 'Silver'))}
         />
+        {priceMode === 'auto' && (type === 'Gold' || type === 'Silver') && (
+          <Text style={styles.hint}>Calculated — weight × rate + labour.</Text>
+        )}
+        {margin ? (
+          <Text style={styles.marginText}>
+            Profit margin: <Text style={{fontWeight: '700', color: colors.success}}>{margin}%</Text> (₹
+            {(Number(sell) - Number(buy)).toFixed(2)} per unit)
+          </Text>
+        ) : null}
+        {!isBillMode && (
+          <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="Optional notes about this product…" multiline maxLength={500} />
+        )}
         <Button title={saving ? 'Saving…' : isEdit ? 'Save changes' : 'Save product'} onPress={handleSave} loading={saving} />
       </ModalSheet>
 
@@ -607,35 +700,35 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       </ModalSheet>
 
       <ModalSheet visible={colorPickerOpen} title="Select color" onClose={() => setColorPickerOpen(false)} centered scrollable>
+        <NewValueRow label="New color" placeholder="Type a new color…" onAdd={v => { setColor(v); setColorPickerOpen(false); }} />
         {catalogColors.map(c => (
           <Pressable key={c.value} onPress={() => { setColor(c.value); setColorPickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
             <Text style={{fontSize: typography.body, color: c.value === color ? colors.primary : colors.text, fontWeight: c.value === color ? '700' : '400'}}>{c.label}</Text>
           </Pressable>
         ))}
         <Pressable onPress={() => { setColor(''); setColorPickerOpen(false); }} style={{paddingVertical: spacing.md}}>
-          <Text style={{fontSize: typography.body, color: colors.muted}}>Clear color</Text>
+          <Text style={{fontSize: typography.body, color: colors.muted}}>No color</Text>
         </Pressable>
       </ModalSheet>
 
       <ModalSheet visible={sizePickerOpen} title="Select size" onClose={() => setSizePickerOpen(false)} centered scrollable>
+        <NewValueRow label="New size" placeholder="Type a new size…" onAdd={v => { setSize(v); setSizePickerOpen(false); }} />
         {catalogSizes.map(s => (
           <Pressable key={s.value} onPress={() => { setSize(s.value); setSizePickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
             <Text style={{fontSize: typography.body, color: s.value === size ? colors.primary : colors.text, fontWeight: s.value === size ? '700' : '400'}}>{s.label}</Text>
           </Pressable>
         ))}
-        <Pressable onPress={() => { setSize(''); setSizePickerOpen(false); }} style={{paddingVertical: spacing.md}}>
-          <Text style={{fontSize: typography.body, color: colors.muted}}>Clear size</Text>
-        </Pressable>
       </ModalSheet>
 
       <ModalSheet visible={categoryPickerOpen} title="Select category" onClose={() => setCategoryPickerOpen(false)} centered scrollable>
+        <NewValueRow label="New category" placeholder="Type a new category…" onAdd={v => { setCategory(v); setCategoryPickerOpen(false); }} />
         {catalogCategories.map(c => (
           <Pressable key={c.value} onPress={() => { setCategory(c.value); setCategoryPickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
             <Text style={{fontSize: typography.body, color: c.value === category ? colors.primary : colors.text, fontWeight: c.value === category ? '700' : '400'}}>{c.label}</Text>
           </Pressable>
         ))}
         <Pressable onPress={() => { setCategory(''); setCategoryPickerOpen(false); }} style={{paddingVertical: spacing.md}}>
-          <Text style={{fontSize: typography.body, color: colors.muted}}>Clear category</Text>
+          <Text style={{fontSize: typography.body, color: colors.muted}}>No category</Text>
         </Pressable>
       </ModalSheet>
 
@@ -651,6 +744,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       </ModalSheet>
 
       <ModalSheet visible={articlePickerOpen} title="Select article" onClose={() => setArticlePickerOpen(false)} centered scrollable>
+        <NewValueRow label="New article" placeholder="Type a new article…" onAdd={v => { setArticle(v); setArticlePickerOpen(false); }} />
         {articleOptions.map(opt => (
           <Pressable key={opt.value} onPress={() => { setArticle(opt.value); setArticlePickerOpen(false); }} style={({pressed}) => [{paddingVertical: spacing.md, paddingHorizontal: spacing.sm, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border}, pressed && {backgroundColor: colors.mutedSoft}]}>
             <Text style={{fontSize: typography.body, color: opt.value === article ? colors.primary : colors.text, fontWeight: opt.value === article ? '700' : '400'}}>{opt.label}</Text>

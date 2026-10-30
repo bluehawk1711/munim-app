@@ -26,6 +26,7 @@ const TABLES = [
   "colors",
   "sizes",
   "categories",
+  "articles",
   "gold_rates",
   "products",
   "stock_movements",
@@ -33,6 +34,10 @@ const TABLES = [
   "advances",
   "invoices",
   "invoice_items",
+  // orders reference invoices (`invoice_id`) — restore them after the bills.
+  "orders",
+  "order_items",
+  // payments point at parties, invoices AND orders — always last.
   "payments",
   "job_letters",
   "settings",

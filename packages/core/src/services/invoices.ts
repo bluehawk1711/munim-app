@@ -1,13 +1,15 @@
-import { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, inArray, isNotNull, lte, or, sql } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { generateInvoiceNumber } from "../utils/codes.js";
+import { idOrNull } from "../utils/id.js";
 import type { BillTemplateSettings } from "../billing/index.js";
 import { priceProduct } from "../pricing/product.js";
 import { invoicePricingFromBreakdown } from "../pricing/bill-line.js";
 import { getProduct } from "./products.js";
 import { loadGoldPricing } from "./goldRates.js";
 import { logActivity } from "./activity.js";
+import { syncOrderPayments } from "./orderPayments.js";
 
 export class InvoiceError extends Error {
   constructor(message: string, public code: string, public status = 400) {
@@ -261,7 +263,7 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
     .insert(schema.invoices)
     .values({
       invoiceNumber,
-      partyId: input.partyId ?? null,
+      partyId: idOrNull(input.partyId),
       customerName: input.customerName?.trim() || null,
       customerPhone: input.customerPhone?.trim() || null,
       customerAddress: input.customerAddress?.trim() || null,
@@ -288,7 +290,7 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
     const product = item.productId ? await getProduct(db, item.productId) : undefined;
     await db.insert(schema.invoiceItems).values({
       invoiceId: invoice.id,
-      productId: item.productId ?? null,
+      productId: idOrNull(item.productId),
       productName: item.productName.trim(),
       sku: item.sku || product?.sku || null,
       color: item.color || product?.colorName || null,
@@ -304,8 +306,15 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
       price: item.price,
       total: item.quantity * item.price,
       // The client-computed snapshot (bill-screen rate/labour/charge edits)
-      // wins; otherwise freeze the product's own pricing as before.
-      pricing: item.pricing ?? (product ? pricingSnapshotFor(product, pricingContext) : null),
+      // wins; otherwise freeze the product's own pricing as before. An
+      // EXPLICIT null marks a manual/quoted line (e.g. billed from an order):
+      // `price` is authoritative and no breakdown is printed for it.
+      pricing:
+        item.pricing !== undefined
+          ? item.pricing
+          : product
+            ? pricingSnapshotFor(product, pricingContext)
+            : null,
     });
   }
 
@@ -330,7 +339,7 @@ export async function createInvoice(db: DbClient, input: InvoiceInput) {
   if (amountPaid > 0) {
     await db.insert(schema.payments).values({
       invoiceId: invoice.id,
-      partyId: input.partyId ?? null,
+      partyId: idOrNull(input.partyId),
       direction: "IN",
       amount: amountPaid,
       method: input.paymentMethod || "cash",
@@ -538,7 +547,7 @@ export async function updateInvoice(db: DbClient, id: string, input: InvoiceUpda
   const [row] = await db
     .update(schema.invoices)
     .set({
-      partyId: input.partyId ?? null,
+      partyId: idOrNull(input.partyId),
       customerName: input.customerName?.trim() || null,
       customerPhone: input.customerPhone?.trim() || null,
       customerAddress: input.customerAddress?.trim() || null,
@@ -572,7 +581,7 @@ export async function updateInvoice(db: DbClient, id: string, input: InvoiceUpda
     const product = item.productId ? await getProduct(db, item.productId) : undefined;
     await db.insert(schema.invoiceItems).values({
       invoiceId: id,
-      productId: item.productId ?? null,
+      productId: idOrNull(item.productId),
       productName: item.productName.trim(),
       sku: item.sku || product?.sku || null,
       color: item.color || product?.colorName || null,
@@ -588,8 +597,15 @@ export async function updateInvoice(db: DbClient, id: string, input: InvoiceUpda
       price: item.price,
       total: item.quantity * item.price,
       // The client-computed snapshot (bill-screen rate/labour/charge edits)
-      // wins; otherwise freeze the product's own pricing as before.
-      pricing: item.pricing ?? (product ? pricingSnapshotFor(product, pricingContext) : null),
+      // wins; otherwise freeze the product's own pricing as before. An
+      // EXPLICIT null marks a manual/quoted line (e.g. billed from an order):
+      // `price` is authoritative and no breakdown is printed for it.
+      pricing:
+        item.pricing !== undefined
+          ? item.pricing
+          : product
+            ? pricingSnapshotFor(product, pricingContext)
+            : null,
     });
   }
 
@@ -627,7 +643,7 @@ export async function updateInvoice(db: DbClient, id: string, input: InvoiceUpda
   if (diff > MONEY_EPS) {
     await db.insert(schema.payments).values({
       invoiceId: id,
-      partyId: input.partyId ?? null,
+      partyId: idOrNull(input.partyId),
       direction: "IN",
       amount: diff,
       method: input.paymentMethod || "cash",
@@ -656,10 +672,10 @@ export async function updateInvoice(db: DbClient, id: string, input: InvoiceUpda
   // Re-linking the bill to another khata party moves its payments too —
   // otherwise the OLD party's ledger would keep crediting money this bill no
   // longer belongs to.
-  if ((input.partyId ?? null) !== existing.partyId) {
+  if (idOrNull(input.partyId) !== existing.partyId) {
     await db
       .update(schema.payments)
-      .set({ partyId: input.partyId ?? null })
+      .set({ partyId: idOrNull(input.partyId) })
       .where(eq(schema.payments.invoiceId, id));
   }
 
@@ -725,6 +741,41 @@ export async function deleteInvoice(db: DbClient, id: string) {
       referenceId: id,
       note: `Deleted invoice ${invoice.invoiceNumber}`,
     });
+  }
+
+  // A bill generated from an order: deleting it turns the order back into an
+  // open quote. Detach its advance rows FIRST (the invoice cascade would
+  // otherwise delete money the order still owns), then reopen it — otherwise
+  // the order stays COMPLETED pointing at an invoice that no longer exists,
+  // and can never be edited, cancelled, re-billed or deleted.
+  const linkedOrders = await db
+    .select({
+      id: schema.orders.id,
+      orderNumber: schema.orders.orderNumber,
+      partyId: schema.orders.partyId,
+      amountPaid: schema.orders.amountPaid,
+    })
+    .from(schema.orders)
+    .where(eq(schema.orders.invoiceId, id));
+  if (linkedOrders.length > 0) {
+    await db
+      .update(schema.payments)
+      .set({ invoiceId: null })
+      .where(and(eq(schema.payments.invoiceId, id), isNotNull(schema.payments.orderId)));
+    await db
+      .update(schema.orders)
+      .set({ invoiceId: null, status: "OPEN", updatedAt: new Date() })
+      .where(inArray(schema.orders.id, linkedOrders.map((o) => o.id)));
+    // Invoice edits may have adjusted the rows; the order's own amountPaid is
+    // authoritative once it is a quote again.
+    for (const linked of linkedOrders) {
+      await syncOrderPayments(db, linked, linked.amountPaid);
+    }
+    await logActivity(
+      db,
+      "ORDER_REOPENED",
+      `Reopened ${linkedOrders.map((o) => o.orderNumber).join(", ")} — bill ${invoice.invoiceNumber} was deleted`,
+    );
   }
 
   await db.delete(schema.invoices).where(eq(schema.invoices.id, id));

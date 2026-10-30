@@ -13,6 +13,7 @@ import {
   invoicePricingFromBreakdown,
   isLabourType,
   priceBillLineRow,
+  productMatchesCode,
   purityOptionsFor,
   renderBillText,
   renderBillHtml,
@@ -64,6 +65,7 @@ import {
   colors,
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
+import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
@@ -76,6 +78,8 @@ type LineState = {
   sku: string;
   color: string;
   size: string;
+  /** Optional line note printed under the item name. */
+  description: string;
   weight: string;
   weightUnit: 'gm' | 'mg';
   /** True once the shop edits this line's Weight — the edited weight then
@@ -119,6 +123,7 @@ const emptyLine = (): LineState => ({
   sku: '',
   color: '',
   size: '',
+  description: '',
   weight: '',
   weightUnit: 'gm',
   weightEdited: false,
@@ -158,6 +163,7 @@ const invoiceToLine = (it: InvoiceDto['items'][number]): LineState => {
     sku: it.sku ?? '',
     color: it.color ?? '',
     size: it.size ?? '',
+    description: it.description ?? '',
     weight: it.weight != null ? String(it.weight) : '',
     weightUnit: it.weightUnit === 'mg' ? 'mg' : 'gm',
     weightEdited: true,
@@ -230,6 +236,90 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
+/** Catalog search sheet — shared by the per-line picker and the top-level
+ *  "Add from stock" button so both browse the SAME server-side search. */
+function ProductPickerSheet({
+  visible,
+  onClose,
+  products,
+  selectedId,
+  onSelect,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  products: ProductDto[] | null | undefined;
+  selectedId?: string;
+  onSelect: (id: string, product?: ProductDto) => void;
+}) {
+  const styles = useThemeStyles(makeStyles);
+  const [query, setQuery] = useState('');
+  // Server-side search reaches the WHOLE catalog — the browse list passed in
+  // from the screen is capped at 500 rows. The local name/SKU filter is the
+  // instant fallback while the search page loads.
+  const search = query.trim();
+  const {data: searchPage} = useProducts({search, pageSize: 50}, {enabled: visible && search.length > 0});
+  const filtered = useMemo(() => {
+    if (!search) return products ?? [];
+    if (searchPage?.products) return searchPage.products;
+    const q = search.toLowerCase();
+    return (products ?? []).filter(
+      p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q),
+    );
+  }, [products, search, searchPage]);
+  return (
+    <ModalSheet visible={visible} title="Select product" onClose={onClose} centered scrollable>
+      <View style={styles.searchWrap}>
+        <Search size={rs(16)} color={colors.muted} />
+        <TextInput
+          style={[styles.searchInput, {flex: 1}]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search products…"
+          placeholderTextColor={colors.inputPlaceholder}
+          autoCapitalize="none"
+        />
+      </View>
+      <FlatList
+        data={filtered}
+        keyExtractor={item => item.id}
+        style={{maxHeight: 340}}
+        ListEmptyComponent={<Empty text="No products found" />}
+        renderItem={({item}: ListRenderItemInfo<ProductDto>) => {
+          const out = item.stock <= 0;
+          return (
+            <Pressable
+              disabled={out}
+              onPress={() => {
+                selectionTick();
+                onSelect(item.id, item);
+                onClose();
+                setQuery('');
+              }}
+              style={({pressed}) => [
+                styles.pickRow,
+                selectedId === item.id && {backgroundColor: colors.mutedBg},
+                pressed && {backgroundColor: colors.mutedBg},
+                out && {opacity: 0.5},
+              ]}>
+              <View style={{flex: 1}}>
+                <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <Text style={{fontSize: 12, color: out ? colors.danger : colors.muted}}>
+                  {item.sku}{out ? ' · Out of stock' : ''}
+                </Text>
+              </View>
+              <Text style={{fontSize: 14, color: colors.text, fontWeight: '700', marginLeft: spacing.sm}}>
+                ₹{Number(item.effectivePrice).toFixed(0)}
+              </Text>
+            </Pressable>
+          );
+        }}
+      />
+    </ModalSheet>
+  );
+}
+
 /** Product picker — select a product from the catalog to add to a bill line. */
 function ProductPicker({
   products,
@@ -242,20 +332,6 @@ function ProductPicker({
 }) {
   const styles = useThemeStyles(makeStyles);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  // Server-side search reaches the WHOLE catalog — the browse list passed in
-  // from the screen is capped at 500 rows. The local name/SKU filter is the
-  // instant fallback while the search page loads.
-  const search = query.trim();
-  const {data: searchPage} = useProducts({search, pageSize: 50}, {enabled: open && search.length > 0});
-  const filtered = useMemo(() => {
-    if (!search) return products ?? [];
-    if (searchPage?.products) return searchPage.products;
-    const q = search.toLowerCase();
-    return (products ?? []).filter(
-      p => p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q),
-    );
-  }, [products, search, searchPage]);
   return (
     <>
       <Pressable
@@ -271,56 +347,103 @@ function ProductPicker({
         </View>
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
-      <ModalSheet visible={open} title="Select product" onClose={() => setOpen(false)} centered scrollable>
+      <ProductPickerSheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        products={products}
+        selectedId={productId}
+        onSelect={onSelect}
+      />
+    </>
+  );
+}
+
+/** Top-level "Add from stock" — the mobile twin of web/desktop's picker
+ *  above the item table (fills the first empty line, else appends). */
+function AddFromStockButton({
+  products,
+  onSelect,
+}: {
+  products: ProductDto[] | null | undefined;
+  onSelect: (id: string, product?: ProductDto) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        title="+ Add from stock (auto-fills price)"
+        variant="outline"
+        onPress={() => setOpen(true)}
+        style={{marginBottom: 8}}
+      />
+      <ProductPickerSheet
+        visible={open}
+        onClose={() => setOpen(false)}
+        products={products}
+        onSelect={onSelect}
+      />
+    </>
+  );
+}
+
+/** Fast entry — USB-scanner/typed SKU or the camera. `onAdd` resolves to an
+ *  error message (null = added), so ONE control serves Bill 1 and Bill 2. */
+function FastEntry({
+  title = 'Fast entry — scan barcode or type SKU',
+  onAdd,
+}: {
+  title?: string;
+  onAdd: (raw: string) => Promise<string | null>;
+}) {
+  const styles = useThemeStyles(makeStyles);
+  const [code, setCode] = useState('');
+  const [message, setMessage] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);
+  async function submit(raw: string): Promise<string | null> {
+    const err = await onAdd(raw);
+    setMessage(err ?? '');
+    if (!err) setCode('');
+    return err;
+  }
+  return (
+    <>
+      <View>
+        <Text style={styles.optLabel}>{title}</Text>
         <View style={styles.searchWrap}>
-          <Search size={rs(16)} color={colors.muted} />
           <TextInput
             style={[styles.searchInput, {flex: 1}]}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search products…"
+            value={code}
+            onChangeText={setCode}
+            placeholder="Scan barcode or type SKU…"
             placeholderTextColor={colors.inputPlaceholder}
-            autoCapitalize="none"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            returnKeyType="done"
+            onSubmitEditing={() => void submit(code)}
           />
+          <Button title="Add" variant="outline" onPress={() => void submit(code)} />
         </View>
-        <FlatList
-          data={filtered}
-          keyExtractor={item => item.id}
-          style={{maxHeight: 340}}
-          ListEmptyComponent={<Empty text="No products found" />}
-          renderItem={({item}: ListRenderItemInfo<ProductDto>) => {
-            const out = item.stock <= 0;
-            return (
-              <Pressable
-                disabled={out}
-                onPress={() => {
-                  selectionTick();
-                  onSelect(item.id, item);
-                  setOpen(false);
-                  setQuery('');
-                }}
-                style={({pressed}) => [
-                  styles.pickRow,
-                  productId === item.id && {backgroundColor: colors.mutedBg},
-                  pressed && {backgroundColor: colors.mutedBg},
-                  out && {opacity: 0.5},
-                ]}>
-                <View style={{flex: 1}}>
-                  <Text style={{flex: 1, fontSize: 15, color: colors.text, fontWeight: '600'}} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <Text style={{fontSize: 12, color: out ? colors.danger : colors.muted}}>
-                    {item.sku}{out ? ' · Out of stock' : ''}
-                  </Text>
-                </View>
-                <Text style={{fontSize: 14, color: colors.text, fontWeight: '700', marginLeft: spacing.sm}}>
-                  ₹{Number(item.effectivePrice).toFixed(0)}
-                </Text>
-              </Pressable>
-            );
+        <Button
+          title="Scan barcode to add"
+          variant="outline"
+          onPress={() => {
+            setMessage('');
+            setScanOpen(true);
           }}
         />
-      </ModalSheet>
+        {message ? <Text style={styles.scanMessage}>{message}</Text> : null}
+      </View>
+      <BarcodeScannerModal
+        visible={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onDetected={detected => {
+          void submit(detected).then(err => {
+            if (!err) setScanOpen(false);
+          });
+        }}
+        message={message}
+        title="Scan a product for this bill"
+      />
     </>
   );
 }
@@ -415,10 +538,14 @@ function PurityPicker({
 }) {
   const styles = useThemeStyles(makeStyles);
   const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
   return (
     <>
       <Pressable
-        onPress={() => setOpen(true)}
+        onPress={() => {
+          setDraft(value);
+          setOpen(true);
+        }}
         style={({pressed}) => [styles.partyPicker, style, pressed && {opacity: 0.7}]}
         accessibilityRole="button"
         accessibilityLabel={`Remark ${value || 'not set'}`}>
@@ -429,10 +556,45 @@ function PurityPicker({
         <ChevronDown size={18} color={colors.muted} />
       </Pressable>
       <ModalSheet visible={open} title="Remark" onClose={() => setOpen(false)} centered scrollable>
+        {/* Free text stays allowed (products carry arbitrary stamps) — the
+            presets below are suggestions, same as web/desktop. */}
+        <View style={styles.searchWrap}>
+          <TextInput
+            style={[styles.searchInput, {flex: 1}]}
+            value={draft}
+            onChangeText={setDraft}
+            placeholder="Type a stamp, e.g. 22K"
+            placeholderTextColor={colors.inputPlaceholder}
+            autoCapitalize="characters"
+            maxLength={24}
+            accessibilityLabel="Custom remark"
+          />
+        </View>
+        <View style={{flexDirection: 'row', gap: 8, marginBottom: 8}}>
+          <Button
+            title="Use"
+            style={{flex: 1}}
+            onPress={() => {
+              selectionTick();
+              onChange(draft.trim());
+              setOpen(false);
+            }}
+          />
+          <Button
+            title="No remark"
+            variant="outline"
+            style={{flex: 1}}
+            onPress={() => {
+              selectionTick();
+              onChange('');
+              setOpen(false);
+            }}
+          />
+        </View>
         <FlatList
           data={purityOptionsFor(value)}
           keyExtractor={item => item}
-          style={{maxHeight: 340}}
+          style={{maxHeight: 300}}
           renderItem={({item}) => (
             <Pressable
               onPress={() => {
@@ -551,6 +713,12 @@ function LineItemsEditor({
                   value={line.productName}
                   onChangeText={text => onChange(index, {productName: text})}
                   placeholder="Or type manually"
+                />
+                <Field
+                  label="Description (optional)"
+                  value={line.description}
+                  onChangeText={text => onChange(index, {description: text})}
+                  maxLength={200}
                 />
                 <View style={styles.lineRow}>
                   <Field
@@ -731,9 +899,7 @@ function LineItemsEditor({
                   </View>
                 ) : null}
                 <Button title="Done" variant="outline" onPress={() => setExpandedIndex(null)} />
-                {index > 0 ? (
-                  <Button title="Remove item" variant="outline" onPress={() => onRemove(index)} />
-                ) : null}
+                <Button title="Remove item" variant="outline" onPress={() => onRemove(index)} />
               </>
             ) : null}
           </View>
@@ -840,6 +1006,10 @@ export function BillingScreen() {
   const [discount, setDiscount] = useState('0');
   const [delivery, setDelivery] = useState('0');
   const [paid, setPaid] = useState('0');
+  /** Save the bill as fully paid (paid := total) — web/desktop parity. */
+  const [markPaid, setMarkPaid] = useState(false);
+  /** Auto-generate/share the PDF right after saving — web/desktop parity. */
+  const [autoSavePdf, setAutoSavePdf] = useState(true);
   const [lines, setLines] = useState<LineState[]>([emptyLine()]);
   const [materialReturnedWeight, setMaterialReturnedWeight] = useState('');
   const [materialReturnedValue, setMaterialReturnedValue] = useState('');
@@ -859,6 +1029,9 @@ export function BillingScreen() {
   // karat / custom text / nothing (see GoldRateKaratMode).
   const [goldRateKaratMode, setGoldRateKaratMode] = useState<GoldRateKaratMode>('base');
   const [goldRateKaratText, setGoldRateKaratText] = useState('');
+  // Karat PICKED in the "Karat" source — prints under the gold rate even
+  // when neither the product nor the shop has a karat set.
+  const [goldRateKaratValue, setGoldRateKaratValue] = useState(22);
   // How the advance is coming in — Cash / Online + optional reference note.
   const [paymentMethod, setPaymentMethod] = useState<string>('cash');
   const [paymentNote, setPaymentNote] = useState('');
@@ -916,6 +1089,7 @@ export function BillingScreen() {
     signSuffix,
     goldRateKaratMode,
     goldRateKaratText,
+    goldRateKaratValue,
     hiddenColumns: {gold: hiddenGold, silver: hiddenSilver},
   };
 
@@ -926,6 +1100,7 @@ export function BillingScreen() {
   function rateKaratBadge(): string | null {
     if (goldRateKaratMode === 'off') return null;
     if (goldRateKaratMode === 'custom') return goldRateKaratText.trim() || null;
+    if (goldRateKaratMode === 'karat') return `${goldRateKaratValue}K`;
     if (goldRateKaratMode === 'product') {
       const karat = firstGoldKarat(
         lines
@@ -1179,6 +1354,7 @@ export function BillingScreen() {
       sku: product?.sku ?? '',
       color: product?.color ?? '',
       size: product?.size ?? '',
+      description: '',
       weight: product?.weight != null ? String(product.weight) : '',
       weightUnit: product?.weightUnit === 'mg' ? 'mg' : 'gm',
       weightEdited: false,
@@ -1207,6 +1383,54 @@ export function BillingScreen() {
     setSecondLines(prev => prev.map((l, i) => (i === lineIndex ? pickLine(l, productId, product) : l)));
   }
 
+  /**
+   * Fast entry — barcode or SKU: resolve against the loaded catalog first
+   * (same rule as core `findProductByCode`), then the API for codes outside
+   * the loaded pages. Out-of-stock is refused. The line lands in the first
+   * empty row (else appends), matching web + desktop.
+   */
+  /** Resolves to an error message, or null when the row landed. */
+  async function addByCode(raw: string, target: 'first' | 'second' = 'first'): Promise<string | null> {
+    const code = raw.trim();
+    if (!code) return null;
+    try {
+      let product: ProductDto | null = productsData?.find(p => productMatchesCode(p, code)) ?? null;
+      if (!product) {
+        const api = await getClient();
+        product = await api.products.byBarcode(code);
+      }
+      if (product.stock <= 0) {
+        errorFeedback();
+        return `${product.name} is out of stock`;
+      }
+      const row = pickLine(emptyLine(), product.id, product);
+      const setter = target === 'second' ? setSecondLines : setLines;
+      setter(prev => {
+        const idx = prev.findIndex(l => !l.productId && !l.productName.trim());
+        return idx >= 0 ? prev.map((l, i) => (i === idx ? row : l)) : [...prev, row];
+      });
+      successFeedback(`Added ${product.name}`);
+      return null;
+    } catch (err) {
+      errorFeedback();
+      return err instanceof Error ? err.message : 'Product not found';
+    }
+  }
+
+  /** Picked from the top-level "Add from stock" — first empty line, else append. */
+  function addPickedToLines(
+    setter: React.Dispatch<React.SetStateAction<LineState[]>>,
+    product?: ProductDto,
+  ) {
+    if (!product) return;
+    const row = pickLine(emptyLine(), product.id, product);
+    setter(prev => {
+      const idx = prev.findIndex(l => !l.productId && !l.productName.trim());
+      return idx >= 0 ? prev.map((l, i) => (i === idx ? row : l)) : [...prev, row];
+    });
+    successFeedback(`Added ${product.name}`);
+  }
+
   function collectItems(list: LineState[]) {
     return list
       .map(l => {
@@ -1225,6 +1449,7 @@ export function BillingScreen() {
           sku: l.sku.trim() || undefined,
           color: l.color.trim() || undefined,
           size: l.size.trim() || undefined,
+          description: l.description.trim() || undefined,
           weight: net ?? (l.weight.trim() ? Number(l.weight) : undefined),
           weightUnit: net != null ? 'gm' : l.weight.trim() ? l.weightUnit : undefined,
           purity: l.purity.trim() || undefined,
@@ -1358,6 +1583,7 @@ export function BillingScreen() {
     setSignSuffix(st?.signSuffix ?? true);
     setGoldRateKaratMode(st?.goldRateKaratMode ?? 'base');
     setGoldRateKaratText(st?.goldRateKaratText ?? '');
+    setGoldRateKaratValue(st?.goldRateKaratValue ?? 22);
     setHiddenGold(st?.hiddenColumns?.gold ?? []);
     setHiddenSilver(st?.hiddenColumns?.silver ?? []);
 
@@ -1461,7 +1687,7 @@ export function BillingScreen() {
         materialReturnedWeight: materialReturnedWeight.trim() || undefined,
         materialReturnedValue: Number(materialReturnedValue) || 0,
         materialReturnedTitle: materialReturnedTitle.trim() || undefined,
-        amountPaid: Number(paid) || 0,
+        amountPaid: markPaid ? total : Math.min(Number(paid) || 0, total),
         // How the advance came in — Cash / Online + the optional reference.
         paymentMethod,
         paymentNote: paymentNote.trim() || undefined,
@@ -1476,7 +1702,7 @@ export function BillingScreen() {
         const doc = toBillDocument(updated, shop);
         setPreview(doc);
         successFeedback(`Bill ${updated.invoiceNumber} updated`);
-        void generateAndSharePdf(doc);
+        if (autoSavePdf) void generateAndSharePdf(doc);
         return;
       }
 
@@ -1498,7 +1724,7 @@ export function BillingScreen() {
             materialReturnedWeight: secondMaterialReturnedWeight.trim() || undefined,
             materialReturnedValue: Number(secondMaterialReturnedValue) || 0,
             materialReturnedTitle: secondMaterialReturnedTitle.trim() || undefined,
-            amountPaid: Number(secondPaid) || 0,
+            amountPaid: markPaid ? secondTotal : Math.min(Number(secondPaid) || 0, secondTotal),
             // Same Cash/Online choice as Bill 1 (one advance, two prints).
             paymentMethod,
             paymentNote: paymentNote.trim() || undefined,
@@ -1529,7 +1755,7 @@ export function BillingScreen() {
       successFeedback(`Bill ${invoice.invoiceNumber} created`);
 
       // Auto-generate PDF like web does — save to device then share.
-      void generateAndSharePdf(doc, secondDoc);
+      if (autoSavePdf) void generateAndSharePdf(doc, secondDoc);
     } catch {
       errorFeedback(editing ? 'Failed to update bill' : 'Failed to create bill');
       // keep form for retry
@@ -1763,6 +1989,7 @@ export function BillingScreen() {
                   {id: 'off', label: 'Off'},
                   {id: 'base', label: 'Base'},
                   {id: 'product', label: "Product's"},
+                  {id: 'karat', label: 'Karat'},
                   {id: 'custom', label: 'Custom'},
                 ] as const).map(opt => (
                   <Pressable
@@ -1784,6 +2011,32 @@ export function BillingScreen() {
                   </Pressable>
                 ))}
               </View>
+              {goldRateKaratMode === 'karat' ? (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 8}}>
+                  <View style={{flexDirection: 'row', gap: 6}}>
+                    {Array.from({length: 16}, (_, i) => 24 - i).map(k => (
+                      <Pressable
+                        key={k}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Karat line: ${k}K`}
+                        onPress={() => {
+                          selectionTick();
+                          setGoldRateKaratValue(k);
+                        }}
+                        style={({pressed}) => [
+                          styles.segment,
+                          goldRateKaratValue === k && styles.segmentActive,
+                          {paddingHorizontal: 12},
+                          pressed && {opacity: 0.75},
+                        ]}>
+                        <Text style={[styles.segmentText, goldRateKaratValue === k && styles.segmentTextActive]}>
+                          {k}K
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </ScrollView>
+              ) : null}
               {goldRateKaratMode === 'custom' ? (
                 <Field
                   label="Custom karat text"
@@ -1920,6 +2173,10 @@ export function BillingScreen() {
             onPress={handleSyncPrices}
             disabled={syncPrices.isPending}
           />
+          {/* Same two entry points as web/desktop: browse the stock catalog,
+              or scan/type a code (first empty line, else append). */}
+          <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setLines, product)} />
+          <FastEntry onAdd={raw => addByCode(raw, 'first')} />
           <LineItemsEditor
             lines={lines}
             onChange={updateLine}
@@ -1937,7 +2194,41 @@ export function BillingScreen() {
             <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
             <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
             <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="decimal-pad" />
-          <Field label="Paid now" value={paid} onChangeText={setPaid} keyboardType="decimal-pad" />
+          <Field label="Amount paid now (₹)" value={paid} onChangeText={setPaid} keyboardType="decimal-pad" />
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Auto-save the PDF</Text>
+              <Text style={styles.switchSub}>
+                {editing ? 'Save after saving the bill' : 'Save after creating the bill'}
+              </Text>
+            </View>
+            <Switch
+              value={autoSavePdf}
+              onValueChange={value => {
+                selectionTick();
+                setAutoSavePdf(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Mark as fully paid</Text>
+              <Text style={styles.switchSub}>
+                {`Paid becomes the full ${money(total)}${distinct ? ` · bill 2 ${money(secondTotal)}` : ''}`}
+              </Text>
+            </View>
+            <Switch
+              value={markPaid}
+              onValueChange={value => {
+                selectionTick();
+                setMarkPaid(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
           {/* How the advance is coming in — Cash / Online + optional note
               (recorded on the payment, shown in the invoice's Payments trail). */}
           <View>
@@ -1992,7 +2283,7 @@ export function BillingScreen() {
             materialReturned={Number(materialReturnedValue) || 0}
             materialTitle={materialReturnedTitle}
             total={total}
-            paid={Number(paid) || 0}
+            paid={markPaid ? total : Math.min(Number(paid) || 0, total)}
           />
           <Button
             title={
@@ -2032,6 +2323,8 @@ export function BillingScreen() {
                 }
               }}
             />
+            <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setSecondLines, product)} />
+            <FastEntry onAdd={raw => addByCode(raw, 'second')} />
               <LineItemsEditor
                 lines={secondLines}
                 onChange={updateSecondLine}
@@ -2049,7 +2342,7 @@ export function BillingScreen() {
             <Field label="Material returned title" value={secondMaterialReturnedTitle} onChangeText={setSecondMaterialReturnedTitle} placeholder="Material Returned" />
             <Field label="Material returned weight" value={secondMaterialReturnedWeight} onChangeText={setSecondMaterialReturnedWeight} placeholder="e.g. 5gm" />
             <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="decimal-pad" />
-            <Field label="Paid now" value={secondPaid} onChangeText={setSecondPaid} keyboardType="decimal-pad" />
+            <Field label="Amount paid now (₹)" value={secondPaid} onChangeText={setSecondPaid} keyboardType="decimal-pad" />
             <TotalsBlock
               styles={styles}
               label="Bill 2 total"
@@ -2059,6 +2352,7 @@ export function BillingScreen() {
               materialReturned={Number(secondMaterialReturnedValue) || 0}
               materialTitle={secondMaterialReturnedTitle}
               total={secondTotal}
+              paid={markPaid ? secondTotal : Math.min(Number(secondPaid) || 0, secondTotal)}
             />
           </Card>
         ) : null}
@@ -2271,6 +2565,7 @@ const makeStyles = () =>
     sectionTitle: {fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 8},
     secondBillHeader: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4},
     optLabel: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 6},
+    scanMessage: {fontSize: 12, color: colors.danger, marginTop: 4, marginBottom: 8},
     segmentRow: {flexDirection: 'row', gap: 8, marginBottom: 14},
     segment: {
       flex: 1,

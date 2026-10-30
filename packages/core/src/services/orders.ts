@@ -17,8 +17,12 @@ import { and, desc, eq, exists, gte, ilike, inArray, lte, or, sql } from "drizzl
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { generateOrderNumber } from "../utils/codes.js";
+import { idOrNull } from "../utils/id.js";
+import { mergeBillTemplateSettings } from "../billing/index.js";
 import { logActivity } from "./activity.js";
+import { loadGoldPricing } from "./goldRates.js";
 import { createInvoice, getInvoice, type InvoiceWithItems } from "./invoices.js";
+import { syncOrderPayments } from "./orderPayments.js";
 
 export class OrderError extends Error {
   constructor(message: string, public code: string, public status = 400) {
@@ -71,6 +75,11 @@ export type OrderUpdateInput = {
   discount?: number;
   /** Advance / part-payment (clamped to the recomputed total). */
   amountPaid?: number;
+  /** How the (added) advance was received — only used for the money newly
+   *  inserted by this edit; existing rows keep the method they were taken by. */
+  paymentMethod?: string;
+  /** Optional reference for the added advance. */
+  paymentNote?: string;
   notes?: string;
   status?: schema.Order["status"];
 };
@@ -113,7 +122,7 @@ export async function createOrder(db: DbClient, input: OrderInput) {
     .insert(schema.orders)
     .values({
       orderNumber,
-      partyId: input.partyId ?? null,
+      partyId: idOrNull(input.partyId),
       customerName: input.customerName?.trim() || null,
       customerPhone: input.customerPhone?.trim() || null,
       customerAddress: input.customerAddress?.trim() || null,
@@ -150,7 +159,7 @@ export async function createOrder(db: DbClient, input: OrderInput) {
   if (amountPaid > 0) {
     await db.insert(schema.payments).values({
       orderId: order.id,
-      partyId: input.partyId ?? null,
+      partyId: idOrNull(input.partyId),
       direction: "IN",
       amount: amountPaid,
       method: input.paymentMethod?.trim() || "cash",
@@ -296,11 +305,22 @@ export async function updateOrder(db: DbClient, id: string, input: OrderUpdateIn
   const { subtotal, total } = totalsOf(items, delivery, discount);
   // Re-clamp: rewriting the lines can shrink the total below what's collected.
   const amountPaid = clampPaid(input.amountPaid ?? existing.amountPaid, total);
+  const nextPartyId = input.partyId !== undefined ? idOrNull(input.partyId) : existing.partyId;
+  const partyChanged = nextPartyId !== existing.partyId;
+  // Any change that can move the money (lines, totals or the linked party)
+  // must also move the ledger rows — otherwise the khata keeps crediting the
+  // OLD advance while the order shows the new one.
+  const moneyChanged =
+    input.items !== undefined ||
+    input.amountPaid !== undefined ||
+    input.deliveryCharge !== undefined ||
+    input.discount !== undefined ||
+    partyChanged;
 
   await db
     .update(schema.orders)
     .set({
-      ...(input.partyId !== undefined ? { partyId: input.partyId || null } : {}),
+      ...(input.partyId !== undefined ? { partyId: idOrNull(input.partyId) } : {}),
       ...(input.customerName !== undefined ? { customerName: input.customerName.trim() || null } : {}),
       ...(input.customerPhone !== undefined ? { customerPhone: input.customerPhone.trim() || null } : {}),
       ...(input.customerAddress !== undefined ? { customerAddress: input.customerAddress.trim() || null } : {}),
@@ -321,7 +341,7 @@ export async function updateOrder(db: DbClient, id: string, input: OrderUpdateIn
     for (const item of items) {
       await db.insert(schema.orderItems).values({
         orderId: id,
-        productId: item.productId ?? null,
+        productId: idOrNull(item.productId),
         productName: item.productName.trim(),
         sku: item.sku || null,
         color: item.color || null,
@@ -334,6 +354,15 @@ export async function updateOrder(db: DbClient, id: string, input: OrderUpdateIn
         total: item.quantity * item.price,
       });
     }
+  }
+
+  if (moneyChanged) {
+    await syncOrderPayments(
+      db,
+      { id, orderNumber: existing.orderNumber, partyId: nextPartyId },
+      amountPaid,
+      { partyChanged, method: input.paymentMethod, note: input.paymentNote },
+    );
   }
 
   const updated = await getOrder(db, id);
@@ -431,9 +460,10 @@ export type OrderBilledResult = { invoice: InvoiceWithItems; order: OrderWithIte
 /**
  * Generate the bill for an order: maps the quoted lines into a fresh
  * invoice (`INV-4CHAR`, stock checked at THIS moment), links it back and
- * marks the order COMPLETED. Quoted prices are honored as-is, and any
+ * marks the order COMPLETED. Quoted prices are honored as-is, and the
  * advance already collected on the order becomes the invoice's opening
- * `amountPaid`.
+ * `amountPaid` — moved over, never re-recorded, so the khata is not credited
+ * twice for the same rupees.
  */
 export async function generateBillFromOrder(db: DbClient, orderId: string): Promise<OrderBilledResult> {
   const order = await getOrder(db, orderId);
@@ -442,12 +472,25 @@ export async function generateBillFromOrder(db: DbClient, orderId: string): Prom
   if (order.status === "CANCELLED") throw new OrderError("This order was cancelled", "CANCELLED", 409);
   validateItems(order.items);
 
+  // Snapshots for the printed bill — the same shop header and rate rows a
+  // bill written on the bill screen would freeze at save time. The base karat
+  // is the highest quoted one, exactly like `listGoldRates` picks it.
+  const [settingsRow, pricing] = await Promise.all([db.query.settings.findFirst(), loadGoldPricing(db)]);
+  let baseKarat = -1;
+  let goldRate: number | undefined;
+  for (const entry of pricing.table) {
+    if (!entry.isCustom || entry.ratePerGram <= 0 || entry.karat < baseKarat) continue;
+    baseKarat = entry.karat;
+    goldRate = entry.ratePerGram;
+  }
+
   const invoice = await createInvoice(db, {
     partyId: order.partyId ?? undefined,
     customerName: order.customerName ?? undefined,
     customerPhone: order.customerPhone ?? undefined,
     customerAddress: order.customerAddress ?? undefined,
-    date: order.date,
+    // No `date`: the sale happens NOW, so the bill carries today's date (and
+    // lands in today's sales) even when the order was written days ago.
     items: order.items.map((it) => ({
       productId: it.productId ?? undefined,
       productName: it.productName,
@@ -457,18 +500,52 @@ export async function generateBillFromOrder(db: DbClient, orderId: string): Prom
       description: it.description ?? undefined,
       weight: it.weight ?? undefined,
       weightUnit: it.weightUnit ?? undefined,
+      // The quoted price is a manual line price — freezing today's product
+      // breakdown would print a rate/labour that no longer adds up to the
+      // quote (and would differ from the estimate the customer signed).
+      pricing: null,
       quantity: it.quantity,
       price: it.price,
     })),
     deliveryCharge: order.deliveryCharge,
     discount: order.discount,
-    // The customer's advance rides along — createInvoice derives the invoice's
-    // PAID/PARTIAL/UNPAID status from it and records the matching payment row
-    // (against the same khata party), so nothing is collected twice or lost.
-    amountPaid: order.amountPaid,
+    // The advance is MOVED over below — passing it here would create a second
+    // payment row for money the order already recorded.
+    amountPaid: 0,
     notes: order.notes ?? undefined,
+    shopDetails: settingsRow
+      ? {
+          name: settingsRow.shopName,
+          address: settingsRow.shopAddress ?? "",
+          phones: settingsRow.shopPhones,
+          email: settingsRow.shopEmail ?? "",
+        }
+      : undefined,
+    templateSettings: mergeBillTemplateSettings(),
+    goldRate,
+    silverRate: pricing.silverRatePerGram > 0 ? pricing.silverRatePerGram : undefined,
   });
   if (!invoice) throw new OrderError("Failed to generate the bill", "BILL_FAILED", 500);
+
+  // Carry the advance onto the bill. `syncOrderPayments` also backfills
+  // legacy orders that were paid before rows were tracked.
+  const paid = clampPaid(order.amountPaid, invoice.total);
+  await syncOrderPayments(db, { id: order.id, orderNumber: order.orderNumber, partyId: order.partyId }, paid);
+
+  if (paid > 0) {
+    // The bill owns the money from here on — re-point the order's rows so the
+    // invoice's payment trail (and its khata credit) shows the advance.
+    await db
+      .update(schema.payments)
+      .set({ invoiceId: invoice.id })
+      .where(and(eq(schema.payments.orderId, order.id), eq(schema.payments.direction, "IN")));
+    const billedStatus: schema.Invoice["status"] =
+      paid >= invoice.total && invoice.total > 0 ? "PAID" : "PARTIAL";
+    await db
+      .update(schema.invoices)
+      .set({ amountPaid: paid, status: billedStatus, updatedAt: new Date() })
+      .where(eq(schema.invoices.id, invoice.id));
+  }
 
   await db
     .update(schema.orders)
@@ -478,12 +555,16 @@ export async function generateBillFromOrder(db: DbClient, orderId: string): Prom
   await logActivity(
     db,
     "ORDER_BILLED",
-    `Generated bill ${invoice.invoiceNumber} from order ${order.orderNumber}`,
+    `Generated bill ${invoice.invoiceNumber} from order ${order.orderNumber}${
+      paid > 0 ? ` · ${paid.toLocaleString("en-IN")} advance carried over` : ""
+    }`,
   );
 
   const updated = await getOrder(db, orderId);
   if (!updated) throw new OrderError("Order vanished during billing", "NOT_FOUND", 404);
-  return { invoice, order: updated };
+  const billed = await getInvoice(db, invoice.id);
+  if (!billed) throw new OrderError("The generated bill could not be reloaded", "BILL_FAILED", 500);
+  return { invoice: billed, order: updated };
 }
 
 /** The invoice a bill-generating order points at (for "view bill" links). */

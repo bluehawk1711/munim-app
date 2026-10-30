@@ -95,6 +95,8 @@ type FormState = {
   discount: string;
   delivery: string;
   paid: string;
+  paymentMethod: string;
+  paymentNote: string;
   notes: string;
   lines: FormLine[];
 };
@@ -126,6 +128,8 @@ const blankForm = (): FormState => ({
   discount: '',
   delivery: '',
   paid: '0',
+  paymentMethod: 'cash',
+  paymentNote: '',
   notes: '',
   lines: [blankLine()],
 });
@@ -138,6 +142,8 @@ const orderToForm = (o: OrderDto): FormState => ({
   discount: String(o.discount || 0),
   delivery: String(o.deliveryCharge || 0),
   paid: String(o.amountPaid || 0),
+  paymentMethod: 'cash',
+  paymentNote: '',
   notes: o.notes ?? '',
   lines: o.items.map(it => ({
     key: nextKey(),
@@ -542,16 +548,20 @@ export function OrdersScreen() {
       return;
     }
     const values: OrderFormValues = {
-      customerName: form.customerName.trim() || undefined,
-      customerPhone: form.customerPhone.trim() || undefined,
-      customerAddress: form.customerAddress.trim() || undefined,
-      partyId: form.partyId || undefined,
+      // Trimmed EMPTY strings, never undefined: on edit a missing field means
+      // "leave unchanged", so blanks must be sent to actually clear them.
+      customerName: form.customerName.trim(),
+      customerPhone: form.customerPhone.trim(),
+      customerAddress: form.customerAddress.trim(),
+      partyId: form.partyId,
       items,
       discount: Number(form.discount) || 0,
       deliveryCharge: Number(form.delivery) || 0,
       // Advance taken at the counter — it rides into the bill when billed.
       amountPaid: Number(form.paid) || 0,
-      notes: form.notes.trim() || undefined,
+      paymentMethod: form.paymentMethod.trim() || undefined,
+      paymentNote: form.paymentNote.trim() || undefined,
+      notes: form.notes.trim(),
     };
     setFormBusy(true);
     try {
@@ -1017,6 +1027,61 @@ export function OrdersScreen() {
         <Text style={styles.fieldHint}>
           Advance — carried into the bill when you bill this order
         </Text>
+        {paidAmount > 0 ? (
+          <View style={styles.payMethodWrap}>
+            <Text style={styles.payLabel}>Advance received via</Text>
+            <View style={styles.payMethodRow}>
+              {[
+                ...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})),
+                {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'},
+              ].map(m => {
+                const customActive =
+                  m.id === CUSTOM_PAYMENT_METHOD &&
+                  !PAYMENT_METHOD_PRESETS.some(p => p.id === form.paymentMethod);
+                const active = form.paymentMethod === m.id || customActive;
+                return (
+                  <Pressable
+                    key={m.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Advance paid by ${m.label}`}
+                    onPress={() => {
+                      selectionTick();
+                      setField('paymentMethod', m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
+                    }}
+                    style={({pressed}) => [
+                      styles.payMethodChip,
+                      active && styles.payMethodChipActive,
+                      pressed && {opacity: 0.75},
+                    ]}>
+                    <Text style={[styles.payMethodText, active && styles.payMethodTextActive]}>
+                      {m.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {!PAYMENT_METHOD_PRESETS.some(p => p.id === form.paymentMethod) ? (
+              <Field
+                label="Custom method"
+                value={form.paymentMethod}
+                onChangeText={text => setField('paymentMethod', text)}
+                placeholder="e.g. Paytm, cheque no…"
+                maxLength={40}
+              />
+            ) : null}
+            <Field
+              label="Payment note (optional)"
+              value={form.paymentNote}
+              onChangeText={text => setField('paymentNote', text)}
+              placeholder={
+                form.paymentMethod && form.paymentMethod !== 'cash'
+                  ? 'UPI id / txn no.'
+                  : 'e.g. cash in hand'
+              }
+              maxLength={120}
+            />
+          </View>
+        ) : null}
         <Field
           label="Notes"
           value={form.notes}
@@ -1104,10 +1169,26 @@ export function OrdersScreen() {
                 <Text style={styles.totalLabel}>Quoted total</Text>
                 <Text style={styles.totalValue}>{money(billing.total)}</Text>
               </View>
+              {billing.amountPaid > 0 ? (
+                <>
+                  <View style={styles.totalLine}>
+                    <Text style={styles.totalLabel}>Already received</Text>
+                    <Text style={styles.totalValue}>{money(billing.amountPaid)}</Text>
+                  </View>
+                  <View style={styles.totalLine}>
+                    <Text style={styles.totalLabel}>Balance due on the bill</Text>
+                    <Text style={styles.totalValue}>{money(billing.dueAmount)}</Text>
+                  </View>
+                </>
+              ) : null}
             </View>
             <Text style={styles.sheetNote}>
-              Quoted prices carry into the bill as-is. Stock is checked right now — if an item is
-              out of stock, billing fails and the order stays open.
+              Quoted prices carry into the bill as-is
+              {billing.amountPaid > 0
+                ? ', and so is the advance already taken — the bill opens as part-paid. '
+                : '. '}
+              Stock is checked right now — if an item is out of stock, billing fails and the
+              order stays open.
             </Text>
             <Button
               title={billBusy ? 'Billing…' : 'Generate bill'}

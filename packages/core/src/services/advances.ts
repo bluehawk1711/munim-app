@@ -1,6 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
+import { idOrNull } from "../utils/id.js";
 import { logActivity } from "./activity.js";
 
 export class AdvanceError extends Error {
@@ -88,7 +89,7 @@ export async function recordPayment(db: DbClient, input: PaymentInput) {
   const [row] = await db
     .insert(schema.payments)
     .values({
-      partyId: input.partyId ?? null,
+      partyId: idOrNull(input.partyId),
       direction: input.direction,
       amount: input.amount,
       method: input.method || "cash",

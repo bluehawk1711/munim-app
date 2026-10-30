@@ -5,6 +5,15 @@
  * so we generate UUIDv4-compatible ids from Math.random instead. Good enough
  * for single-shop usage where collisions are astronomically unlikely.
  */
+/**
+ * Ids that arrive from forms are often `""` rather than `undefined` (an
+ * unselected picker). Empty strings must become NULL — they are not valid
+ * foreign keys and would fail the FK constraint instead of meaning "none".
+ */
+export function idOrNull(value) {
+    const trimmed = value?.trim();
+    return trimmed ? trimmed : null;
+}
 export function newId(prefix = "") {
     const hex = "0123456789abcdef";
     let out = "";
