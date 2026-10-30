@@ -105,6 +105,12 @@ export function useDeleteInvoice() {
       qc.invalidateQueries({ queryKey: qk.dashboard });
       qc.invalidateQueries({ queryKey: qk.products.all });
       qc.invalidateQueries({ queryKey: qk.sales.all });
+      // Deleting a bill generated from an order reopens that order, and its
+      // advance rows move back from the invoice to the order's ledger.
+      qc.invalidateQueries({ queryKey: qk.orders.all });
+      qc.invalidateQueries({ queryKey: qk.parties.all });
+      qc.invalidateQueries({ queryKey: qk.advances.all });
+      qc.invalidateQueries({ queryKey: qk.payments.all });
     },
   });
 }

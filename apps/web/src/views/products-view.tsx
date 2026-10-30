@@ -30,6 +30,7 @@ import {
   Skeleton,
   Badge,
   BarcodeLookupInput,
+  CameraScanButton,
   LabelPrintDialog,
   LabelPrintSelectDialog,
   type LabelPrintSelectProduct,
@@ -52,7 +53,6 @@ import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { BulkEditDialog } from "@/components/products/bulk-edit-dialog"
-import { CameraScanButton } from "@/components/camera-scan-button"
 import { setPendingSellProduct } from "@/lib/pending-sell"
 import { useProducts, useBackfillBarcodes, useSyncProductPrices } from "@/hooks/use-products"
 import { useArticles } from "@/hooks/use-articles"

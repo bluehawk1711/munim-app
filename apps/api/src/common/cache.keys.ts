@@ -68,9 +68,23 @@ export const CACHE_GROUPS = {
    *  group because every sale DECREMENTS stock — without it, product lists
    *  and stats served stale stock for up to `detail` seconds (the C1 bug:
    *  pickers showed in-stock items that had already sold out). */
-  invoices: ["invoices", "sales", "parties", "advances", "payments", "products", "dashboard", "reports"] as const,
-  /** Order writes (order rows only — bill generation invalidates invoices too). */
-  orders: ["orders"] as const,
+  invoices: [
+    "invoices",
+    "sales",
+    "parties",
+    "advances",
+    "payments",
+    "products",
+    "dashboard",
+    "reports",
+    // Billing an order links it to the new bill and marks it COMPLETED;
+    // deleting that bill reopens the order.
+    "orders",
+  ] as const,
+  /** Order writes — orders carry khata advances (`payments` rows), change
+   *  stock when billed, and show up in party balances, so the money + party
+   *  views must clear with them. Bill generation also invalidates invoices. */
+  orders: ["orders", "invoices", "sales", "parties", "advances", "payments", "products", "dashboard", "reports"] as const,
   /** Party / ledger writes. */
   parties: ["parties", "advances", "payments", "dashboard", "reports"] as const,
   /** Advance + payment (money in/out) writes. */

@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
 /**
- * CameraScanButton — camera barcode scanning for the web app: the browser
+ * CameraScanButton — camera barcode scanning for web AND desktop: the browser
  * counterpart of mobile's `BarcodeScannerModal` (Home / Inventory / Sales
- * scan-to-act). It mirrors that behaviour:
- *   - the camera starts when the dialog opens (the browser owns the permission
+ * scan-to-act). Behaviour:
+ *   - the camera starts when the dialog opens (the webview owns the permission
  *     prompt); a denial shows the reason + a retry, like mobile's
  *     "Camera permission needed" state.
  *   - a detected code goes to `onDetected`. A RESOLVED promise closes the
@@ -17,17 +17,17 @@
  * Decoding runs through @zxing/browser — universal camera decoding — rather
  * than the Chrome-only `BarcodeDetector` API.
  */
-import * as React from "react"
-import { Camera, Loader2, ScanLine, VideoOff } from "lucide-react"
-import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser"
+import * as React from "react";
+import { Camera, Loader2, ScanLine, VideoOff } from "lucide-react";
+import { BrowserCodeReader, BrowserMultiFormatReader, type IScannerControls } from "@zxing/browser";
+import { Button } from "./button";
 import {
-  Button,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@munim/ui"
+} from "./dialog";
 
 type Phase = "starting" | "scanning" | "blocked"
 

@@ -132,7 +132,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
     defaultValues: {
       name: "",
       type: "Gold",
-      color: "Black",
+      color: "",
       size: "Standard",
       category: "",
       subCategory: "",
@@ -172,7 +172,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
           name: product.name,
           type: product.type as "Gold" | "Silver" | "Diamond" | "Platinum" | "Other",
           color: product.color,
-          size: product.size,
+          size: product.size || "Standard",
           category: product.category ?? "",
           subCategory: product.subCategory ?? "",
           article: product.article ?? "",
@@ -207,7 +207,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
           // Seed the type from the page's type filter — adding from a
           // filtered view creates the matching product.
           type: defaultType === "Gold" || defaultType === "Silver" ? defaultType : "Gold",
-          color: "Black",
+          color: "",
           size: "Standard",
           category: "",
           subCategory: "",
@@ -462,7 +462,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label>Product Image</Label>
+            <Label>Product image</Label>
             <div className="flex items-center gap-3">
               {imageUrl ? (
                 <Image
@@ -525,8 +525,8 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="name">Product Name *</Label>
-            <Input id="name" placeholder="e.g. Classic Cotton T-Shirt" {...form.register("name")} />
+            <Label htmlFor="name">Product name *</Label>
+            <Input id="name" placeholder="e.g. Gold Necklace Set" maxLength={120} {...form.register("name")} />
             {form.formState.errors.name && (
               <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
             )}
@@ -579,7 +579,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
             </div>
             <div className="space-y-2">
               <Label htmlFor="barcode">Barcode</Label>
-              <Input id="barcode" placeholder="e.g. 8901234567890" {...form.register("barcode")} />
+              <Input id="barcode" placeholder="e.g. 8901234567890" maxLength={80} {...form.register("barcode")} />
               <p className="text-[11px] text-muted-foreground">Leave blank to auto-generate an EAN-13.</p>
             </div>
           </div>
@@ -706,6 +706,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
               {productType === "Gold" && (
                 <>
                   <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="mr-1 text-xs font-medium text-muted-foreground">Karat</span>
                     {[24, 22, 18, 14].map((k) => (
                       <button
                         key={k}
@@ -917,7 +918,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
               <Label>Color</Label>
               <Select value={colorSelectValue} onValueChange={handleColorSelect}>
                 <SelectTrigger className="h-9 w-full" aria-label="Color">
-                  <SelectValue placeholder="Select a color" />
+                  <SelectValue placeholder="Select color" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none">No color</SelectItem>
@@ -947,7 +948,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
               <Label>Size *</Label>
               <Select value={sizeIsCustom ? "__custom" : sizeValue} onValueChange={handleSizeSelect}>
                 <SelectTrigger className="h-9 w-full" aria-label="Size">
-                  <SelectValue placeholder="Select a size" />
+                  <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
                   {sizes.map((s) => (
@@ -1034,7 +1035,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
             <Label>Article</Label>
             <Select value={articleSelectValue} onValueChange={handleArticleSelect}>
               <SelectTrigger className="h-9 w-full" aria-label="Article">
-                <SelectValue placeholder="Select an article" />
+                <SelectValue placeholder="Select article" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none">No article</SelectItem>
@@ -1060,7 +1061,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="stock">Current Stock</Label>
+              <Label htmlFor="stock">Current stock</Label>
               <Input id="stock" type="number" step="any" min={0} {...form.register("stock")} />
               {form.formState.errors.stock && (
                 <p className="text-xs text-destructive">{form.formState.errors.stock.message}</p>
@@ -1074,14 +1075,14 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="purchasePrice">Purchase Price (₹)</Label>
+              <Label htmlFor="purchasePrice">Purchase price (₹)</Label>
               <Input id="purchasePrice" type="number" step="any" min={0} {...form.register("purchasePrice")} />
               {form.formState.errors.purchasePrice && (
                 <p className="text-xs text-destructive">{form.formState.errors.purchasePrice.message}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sellingPrice">Selling Price (₹)</Label>
+              <Label htmlFor="sellingPrice">Selling price (₹)</Label>
               {priceMode === "auto" && (productType === "Gold" || productType === "Silver") ? (
                 <>
                   <Input
@@ -1114,7 +1115,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
 
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>
-            <Textarea id="notes" placeholder="Optional notes about this product…" rows={2} {...form.register("notes")} />
+            <Textarea id="notes" placeholder="Optional notes about this product…" rows={2} maxLength={500} {...form.register("notes")} />
           </div>
 
           <DialogFooter>

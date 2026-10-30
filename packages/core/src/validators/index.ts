@@ -358,6 +358,11 @@ export const orderSchema = z.object({
   discount: z.coerce.number().min(0).optional(),
   /** Advance taken on the order (clamped to the order total in the service). */
   amountPaid: z.coerce.number().min(0).optional(),
+  /** How the advance was received — a preset id (cash/upi/card/cheque/bank)
+   *  or free text; stored on the order's payment row. */
+  paymentMethod: z.string().max(40).optional(),
+  /** Optional reference for the advance (UPI ref / txn no.). */
+  paymentNote: z.string().max(120).optional(),
   notes: z.string().optional(),
 });
 

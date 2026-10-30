@@ -1,4 +1,4 @@
-import { createApiClient, type ApiClient } from "@munim/api-client";
+import { ApiClientError, createApiClient, type ApiClient } from "@munim/api-client";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { getApiBaseUrl, getApiKey } from "./env";
 
@@ -56,12 +56,22 @@ export function resetApi(): void {
 
 /**
  * Connection test for Settings + onboarding — builds a throwaway client for
- * the given URL (with the build/saved key) and pings GET /readyz. Throws on
- * failure; resolves when the API + DB are reachable.
+ * the given URL (with the build/saved key), pings GET /readyz (DB health) and
+ * then GET /api/settings (protected). The second call is what actually proves
+ * the key: `/readyz` is public, so on its own it would report "Connected" for
+ * a wrong key and let the app fail on the first data call with a 401.
  */
 export async function pingApiUrl(baseUrl: string, apiKey?: string): Promise<void> {
   const key = apiKey ?? getApiKey();
   if (!key) throw new Error("No API key available for the test — set VITE_API_KEY at build time.");
   const probe = createApiClient({ baseUrl, apiKey: key, fetchImpl: resolveFetchImpl() });
   await probe.health.ready(); // throws ApiClientError on non-2xx (e.g. 503 DB down)
+  try {
+    await probe.settings.get();
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 401) {
+      throw new Error("The API key was rejected — check the key configured for this app.");
+    }
+    throw err;
+  }
 }

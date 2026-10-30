@@ -15,6 +15,7 @@ import {
   FileDown,
 } from "lucide-react"
 import {
+  buildBillDocument,
   buildOrderDocument,
   generateBillPDF,
   mergeBillTemplateSettings,
@@ -44,10 +45,13 @@ import {
   DialogHeader,
   DialogTitle,
   OrderStatusBadge,
+  OrderDetailBody,
   RecordPaymentDialog,
   ConfirmDialog,
   ProductSearchSelect,
   BarcodeLookupInput,
+  CameraScanButton,
+  PaymentMethodPicker,
   SummaryTile,
   type ProductOption,
   type RecordPaymentSubmit,
@@ -66,7 +70,6 @@ import { useAllProducts } from "@/hooks/use-products"
 import { useParties } from "@/hooks/use-parties"
 import { useSettings, type ShopSettings } from "@/hooks/use-settings"
 import { useAppStore } from "@/store/view-store"
-import { CameraScanButton } from "@/components/camera-scan-button"
 import { formatCurrency, formatDate } from "@/lib/format"
 
 type OrderRow = OrderDto
@@ -99,6 +102,10 @@ type FormState = {
   discount: string
   delivery: string
   paid: string
+  /** How the advance was received (preset id or custom text). */
+  paymentMethod: string
+  /** Optional reference for the advance (UPI ref / txn no.). */
+  paymentNote: string
   notes: string
   lines: FormLine[]
 }
@@ -127,6 +134,8 @@ function blankForm(): FormState {
     discount: "",
     delivery: "",
     paid: "0",
+    paymentMethod: "cash",
+    paymentNote: "",
     notes: "",
     lines: [blankLine()],
   }
@@ -141,6 +150,8 @@ function orderToForm(o: OrderRow): FormState {
     discount: String(o.discount || 0),
     delivery: String(o.deliveryCharge || 0),
     paid: String(o.amountPaid || 0),
+    paymentMethod: "cash",
+    paymentNote: "",
     notes: o.notes ?? "",
     lines: o.items.map((it) => ({
       key: nextKey(),
@@ -323,16 +334,20 @@ function OrderFormDialog({
       return
     }
     const values: OrderFormValues = {
-      customerName: form.customerName.trim() || undefined,
-      customerPhone: form.customerPhone.trim() || undefined,
-      customerAddress: form.customerAddress.trim() || undefined,
-      partyId: form.partyId && form.partyId !== "__none" ? form.partyId : undefined,
+      // Trimmed EMPTY strings, never undefined: on edit a missing field means
+      // "leave unchanged", so blanks must be sent to actually clear them.
+      customerName: form.customerName.trim(),
+      customerPhone: form.customerPhone.trim(),
+      customerAddress: form.customerAddress.trim(),
+      partyId: form.partyId && form.partyId !== "__none" ? form.partyId : "",
       items,
       discount: Number(form.discount) || 0,
       deliveryCharge: Number(form.delivery) || 0,
       // Advance taken at the counter — it rides into the bill when billed.
       amountPaid: Number(form.paid) || 0,
-      notes: form.notes.trim() || undefined,
+      paymentMethod: form.paymentMethod.trim() || undefined,
+      paymentNote: form.paymentNote.trim() || undefined,
+      notes: form.notes.trim(),
     }
     try {
       if (editing) {
@@ -555,6 +570,33 @@ function OrderFormDialog({
             </div>
           </div>
 
+          {/* How the advance was received — recorded on the payment trail. */}
+          {(Number(form.paid) || 0) > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PaymentMethodPicker
+                label="Advance received via"
+                value={form.paymentMethod}
+                onChange={(method) => setField("paymentMethod", method)}
+              />
+              <div className="space-y-1.5">
+                <Label htmlFor="of-pay-note">
+                  Payment note <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="of-pay-note"
+                  value={form.paymentNote}
+                  maxLength={120}
+                  onChange={(e) => setField("paymentNote", e.target.value)}
+                  placeholder={
+                    form.paymentMethod && form.paymentMethod !== "cash"
+                      ? "UPI id / txn no."
+                      : "e.g. cash in hand"
+                  }
+                />
+              </div>
+            </div>
+          )}
+
           {/* Totals */}
           <div className="bg-muted/50 space-y-1.5 rounded-lg border p-3 text-sm">
             <p className="flex justify-between">
@@ -625,6 +667,8 @@ export function OrdersView() {
   const [cancelling, setCancelling] = React.useState<OrderRow | null>(null)
   const [deleting, setDeleting] = React.useState<OrderRow | null>(null)
   const [paying, setPaying] = React.useState<OrderRow | null>(null)
+  /** Order whose invoice PDF is being downloaded (per-row spinner). */
+  const [exportingInvoice, setExportingInvoice] = React.useState<string | null>(null)
   const { data: orderPayments } = useOrderPayments(detail?.id ?? null)
 
   const { data, isLoading } = useOrders({ search, status, page, pageSize: 15 })
@@ -638,6 +682,9 @@ export function OrdersView() {
   const recordPayment = useRecordOrderPayment()
   const { data: settings } = useSettings()
   const { data: goldRates } = useGoldRates()
+  const { data: parties } = useParties()
+  const detailPartyName = parties?.find((p) => p.id === detail?.partyId)?.name ?? null
+  const getClient = useApiClient()
 
   const openOrders = orders.filter((o) => o.status === "OPEN")
   const openValue = openOrders.reduce((s, o) => s + o.total, 0)
@@ -664,6 +711,73 @@ export function OrdersView() {
       toast.error("Could not print the estimate", {
         description: err instanceof Error ? err.message : undefined,
       })
+    }
+  }
+
+  async function downloadOrderInvoice(o: OrderRow) {
+    if (!o.invoiceId) return
+    setExportingInvoice(o.id)
+    try {
+      const api = await getClient()
+      const inv = await api.invoices.get(o.invoiceId)
+      const shop = inv.shopDetails
+        ? {
+            name: inv.shopDetails.name,
+            address: inv.shopDetails.address ?? "",
+            phones: inv.shopDetails.phones,
+            email: inv.shopDetails.email ?? "",
+          }
+        : settings
+          ? shopFor(settings)
+          : null
+      if (!shop) {
+        toast.error("Shop settings not loaded — open Settings first")
+        return
+      }
+      const doc = buildBillDocument({
+        billNo: inv.invoiceNumber,
+        date: inv.date,
+        customerName: inv.customerName,
+        customerPhone: inv.customerPhone,
+        customerAddress: inv.customerAddress,
+        shop,
+        lines: inv.items.map((it) => ({
+          productName: it.productName,
+          description: it.description,
+          sku: it.sku,
+          color: it.color,
+          size: it.size,
+          weight: it.weight,
+          weightUnit: it.weightUnit,
+          purity: it.purity,
+          grossWeight: it.grossWeight,
+          nagLessWeight: it.nagLessWeight,
+          chejatWeight: it.chejatWeight,
+          pricing: it.pricing,
+          quantity: it.quantity,
+          price: it.price,
+        })),
+        discount: inv.discount,
+        deliveryCharge: inv.deliveryCharge,
+        materialReturnedWeight: inv.materialReturnedWeight,
+        materialReturnedValue: inv.materialReturnedValue,
+        materialReturnedTitle: inv.materialReturnedTitle,
+        amountPaid: inv.amountPaid,
+        status: inv.status,
+        currency: settings?.currency ?? "INR",
+        goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        // Purity of the quoted rate — the "24K" suffix on the gold rate row.
+        goldRateKarat: goldRates?.baseKarat ?? null,
+        silverRate: inv.silverRate ?? settings?.silverRatePerGram ?? null,
+      })
+      generateBillPDF(doc, mergeBillTemplateSettings(inv.templateSettings))
+      toast.success("Invoice downloaded", { description: inv.invoiceNumber })
+    } catch (err) {
+      toast.error("Could not generate PDF", {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setExportingInvoice(null)
     }
   }
 
@@ -892,6 +1006,23 @@ export function OrdersView() {
                       >
                         <FileDown className="h-3.5 w-3.5" />
                       </Button>
+                      {o.status === "COMPLETED" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Download invoice PDF"
+                          aria-label={`Download the invoice for ${o.orderNumber}`}
+                          disabled={exportingInvoice === o.id}
+                          onClick={() => void downloadOrderInvoice(o)}
+                        >
+                          {exportingInvoice === o.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Receipt className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      )}
                       {o.status === "OPEN" && o.dueAmount > 0 && (
                         <Button
                           variant="ghost"
@@ -994,7 +1125,7 @@ export function OrdersView() {
 
       {/* Detail */}
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           {detail && (
             <>
               <DialogHeader>
@@ -1006,129 +1137,11 @@ export function OrdersView() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 text-sm">
-                <div className="space-y-1 rounded-lg border p-3">
-                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                    Customer
-                  </p>
-                  <p className="font-medium">{detail.customerName || "Walk-in customer"}</p>
-                  {detail.customerPhone && (
-                    <p className="text-xs text-muted-foreground">{detail.customerPhone}</p>
-                  )}
-                  {detail.customerAddress && (
-                    <p className="text-xs text-muted-foreground">{detail.customerAddress}</p>
-                  )}
-                </div>
-
-                <div className="overflow-hidden rounded-lg border">
-                  <div className="bg-muted/50 grid grid-cols-[1fr_50px_80px_85px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
-                    <span>Item</span>
-                    <span className="text-right">Qty</span>
-                    <span className="text-right">Quoted</span>
-                    <span className="text-right">Total</span>
-                  </div>
-                  <div className="divide-y">
-                    {detail.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-[1fr_50px_80px_85px] gap-2 px-3 py-2"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{item.productName}</p>
-                          <p className="truncate text-[11px] text-muted-foreground">
-                            {item.sku}
-                            {item.color ? ` · ${item.color}` : ""}
-                            {item.size ? ` · ${item.size}` : ""}
-                            {item.weight != null ? ` · ${item.weight}${item.weightUnit ?? "gm"}` : ""}
-                          </p>
-                        </div>
-                        <span className="text-right tabular-nums">{item.quantity}</span>
-                        <span className="text-right tabular-nums">
-                          {formatCurrency(item.price)}
-                        </span>
-                        <span className="text-right font-medium tabular-nums">
-                          {formatCurrency(item.total)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 rounded-lg border p-3">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="tabular-nums">{formatCurrency(detail.subtotal)}</span>
-                  </div>
-                  {detail.discount > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Discount</span>
-                      <span className="tabular-nums text-red-600 dark:text-red-400">
-                        -{formatCurrency(detail.discount)}
-                      </span>
-                    </div>
-                  )}
-                  {detail.deliveryCharge > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Delivery</span>
-                      <span className="tabular-nums">+{formatCurrency(detail.deliveryCharge)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-1.5 text-sm font-bold">
-                    <span>Quoted total</span>
-                    <span className="tabular-nums">{formatCurrency(detail.total)}</span>
-                  </div>
-                  {detail.amountPaid > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Received</span>
-                      <span className="tabular-nums text-emerald-600 dark:text-emerald-400">
-                        -{formatCurrency(detail.amountPaid)}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-1.5 text-sm font-bold">
-                    <span>{detail.dueAmount > 0 ? "Balance due" : "Settled in full"}</span>
-                    <span
-                      className={`tabular-nums ${
-                        detail.dueAmount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
-                      }`}
-                    >
-                      {formatCurrency(detail.dueAmount)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Payments — the full trail: advance(s) with amount, method, note, date. */}
-                {(orderPayments?.length ?? 0) > 0 && (
-                  <div className="rounded-lg border p-3">
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payments</p>
-                    <div className="space-y-1.5">
-                      {orderPayments?.map((p) => (
-                        <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0">
-                            <p className="font-medium">
-                              {formatCurrency(p.amount)}
-                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                                {paymentMethodLabel(p.method)}
-                              </span>
-                            </p>
-                            {p.note && <p className="truncate text-[11px] text-muted-foreground">{p.note}</p>}
-                          </div>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(p.date)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {detail.notes && (
-                  <div className="rounded-lg border p-3">
-                    <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                      Notes
-                    </p>
-                    <p className="text-xs">{detail.notes}</p>
-                  </div>
-                )}
-              </div>
+              <OrderDetailBody
+                order={detail}
+                payments={orderPayments}
+                partyName={detailPartyName}
+              />
 
               <DialogFooter className="flex-wrap justify-between gap-2 sm:justify-between">
                 <Button variant="outline" onClick={() => setDetail(null)}>
@@ -1175,16 +1188,31 @@ export function OrdersView() {
                     </>
                   )}
                   {detail.status === "COMPLETED" && (
-                    <Button
-                      variant="outline"
-                      className="gap-1.5"
-                      onClick={() => {
-                        setDetail(null)
-                        setView("invoices")
-                      }}
-                    >
-                      View invoices
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => void downloadOrderInvoice(detail)}
+                        disabled={exportingInvoice === detail.id}
+                      >
+                        {exportingInvoice === detail.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <FileDown className="h-3.5 w-3.5" />
+                        )}
+                        Download invoice PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => {
+                          setDetail(null)
+                          setView("invoices")
+                        }}
+                      >
+                        View invoices
+                      </Button>
+                    </>
                   )}
                 </div>
               </DialogFooter>

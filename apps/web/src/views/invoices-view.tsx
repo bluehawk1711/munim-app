@@ -16,12 +16,14 @@ import {
   FileDown,
   Loader2,
   Pencil,
+  MoreHorizontal,
 } from "lucide-react"
-import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, InvoicePaymentLine, RecordPaymentDialog, ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, type RecordPaymentSubmit } from "@munim/ui"
+import { Button, Input, Card, CardContent, Skeleton, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SummaryTile, InvoiceStatusBadge, InvoicePaymentLine, InvoiceDetailBody, RecordPaymentDialog, ConfirmDialog, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, type RecordPaymentSubmit } from "@munim/ui"
 import { buildBillDocument, generateBillPDF, mergeBillTemplateSettings, paymentMethodLabel, type BillShopDetails, type InvoiceDto } from "@munim/core"
 import { useGoldRates } from "@munim/query"
 
 import { useInvoices, useDeleteInvoice, useRecordPayment, useInvoicePayments } from "@/hooks/use-invoices"
+import { useParties } from "@/hooks/use-parties"
 import { useSettings, type ShopSettings } from "@/hooks/use-settings"
 import { useAppStore } from "@/store/view-store"
 import { formatCurrency, formatDate } from "@/lib/format"
@@ -72,8 +74,11 @@ export function InvoicesView() {
   const recordPayment = useRecordPayment(paying?.id ?? "")
   const { data: settings } = useSettings()
   const { data: goldRates } = useGoldRates()
+  const { data: parties } = useParties()
   // Payment trail for the open detail dialog — how much, when, cash/online.
   const { data: detailPayments } = useInvoicePayments(detail?.id ?? null)
+  // Khata link shown inside the detail dialog (the DTO only carries partyId).
+  const detailPartyName = parties?.find((p) => p.id === detail?.partyId)?.name ?? null
 
   function openPayment(inv: Invoice) {
     setPaying(inv)
@@ -269,51 +274,53 @@ export function InvoicesView() {
                       {/* Orders-style money line — Paid ₹5,000/- · ₹7,200/- due,
                           or the green tick once fully settled. */}
                       <InvoicePaymentLine total={inv.total} amountPaid={inv.amountPaid} />
-                      <div className="mt-1 flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="View details"
-                          onClick={() => setDetail(inv)}
-                          aria-label={`View ${inv.invoiceNumber}`}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Edit bill"
-                          onClick={() => openBillEditor(inv.id)}
-                          aria-label={`Edit ${inv.invoiceNumber}`}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Download PDF"
-                          onClick={() => void handleDownload(inv)}
-                          disabled={exporting !== null}
-                          aria-label={`Download PDF ${inv.invoiceNumber}`}
-                        >
-                          {exporting === inv.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={() => openPayment(inv)} disabled={outstanding <= 0}>
-                          <IndianRupee className="h-3.5 w-3.5" /> Pay
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => setDeleting(inv)}
-                          aria-label={`Delete ${inv.invoiceNumber}`}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="mt-0.5 h-8 w-8"
+                            aria-label={`Actions for ${inv.invoiceNumber}`}
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                          <DropdownMenuLabel className="font-mono text-[11px]">
+                            {inv.invoiceNumber}
+                          </DropdownMenuLabel>
+                          <DropdownMenuItem onSelect={() => setDetail(inv)}>
+                            <Eye className="h-4 w-4" /> View details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => openBillEditor(inv.id)}>
+                            <Pencil className="h-4 w-4" /> Edit bill
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => void handleDownload(inv)}
+                            disabled={exporting !== null}
+                          >
+                            {exporting === inv.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <FileDown className="h-4 w-4" />
+                            )}
+                            Download PDF
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onSelect={() => openPayment(inv)}
+                            disabled={outstanding <= 0}
+                          >
+                            <IndianRupee className="h-4 w-4" /> Record payment
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => setDeleting(inv)}
+                          >
+                            <Trash2 className="h-4 w-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </div>
                 )
@@ -362,7 +369,7 @@ export function InvoicesView() {
 
       {/* Invoice detail dialog */}
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           {detail && (
             <>
               <DialogHeader>
@@ -374,106 +381,11 @@ export function InvoicesView() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 text-sm">
-                {/* Customer */}
-                <div className="space-y-1 rounded-lg border p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer</p>
-                  <p className="font-medium">{detail.customerName || "Walk-in customer"}</p>
-                  {detail.customerPhone && <p className="text-xs text-muted-foreground">{detail.customerPhone}</p>}
-                  {detail.customerAddress && <p className="text-xs text-muted-foreground">{detail.customerAddress}</p>}
-                </div>
-
-                {/* Line items */}
-                <div className="overflow-hidden rounded-lg border">
-                  <div className="bg-muted/50 grid grid-cols-[1fr_60px_80px_90px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
-                    <span>Item</span>
-                    <span className="text-right">Qty</span>
-                    <span className="text-right">Price</span>
-                    <span className="text-right">Total</span>
-                  </div>
-                  <div className="divide-y">
-                    {detail.items.map((item) => (
-                      <div key={item.id} className="grid grid-cols-[1fr_60px_80px_90px] gap-2 px-3 py-2">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{item.productName}</p>
-                          <p className="truncate text-[11px] text-muted-foreground">
-                            {item.sku}{item.color ? ` · ${item.color}` : ""}{item.size ? ` · ${item.size}` : ""}
-                          </p>
-                        </div>
-                        <span className="text-right tabular-nums">{item.quantity}</span>
-                        <span className="text-right tabular-nums">{formatCurrency(item.price)}</span>
-                        <span className="text-right font-medium tabular-nums">{formatCurrency(item.total)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Totals */}
-                <div className="space-y-1.5 rounded-lg border p-3">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="tabular-nums">{formatCurrency(detail.subtotal)}</span>
-                  </div>
-                  {detail.discount > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Discount</span>
-                      <span className="tabular-nums text-red-600 dark:text-red-400">-{formatCurrency(detail.discount)}</span>
-                    </div>
-                  )}
-                  {detail.deliveryCharge > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Delivery</span>
-                      <span className="tabular-nums">+{formatCurrency(detail.deliveryCharge)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-1.5 text-sm font-bold">
-                    <span>Total</span>
-                    <span className="tabular-nums">{formatCurrency(detail.total)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Paid</span>
-                    <span className="tabular-nums">{formatCurrency(detail.amountPaid)}</span>
-                  </div>
-                  {detail.total - detail.amountPaid > 0 && (
-                    <div className="flex justify-between text-xs font-medium">
-                      <span className="text-amber-600 dark:text-amber-400">Outstanding</span>
-                      <span className="tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(detail.total - detail.amountPaid)}</span>
-                    </div>
-                  )}
-                </div>
-
-                {detail.notes && (
-                  <div className="rounded-lg border p-3">
-                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Notes</p>
-                    <p className="text-xs">{detail.notes}</p>
-                  </div>
-                )}
-
-                {/* Payments — the full trail: how much, when, and HOW (cash/online). */}
-                {(detailPayments?.length ?? 0) > 0 && (
-                  <div className="rounded-lg border p-3">
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payments</p>
-                    <div className="space-y-1.5">
-                      {detailPayments?.map((p) => (
-                        <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0">
-                            <p className="font-medium capitalize">
-                              {formatCurrency(p.amount)}
-                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                                {p.method || "cash"}
-                              </span>
-                            </p>
-                            {p.note && p.note !== `Payment for ${detail.invoiceNumber}` && (
-                              <p className="truncate text-[11px] text-muted-foreground">{p.note}</p>
-                            )}
-                          </div>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(p.date)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <InvoiceDetailBody
+                invoice={detail}
+                payments={detailPayments}
+                partyName={detailPartyName}
+              />
 
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDetail(null)}>Close</Button>

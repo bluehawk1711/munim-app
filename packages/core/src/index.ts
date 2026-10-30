@@ -55,7 +55,7 @@ export {
   isPresetPaymentMethod,
   type PaymentMethodId,
 } from "./utils/paymentMethods.js";
-export { newId } from "./utils/id.js";
+export { newId, idOrNull } from "./utils/id.js";
 export { swatchColor } from "./utils/swatch.js";
 export {
   uploadImageToCloudinary,

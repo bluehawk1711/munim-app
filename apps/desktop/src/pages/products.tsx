@@ -120,6 +120,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  Textarea,
   BarcodeLookupInput,
   BarcodeSvg,
   BulkEditDialog,
@@ -189,7 +190,7 @@ const EMPTY_FORM: FormState = {
   name: "",
   type: "Gold",
   color: "",
-  size: "",
+  size: "Standard",
   category: "",
   subCategory: "",
   article: "",
@@ -577,7 +578,7 @@ export function ProductsPage() {
   const categoryIsCustom = customCategory || (!!form.category && !categories.includes(form.category));
   const articleIsCustom = customArticle || (!!form.article && !articleNames.includes(form.article));
   const colorSelectValue = colorIsCustom ? "__custom" : form.color || "__none";
-  const sizeSelectValue = sizeIsCustom ? "__custom" : form.size || "__none";
+  const sizeSelectValue = sizeIsCustom ? "__custom" : form.size || "Standard";
   const categorySelectValue = categoryIsCustom ? "__custom" : form.category || "__none";
   const articleSelectValue = articleIsCustom ? "__custom" : form.article || "__none";
 
@@ -644,7 +645,7 @@ export function ProductsPage() {
       name: p.name,
       type: p.type ?? "Gold",
       color: p.color ?? "",
-      size: p.size ?? "",
+      size: p.size || "Standard",
       category: p.category ?? "",
       subCategory: p.subCategory ?? "",
       article: p.article ?? "",
@@ -1536,8 +1537,8 @@ export function ProductsPage() {
           <div className="grid gap-4">
             {/* Row 1: Name (full width) */}
             <div className="space-y-1.5">
-              <Label htmlFor="p-name">Name *</Label>
-              <Input id="p-name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+              <Label htmlFor="p-name">Product name *</Label>
+              <Input id="p-name" placeholder="e.g. Gold Necklace Set" maxLength={120} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
 
             {/* Row 2: Type (full width) */}
@@ -1557,7 +1558,7 @@ export function ProductsPage() {
 
             {/* Row 3: Image (full width, bigger) */}
             <div className="space-y-1.5">
-              <Label>Product Image</Label>
+              <Label>Product image</Label>
               <div className="flex items-center gap-4">
                 {form.imageUrl ? (
                   <img src={form.imageUrl} alt="Product preview" className="h-24 w-24 rounded-lg border object-cover" />
@@ -1578,7 +1579,7 @@ export function ProductsPage() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">JPG, PNG or WebP · up to 5 MB</p>
+                  <p className="text-[11px] text-muted-foreground">JPG, PNG or WebP · up to 5 MB · hosted on Cloudinary</p>
                 </div>
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </div>
@@ -1599,15 +1600,14 @@ export function ProductsPage() {
                   </SelectContent>
                 </Select>
                 {colorIsCustom && (
-                  <Input placeholder="Type new color…" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-9" />
+                  <Input placeholder="Type a new color…" value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} className="h-9" />
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label>Size</Label>
+                <Label>Size *</Label>
                 <Select value={sizeSelectValue} onValueChange={handleSizeSelect}>
                   <SelectTrigger className="h-9"><SelectValue placeholder="Select size" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none">No size</SelectItem>
                     {sizes.map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
@@ -1615,7 +1615,7 @@ export function ProductsPage() {
                   </SelectContent>
                 </Select>
                 {sizeIsCustom && (
-                  <Input placeholder="Type new size…" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} className="h-9" />
+                  <Input placeholder="Type a new size…" value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} className="h-9" />
                 )}
               </div>
             </div>
@@ -1635,7 +1635,7 @@ export function ProductsPage() {
                   </SelectContent>
                 </Select>
                 {categoryIsCustom && (
-                  <Input placeholder="Type new category…" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9" />
+                  <Input placeholder="Type a new category…" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="h-9" />
                 )}
                 {form.type === "Silver" && (
                   <div className="space-y-1.5 pt-1">
@@ -1663,7 +1663,8 @@ export function ProductsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="p-barcode">Barcode</Label>
-                <Input id="p-barcode" value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="Auto-generate if blank" />
+                <Input id="p-barcode" maxLength={80} value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="e.g. 8901234567890" />
+                <p className="text-[11px] text-muted-foreground">Leave blank to auto-generate an EAN-13.</p>
               </div>
             </div>
 
@@ -1681,7 +1682,7 @@ export function ProductsPage() {
                 </SelectContent>
               </Select>
               {articleIsCustom && (
-                <Input placeholder="Type new article…" value={form.article} onChange={(e) => setForm({ ...form, article: e.target.value })} className="h-9" />
+                <Input placeholder="Type a new article…" value={form.article} onChange={(e) => setForm({ ...form, article: e.target.value })} className="h-9" />
               )}
             </div>
 
@@ -1760,6 +1761,7 @@ export function ProductsPage() {
                   <>
                     {/* Karat presets — one tap for the common karats. */}
                     <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="mr-1 text-xs font-medium text-muted-foreground">Karat</span>
                       {[24, 22, 18, 14].map((k) => (
                         <button
                           key={k}
@@ -2060,11 +2062,11 @@ export function ProductsPage() {
             {/* Row 9: Stock + Buy price */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="p-stock">Stock</Label>
+                <Label htmlFor="p-stock">Current stock</Label>
                 <Input id="p-stock" type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="p-buy">Buy price</Label>
+                <Label htmlFor="p-buy">Purchase price (₹)</Label>
                 <Input id="p-buy" type="number" min={0} value={form.purchasePrice} onChange={(e) => setForm({ ...form, purchasePrice: e.target.value })} />
               </div>
             </div>
@@ -2072,7 +2074,7 @@ export function ProductsPage() {
             {/* Row 10: Sell price + Low stock alert */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="p-sell">Sell price</Label>
+                <Label htmlFor="p-sell">Selling price (₹)</Label>
                 {form.priceMode === "auto" &&
                 (form.type === "Gold" || form.type === "Silver") ? (
                   <>
@@ -2102,7 +2104,7 @@ export function ProductsPage() {
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="p-threshold">Low stock alert</Label>
+                <Label htmlFor="p-threshold">Low stock alert at</Label>
                 <Input id="p-threshold" type="number" min={0} value={form.lowStockThreshold} onChange={(e) => setForm({ ...form, lowStockThreshold: e.target.value })} />
               </div>
             </div>
@@ -2119,7 +2121,14 @@ export function ProductsPage() {
             {/* Row 11: Notes */}
             <div className="space-y-1.5">
               <Label htmlFor="p-notes">Notes</Label>
-              <Input id="p-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <Textarea
+                id="p-notes"
+                rows={2}
+                placeholder="Optional notes about this product…"
+                maxLength={500}
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
             </div>
           </div>
           <DialogFooter>

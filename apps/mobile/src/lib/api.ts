@@ -7,7 +7,7 @@
  * so the reset flow behaves identically everywhere.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {createApiClient, type ApiClient} from '@munim/api-client';
+import {ApiClientError, createApiClient, type ApiClient} from '@munim/api-client';
 
 const URL_KEY = 'munim.databaseUrl';
 const KEY_KEY = 'munim.apiKey';
@@ -109,8 +109,9 @@ export async function getApi(): Promise<ApiClient> {
 
 /**
  * Connection test for Settings + onboarding — builds a throwaway client for
- * the given URL/key and pings GET /readyz. Throws on failure (503 DB down,
- * bad key, unreachable host); resolves when the API is ready.
+ * the given URL/key, pings GET /readyz (DB health) and then GET /api/settings
+ * (protected). The protected call is what actually proves the key: `/readyz`
+ * is public, so on its own it passes even with a wrong key.
  */
 export async function pingApiUrl(baseUrl: string, apiKey?: string): Promise<void> {
   const keyValue = (apiKey ?? '').trim() || buildKey();
@@ -121,6 +122,14 @@ export async function pingApiUrl(baseUrl: string, apiKey?: string): Promise<void
   }
   const probe = createApiClient({baseUrl: baseUrl.trim(), apiKey: keyValue});
   await probe.health.ready();
+  try {
+    await probe.settings.get();
+  } catch (err) {
+    if (err instanceof ApiClientError && err.status === 401) {
+      throw new Error('The API key was rejected — check the key configured for this app.');
+    }
+    throw err;
+  }
 }
 
 /** Remove the saved URL + key (reset flow) and drop the cached client. */

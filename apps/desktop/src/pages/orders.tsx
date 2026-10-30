@@ -64,7 +64,9 @@ import {
   DialogHeader,
   DialogTitle,
   OrderStatusBadge,
+  OrderDetailBody,
   RecordPaymentDialog,
+  PaymentMethodPicker,
   ConfirmDialog,
   ProductSearchSelect,
   BarcodeLookupInput,
@@ -108,6 +110,8 @@ type FormState = {
   discount: string;
   delivery: string;
   paid: string;
+  paymentMethod: string;
+  paymentNote: string;
   notes: string;
   lines: FormLine[];
 };
@@ -136,6 +140,8 @@ function blankForm(): FormState {
     discount: "",
     delivery: "",
     paid: "0",
+    paymentMethod: "cash",
+    paymentNote: "",
     notes: "",
     lines: [blankLine()],
   };
@@ -150,6 +156,8 @@ function orderToForm(o: OrderRow): FormState {
     discount: String(o.discount || 0),
     delivery: String(o.deliveryCharge || 0),
     paid: String(o.amountPaid || 0),
+    paymentMethod: "cash",
+    paymentNote: "",
     notes: o.notes ?? "",
     lines: o.items.map((it) => ({
       key: nextKey(),
@@ -323,16 +331,20 @@ function OrderFormDialog({
       return;
     }
     const values: OrderFormValues = {
-      customerName: form.customerName.trim() || undefined,
-      customerPhone: form.customerPhone.trim() || undefined,
-      customerAddress: form.customerAddress.trim() || undefined,
-      partyId: form.partyId && form.partyId !== "__none" ? form.partyId : undefined,
+      // Trimmed EMPTY strings, never undefined: on edit a missing field means
+      // "leave unchanged", so blanks must be sent to actually clear them.
+      customerName: form.customerName.trim(),
+      customerPhone: form.customerPhone.trim(),
+      customerAddress: form.customerAddress.trim(),
+      partyId: form.partyId && form.partyId !== "__none" ? form.partyId : "",
       items,
       discount: Number(form.discount) || 0,
       deliveryCharge: Number(form.delivery) || 0,
       // Advance taken at the counter — it rides into the bill when billed.
       amountPaid: Number(form.paid) || 0,
-      notes: form.notes.trim() || undefined,
+      paymentMethod: form.paymentMethod.trim() || undefined,
+      paymentNote: form.paymentNote.trim() || undefined,
+      notes: form.notes.trim(),
     };
     setSaving(true);
     try {
@@ -531,6 +543,28 @@ function OrderFormDialog({
             </div>
           </div>
 
+          {(Number(form.paid) || 0) > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <PaymentMethodPicker
+                label="Advance received via"
+                value={form.paymentMethod}
+                onChange={(method) => setField("paymentMethod", method)}
+              />
+              <div className="space-y-1.5">
+                <Label htmlFor="of-pay-note">
+                  Payment note <span className="font-normal text-muted-foreground">(optional)</span>
+                </Label>
+                <Input
+                  id="of-pay-note"
+                  value={form.paymentNote}
+                  maxLength={120}
+                  onChange={(e) => setField("paymentNote", e.target.value)}
+                  placeholder={form.paymentMethod && form.paymentMethod !== "cash" ? "UPI id / txn no." : "e.g. cash in hand"}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Totals */}
           <div className="bg-muted/50 space-y-1.5 rounded-lg border p-3 text-sm">
             <p className="flex justify-between">
@@ -616,6 +650,8 @@ export function OrdersPage() {
   const recordPayment = useRecordOrderPayment();
   const { data: settings } = useQueryState(useSettings());
   const { data: goldRates } = useQueryState(useGoldRates());
+  const { data: parties } = useQueryState(useParties());
+  const detailPartyName = parties?.find((p) => p.id === detail?.partyId)?.name ?? null;
   const getClient = useApiClient();
 
   useEffect(() => {
@@ -716,15 +752,25 @@ export function OrdersPage() {
           size: it.size,
           weight: it.weight,
           weightUnit: it.weightUnit,
+          purity: it.purity,
+          grossWeight: it.grossWeight,
+          nagLessWeight: it.nagLessWeight,
+          chejatWeight: it.chejatWeight,
+          pricing: it.pricing,
           quantity: it.quantity,
           price: it.price,
         })),
         discount: inv.discount,
         deliveryCharge: inv.deliveryCharge,
+        materialReturnedWeight: inv.materialReturnedWeight,
+        materialReturnedValue: inv.materialReturnedValue,
+        materialReturnedTitle: inv.materialReturnedTitle,
         amountPaid: inv.amountPaid,
         status: inv.status,
         currency: settings?.currency ?? "INR",
         goldRate: inv.goldRate ?? goldRates?.baseRatePerGram ?? null,
+        // Purity of the quoted rate — the "24K" suffix on the gold rate row.
+        goldRateKarat: goldRates?.baseKarat ?? null,
         silverRate: inv.silverRate ?? settings?.silverRatePerGram ?? null,
       });
       await downloadBillPdf(bill, mergeBillTemplateSettings(inv.templateSettings));
@@ -1072,7 +1118,7 @@ export function OrdersPage() {
 
       {/* Detail */}
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           {detail && (
             <>
               <DialogHeader>
@@ -1084,105 +1130,11 @@ export function OrdersPage() {
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 text-sm">
-                <div className="space-y-1 rounded-lg border p-3">
-                  <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">Customer</p>
-                  <p className="font-medium">{detail.customerName || "Walk-in customer"}</p>
-                  {detail.customerPhone && <p className="text-xs text-muted-foreground">{detail.customerPhone}</p>}
-                  {detail.customerAddress && <p className="text-xs text-muted-foreground">{detail.customerAddress}</p>}
-                </div>
-
-                <div className="overflow-hidden rounded-lg border">
-                  <div className="bg-muted/50 grid grid-cols-[1fr_60px_90px_90px] gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground">
-                    <span>Item</span>
-                    <span className="text-right">Qty</span>
-                    <span className="text-right">Quoted</span>
-                    <span className="text-right">Total</span>
-                  </div>
-                  <div className="divide-y">
-                    {detail.items.map((item) => (
-                      <div key={item.id} className="grid grid-cols-[1fr_60px_90px_90px] gap-2 px-3 py-2">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium">{item.productName}</p>
-                          <p className="truncate text-[11px] text-muted-foreground">
-                            {item.sku}
-                            {item.color ? ` · ${item.color}` : ""}
-                            {item.size ? ` · ${item.size}` : ""}
-                            {item.weight != null ? ` · ${item.weight}${item.weightUnit ?? "gm"}` : ""}
-                          </p>
-                        </div>
-                        <span className="text-right tabular-nums">{item.quantity}</span>
-                        <span className="text-right tabular-nums">{formatCurrency(item.price)}</span>
-                        <span className="text-right font-medium tabular-nums">{formatCurrency(item.total)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5 rounded-lg border p-3">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <span className="tabular-nums">{formatCurrency(detail.subtotal)}</span>
-                  </div>
-                  {detail.discount > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Discount</span>
-                      <span className="tabular-nums text-red-600 dark:text-red-400">-{formatCurrency(detail.discount)}</span>
-                    </div>
-                  )}
-                  {detail.deliveryCharge > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Delivery</span>
-                      <span className="tabular-nums">+{formatCurrency(detail.deliveryCharge)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-1.5 text-sm font-bold">
-                    <span>Quoted total</span>
-                    <span className="tabular-nums">{formatCurrency(detail.total)}</span>
-                  </div>
-                  {detail.amountPaid > 0 && (
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground">Received</span>
-                      <span className="tabular-nums text-emerald-600 dark:text-emerald-400">-{formatCurrency(detail.amountPaid)}</span>
-                    </div>
-                  )}
-                  <div className="flex justify-between border-t pt-1.5 text-sm font-bold">
-                    <span>{detail.dueAmount > 0 ? "Balance due" : "Settled in full"}</span>
-                    <span className={`tabular-nums ${detail.dueAmount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                      {formatCurrency(detail.dueAmount)}
-                    </span>
-                  </div>
-                </div>
-
-                {(orderPayments?.length ?? 0) > 0 && (
-                  <div className="rounded-lg border p-3">
-                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Payments</p>
-                    <div className="space-y-1.5">
-                      {orderPayments?.map((p) => (
-                        <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
-                          <div className="min-w-0">
-                            <p className="font-medium">
-                              {formatCurrency(p.amount)}
-                              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                                {paymentMethodLabel(p.method)}
-                              </span>
-                            </p>
-                            {p.note && <p className="truncate text-[11px] text-muted-foreground">{p.note}</p>}
-                          </div>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{formatDate(p.date)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {detail.notes && (
-                  <div className="rounded-lg border p-3">
-                    <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">Notes</p>
-                    <p className="text-xs">{detail.notes}</p>
-                  </div>
-                )}
-              </div>
+              <OrderDetailBody
+                order={detail}
+                payments={orderPayments}
+                partyName={detailPartyName}
+              />
 
               <DialogFooter className="flex-wrap justify-between gap-2 sm:justify-between">
                 <div className="flex gap-2">

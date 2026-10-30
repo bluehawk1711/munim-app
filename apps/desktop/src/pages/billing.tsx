@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy, ArrowLeft, TriangleAlert } from "lucide-react";
 import {
   applyGoldBaseRate,
@@ -10,7 +10,7 @@ import {
   isLabourType,
   priceBillLineRow,
   productMatchesCode,
-  purityOptionsFor,
+  PURITY_PRESETS,
   renderBillHtml,
   paymentMethodLabel,
   resolveGoldRateTable,
@@ -59,7 +59,9 @@ import {
   SelectValue,
   Checkbox,
   BarcodeLookupInput,
+  CameraScanButton,
   ProductSearchSelect,
+  BillPreviewFrame,
   BillLinePricingStrip,
   type BillLinePricingStripValue,
   type ProductOption,
@@ -241,97 +243,6 @@ function invoiceToLine(it: InvoiceDto["items"][number]): LineState {
   };
 }
 
-/** A4 render size at 96dpi — the bill HTML sizes itself in mm, so this box
- *  matches the printed page exactly (794 × 1123 px). */
-const BILL_PX = { w: 794, h: 1123 };
-
-/**
- * Scaled iframe of the shared bill HTML (`renderBillHtml` — the same markup
- * the mobile print path prints). `fit="width"` scales to the container width
- * inside the fixed A4-ratio frame (the sidebar card); `fit="contain"` scales
- * the sheet to fit the whole box (the full-screen lightbox). When `onClick`
- * is given the frame is clickable (Enter/Space too) — the user sees the bill
- * BEFORE creating it, and clicks to enlarge.
- */
-function BillPreviewFrame({
-  html,
-  fit = "width",
-  onClick,
-}: {
-  html: string;
-  fit?: "width" | "contain";
-  onClick?: () => void;
-}) {
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [scale, setScale] = useState(0.45);
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const update = () => {
-      const s =
-        fit === "contain"
-          ? Math.min(el.clientWidth / BILL_PX.w, el.clientHeight / BILL_PX.h)
-          : el.clientWidth / BILL_PX.w;
-      setScale(s > 0 ? s : 0.1);
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [fit, html]);
-
-  const contain = fit === "contain";
-  const frame = (
-    <iframe
-      title="Bill preview"
-      srcDoc={html}
-      scrolling="no"
-      className={
-        contain
-          ? "pointer-events-none absolute left-1/2 top-1/2 origin-center border-0"
-          : "pointer-events-none absolute left-0 top-0 origin-top-left border-0"
-      }
-      style={{
-        width: BILL_PX.w,
-        height: BILL_PX.h,
-        transform: contain ? `translate(-50%, -50%) scale(${scale})` : `scale(${scale})`,
-      }}
-    />
-  );
-
-  const boxCls = [
-    contain ? "relative h-full w-full" : "relative block aspect-[210/297] w-full",
-    "overflow-hidden rounded-lg border bg-white",
-    onClick ? "cursor-zoom-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" : "",
-  ].join(" ");
-
-  if (!onClick) {
-    return (
-      <div ref={wrapRef} className={boxCls}>
-        {frame}
-      </div>
-    );
-  }
-  return (
-    <div
-      ref={wrapRef}
-      role="button"
-      tabIndex={0}
-      aria-label="Enlarge bill preview"
-      onClick={onClick}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
-      className={boxCls}
-    >
-      {frame}
-    </div>
-  );
-}
-
 export function BillingPage() {
   const { data: settings } = useQueryState(useSettings());
   const { data: goldRates } = useQueryState(useGoldRates());
@@ -460,6 +371,9 @@ export function BillingPage() {
   const [secondPartyId, setSecondPartyId] = useState("");
   const [secondDiscount, setSecondDiscount] = useState("0");
   const [secondDeliveryCharge, setSecondDeliveryCharge] = useState("0");
+  const [secondMaterialReturnedWeight, setSecondMaterialReturnedWeight] = useState("");
+  const [secondMaterialReturnedValue, setSecondMaterialReturnedValue] = useState("0");
+  const [secondMaterialReturnedTitle, setSecondMaterialReturnedTitle] = useState("");
   const [secondAmountPaid, setSecondAmountPaid] = useState("0");
   const [secondLines, setSecondLines] = useState<LineState[]>([emptyLine()]);
 
@@ -847,7 +761,13 @@ export function BillingPage() {
     () => secondLines.reduce((sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.price) || 0), 0),
     [secondLines],
   );
-  const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0) + (Number(secondDeliveryCharge) || 0));
+  const secondTotal = Math.max(
+    0,
+    secondSubtotal -
+      (Number(secondDiscount) || 0) -
+      (Number(secondMaterialReturnedValue) || 0) +
+      (Number(secondDeliveryCharge) || 0),
+  );
   const shop = settings ? settingsToShop(settings) : null;
 
   function updateLine(index: number, patch: Partial<LineState>) {
@@ -858,7 +778,9 @@ export function BillingPage() {
     setSecondLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
   }
 
-  function pickProduct(index: number, p: ProductOption, target: "first" | "second" = "first") {
+  /** Materialise a line for a picked product (base fields + editable pricing,
+   *  re-priced with the bill's CURRENT rates). */
+  function lineForProduct(p: ProductOption): LineState {
     const full = allProducts?.find((x) => x.id === p.id);
     const base: LineState = {
       ...emptyLine(),
@@ -877,11 +799,24 @@ export function BillingPage() {
       price: String(p.effectivePrice ?? p.sellingPrice),
       silverPercentage: String(p.silverPercentage ?? 100),
     };
-    // Materialise the editable pricing fields + re-price with the bill's
-    // CURRENT rates (picking after a rate edit still lands the right price).
-    const line = repriceLine({ ...base, ...pricingDefaultsFor(base, full) });
+    return repriceLine({ ...base, ...pricingDefaultsFor(base, full) });
+  }
+
+  function pickProduct(index: number, p: ProductOption, target: "first" | "second" = "first") {
+    const line = lineForProduct(p);
     if (target === "second") updateSecondLine(index, line);
     else updateLine(index, line);
+  }
+
+  /** Top-level "Add from stock" pick — fills the first empty line (else
+   *  appends), same rule as the web billing page. */
+  function addPickedProduct(p: ProductOption, target: "first" | "second" = "first") {
+    const line = lineForProduct(p);
+    const apply = target === "second" ? setSecondLines : setLines;
+    apply((prev) => {
+      const idx = prev.findIndex((l) => !l.productId && !l.productName.trim());
+      return idx >= 0 ? prev.map((l, i) => (i === idx ? line : l)) : [...prev, line];
+    });
   }
 
   function lineItems(list: LineState[]) {
@@ -1024,6 +959,9 @@ export function BillingPage() {
     setSecondPartyId("");
     setSecondDiscount("0");
     setSecondDeliveryCharge("0");
+    setSecondMaterialReturnedWeight("");
+    setSecondMaterialReturnedValue("0");
+    setSecondMaterialReturnedTitle("");
     setSecondAmountPaid("0");
     setSecondLines([emptyLine()]);
     // NOTE: `preview`/`secondPreview` are intentionally NOT cleared here —
@@ -1062,6 +1000,9 @@ export function BillingPage() {
     setSecondPartyId("");
     setSecondDiscount("0");
     setSecondDeliveryCharge("0");
+    setSecondMaterialReturnedWeight("");
+    setSecondMaterialReturnedValue("0");
+    setSecondMaterialReturnedTitle("");
     setSecondAmountPaid("0");
     setSecondLines([emptyLine()]);
     setSecondPreview(null);
@@ -1204,7 +1145,7 @@ export function BillingPage() {
         materialReturnedTitle: materialReturnedTitle.trim() || undefined,
         // "Mark as paid" wins over the Paid-now field — the invoice is saved
         // with its full total as paid, so it lands as PAID (not UNPAID).
-        amountPaid: markPaid ? total : Number(amountPaid) || 0,
+        amountPaid: markPaid ? total : Math.min(Number(amountPaid) || 0, total),
       };
 
       // ── EDIT: PUT the whole bill back. Core reconciles the per-product
@@ -1250,9 +1191,10 @@ export function BillingPage() {
             items: lineItems(secondLines),
             discount: Number(secondDiscount) || 0,
             deliveryCharge: Number(secondDeliveryCharge) || 0,
-            materialReturnedWeight: undefined,
-            materialReturnedValue: 0,
-            amountPaid: markPaid ? secondTotal : Number(secondAmountPaid) || 0,
+            materialReturnedWeight: secondMaterialReturnedWeight.trim() || undefined,
+            materialReturnedValue: Number(secondMaterialReturnedValue) || 0,
+            materialReturnedTitle: secondMaterialReturnedTitle.trim() || undefined,
+            amountPaid: markPaid ? secondTotal : Math.min(Number(secondAmountPaid) || 0, secondTotal),
           });
           if (secondInvoice) {
             setSecondPreview(invoiceToBillDocument(secondInvoice, shopForPreview, settings?.currency ?? "INR", billRates));
@@ -1436,10 +1378,17 @@ export function BillingPage() {
                         {billSilverRate != null ? `≈ ₹${billSilverRate.toFixed(2)}/g · ` : ""}Editing re-prices silver lines on this bill.
                       </p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="b-notes">Notes / terms</Label>
-                      <Input id="b-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Thank you for your business!" />
-                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="b-notes">Notes / terms</Label>
+                    <textarea
+                      id="b-notes"
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Thank you for your business!"
+                      rows={3}
+                      className="border-input bg-background focus-visible:ring-ring w-full resize-none rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-1"
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -1462,12 +1411,24 @@ export function BillingPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
-                    <BarcodeLookupInput
-                      onLookup={handleBarcodeAdd}
-                      placeholder="Scan barcode or type SKU…"
-                      className="sm:max-w-[320px]"
+                    <Label className="text-xs">Add from stock (auto-fills price &amp; details)</Label>
+                    <ProductSearchSelect
+                      products={allProducts}
+                      disableOutOfStock
+                      placeholder="Search product…"
+                      onSelect={(p) => addPickedProduct(p)}
                     />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
+                    <div className="flex items-center gap-2">
+                      <BarcodeLookupInput
+                        onLookup={handleBarcodeAdd}
+                        placeholder="Scan barcode or type SKU…"
+                        className="flex-1 sm:max-w-[320px]"
+                      />
+                      <CameraScanButton onDetected={handleBarcodeAdd} label="Scan barcode to add an item" />
+                    </div>
                   </div>
                   <LineItemsEditor
                     lines={lines}
@@ -1528,8 +1489,10 @@ export function BillingPage() {
                     subtotal={subtotal}
                     discount={Number(discount) || 0}
                     delivery={Number(deliveryCharge) || 0}
+                    materialReturned={Number(materialReturnedValue) || 0}
+                    materialTitle={materialReturnedTitle}
                     total={total}
-                    paid={Number(amountPaid) || 0}
+                    paid={markPaid ? total : Math.min(Number(amountPaid) || 0, total)}
                   />
                 </CardContent>
               </Card>
@@ -1556,12 +1519,27 @@ export function BillingPage() {
                       error={fieldError("second-customer")}
                     />
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
-                      <BarcodeLookupInput
-                        onLookup={(c) => handleBarcodeAdd(c, "second")}
-                        placeholder="Scan barcode or type SKU…"
-                        className="sm:max-w-[320px]"
+                      <Label className="text-xs">Add from stock (auto-fills price &amp; details)</Label>
+                      <ProductSearchSelect
+                        products={allProducts}
+                        disableOutOfStock
+                        placeholder="Search product…"
+                        onSelect={(p) => addPickedProduct(p, "second")}
                       />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
+                      <div className="flex items-center gap-2">
+                        <BarcodeLookupInput
+                          onLookup={(c) => handleBarcodeAdd(c, "second")}
+                          placeholder="Scan barcode or type SKU…"
+                          className="flex-1 sm:max-w-[320px]"
+                        />
+                        <CameraScanButton
+                          onDetected={(c) => handleBarcodeAdd(c, "second")}
+                          label="Scan barcode to add an item"
+                        />
+                      </div>
                     </div>
                     <LineItemsEditor
                       lines={secondLines}
@@ -1588,12 +1566,26 @@ export function BillingPage() {
                       onPaid={setSecondAmountPaid}
                       idPrefix="sb"
                     />
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="sb-mr-title">Material returned title</Label>
+                        <Input id="sb-mr-title" value={secondMaterialReturnedTitle} onChange={(e) => setSecondMaterialReturnedTitle(e.target.value)} placeholder="Material Returned" />
+                        <Label htmlFor="sb-mr-weight">Material returned weight</Label>
+                        <Input id="sb-mr-weight" value={secondMaterialReturnedWeight} onChange={(e) => setSecondMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="sb-mr-value">Material returned value (₹)</Label>
+                        <Input id="sb-mr-value" type="number" min={0} value={secondMaterialReturnedValue} onChange={(e) => setSecondMaterialReturnedValue(e.target.value)} />
+                      </div>
+                    </div>
                     <TotalsSummary
                       subtotal={secondSubtotal}
                       discount={Number(secondDiscount) || 0}
                       delivery={Number(secondDeliveryCharge) || 0}
+                      materialReturned={Number(secondMaterialReturnedValue) || 0}
+                      materialTitle={secondMaterialReturnedTitle}
                       total={secondTotal}
-                      paid={Number(secondAmountPaid) || 0}
+                      paid={markPaid ? secondTotal : Math.min(Number(secondAmountPaid) || 0, secondTotal)}
                     />
                   </CardContent>
                 </Card>
@@ -1933,7 +1925,7 @@ function AdjustmentFields({
         <Input id={`${idPrefix}-delivery`} type="number" min={0} value={delivery} onChange={(e) => onDelivery(e.target.value)} />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-paid`}>Paid now (₹)</Label>
+        <Label htmlFor={`${idPrefix}-paid`}>Amount paid now (₹)</Label>
         <Input id={`${idPrefix}-paid`} type="number" min={0} value={paid} onChange={(e) => onPaid(e.target.value)} />
       </div>
     </div>
@@ -1945,12 +1937,16 @@ function TotalsSummary({
   subtotal,
   discount,
   delivery,
+  materialReturned,
+  materialTitle,
   total,
   paid,
 }: {
   subtotal: number;
   discount: number;
   delivery: number;
+  materialReturned?: number;
+  materialTitle?: string;
   total: number;
   paid: number;
 }) {
@@ -1960,6 +1956,12 @@ function TotalsSummary({
       <p className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="tabular-nums">{money(subtotal)}</span></p>
       {discount > 0 && <p className="flex justify-between"><span className="text-muted-foreground">Discount</span><span className="tabular-nums">−{money(discount)}</span></p>}
       {delivery > 0 && <p className="flex justify-between"><span className="text-muted-foreground">Delivery</span><span className="tabular-nums">+{money(delivery)}</span></p>}
+      {(materialReturned ?? 0) > 0 && (
+        <p className="flex justify-between">
+          <span className="text-muted-foreground">{materialTitle?.trim() || "Material Returned"}</span>
+          <span className="tabular-nums">−{money(materialReturned ?? 0)}</span>
+        </p>
+      )}
       <p className="flex justify-between border-t pt-1.5"><span className="font-semibold">Total</span><span className="font-bold tabular-nums">{money(total)}</span></p>
       <p className="flex justify-between"><span className="text-muted-foreground">Paid now</span><span className="tabular-nums">{money(paid)}</span></p>
       <p className="flex justify-between"><span className="text-muted-foreground">Balance due</span><span className="font-semibold tabular-nums">{money(due)}</span></p>
@@ -1992,8 +1994,16 @@ function LineItemsEditor({
   pick: (i: number, p: ProductOption) => void;
   allProducts: ProductOption[] | null | undefined;
 }) {
+  // Remark presets — free text stays allowed (products carry arbitrary
+  // stamps), so this is a datalist, not a closed select.
+  const purityListId = useId();
   return (
     <div className="space-y-2">
+      <datalist id={purityListId}>
+        {PURITY_PRESETS.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
       {lines.map((line, index) => {
         const pricingView = pricing?.(index) ?? null;
         const breakdown = pricingView?.breakdown;
@@ -2060,19 +2070,16 @@ function LineItemsEditor({
             <Input type="number" min={0} value={line.price} onChange={(e) => update(index, { price: e.target.value })} />
           </div>
           <div className="w-24 space-y-1.5">
-            <Label>Remark</Label>
-            <Select value={line.purity} onValueChange={(v) => update(index, { purity: v })}>
-              <SelectTrigger className="h-9 text-xs" aria-label="Remark">
-                <SelectValue placeholder="—" />
-              </SelectTrigger>
-              <SelectContent>
-                {purityOptionsFor(line.purity).map((opt) => (
-                  <SelectItem key={opt} value={opt}>
-                    {opt}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor={`remark-${index}`}>Remark</Label>
+            <Input
+              id={`remark-${index}`}
+              value={line.purity}
+              onChange={(e) => update(index, { purity: e.target.value })}
+              placeholder="Purity 22K"
+              list={purityListId}
+              className="h-9 text-xs"
+              aria-label="Remark"
+            />
           </div>
           <div className="w-24 space-y-1.5">
             <Label>G. Wt.</Label>
