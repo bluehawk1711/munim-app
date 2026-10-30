@@ -53,7 +53,6 @@ import { ProductFormDialog } from "@/components/products/product-form-dialog"
 import { StockAdjustmentDialog } from "@/components/products/stock-adjustment-dialog"
 import { DeleteProductDialog } from "@/components/products/delete-product-dialog"
 import { BulkEditDialog } from "@/components/products/bulk-edit-dialog"
-import { setPendingSellProduct } from "@/lib/pending-sell"
 import { useProducts, useBackfillBarcodes, useSyncProductPrices } from "@/hooks/use-products"
 import { useArticles } from "@/hooks/use-articles"
 import { useApiClient } from "@munim/query"
@@ -70,8 +69,8 @@ import { toast } from "@munim/ui"
 export function ProductsView() {
   const globalSearch = useAppStore((s) => s.globalSearch)
   const setGlobalSearchStore = useAppStore((s) => s.setGlobalSearch)
-  const setSellDialogOpen = useAppStore((s) => s.setSellDialogOpen)
   const setView = useAppStore((s) => s.setActiveView)
+  const stageBillProduct = useAppStore((s) => s.stageBillProduct)
 
   // Filters live in the store so shortcuts from other views (e.g. Catalog)
   // can pre-filter this view. The view remounts on navigation, so the local
@@ -250,9 +249,13 @@ export function ProductsView() {
     setDeleteOpen(true)
   }
   function handleSell(p: Product) {
-    // Stash the selected product so the global sell dialog can preselect it.
-    setPendingSellProduct(p)
-    setSellDialogOpen(true)
+    if (p.stock <= 0) {
+      toast.error(`${p.name} is out of stock`, { description: "Restock it before adding it to a bill." })
+      return
+    }
+    stageBillProduct(p.id)
+    setView("billing")
+    toast.success(`${p.name} added to a new bill`)
   }
 
   function openLabelDialog(p: Product) {

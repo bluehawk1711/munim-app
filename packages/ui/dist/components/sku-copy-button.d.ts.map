@@ -1,0 +1,1 @@
+{"version":3,"file":"sku-copy-button.d.ts","sourceRoot":"","sources":["../../src/components/sku-copy-button.tsx"],"names":[],"mappings":"AAEA;;;;GAIG;AACH,OAAO,KAAK,KAAK,MAAM,OAAO,CAAA;AAO9B,wBAAgB,aAAa,CAAC,EAC5B,GAAG,EACH,SAAS,EACT,KAAkB,GACnB,EAAE;IACD,GAAG,EAAE,MAAM,GAAG,IAAI,GAAG,SAAS,CAAA;IAC9B,SAAS,CAAC,EAAE,MAAM,CAAA;IAClB,KAAK,CAAC,EAAE,MAAM,CAAA;CACf,4BA2CA"}

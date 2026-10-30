@@ -3,13 +3,11 @@ import type { ElementType } from "react";
 import {
   ArrowUpRight,
   Barcode,
-  CheckCircle2,
   Copy,
   Eye,
   EyeOff,
   FileDown,
   Image as ImageIcon,
-  IndianRupee,
   Loader2,
   MoreVertical,
   PackagePlus,
@@ -55,7 +53,6 @@ import {
   useBulkUpdateProducts,
   useCategoryBreakdown,
   useCreateProduct,
-  useCreateSale,
   useDebouncedSettingsUpdate,
   useDeleteProduct,
   useGoldRates,
@@ -70,7 +67,8 @@ import {
   useUploadImage,
 } from "@munim/query";
 import { money } from "@/lib/format";
-import { useUrlSearch } from "@/lib/navigation";
+import { useUrlSearch, navigate } from "@/lib/navigation";
+import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { downloadLabelPdf, printLabelHtml } from "@/lib/labelPdf";
 import {
@@ -130,6 +128,8 @@ import {
   LabelPrintDialog,
   LabelPrintSelectDialog,
   ProductDetailsDialog,
+  SkuCopyButton,
+  Tooltip,
 } from "@munim/ui";
 
 const KARAT_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
@@ -476,17 +476,8 @@ export function ProductsPage() {
     try { return localStorage.getItem("munim-products-analytics") !== "hidden"; } catch { return true; }
   });
   const [detailsProduct, setDetailsProduct] = useState<ProductDto | null>(null);
+  const stageBillProduct = useAppStore((s) => s.stageBillProduct);
 
-  // Quick-sale dialog state
-  const [saleTarget, setSaleTarget] = useState<ProductDto | null>(null);
-  const [saleOpen, setSaleOpen] = useState(false);
-  const [saleQty, setSaleQty] = useState("1");
-  const [salePrice, setSalePrice] = useState("");
-  const [saleCustomerName, setSaleCustomerName] = useState("");
-  const [saleCustomerPhone, setSaleCustomerPhone] = useState("");
-  const [saleIsPaid, setSaleIsPaid] = useState(true);
-  const [saleSaving, setSaleSaving] = useState(false);
-  const createSale = useCreateSale();
   const [backfilling, setBackfilling] = useState(false);
 
   const [activeCategory, setActiveCategory] = useState<FilterChip>({ kind: "all", label: "All SKUs", value: 0 });
@@ -757,40 +748,15 @@ export function ProductsPage() {
     try { localStorage.setItem("munim-products-analytics", next ? "visible" : "hidden"); } catch { /* noop */ }
   }
 
-  function openQuickSale(p: ProductDto) {
-    setSaleTarget(p);
-    setSaleQty("1");
-    setSalePrice(String(p.effectivePrice));
-    setSaleCustomerName("");
-    setSaleCustomerPhone("");
-    setSaleIsPaid(true);
-    setSaleOpen(true);
-  }
-
-  async function handleQuickSale() {
-    if (!saleTarget) return;
-    const qty = Number(saleQty);
-    const price = Number(salePrice);
-    if (!qty || qty <= 0) { toast.error("Quantity must be positive"); return; }
-    if (price < 0 || Number.isNaN(price)) { toast.error("Enter a valid price"); return; }
-    setSaleSaving(true);
-    try {
-      const invoice = await createSale.mutateAsync({
-        productId: saleTarget.id,
-        quantity: qty,
-        sellingPrice: price || undefined,
-        customerName: saleCustomerName.trim() || undefined,
-        customerPhone: saleCustomerPhone.trim() || undefined,
-        paid: saleIsPaid,
-        paymentMethod: saleIsPaid ? "cash" : "credit",
-      });
-      toast.success(`Sale done — ${invoice.invoiceNumber} (${money(invoice.total)})`);
-      setSaleOpen(false);
-    } catch (err) {
-      toast.error("Sale failed", { description: err instanceof Error ? err.message : undefined });
-    } finally {
-      setSaleSaving(false);
+  /** Quick Sale → stage the product on the New Bill screen, then go there. */
+  function sendToBill(p: ProductDto) {
+    if (p.stock <= 0) {
+      toast.error(`${p.name} is out of stock`, { description: "Restock it before adding it to a bill." });
+      return;
     }
+    stageBillProduct(p.id);
+    navigate("/billing");
+    toast.success(`${p.name} added to a new bill`);
   }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1479,18 +1445,31 @@ export function ProductsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="icon-sm" title="Sell" onClick={() => openQuickSale(p)}>
-                          <ShoppingCart className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon-sm" title="Print label" onClick={() => openLabelDialog(p)}>
-                          <Tag className="h-4 w-4" />
-                        </Button>
+                        <SkuCopyButton sku={p.sku} className="h-8 w-8" />
+                        <Tooltip label="Add to bill">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Add ${p.name} to a new bill`}
+                            disabled={p.stock <= 0}
+                            onClick={() => sendToBill(p)}
+                          >
+                            <ShoppingCart className="h-4 w-4" />
+                          </Button>
+                        </Tooltip>
+                        <Tooltip label="Print label">
+                          <Button variant="ghost" size="icon-sm" aria-label={`Print label for ${p.name}`} onClick={() => openLabelDialog(p)}>
+                            <Tag className="h-4 w-4" />
+                          </Button>
+                        </Tooltip>
                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon-sm" title="More actions">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
+                          <Tooltip label="More actions">
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon-sm" aria-label="More actions">
+                                <MoreVertical className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                          </Tooltip>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => setDetailsProduct(p)}>
                               <Eye className="mr-2 h-4 w-4" /> View details
@@ -1500,6 +1479,9 @@ export function ProductsPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEdit(p)}>
                               <Pencil className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem disabled={p.stock <= 0} onClick={() => sendToBill(p)}>
+                              <ShoppingCart className="mr-2 h-4 w-4" /> Add to bill
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(p)}>
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
@@ -2284,127 +2266,6 @@ export function ProductsPage() {
               ) : (
                 "Adjust"
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Quick Sale Dialog */}
-      <Dialog open={saleOpen} onOpenChange={setSaleOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4" /> Quick Sale
-            </DialogTitle>
-            <DialogDescription>
-              {saleTarget ? (
-                <>Selling <strong>{saleTarget.name}</strong> {saleTarget.sku ? `(${saleTarget.sku})` : ""}</>
-              ) : (
-                "Record a quick sale"
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {saleTarget && (
-              <div className="flex items-center gap-3 rounded-lg border p-2.5">
-                <div className="bg-muted flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-bold text-primary/60">
-                  {saleTarget.name.charAt(0)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{saleTarget.name}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {saleTarget.sku}
-                    {saleTarget.color ? <>, {saleTarget.color}</> : null}
-                    {saleTarget.size ? <> · {saleTarget.size}</> : null}
-                  </p>
-                  <p className="text-muted-foreground text-xs">
-                    Stock: <span className={saleTarget.stock <= (saleTarget.lowStockThreshold ?? 0) ? "text-amber-600 font-medium" : ""}>{saleTarget.stock} units</span>
-                  </p>
-                </div>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="sale-qty" className="text-xs">Quantity</Label>
-                <Input
-                  id="sale-qty"
-                  type="number"
-                  min={1}
-                  value={saleQty}
-                  onChange={(e) => setSaleQty(e.target.value)}
-                  className="h-10 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="sale-price" className="text-xs">Selling Price</Label>
-                <Input
-                  id="sale-price"
-                  type="number"
-                  min={0}
-                  value={salePrice}
-                  onChange={(e) => setSalePrice(e.target.value)}
-                  className="h-10 text-sm"
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Customer Name</Label>
-                <Input
-                  placeholder="Optional"
-                  value={saleCustomerName}
-                  onChange={(e) => setSaleCustomerName(e.target.value)}
-                  className="h-9 text-sm"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Customer Phone</Label>
-                <Input
-                  placeholder="Optional"
-                  value={saleCustomerPhone}
-                  onChange={(e) => setSaleCustomerPhone(e.target.value)}
-                  className="h-9 text-sm"
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Label className="text-xs">Payment</Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={saleIsPaid ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSaleIsPaid(true)}
-                  className="gap-1.5"
-                >
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Paid
-                </Button>
-                <Button
-                  type="button"
-                  variant={!saleIsPaid ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSaleIsPaid(false)}
-                  className="gap-1.5"
-                >
-                  Credit
-                </Button>
-              </div>
-            </div>
-            {saleTarget && Number(salePrice) > 0 && saleTarget.purchasePrice > 0 && (
-              <div className="rounded-md bg-muted/50 px-3 py-2 text-xs">
-                <span className="text-muted-foreground">Margin: </span>
-                <span className={Number(salePrice) > saleTarget.purchasePrice ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-red-600 dark:text-red-400"}>
-                  {money(Number(salePrice) - saleTarget.purchasePrice)}
-                </span>
-                <span className="text-muted-foreground"> per unit</span>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSaleOpen(false)}>Cancel</Button>
-            <Button onClick={handleQuickSale} disabled={saleSaving} className="gap-1.5">
-              {saleSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <IndianRupee className="h-4 w-4" />}
-              {saleSaving ? "Processing…" : "Complete Sale"}
             </Button>
           </DialogFooter>
         </DialogContent>

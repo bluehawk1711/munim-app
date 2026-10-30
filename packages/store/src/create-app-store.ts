@@ -7,6 +7,8 @@
  *   - globalSearch          — the header search box (shared across views)
  *   - searchNonce           — bump to force a re-query after a search action
  *   - sellDialogOpen        — the quick-sell dialog (web/desktop header)
+ *   - pendingBillProductId  — product staged by a "Quick Sale" action; the
+ *                             next bill screen lands it on the first empty line
  *   - product{Color,Size,Category,Status}Filter — cross-view product filters
  *
  * Each platform creates its OWN instance (client state is per-device) via
@@ -21,6 +23,8 @@ export type AppClientState = {
   /** Bumped by the header search to force consumers to refetch. */
   searchNonce: number;
   sellDialogOpen: boolean;
+  /** Product id staged for the next bill screen (null = nothing pending). */
+  pendingBillProductId: string | null;
   productTypeFilter: string;
   productColorFilter: string;
   productSizeFilter: string;
@@ -31,6 +35,10 @@ export type AppClientState = {
   setGlobalSearch: (value: string) => void;
   bumpSearch: () => void;
   setSellDialogOpen: (open: boolean) => void;
+  /** Quick Sale → stage the product, then open the bill screen. */
+  stageBillProduct: (productId: string) => void;
+  /** Read + clear the staged product (the bill screen calls this once). */
+  takeBillProduct: () => string | null;
   setProductTypeFilter: (value: string) => void;
   setProductColorFilter: (value: string) => void;
   setProductSizeFilter: (value: string) => void;
@@ -46,11 +54,12 @@ export type AppClientState = {
  *   "home").
  */
 export function createAppStore(initialView = "dashboard") {
-  return create<AppClientState>()((set) => ({
+  return create<AppClientState>()((set, get) => ({
     activeView: initialView,
     globalSearch: "",
     searchNonce: 0,
     sellDialogOpen: false,
+    pendingBillProductId: null,
     productTypeFilter: "all",
     productColorFilter: "all",
     productSizeFilter: "all",
@@ -61,6 +70,12 @@ export function createAppStore(initialView = "dashboard") {
     setGlobalSearch: (value: string) => set({ globalSearch: value }),
     bumpSearch: () => set((s) => ({ searchNonce: s.searchNonce + 1 })),
     setSellDialogOpen: (open) => set({ sellDialogOpen: open }),
+    stageBillProduct: (productId) => set({ pendingBillProductId: productId }),
+    takeBillProduct: () => {
+      const productId = get().pendingBillProductId;
+      if (productId) set({ pendingBillProductId: null });
+      return productId;
+    },
     setProductTypeFilter: (value) => set({ productTypeFilter: value }),
     setProductColorFilter: (value) => set({ productColorFilter: value }),
     setProductSizeFilter: (value) => set({ productSizeFilter: value }),

@@ -29,7 +29,6 @@ import { useAllProducts, useSyncProductPrices } from "@/hooks/use-products"
 import { useCreateSale } from "@/hooks/use-sales"
 import { classifyProduct, saleSchema, type SaleFormValues } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
-import { consumePendingSellProduct } from "@/lib/pending-sell"
 import { formatCurrency } from "@/lib/format"
 import type { Product, Sale } from "@/lib/types"
 import { toast } from "@munim/ui"
@@ -70,7 +69,7 @@ export function SellProductDialog() {
 
   const [completedSale, setCompletedSale] = React.useState<Sale | null>(null)
   // Selected product is kept in local state (not derived from the fetched
-  // list) so a "Sell" click from any products-table page preselects reliably.
+  // list) so the picked row stays put while the catalog refetches.
   const [selectedProduct, setSelectedProduct] = React.useState<Product | null>(null)
   const [search, setSearch] = React.useState("")
   const prevOpenRef = React.useRef(false)
@@ -102,15 +101,9 @@ export function SellProductDialog() {
     prevOpenRef.current = open
     if (justOpened) {
       setCompletedSale(null)
-      const pending = consumePendingSellProduct()
-      if (pending) setSelectedProduct(pending)
+      setSelectedProduct(null)
       setSearch("")
-      form.reset({
-        productId: pending?.id ?? "",
-        color: pending?.color ?? "",
-        size: pending?.size ?? "",
-        quantity: 1,
-      })
+      form.reset({ productId: "", color: "", size: "", quantity: 1 })
     }
   }, [open, form])
 

@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "./dialog";
 import { Separator } from "./separator";
+import { SkuCopyButton } from "./sku-copy-button";
 
 export type ProductDetails = {
   id: string;
@@ -164,8 +165,11 @@ export function ProductDetailsDialog({
             )}
             <div className="min-w-0">
               <DialogTitle className="truncate">{product.name}</DialogTitle>
-              <DialogDescription className="mt-0.5">
-                {product.sku} · <Badge variant={status.variant}>{status.label}</Badge>
+              <DialogDescription className="mt-0.5 flex items-center gap-1">
+                <span className="font-mono text-xs">{product.sku}</span>
+                <SkuCopyButton sku={product.sku} className="h-6 w-6" />
+                <span aria-hidden>·</span>
+                <Badge variant={status.variant}>{status.label}</Badge>
               </DialogDescription>
             </div>
           </div>
