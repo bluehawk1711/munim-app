@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
  *   Subtitle line
  *
  * Keeps the page-top hierarchy (big title + supporting copy + page actions)
- * identical across Products, Sales, Billing, Invoices, Advances, Job Letters,
+ * identical across Products, Billing, Invoices, Advances, Job Letters,
  * Catalog and Settings, matching the redesigned Dashboard / Reports / Parties.
  */
 export function PageHeader({

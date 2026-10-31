@@ -37,7 +37,7 @@ export const cacheKeys = {
   dashboard: (f: Record<string, unknown> = {}) => `dashboard:get:${hashFilters(f)}`,
   catalogList: (kind: string) => `catalog:${kind}:list`,
   articlesList: "articles:list",
-  articlesAnalytics: "articles:analytics",
+  articlesAnalytics: (f: Record<string, unknown> = {}) => `articles:analytics:${hashFilters(f)}`,
   settings: "settings:get",
   goldRates: "gold-rates:list",
   report: (q: Record<string, unknown>) => `reports:${hashFilters(q)}`,

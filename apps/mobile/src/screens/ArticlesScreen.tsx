@@ -1,11 +1,14 @@
 import React, {useMemo, useState} from 'react';
 import {Alert, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import Animated, {FadeInDown} from 'react-native-reanimated';
-import {Pencil, Plus, Trash2} from 'lucide-react-native';
+import {Pencil, Trash2} from 'lucide-react-native';
 import {
+  ARTICLE_ANALYTICS_PRESETS,
+  ARTICLE_ANALYTICS_PRESET_LABELS,
   formatDate,
   formatNumber,
   formatWeight,
+  type ArticleAnalyticsPreset,
   type ArticleDto,
 } from '@munim/core';
 import {
@@ -28,6 +31,7 @@ import {
   colors,
 } from '../components/ui';
 import {HomeHeader} from '../components/home-header';
+import {AnalyticsSheet} from '../components/analytics-sheet';
 import {useThemeStyles} from '../theme';
 import {errorFeedback, selectionTick, successFeedback} from '../lib/haptics';
 import {rs, spacing, CARD_MARGIN} from '../lib/responsive';
@@ -44,18 +48,21 @@ type EditorState = {mode: 'add'} | {mode: 'edit'; article: ArticleDto} | null;
 
 /**
  * ArticlesScreen — More → Articles. One card per article carrying its
- * analytics (stock, sold, revenue, last sale, 6-month trend) plus the CRUD
- * sheet. Sort pills pick the "top articles" order (revenue / weight / value).
+ * analytics (stock, sold, revenue, last sale, bucketed trend) plus the CRUD
+ * sheet. The period chips scope the sold/revenue/trend stats; sort pills pick
+ * the order (revenue / weight / value).
  */
 export function ArticlesScreen() {
   const styles = useThemeStyles(makeStyles);
   const listQ = useQueryState(useArticles());
-  const analyticsQ = useQueryState(useArticlesAnalytics());
+  const [period, setPeriod] = useState<ArticleAnalyticsPreset>('6m');
+  const analyticsQ = useQueryState(useArticlesAnalytics(period));
   const createArticle = useCreateArticle();
   const updateArticle = useUpdateArticle();
   const deleteArticle = useDeleteArticle();
 
   const [sort, setSort] = useState<SortKey>('revenue');
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [editor, setEditor] = useState<EditorState>(null);
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
@@ -82,6 +89,12 @@ export function ArticlesScreen() {
 
   const loading = listQ.loading || analyticsQ.loading;
   const error = listQ.error ?? analyticsQ.error;
+  const topArticles = useMemo(
+    () => [...(analyticsQ.data?.rows ?? [])].sort((a, b) => b.revenue - a.revenue).slice(0, 3),
+    [analyticsQ.data],
+  );
+  const periodMeta = ARTICLE_ANALYTICS_PRESET_LABELS[period];
+  const bucketLabel = analyticsQ.data?.period.bucket === 'week' ? 'weekly' : 'monthly';
   const reload = () => {
     listQ.reload();
     analyticsQ.reload();
@@ -167,30 +180,33 @@ export function ArticlesScreen() {
 
   return (
     <Screen>
-      <HomeHeader title="Articles" />
+      <HomeHeader
+        title="Articles"
+        onAnalyticsPress={() => setAnalyticsOpen(true)}
+        analyticsLabel="Article analytics"
+      />
 
       <ScrollView contentContainerStyle={{paddingBottom: 40}} showsVerticalScrollIndicator={false}>
-        {/* Summary tiles */}
-        <Animated.View entering={FadeInDown.duration(280)} style={styles.summaryGrid}>
-          <View style={styles.summaryTile}>
-            <Text style={styles.summaryLabel}>ARTICLES</Text>
-            <Text style={styles.summaryValue}>{formatNumber(totals.count)}</Text>
-          </View>
-          <View style={styles.summaryTile}>
-            <Text style={styles.summaryLabel}>STOCK VALUE</Text>
-            <Text style={styles.summaryValue}>{money(totals.stockValue)}</Text>
-          </View>
-          <View style={styles.summaryTile}>
-            <Text style={styles.summaryLabel}>REVENUE · 6M</Text>
-            <Text style={styles.summaryValue}>{money(totals.revenue)}</Text>
-          </View>
-          <View style={styles.summaryTile}>
-            <Text style={styles.summaryLabel}>WEIGHT · 6M</Text>
-            <Text style={styles.summaryValue}>
-              {totals.soldWeightGm > 0 ? formatWeight(totals.soldWeightGm) : '—'}
-            </Text>
-          </View>
-        </Animated.View>
+        {/* Period filter — scopes sold/revenue/trend below */}
+        <View style={styles.periodRow}>
+          {ARTICLE_ANALYTICS_PRESETS.map(p => (
+            <Pressable
+              key={p}
+              onPress={() => {
+                selectionTick();
+                setPeriod(p);
+              }}
+              style={({pressed}) => [
+                styles.sortChip,
+                period === p && styles.sortChipActive,
+                pressed && {opacity: 0.75},
+              ]}>
+              <Text style={[styles.sortText, period === p && styles.sortTextActive]}>
+                {ARTICLE_ANALYTICS_PRESET_LABELS[p].label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
         {/* Sort pills */}
         <View style={styles.sortRow}>
@@ -291,11 +307,11 @@ export function ArticlesScreen() {
                       </Text>
                     </View>
                     <View style={styles.stat}>
-                      <Text style={styles.statLabel}>Sold 6m</Text>
+                      <Text style={styles.statLabel}>Sold · {periodMeta.short}</Text>
                       <Text style={styles.statValue}>{formatNumber(r.soldUnits)}</Text>
                     </View>
                     <View style={styles.stat}>
-                      <Text style={styles.statLabel}>Revenue 6m</Text>
+                      <Text style={styles.statLabel}>Revenue · {periodMeta.short}</Text>
                       <Text style={[styles.statValue, {color: colors.primary}]}>
                         {money(r.revenue)}
                       </Text>
@@ -316,7 +332,7 @@ export function ArticlesScreen() {
                           ]}
                         />
                         <Text style={styles.trendLabel}>
-                          {analyticsQ.data?.monthLabels[i] ?? ''}
+                          {analyticsQ.data?.trendLabels[i] ?? ''}
                         </Text>
                       </View>
                     ))}
@@ -372,45 +388,54 @@ export function ArticlesScreen() {
           loading={saving}
         />
       </ModalSheet>
+
+      <AnalyticsSheet
+        visible={analyticsOpen}
+        title="Article analytics"
+        onClose={() => setAnalyticsOpen(false)}
+        note={`${periodMeta.label} · ${bucketLabel} buckets across every article.`}
+        stats={[
+          {label: 'Articles', value: formatNumber(totals.count)},
+          {label: 'Stock value', value: money(totals.stockValue), tone: 'primary'},
+          {label: `Revenue · ${periodMeta.short}`, value: money(totals.revenue), tone: 'success'},
+          {
+            label: `Weight · ${periodMeta.short}`,
+            value: totals.soldWeightGm > 0 ? formatWeight(totals.soldWeightGm) : '—',
+          },
+        ]}>
+        {topArticles.length > 0 ? (
+          <>
+            <Text style={styles.sheetHeading}>Top articles by revenue</Text>
+            {topArticles.map((r, i) => (
+              <View key={r.articleId} style={styles.topRow}>
+                <Text style={styles.topRank}>{i + 1}</Text>
+                <Text style={styles.topName} numberOfLines={1}>
+                  {r.name}
+                </Text>
+                <Text style={styles.topValue}>{money(r.revenue)}</Text>
+              </View>
+            ))}
+          </>
+        ) : null}
+      </AnalyticsSheet>
     </Screen>
   );
 }
 
 const makeStyles = () =>
   StyleSheet.create({
-    summaryGrid: {
+    periodRow: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: rs(8),
+      gap: rs(6),
       marginHorizontal: CARD_MARGIN,
-      marginTop: spacing.sm,
-    },
-    summaryTile: {
-      flexGrow: 1,
-      flexBasis: '45%',
-      backgroundColor: colors.card,
-      borderRadius: 12,
-      borderWidth: 1,
-      borderColor: colors.border,
-      padding: rs(10),
-    },
-    summaryLabel: {
-      fontSize: 10,
-      fontWeight: '700',
-      letterSpacing: 0.6,
-      color: colors.muted,
-    },
-    summaryValue: {
-      fontSize: 17,
-      fontWeight: '800',
-      color: colors.text,
-      marginTop: 2,
+      marginTop: spacing.md,
     },
     sortRow: {
       flexDirection: 'row',
       gap: rs(6),
       marginHorizontal: CARD_MARGIN,
-      marginTop: spacing.md,
+      marginTop: spacing.sm,
       marginBottom: spacing.sm,
     },
     sortChip: {
@@ -478,5 +503,21 @@ const makeStyles = () =>
       alignItems: 'center',
     },
     emptyText: {fontSize: 13, color: colors.muted, textAlign: 'center', lineHeight: 19},
+    sheetHeading: {
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.6,
+      color: colors.muted,
+    },
+    topRow: {flexDirection: 'row', alignItems: 'center', gap: rs(10)},
+    topRank: {
+      width: rs(18),
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.muted,
+      textAlign: 'center',
+    },
+    topName: {flex: 1, fontSize: 14, fontWeight: '600', color: colors.text},
+    topValue: {fontSize: 13, fontWeight: '700', color: colors.text},
     cta: {marginHorizontal: CARD_MARGIN, marginTop: spacing.sm},
   });

@@ -14,7 +14,7 @@
  * SILVER ₹/g live in the host page (they are settings, saved with the table).
  */
 import * as React from "react";
-import { BadgeIndianRupee, Loader2, RotateCcw, Save, Sparkles } from "lucide-react";
+import { Loader2, RotateCcw, Save, Sparkles } from "lucide-react";
 import { resolveGoldRateTable, type LabourType, type RateDisplayUnit } from "@munim/core";
 import { Button } from "./button.js";
 import { Input } from "./input.js";
@@ -234,33 +234,33 @@ export function GoldRateEditor({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* ── Base rate + default labour + silver rate ─────────────────── */}
-      <div className="rounded-2xl border bg-card/60 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="flex items-center gap-2 text-sm font-semibold">
-              <BadgeIndianRupee className="h-4 w-4" /> Metal rates &amp; default labour
-            </h3>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+      <section className="space-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold">Metal rates</h3>
+            <p className="mt-0.5 max-w-2xl text-xs text-muted-foreground">
               Gold prices are always <span className="font-medium">net weight × karat rate + labour</span>,
               silver <span className="font-medium">weight × purity × silver rate + labour</span> —
               editing a rate re-prices every auto-priced product instantly.
             </p>
           </div>
           {updatedLabel ? (
-            <span className="text-[11px] text-muted-foreground">Updated {updatedLabel}</span>
+            <span className="bg-muted text-muted-foreground rounded-full px-2 py-1 text-[10px] font-medium whitespace-nowrap">
+              Updated {updatedLabel}
+            </span>
           ) : null}
         </div>
 
         {isLoading ? (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
             <Skeleton className="h-16 w-full" />
           </div>
         ) : (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="gold-base-rate">Base rate — {baseKarat}K (₹ per gram)</Label>
               <Input
@@ -334,27 +334,32 @@ export function GoldRateEditor({
             </div>
           </div>
         )}
-      </div>
+      </section>
 
       {/* ── Karat grid (0–24) ───────────────────────────────────────── */}
-      <div className="rounded-2xl border bg-card/60 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="flex items-center gap-2 text-sm font-semibold">
-            <Sparkles className="h-4 w-4" /> Karats 0–24
-          </h3>
-          <span className="text-[11px] text-muted-foreground">
+      <section className="space-y-3 border-t pt-5">
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <Sparkles className="h-4 w-4" /> Karat table (0–24)
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Quote any karat to override the derived rate; reset a quoted karat to fall back to the base.
+            </p>
+          </div>
+          <span className="bg-muted text-muted-foreground rounded-full px-2 py-1 text-[10px] font-medium whitespace-nowrap">
             {quotedCount} of {table.length} quoted
           </span>
         </div>
 
         {isLoading ? (
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 9 }).map((_, i) => (
               <Skeleton key={i} className="h-14 w-full" />
             ))}
           </div>
         ) : (
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {table.map((row) => {
               const isBase = row.karat === baseKarat;
               return (
@@ -429,7 +434,7 @@ export function GoldRateEditor({
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2 border-t pt-4">
           <Button type="button" onClick={handleSave} disabled={saving || isLoading}>
             {saving ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Save className="mr-1.5 h-4 w-4" />}
             {saving ? "Saving…" : "Save rates"}
@@ -447,12 +452,12 @@ export function GoldRateEditor({
             </Button>
           ) : null}
           {!touched ? (
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground sm:ml-auto">
               A karat left blank keeps following the base rate.
             </span>
           ) : null}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

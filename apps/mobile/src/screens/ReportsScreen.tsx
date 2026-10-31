@@ -28,17 +28,21 @@ import {
 } from 'lucide-react-native';
 import {
   reportToCsv,
-  dashboardPresetRange,
+  emptyReportFilterForm,
+  toReportFilters,
+  countActiveReportFilters,
   formatCurrency,
   formatWeight,
+  type ReportFilterFormValues,
+  type ReportFilters,
   type ReportType,
 } from '@munim/core';
-import {useDashboard, useQueryState, useReport} from '@munim/query';
+import {useArticles, useCatalog, useDashboard, useParties, useQueryState, useReport} from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, selectionTick} from '../lib/haptics';
 import {LineChart} from '../components/charts';
 import {Button, Card, Empty, ErrorBox, Loading, Screen, colors} from '../components/ui';
-import {DateField} from '../components/date-field';
+import {ReportFilterSheet, type ReportFilterOptionSets} from '../components/ReportFilterSheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {rs, spacing, radii, CARD_MARGIN} from '../lib/responsive';
@@ -63,30 +67,39 @@ const heroMoney = (v: number) => formatCurrency(Math.round(v));
 export function ReportsScreen() {
   const styles = useThemeStyles(makeStyles);
   const [type, setType] = useState<ReportType>('monthly');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [active, setActive] = useState<ReportType>('monthly');
-  // Dates are committed on "Run report" (like web/desktop) and apply to
-  // ANY report type — empty range falls back to the type's default period.
-  const [activeStart, setActiveStart] = useState('');
-  const [activeEnd, setActiveEnd] = useState('');
-  const [editWindow, setEditWindow] = useState(false);
+  // One shared filter form (same shape as web/desktop) committed on "Run report".
+  const [form, setForm] = useState<ReportFilterFormValues>(emptyReportFilterForm);
+  const [active, setActive] = useState<ReportFilters>({type: 'monthly'});
+  const [filterOpen, setFilterOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('revenue');
 
-  const {data: report, loading, error, reload} = useQueryState(
-    useReport(active, activeStart || undefined, activeEnd || undefined),
-  );
+  const {data: report, loading, error, reload} = useQueryState(useReport(active));
   // Shared dashboard stats power the turnover trajectory (cached by
   // react-query — the Home screen fetches the same data).
   const dashQ = useQueryState(useDashboard());
 
-  const isSalesType = SALES_TYPES.includes(active);
+  // Filter option sources — same masters as the rest of the mobile app.
+  const articlesQ = useQueryState(useArticles());
+  const colorsQ = useQueryState(useCatalog('color'));
+  const sizesQ = useQueryState(useCatalog('size'));
+  const categoriesQ = useQueryState(useCatalog('category'));
+  const partiesQ = useQueryState(useParties());
+
+  const optionSets: ReportFilterOptionSets = {
+    articles: articlesQ.data ?? [],
+    categories: categoriesQ.data ?? [],
+    colors: colorsQ.data ?? [],
+    sizes: sizesQ.data ?? [],
+    parties: partiesQ.data ?? [],
+  };
+
+  const activeFilterCount = countActiveReportFilters(form);
+
+  const isSalesType = SALES_TYPES.includes(active.type);
 
   function runReport() {
-    setActive(type);
-    setActiveStart(startDate);
-    setActiveEnd(endDate);
-    setEditWindow(false);
+    setActive(toReportFilters(type, form));
+    setFilterOpen(false);
   }
 
   async function handleShareCsv() {
@@ -150,6 +163,9 @@ export function ReportsScreen() {
             </Text>
             <Text style={styles.recordMeta} numberOfLines={1}>
               {[
+                r.articleName || null,
+                r.categoryName || null,
+                r.productType || null,
                 r.color || null,
                 r.size || null,
                 r.weight != null ? formatWeight(r.weight, r.weightUnit) : null,
@@ -234,7 +250,7 @@ export function ReportsScreen() {
           })}
         </View>
 
-        {/* Report window card */}
+        {/* Report window + filters card */}
         <Card index={0} style={styles.windowCard}>
           <View style={styles.windowRow}>
             <View style={styles.windowIcon}>
@@ -247,40 +263,13 @@ export function ReportsScreen() {
               </Text>
             </View>
             <Button
-              title={editWindow ? 'Close' : 'Edit'}
+              title={activeFilterCount > 0 ? `Filters · ${activeFilterCount}` : 'Filters'}
               variant="outline"
               size="small"
-              onPress={() => setEditWindow(v => !v)}
+              onPress={() => setFilterOpen(true)}
               style={styles.editBtn}
             />
           </View>
-
-          {editWindow ? (
-            <View style={styles.windowEditor}>
-              <View style={styles.quickRangeRow}>
-                <Text style={styles.quickRangeLabel}>Quick range</Text>
-                {(["today", "week", "month"] as const).map(key => (
-                  <Pressable
-                    key={key}
-                    accessibilityRole="button"
-                    accessibilityLabel={key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
-                    onPress={() => {
-                      selectionTick();
-                      const range = dashboardPresetRange(key);
-                      setStartDate(range.from);
-                      setEndDate(range.to);
-                    }}
-                    style={({pressed}) => [styles.quickRangeChip, pressed && {opacity: 0.75}]}>
-                    <Text style={styles.quickRangeChipText}>
-                      {key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-              <DateField label="Start date" value={startDate} onChange={setStartDate} placeholder="Start date" />
-              <DateField label="End date" value={endDate} onChange={setEndDate} placeholder="End date (optional)" />
-            </View>
-          ) : null}
 
           <View style={styles.actionRow}>
             <Button
@@ -298,6 +287,16 @@ export function ReportsScreen() {
             />
           </View>
         </Card>
+
+        <ReportFilterSheet
+          visible={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          value={form}
+          onChange={setForm}
+          options={optionSets}
+          onApply={runReport}
+          busy={loading}
+        />
 
         {error ? (
           <ErrorBox message={error} onRetry={reload} />

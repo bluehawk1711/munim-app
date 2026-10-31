@@ -65,7 +65,6 @@ import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {EditProductModal} from '../components/EditProductModal';
 import {AdjustStockModal} from '../components/AdjustStockModal';
 import {useAppStore} from '../lib/store';
-import {useNavStore} from '../lib/nav-store';
 import {useThemeStyles} from '../theme';
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
@@ -260,15 +259,14 @@ export function ProductsScreen() {
   // Backfill
   const [backfilling, setBackfilling] = useState(false);
 
-  /** Quick sale → stage the product on a new bill, then open More → Billing. */
+  /** Quick sale → stage the product on a new bill, then open the Sales tab. */
   function sendToBill(product: ProductDto) {
     if (product.stock <= 0) {
       errorFeedback(`${product.name} is out of stock`);
       return;
     }
     useAppStore.getState().stageBillProduct(product.id);
-    useNavStore.getState().openMore('billing');
-    useAppStore.getState().setActiveView('more');
+    useAppStore.getState().setActiveView('sales');
     successFeedback(`${product.name} added to a new bill`);
   }
 
@@ -593,7 +591,7 @@ export function ProductsScreen() {
         onSell={p => { setDetailTarget(null); sendToBill(p); }}
       />
 
-      {/* Product form sheet — centered modal */}
+      {/* Product form — draggable bottom sheet */}
       <EditProductModal
         visible={formOpen}
         product={editing}

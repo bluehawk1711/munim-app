@@ -1,14 +1,13 @@
 /**
  * HomeHeader — the mobile app's custom header (all screens).
  *
- * Matches the reference design:
- *   ● SHOP NAME            (search) (profile)
- *   Home
- *   ● Store Counter Active · Today, 06 Sep 2026
+ * One compact row: screen title on the left, actions on the right. The shop
+ * name is intentionally NOT repeated here — it already lives in Settings and
+ * the Home hero, and printing it on every screen just ate vertical space.
  *
  * Scroll-aware: screens report their vertical scroll offset through
  * `headerScrollHandlers` (onScroll + scrollEventThrottle) and the header
- * compacts — smaller title, hidden status row — once content is scrolled,
+ * compacts — smaller title and tighter padding — once content is scrolled,
  * giving more room to the content beneath.
  *
  * All colors are theme tokens (no hardcoded hex), so it follows the accent
@@ -17,9 +16,8 @@
 
 import React, {useEffect} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
-import {Plus, ScanLine, Search, Store} from 'lucide-react-native';
+import {BarChart3, Plus, ScanLine, Search, SlidersHorizontal, Store} from 'lucide-react-native';
 import {colors, useThemeStyles} from '../theme';
-import {useQueryState, useSettings} from '@munim/query';
 import {useAppStore} from '../lib/store';
 import {useNavStore} from '../lib/nav-store';
 import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
@@ -78,17 +76,28 @@ export function HomeHeader({
   /** When provided, a barcode-scan button renders in the header actions.
    * Only the Home screen passes it — other screens keep Search/Profile. */
   onScanPress,
+  /** When provided, a filter/options button renders in the header actions
+   * (Billing → bill options, Invoices → bill filters). `optionsActive` shows
+   * a dot when a non-default filter/option is in effect. */
+  onOptionsPress,
+  optionsActive = false,
+  optionsLabel = 'Filters and options',
+  /** When provided, an analytics button renders in the header actions and
+   * opens the screen's analytics bottom sheet (keeps stat strips off-screen). */
+  onAnalyticsPress,
+  analyticsLabel = 'Analytics',
 }: {
   title?: string;
   onAddPress?: () => void;
   addLabel?: string;
   onScanPress?: () => void;
+  onOptionsPress?: () => void;
+  optionsActive?: boolean;
+  optionsLabel?: string;
+  onAnalyticsPress?: () => void;
+  analyticsLabel?: string;
 }) {
   const styles = useThemeStyles(makeStyles);
-  const {data: settings} = useQueryState(useSettings());
-  // Shop name from Settings (uppercased, like the reference); falls back to
-  // the app name before settings load.
-  const shopName = (settings?.shopName ?? 'Munim').toUpperCase();
 
   // Scroll state from the external store (re-renders only on real changes).
   const compact = React.useSyncExternalStore(
@@ -114,21 +123,12 @@ export function HomeHeader({
     useAppStore.getState().setActiveView('more');
   }
 
-  const today = new Date().toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
       <View style={styles.topRow}>
-        <View style={styles.eyebrowWrap}>
-          <View style={styles.eyebrowDot} />
-          <Text style={styles.eyebrow} numberOfLines={1}>
-            {shopName}
-          </Text>
-        </View>
+        <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={1}>
+          {title}
+        </Text>
         <View style={styles.actions}>
           {onAddPress ? (
             <Pressable
@@ -151,6 +151,40 @@ export function HomeHeader({
               <ScanLine size={rs(18)} color={colors.primary} strokeWidth={2.2} />
             </Pressable>
           ) : null}
+          {onOptionsPress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={optionsLabel}
+              accessibilityState={{selected: optionsActive}}
+              onPress={() => {
+                selectionTick();
+                onOptionsPress();
+              }}
+              style={({pressed}) => [
+                styles.iconBtn,
+                optionsActive && styles.iconBtnAccent,
+                pressed && styles.iconBtnPressed,
+              ]}>
+              <SlidersHorizontal
+                size={rs(18)}
+                color={optionsActive ? colors.primary : colors.text}
+                strokeWidth={2.2}
+              />
+              {optionsActive ? <View style={styles.iconDot} /> : null}
+            </Pressable>
+          ) : null}
+          {onAnalyticsPress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={analyticsLabel}
+              onPress={() => {
+                selectionTick();
+                onAnalyticsPress();
+              }}
+              style={({pressed}) => [styles.iconBtn, pressed && styles.iconBtnPressed]}>
+              <BarChart3 size={rs(18)} color={colors.text} strokeWidth={2.2} />
+            </Pressable>
+          ) : null}
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Search products"
@@ -167,18 +201,6 @@ export function HomeHeader({
           </Pressable>
         </View>
       </View>
-
-      <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={1}>
-        {title}
-      </Text>
-
-      {!compact ? (
-        <View style={styles.statusRow}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Store Counter Active</Text>
-          <Text style={styles.statusDate}>· Today, {today}</Text>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -198,28 +220,12 @@ const makeStyles = () =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-    },
-    eyebrowWrap: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: rs(6),
-      flexShrink: 1,
-    },
-    eyebrowDot: {
-      width: rs(8),
-      height: rs(8),
-      borderRadius: radii.full,
-      backgroundColor: colors.primary,
-    },
-    eyebrow: {
-      fontSize: rs(11),
-      fontWeight: '700',
-      letterSpacing: 0.8,
-      color: colors.muted,
+      gap: rs(8),
     },
     actions: {
       flexDirection: 'row',
       gap: rs(6),
+      flexShrink: 0,
     },
     iconBtn: {
       width: rs(34),
@@ -233,36 +239,23 @@ const makeStyles = () =>
     },
     iconBtnAccent: {borderColor: colors.mutedSoft, backgroundColor: colors.mutedSoft},
     iconBtnPressed: {opacity: 0.6},
+    iconDot: {
+      position: 'absolute',
+      top: rs(6),
+      right: rs(7),
+      width: rs(6),
+      height: rs(6),
+      borderRadius: radii.full,
+      backgroundColor: colors.primary,
+    },
     title: {
+      flex: 1,
       fontSize: typography.h1,
       fontWeight: '800',
       color: colors.text,
-      marginTop: rs(6),
     },
     titleCompact: {
       fontSize: rs(17),
       fontWeight: '700',
-      marginTop: rs(2),
-    },
-    statusRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: rs(6),
-      marginTop: rs(6),
-    },
-    statusDot: {
-      width: rs(7),
-      height: rs(7),
-      borderRadius: radii.full,
-      backgroundColor: colors.success,
-    },
-    statusText: {
-      fontSize: typography.caption,
-      fontWeight: '600',
-      color: colors.text,
-    },
-    statusDate: {
-      fontSize: typography.caption,
-      color: colors.muted,
     },
   });

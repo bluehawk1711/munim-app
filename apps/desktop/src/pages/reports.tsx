@@ -14,9 +14,9 @@ import {
   ShoppingCart,
   TrendingUp,
 } from "lucide-react";
-import { dashboardPresetRange, type ReportType } from "@munim/core";
+import { emptyReportFilterForm, toReportFilters, type ReportFilters, type ReportFilterFormValues, type ReportType } from "@munim/core";
 import { getApi } from "@/lib/api";
-import { useDashboard, useReport, useQueryState } from "@munim/query";
+import { useArticles, useCatalog, useDashboard, useParties, useReport, useQueryState } from "@munim/query";
 import { money, formatWeight, monthLabelToDate } from "@/lib/format";
 import { toast } from "@munim/ui";
 import {
@@ -28,7 +28,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
-  Label,
+  ReportFilterPanel,
   Separator,
   Skeleton,
   Table,
@@ -79,20 +79,33 @@ function HeroSubMetric({ label, value, accent }: { label: string; value: string;
 }
 
 export function ReportsPage() {
-  const [type, setType] = useState<ReportType | null>("monthly");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [active, setActive] = useState<{ type: ReportType; start?: string; end?: string } | null>({
-    type: "monthly",
-  });
+  const [type, setType] = useState<ReportType>("monthly");
+  const [form, setForm] = useState<ReportFilterFormValues>(emptyReportFilterForm);
+  const [active, setActive] = useState<ReportFilters | null>({ type: "monthly" });
 
-  // Cached per (type, start, end) — the shared @munim/query hook owns fetch;
+  // Cached per full filter object — the shared @munim/query hook owns fetch;
   // `active` gating keeps the fetch off until "Generate" is clicked.
-  const { data: report, loading, reload } = useQueryState(
-    useReport(active?.type ?? null, active?.start || undefined, active?.end || undefined),
-  );
+  const { data: report, loading, reload } = useQueryState(useReport(active));
   // Shared dashboard stats power the 6-month trajectory (same cache as Home).
   const { data: dash } = useQueryState(useDashboard());
+
+  // Filter option sources — same masters as the rest of the desktop app.
+  const { data: articles } = useQueryState(useArticles());
+  const { data: colors } = useQueryState(useCatalog("color"));
+  const { data: sizes } = useQueryState(useCatalog("size"));
+  const { data: categories } = useQueryState(useCatalog("category"));
+  const { data: parties } = useQueryState(useParties());
+
+  const filterOptions = useMemo(
+    () => ({
+      articles: articles ?? [],
+      categories: categories ?? [],
+      colors: colors ?? [],
+      sizes: sizes ?? [],
+      parties: parties ?? [],
+    }),
+    [articles, categories, colors, sizes, parties],
+  );
 
   const totals = report?.totals;
 
@@ -138,19 +151,14 @@ export function ReportsPage() {
   );
 
   function generate() {
-    if (!type) return;
-    setActive({ type, start: startDate || undefined, end: endDate || undefined });
+    setActive(toReportFilters(type, form));
   }
 
   async function handleCsv() {
     if (!report || report.rows.length === 0 || !active) return;
     try {
       // Server-side CSV via the shared reportToCsv (kept consistent with web).
-      const csv = await getApi().reports.csv({
-        type: active.type,
-        startDate: active.start || undefined,
-        endDate: active.end || undefined,
-      });
+      const csv = await getApi().reports.csv(active);
       const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -185,44 +193,30 @@ export function ReportsPage() {
         </div>
       </div>
 
-      {/* ── Quick range + report window bar ──────────────────────── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-muted-foreground text-xs">Quick range:</span>
-        {(["today", "week", "month"] as const).map((key) => (
-          <Button
-            key={key}
-            variant="outline"
-            size="sm"
-            className="h-8 rounded-full px-3 text-xs"
-            onClick={() => {
-              const range = dashboardPresetRange(key);
-              setStartDate(range.from);
-              setEndDate(range.to);
-            }}
-          >
-            {key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
-          </Button>
-        ))}
-      </div>
+      {/* ── Filters — the SAME panel web renders ────────────────────── */}
       <Card>
-        <CardContent className="flex flex-col gap-3 p-3 lg:flex-row lg:items-end">
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="startDate" className="text-xs">Start date — optional, applies to any report</Label>
-            <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9" />
-          </div>
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="endDate" className="text-xs">End date — blank = type's default period</Label>
-            <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9" />
-          </div>
-          <Button onClick={generate} disabled={!type} className="gap-1.5">
-            <RefreshCw className="h-4 w-4" /> Generate Report
-          </Button>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Report filters</CardTitle>
+          <CardDescription className="text-xs">
+            Narrow by article, category, color, size, metal, karat, purity, weight, sold state, payment or customer — then generate.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ReportFilterPanel
+            value={form}
+            onChange={setForm}
+            options={filterOptions}
+            onApply={generate}
+            busy={loading}
+          />
           {active ? (
-            <Badge variant="secondary" className="gap-1">
-              Active: {REPORT_OPTIONS.find((o) => o.key === active.type)?.label}
-              {active.start ? ` · ${active.start}` : ""}
-              {active.end ? ` → ${active.end}` : ""}
-            </Badge>
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+              <Badge variant="secondary" className="gap-1">
+                Active: {REPORT_OPTIONS.find((o) => o.key === active.type)?.label}
+                {active.startDate ? ` · ${active.startDate}` : ""}
+                {active.endDate ? ` → ${active.endDate}` : ""}
+              </Badge>
+            </div>
           ) : null}
         </CardContent>
       </Card>
@@ -305,7 +299,7 @@ export function ReportsPage() {
                 label="Material In"
                 value={
                   totals && ((totals.materialReceivedGm ?? 0) > 0 || (totals.materialReceivedValue ?? 0) > 0)
-                    ? `${(totals.materialReceivedGm ?? 0) > 0 ? formatWeight(totals.materialReceivedGm) + " · " : ""}₹${money(totals.materialReceivedValue)}`
+                    ? `${(totals.materialReceivedGm ?? 0) > 0 ? formatWeight(totals.materialReceivedGm) + " · " : ""}${money(totals.materialReceivedValue)}`
                     : "—"
                 }
               />
@@ -556,7 +550,7 @@ export function ReportsPage() {
                           <TableCell>
                             <p className="font-medium">{r.productName}</p>
                             <p className="text-muted-foreground text-xs">
-                              {[r.sku, r.color, r.size, r.weight != null ? formatWeight(r.weight, r.weightUnit) : null].filter(Boolean).join(" · ")}
+                              {[r.sku, r.articleName, r.categoryName, r.productType, r.color, r.size, r.weight != null ? formatWeight(r.weight, r.weightUnit) : null].filter(Boolean).join(" · ")}
                             </p>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{r.soldQuantity}</TableCell>
@@ -593,7 +587,7 @@ export function ReportsPage() {
                       label="Material Received"
                       value={
                         (totals.materialReceivedGm ?? 0) > 0 || (totals.materialReceivedValue ?? 0) > 0
-                          ? `${(totals.materialReceivedGm ?? 0) > 0 ? formatWeight(totals.materialReceivedGm) + " · " : ""}₹${money(totals.materialReceivedValue)}`
+                          ? `${(totals.materialReceivedGm ?? 0) > 0 ? formatWeight(totals.materialReceivedGm) + " · " : ""}${money(totals.materialReceivedValue)}`
                           : "—"
                       }
                       icon={Scale}

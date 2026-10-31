@@ -7,6 +7,8 @@
 export { cn } from "./lib/utils.js"
 
 export * from "./components/alert-dialog.js"
+export * from "./components/analytics-period-filter.js"
+export * from "./components/report-filter-panel.js"
 export * from "./components/animated-theme-toggle.js"
 export * from "./components/barcode-lookup-input.js"
 export * from "./components/product-search-select.js"

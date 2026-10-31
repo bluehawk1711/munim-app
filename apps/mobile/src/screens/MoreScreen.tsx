@@ -6,7 +6,6 @@ import {
   ChevronRight,
   CircleHelp,
   ClipboardList,
-  FileText,
   Palette,
   Receipt,
   ScrollText,
@@ -17,7 +16,6 @@ import {colors, Screen} from '../components/ui';
 import {HomeHeader} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {sectionPress} from '../lib/haptics';
-import {BillingScreen} from './BillingScreen';
 import {CatalogScreen} from './CatalogScreen';
 import {ArticlesScreen} from './ArticlesScreen';
 import {InvoicesScreen} from './InvoicesScreen';
@@ -34,8 +32,7 @@ const SECTIONS: {
   subtitle: string;
   icon: React.ComponentType<{size?: number; color?: string; strokeWidth?: number}>;
 }[] = [
-  {key: 'billing', label: 'Bills', subtitle: 'Create & manage invoices', icon: FileText},
-  {key: 'invoices', label: 'Invoices', subtitle: 'All bills & statuses', icon: Receipt},
+  {key: 'invoices', label: 'Invoices', subtitle: 'All bills, statuses & payments', icon: Receipt},
   {key: 'orders', label: 'Orders', subtitle: 'Quotes — bill them later', icon: ClipboardList},
   {key: 'letters', label: 'Job Letters', subtitle: 'Offer letters for staff', icon: ScrollText},
   {key: 'reports', label: 'Reports', subtitle: 'Sales, stock & profit', icon: BarChart3},
@@ -93,13 +90,6 @@ export function MoreScreen() {
     return (
       <SectionView onBack={closeMore}>
         <ArticlesScreen />
-      </SectionView>
-    );
-  }
-  if (section === 'billing') {
-    return (
-      <SectionView onBack={closeMore}>
-        <BillingScreen />
       </SectionView>
     );
   }

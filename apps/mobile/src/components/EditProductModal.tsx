@@ -3,9 +3,10 @@
  * Manages its own state; just pass `product` (null = add) and callbacks.
  */
 
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import type BottomSheet from '@gorhom/bottom-sheet';
 import {type ProductDto, calcNetWeight, karatPurityPercent, priceFallbackMessage, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
 import {
   useArticles,
@@ -23,6 +24,9 @@ import {uploadImageDirect} from '../lib/cloudinary';
 import {rs, spacing, radii, typography} from '../lib/responsive';
 import {useThemeStyles} from '../theme';
 import {Button, Field, LabourField, ModalSheet, SelectField, colors} from './ui';
+import {MunimBottomSheet, BottomSheetScrollView, SheetFooter} from './BottomSheet';
+
+const PRODUCT_SHEET_SNAP_POINTS = ['92%'];
 
 const KARAT_OPTIONS = Array.from({length: 25}, (_, karat) => ({
   label: `${karat}K · ${karatPurityPercent(karat)}% pure`,
@@ -35,7 +39,7 @@ const KARAT_OPTIONS = Array.from({length: 25}, (_, karat) => ({
  * mobile must allow the same thing instead of being limited to the catalog.
  */
 function NewValueRow({label, placeholder, onAdd}: {label: string; placeholder: string; onAdd: (value: string) => void}) {
-  const styles = useThemeStyles(c =>
+  const styles = useThemeStyles(() =>
     StyleSheet.create({
       row: {flexDirection: 'row', alignItems: 'flex-end', gap: spacing.sm, marginBottom: spacing.sm},
     }),
@@ -142,6 +146,15 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
   const {data: colorsCatalog} = useQueryState(useCatalog('color'));
   const {data: sizesCatalog} = useQueryState(useCatalog('size'));
   const {data: categoriesCatalog} = useQueryState(useCatalog('category'));
+
+  const sheetRef = useRef<BottomSheet>(null);
+  useEffect(() => {
+    if (visible) {
+      sheetRef.current?.snapToIndex(0);
+    } else {
+      sheetRef.current?.close();
+    }
+  }, [visible]);
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -441,7 +454,16 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
 
   return (
     <>
-      <ModalSheet visible={visible} size="xl" title={isEdit ? `Edit — ${product.name}` : 'Add product'} onClose={onClose} dismissable={!saving && !uploading} centered scrollable>
+      <MunimBottomSheet
+        ref={sheetRef}
+        title={isEdit ? `Edit — ${product.name}` : 'Add product'}
+        onClose={onClose}
+        snapPoints={PRODUCT_SHEET_SNAP_POINTS}
+        initialIndex={-1}
+        enableDismissOnDrag={!saving && !uploading}>
+        <BottomSheetScrollView
+          contentContainerStyle={{paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl}}
+          keyboardShouldPersistTaps="handled">
         {!isBillMode && (
           <Field label="Product name *" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" maxLength={120} />
         )}
@@ -687,8 +709,11 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         {!isBillMode && (
           <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="Optional notes about this product…" multiline maxLength={500} />
         )}
-        <Button title={saving ? 'Saving…' : isEdit ? 'Save changes' : 'Save product'} onPress={handleSave} loading={saving} />
-      </ModalSheet>
+        </BottomSheetScrollView>
+        <SheetFooter>
+          <Button title={saving ? 'Saving…' : isEdit ? 'Save changes' : 'Save product'} onPress={handleSave} loading={saving} />
+        </SheetFooter>
+      </MunimBottomSheet>
 
       {/* Catalog pickers */}
       <ModalSheet visible={typePickerOpen} title="Select type" onClose={() => setTypePickerOpen(false)} centered scrollable>

@@ -37,6 +37,7 @@ import {
   Label,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   ConnectionTestDialog,
@@ -504,6 +505,10 @@ export function SettingsPage() {
             <CardTitle className="flex items-center gap-2 text-sm">
               <BadgeIndianRupee className="h-4 w-4" /> Rates &amp; labour
             </CardTitle>
+            <CardDescription className="text-xs">
+              Gold ₹/g per karat (0–24), the shop-wide silver ₹/g and the default labour.
+              Auto-priced products re-price instantly on all three apps.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <GoldRateEditor
@@ -524,9 +529,9 @@ export function SettingsPage() {
               backfilling={backfillKarats.isPending}
               updatedLabel={goldRates.data?.updatedAt ? formatDateTime(goldRates.data.updatedAt) : null}
             />
-            <div className="bg-muted/40 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
               <div className="min-w-0">
-                <p className="text-sm font-medium">Recalculate prices</p>
+                <p className="text-sm font-medium">Recalculate product prices</p>
                 <p className="text-xs text-muted-foreground">
                   Saves today's rate into every auto-priced product's stored price (manual prices are untouched).
                 </p>

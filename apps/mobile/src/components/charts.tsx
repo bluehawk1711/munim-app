@@ -92,16 +92,35 @@ export function BarChart({
   const slot = usable / n;
   const barW = Math.max(rs(10), Math.min(rs(30), slot * 0.55));
   const barSpacing = Math.max(rs(3), slot - barW);
+  // Gifted-charts confines a top label to the BAR's own width (10–30px), which
+  // clipped every "₹1.5L" badge into an ellipsis. Give each label its own
+  // wider, centered container instead — and drop labels entirely when the
+  // slot is too narrow for them to read (30-day series).
+  const showTopLabels = slot >= rs(44);
+  const topLabelWidth = Math.max(barW, rs(44));
 
   const barData = data.map((d, i) => ({
     value: d.value,
     label: d.label,
     frontColor: i === hi ? accent : base,
-    topLabelComponent: d.value > 0 ? () => (
-      <Text style={[styles.valueLabel, i === hi && styles.valueLabelAccent]}>
+    topLabelComponent: showTopLabels && d.value > 0 ? () => (
+      <Text
+        style={[styles.valueLabel, i === hi && styles.valueLabelAccent]}
+        numberOfLines={1}
+        allowFontScaling={false}>
         {formatValue(d.value)}
       </Text>
     ) : undefined,
+    topLabelContainerStyle: showTopLabels
+      ? {
+          width: topLabelWidth,
+          height: rs(18),
+          left: (barW - topLabelWidth) / 2,
+          alignItems: 'center' as const,
+          justifyContent: 'flex-end' as const,
+          overflow: 'visible' as const,
+        }
+      : undefined,
   }));
 
   return (
@@ -177,10 +196,6 @@ export function LineChart({
     label: d.label,
     dataPointColor: i === last ? accent : stroke,
     dataPointRadius: i === last ? rs(4) : rs(2.5),
-    // Static callout on the highlighted (last) point only.
-    dataPointText: i === last ? formatValue(d.value) : '',
-    textShiftX: rs(-4),
-    textShiftY: rs(-6),
   }));
 
   return (

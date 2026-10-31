@@ -270,7 +270,7 @@ Product row → buildProductLabel(product, shop) [core] → ProductLabel
 
 ### Desktop (`apps/desktop`)
 - **Stack:** Tauri v2 + Vite + React 19 + Tailwind v4
-- **Pages:** dashboard, products, articles, catalog, sales, billing, invoices, orders, parties, advances, job-letters, reports, settings, help
+- **Pages:** dashboard, products, articles, catalog, billing, invoices, orders, parties, advances, job-letters, reports, settings, help
 - **API:** `@tauri-apps/plugin-http` (Rust fetch, no CORS)
 - **Settings:** same `SettingsShell` + Printing section (thermal printer selection)
 - **Thermal printing:** Rust `printer.rs` spools TSPL2 commands raw to Windows print queue

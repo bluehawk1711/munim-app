@@ -7,11 +7,9 @@ import {
   ArrowUpRight,
   BarChart3,
   Banknote,
-  CalendarDays,
   Database,
   Eye,
   FileDown,
-  HandCoins,
   PackageSearch,
   Plus,
   Recycle,
@@ -35,6 +33,7 @@ import { useDashboard, useInvoices, useProducts, useQueryState, useSettings, use
 import { money, formatWeight, monthLabelToDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { navigate } from "@/lib/navigation";
+import { PageHeader } from "@/components/page-header";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@munim/ui";
 import { AreaChart, Area } from "@/components/charts/area-chart";
 import { LineChart, Line } from "@/components/charts/line-chart";
@@ -316,44 +315,56 @@ export function DashboardPage() {
   const stockAlerts = data.lowStockCount + data.outOfStockCount;
 
   return (
-    <div className="space-y-5">
-      {/* Quick-action bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="bg-muted text-muted-foreground inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold">
-          <CalendarDays className="h-3.5 w-3.5" /> {monthLabel}
-        </span>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button size="sm" className="gap-1.5" onClick={() => navigate("/billing")}>
-            <Plus className="h-4 w-4" /> New Bill
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/billing")}>
-            <Banknote className="h-4 w-4" /> Quick Sale
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/products")}>
-            <PackageSearch className="h-4 w-4" /> Stock / Barcode
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/parties")}>
-            <Users className="h-4 w-4" /> Khata Entry
-          </Button>
-        </div>
-      </div>
-
-      {/* Period KPIs — chips scope these four tiles */}
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {PERIOD_CHIPS.map((chip) => (
-            <Button
-              key={chip.key}
-              size="sm"
-              variant={preset === chip.key ? "default" : "outline"}
-              className="h-8 rounded-full px-3 text-xs"
-              onClick={() => setPreset(chip.key)}
-            >
-              {chip.label}
+    <div className="flex flex-col gap-5">
+      <PageHeader
+        title="Dashboard"
+        badge={monthLabel}
+        subtitle="Sales performance, stock health and khata position at a glance."
+        actions={
+          <>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/products")}>
+              <PackageSearch className="h-4 w-4" /> Stock
             </Button>
-          ))}
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/parties")}>
+              <Users className="h-4 w-4" /> Khata
+            </Button>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => navigate("/billing")}>
+              <Banknote className="h-4 w-4" /> Quick Sale
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => navigate("/billing")}>
+              <Plus className="h-4 w-4" /> New Bill
+            </Button>
+          </>
+        }
+      />
+
+      {/* Sales performance — the period chips scope the four tiles below */}
+      <Card>
+        <CardHeader className="gap-3 pb-0">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-base">Sales performance</CardTitle>
+              <p className="text-muted-foreground mt-0.5 text-xs">
+                {activeChipLabel} · {data.period.invoicesCount} bill
+                {data.period.invoicesCount === 1 ? "" : "s"} recorded
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {PERIOD_CHIPS.map((chip) => (
+                <Button
+                  key={chip.key}
+                  size="sm"
+                  variant={preset === chip.key ? "default" : "outline"}
+                  className="h-8 rounded-full px-3 text-xs"
+                  onClick={() => setPreset(chip.key)}
+                >
+                  {chip.label}
+                </Button>
+              ))}
+            </div>
+          </div>
           {preset === "custom" ? (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="date"
                 aria-label="Period from date"
@@ -361,7 +372,7 @@ export function DashboardPage() {
                 onChange={(e) => setCustomFrom(e.target.value)}
                 className="h-8 w-[150px] text-xs"
               />
-              <span className="text-muted-foreground text-xs">→</span>
+              <span className="text-muted-foreground text-xs">to</span>
               <Input
                 type="date"
                 aria-label="Period to date"
@@ -369,58 +380,81 @@ export function DashboardPage() {
                 onChange={(e) => setCustomTo(e.target.value)}
                 className="h-8 w-[150px] text-xs"
               />
+              {customFrom && customTo && customFrom > customTo ? (
+                <span className="text-destructive text-xs">Start date must be on or before end date.</span>
+              ) : null}
             </div>
           ) : null}
-          {preset === "custom" && customFrom && customTo && customFrom > customTo ? (
-            <span className="text-destructive text-xs">Start date must be on or before end date.</span>
-          ) : null}
-        </div>
+        </CardHeader>
+        <CardContent className="pt-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label={`${activeChipLabel} revenue`}
+              value={money(data.period.revenue)}
+              sub={`${data.period.invoicesCount} bills in period`}
+              icon={Banknote}
+            />
+            <StatCard
+              label="Weight sold"
+              value={data.period.weightSoldGm > 0 ? formatWeight(data.period.weightSoldGm) : "—"}
+              sub="Line weights from the bills"
+              icon={Scale}
+            />
+            <StatCard
+              label="Material received"
+              value={data.period.materialReceivedGm > 0 ? formatWeight(data.period.materialReceivedGm) : "—"}
+              sub={`${money(data.period.materialReceivedValue)} assessed`}
+              icon={Recycle}
+            />
+            <StatCard
+              label="Avg sale"
+              value={money(
+                data.period.invoicesCount > 0 ? data.period.revenue / data.period.invoicesCount : 0,
+              )}
+              sub={`${activeChipLabel} · ${data.period.invoicesCount} bills`}
+              icon={TrendingUp}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Business position — all-time, deliberately separate from the period KPIs */}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Business position</h2>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
-            label={`${activeChipLabel} revenue`}
-            value={money(data.period.revenue)}
-            sub={`${data.period.invoicesCount} bills in period`}
-            icon={Banknote}
-          />
-          <StatCard
-            label="Weight sold"
-            value={data.period.weightSoldGm > 0 ? formatWeight(data.period.weightSoldGm) : "—"}
-            sub="Line weights from the bills"
-            icon={Scale}
-          />
-          <StatCard
-            label="Material received"
-            value={data.period.materialReceivedGm > 0 ? formatWeight(data.period.materialReceivedGm) : "—"}
-            sub={`₹${money(data.period.materialReceivedValue)} assessed`}
-            icon={Recycle}
-          />
-          <StatCard
-            label="Avg sale"
-            value={money(
-              data.period.invoicesCount > 0 ? data.period.revenue / data.period.invoicesCount : 0,
-            )}
-            sub={`${activeChipLabel} · ${data.period.invoicesCount} bills`}
+            label="Revenue to date"
+            value={money(data.totalRevenue)}
+            sub={`${data.invoicesCount} invoiced all time`}
             icon={TrendingUp}
           />
+          <StatCard
+            label="Unpaid amount"
+            value={money(data.unpaidAmount)}
+            sub="Outstanding on open bills"
+            valueClass="text-destructive"
+            icon={Wallet}
+          />
+          <StatCard
+            label="Stock alert"
+            value={stockAlerts.toLocaleString("en-IN")}
+            sub={
+              stockAlerts > 0
+                ? `${data.lowStockCount} low stock · ${data.outOfStockCount} out of stock`
+                : "All SKUs healthy"
+            }
+            icon={PackageSearch}
+            progress={data.totalProducts > 0 ? stockAlerts / data.totalProducts : 0}
+            progressClass="bg-destructive"
+          />
+          <StatCard
+            label="Active SKUs"
+            value={data.totalProducts.toLocaleString("en-IN")}
+            sub={`${data.totalStock} unit${data.totalStock === 1 ? "" : "s"} on hand`}
+            icon={PackageSearch}
+          />
         </div>
-      </div>
-
-      {/* Hero stat grid */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard label="Total Revenue" value={money(data.totalRevenue)} sub={`${data.invoicesCount} invoiced to date`} icon={TrendingUp} />
-        <StatCard label="This Month" value={money(data.monthlyRevenue)} sub={`${data.productsSoldToday} items sold today`} icon={Banknote} />
-        <StatCard label="Unpaid Amount" value={money(data.unpaidAmount)} sub="Open credit terms" valueClass="text-destructive" icon={Wallet} />
-        <StatCard label="Receivables" value={money(data.receivables)} sub="Owed by parties" icon={HandCoins} />
-        <StatCard label="Payables" value={money(data.payables)} sub="Owed to karigars / vendors" icon={Wallet} />
-        <StatCard
-          label="Stock Alert"
-          value={`${data.lowStockCount} / ${data.outOfStockCount}`}
-          sub={stockAlerts > 0 ? `${stockAlerts} active SKUs need attention` : "All SKUs healthy"}
-          icon={PackageSearch}
-          progress={data.totalProducts > 0 ? stockAlerts / data.totalProducts : 0}
-          progressClass="bg-destructive"
-        />
-      </div>
+      </section>
 
       {/* Trajectory + Khata position */}
       <div className="grid gap-5 xl:grid-cols-3">
@@ -486,55 +520,6 @@ export function DashboardPage() {
                 </LineChart>
               )}
             </div>
-            <div className="border-t pt-4">
-              <div className="mb-2 flex items-center justify-between text-xs">
-                <span className="font-semibold">Sales Distribution by Category</span>
-                <span className="text-muted-foreground tabular-nums">{money(categoryTotal)} Total</span>
-              </div>
-              {data.salesByCategory.length >= 3 ? (
-                <div className="flex flex-col items-center gap-4 sm:flex-row">
-                  <RadarChart
-                    data={radarData}
-                    metrics={radarMetrics}
-                    size={230}
-                    levels={4}
-                    margin={44}
-                    hoveredIndex={radarHovered}
-                    onHoverChange={setRadarHovered}
-                    className="shrink-0"
-                  >
-                    <RadarGrid showLabels={false} />
-                    <RadarAxis />
-                    <RadarLabels interactive fontSize={10} />
-                    <RadarArea index={0} color="var(--chart-1)" />
-                  </RadarChart>
-                  <Legend items={categoryLegend} title="Share of revenue" className="min-w-0 flex-1">
-                    <LegendItem className="rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/60">
-                      <LegendMarker />
-                      <LegendLabel className="min-w-0 flex-1 truncate" />
-                      <LegendValue showPercentage formatValue={(v) => money(v)} />
-                    </LegendItem>
-                  </Legend>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {data.salesByCategory.length === 0 ? (
-                    <p className="text-muted-foreground text-sm">No sales yet</p>
-                  ) : (
-                    data.salesByCategory.map((c) => (
-                      <BarRow
-                        key={c.name}
-                        label={c.name}
-                        sub={`${money(c.value)} (${categoryTotal > 0 ? Math.round((c.value / categoryTotal) * 100) : 0}%)`}
-                        value={c.value}
-                        max={Math.max(...data.salesByCategory.map((x) => x.value), 1)}
-                        color={c.color}
-                      />
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
 
@@ -593,8 +578,69 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      {/* Top products + Recent settlements */}
+      {/* Category share + top products */}
       <div className="grid gap-5 xl:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Sales Distribution by Category</CardTitle>
+              <p className="text-muted-foreground mt-0.5 text-xs">Revenue share across categories</p>
+            </div>
+            <span className="text-muted-foreground text-xs font-semibold tabular-nums">{money(categoryTotal)}</span>
+          </CardHeader>
+          <CardContent>
+            {data.salesByCategory.length >= 3 ? (
+              <div className="flex flex-col items-center gap-4 sm:flex-row">
+                <RadarChart
+                  data={radarData}
+                  metrics={radarMetrics}
+                  size={230}
+                  levels={4}
+                  margin={44}
+                  hoveredIndex={radarHovered}
+                  onHoverChange={setRadarHovered}
+                  className="shrink-0"
+                >
+                  <RadarGrid showLabels={false} />
+                  <RadarAxis />
+                  <RadarLabels interactive fontSize={10} />
+                  <RadarArea index={0} color="var(--chart-1)" />
+                </RadarChart>
+                <Legend
+                  items={categoryLegend}
+                  title="Share of revenue"
+                  className="min-w-0 flex-1"
+                  scrollable
+                  scrollMaxHeightClassName="max-h-48"
+                >
+                  <LegendItem className="rounded-lg px-2 py-1.5 transition-colors hover:bg-muted/60">
+                    <LegendMarker />
+                    <LegendLabel className="min-w-0 flex-1 truncate" />
+                    <LegendValue showPercentage formatValue={(v) => money(v)} />
+                  </LegendItem>
+                </Legend>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {data.salesByCategory.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No sales yet</p>
+                ) : (
+                  data.salesByCategory.map((c) => (
+                    <BarRow
+                      key={c.name}
+                      label={c.name}
+                      sub={`${money(c.value)} (${categoryTotal > 0 ? Math.round((c.value / categoryTotal) * 100) : 0}%)`}
+                      value={c.value}
+                      max={Math.max(...data.salesByCategory.map((x) => x.value), 1)}
+                      color={c.color}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <div>
@@ -629,7 +675,10 @@ export function DashboardPage() {
             )}
           </CardContent>
         </Card>
+      </div>
 
+      {/* Recent settlements + activity */}
+      <div className="grid gap-5 xl:grid-cols-2">
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <div>
@@ -704,24 +753,24 @@ export function DashboardPage() {
             ) : null}
           </CardContent>
         </Card>
-      </div>
 
-      {/* Recent activity — compact footer strip */}
-      {data.recentActivity.length > 0 ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {data.recentActivity.slice(0, 6).map((act) => (
-              <div key={act.id} className="min-w-0 text-sm">
-                <p className="line-clamp-1">{act.detail}</p>
-                <p className="text-muted-foreground text-xs">{formatDate(act.createdAt)}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ) : null}
+        {/* Recent activity */}
+        {data.recentActivity.length > 0 ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {data.recentActivity.slice(0, 6).map((act) => (
+                <div key={act.id} className="flex items-start justify-between gap-3 text-sm">
+                  <p className="line-clamp-2 min-w-0">{act.detail}</p>
+                  <p className="text-muted-foreground shrink-0 text-xs">{formatDate(act.createdAt)}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+      </div>
     </div>
   );
 }

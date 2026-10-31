@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from 'react';
 import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, StyleProp, Switch, Text, TextInput, View, ViewStyle} from 'react-native';
 import * as Print from 'expo-print';
-import {ChevronDown, Search} from 'lucide-react-native';
+import {ChevronDown, ChevronRight, Info, Search, SlidersHorizontal} from 'lucide-react-native';
 import {
   applyGoldBaseRate,
   buildBillDocument,
@@ -66,11 +66,14 @@ import {
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
+import {ProductDetailSheet} from '../components/ProductDetailSheet';
+import {EditProductModal} from '../components/EditProductModal';
+import {AdjustStockModal} from '../components/AdjustStockModal';
 import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
 import {useAppStore} from '../lib/store';
-import {rs, spacing, typography, radii} from '../lib/responsive';
+import {rs, spacing, typography, radii, CARD_MARGIN} from '../lib/responsive';
 import {StyleSheet as RNStyleSheet} from 'react-native';
 
 type LineState = {
@@ -629,6 +632,7 @@ function LineItemsEditor({
   onAdd,
   products,
   onSelectProduct,
+  onOpenProduct,
 }: {
   lines: LineState[];
   onChange: (index: number, patch: Partial<LineState>) => void;
@@ -644,6 +648,8 @@ function LineItemsEditor({
   onAdd: () => void;
   products: ProductDto[] | null | undefined;
   onSelectProduct: (lineIndex: number, productId: string, product?: ProductDto) => void;
+  /** Opens the shared product detail sheet (edit / stock) for this line. */
+  onOpenProduct?: (product: ProductDto) => void;
 }) {
   const styles = useThemeStyles(makeStyles);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
@@ -659,9 +665,10 @@ function LineItemsEditor({
             pricingView.breakdown.charges.povayi +
             pricingView.breakdown.charges.other
           : 0;
-        const isGold = line.productId
-          ? products?.find(p => p.id === line.productId)?.type === 'Gold'
-          : false;
+        const lineProduct = line.productId
+          ? products?.find(p => p.id === line.productId) ?? null
+          : null;
+        const isGold = lineProduct?.type === 'Gold';
         // Gold's price basis (net wt) shown read-only — the derived grams, or
         // the weight the engine actually priced when a breakdown exists.
         const goldNet = isGold ? pricingView?.breakdown.weightGm ?? goldNetGrams(line) : null;
@@ -695,18 +702,31 @@ function LineItemsEditor({
                   productId={line.productId}
                   onSelect={(id, product) => onSelectProduct(index, id, product)}
                 />
-                {line.sku ? (
+                {lineProduct || line.sku ? (
                   <View style={styles.skuRow}>
-                    <Text style={styles.skuChip}>{line.sku}</Text>
-                    <Pressable
-                      accessibilityLabel="Copy SKU"
-                      hitSlop={8}
-                      onPress={() => {
-                        void copyText(line.sku).then(ok => ok && successFeedback());
-                      }}
-                    >
-                      <Text style={styles.skuCopy}>Copy</Text>
-                    </Pressable>
+                    {line.sku ? <Text style={styles.skuChip}>{line.sku}</Text> : null}
+                    {lineProduct ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`Product details for ${lineProduct.name}`}
+                        hitSlop={8}
+                        onPress={() => onOpenProduct?.(lineProduct)}
+                        style={({pressed}) => [styles.detailLink, pressed && {opacity: 0.6}]}>
+                        <Info size={13} color={colors.primary} strokeWidth={2.4} />
+                        <Text style={styles.skuCopy}>Details · edit · stock</Text>
+                      </Pressable>
+                    ) : null}
+                    <View style={{flex: 1}} />
+                    {line.sku ? (
+                      <Pressable
+                        accessibilityLabel="Copy SKU"
+                        hitSlop={8}
+                        onPress={() => {
+                          void copyText(line.sku).then(ok => ok && successFeedback());
+                        }}>
+                        <Text style={styles.skuCopy}>Copy</Text>
+                      </Pressable>
+                    ) : null}
                   </View>
                 ) : null}
                 <Field
@@ -727,7 +747,7 @@ function LineItemsEditor({
                     value={line.quantity}
                     onChangeText={text => onChange(index, {quantity: text})}
                     keyboardType="decimal-pad"
-                    style={{flex: 1, marginRight: 8}}
+                    style={{flex: 1}}
                   />
                   <Field
                     label="Price"
@@ -737,42 +757,45 @@ function LineItemsEditor({
                     style={{flex: 2}}
                   />
                 </View>
+                <View style={styles.lineRow}>
+                  <Field
+                    label={isGold ? 'G. Wt.' : 'Weight'}
+                    value={isGold ? line.grossWeight : line.weight}
+                    onChangeText={text =>
+                      isGold
+                        ? basis({grossWeight: text})
+                        : onWeightChange
+                          ? onWeightChange(index, text)
+                          : onChange(index, {weight: text})
+                    }
+                    keyboardType="decimal-pad"
+                    style={{flex: 1}}
+                    placeholder={isGold ? '19.12' : '0.000'}
+                  />
+                  <PurityPicker value={line.purity} onChange={v => onChange(index, {purity: v})} style={{flex: 1}} />
+                </View>
                 {!isGold ? (
-                  <View style={styles.lineRow}>
-                    <Field
-                      label="Weight"
-                      value={line.weight}
-                      onChangeText={text =>
-                        onWeightChange ? onWeightChange(index, text) : onChange(index, {weight: text})
-                      }
-                      keyboardType="decimal-pad"
-                      style={{flex: 1, marginRight: 8}}
-                      placeholder="0.000"
-                    />
-                    <PurityPicker value={line.purity} onChange={v => onChange(index, {purity: v})} style={{flex: 1}} />
-                  </View>
-                ) : (
                   <View style={styles.lineRow}>
                     <Field
                       label="G. Wt."
                       value={line.grossWeight}
                       onChangeText={text => basis({grossWeight: text})}
                       keyboardType="decimal-pad"
-                      style={{flex: 1, marginRight: 8}}
+                      style={{flex: 1}}
                       placeholder="19.12"
                     />
-                    <PurityPicker value={line.purity} onChange={v => onChange(index, {purity: v})} style={{flex: 1}} />
+                    <View style={{flex: 1}} />
                   </View>
-                )}
-                <View style={styles.lineRow}>
-                  {isGold ? (
-                    <>
+                ) : null}
+                {isGold ? (
+                  <>
+                    <View style={styles.lineRow}>
                       <Field
                         label="Nag Wt."
                         value={line.nagLessWeight}
                         onChangeText={text => basis({nagLessWeight: text})}
                         keyboardType="decimal-pad"
-                        style={{flex: 1, marginRight: 8}}
+                        style={{flex: 1}}
                         placeholder="0.000"
                       />
                       <Field
@@ -783,29 +806,18 @@ function LineItemsEditor({
                         style={{flex: 1}}
                         placeholder="0.000"
                       />
-                    </>
-                  ) : (
-                    <>
+                    </View>
+                    <View style={styles.lineRow}>
                       <Field
-                        label="G. Wt."
-                        value={line.grossWeight}
-                        onChangeText={text => basis({grossWeight: text})}
-                        keyboardType="decimal-pad"
-                        style={{flex: 1, marginRight: 8}}
-                        placeholder="19.12"
+                        label="Net wt (derived)"
+                        value={goldNet != null ? goldNet.toFixed(3) : ''}
+                        editable={false}
+                        style={{flex: 1}}
+                        placeholder="0.000"
                       />
                       <View style={{flex: 1}} />
-                    </>
-                  )}
-                </View>
-                {isGold ? (
-                  <Field
-                    label="Net wt (derived)"
-                    value={goldNet != null ? goldNet.toFixed(3) : ''}
-                    editable={false}
-                    style={{width: '48%'}}
-                    placeholder="0.000"
-                  />
+                    </View>
+                  </>
                 ) : null}
                 {pricingView ? (
                   <View style={styles.pricingStrip}>
@@ -815,7 +827,7 @@ function LineItemsEditor({
                         value={line.ratePerGram}
                         onChangeText={text => onPricingChange?.(index, {ratePerGram: text})}
                         keyboardType="decimal-pad"
-                        style={{flex: 1, marginRight: 8}}
+                        style={{flex: 1}}
                         placeholder={
                           pricingView.breakdown.source === 'auto' ? String(pricingView.breakdown.ratePerGram) : '0'
                         }
@@ -832,66 +844,85 @@ function LineItemsEditor({
                         <View style={{flex: 1}} />
                       )}
                     </View>
-                    <View style={styles.lineRow}>
-                      <View style={{flex: 1, marginRight: 8}}>
-                        <Text style={styles.pricingLabel}>Labour</Text>
-                        <View style={styles.labourSegRow}>
-                          {LABOUR_SEGMENTS.map(seg => (
-                            <Pressable
-                              key={seg.type}
-                              onPress={() => onPricingChange?.(index, {labourType: seg.type})}
-                              style={[styles.labourSegBtn, labourType === seg.type && styles.labourSegBtnActive]}>
-                              <Text
-                                style={[
-                                  styles.labourSegText,
-                                  labourType === seg.type && styles.labourSegTextActive,
-                                ]}>
-                                {seg.label}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </View>
+                    <View>
+                      <Text style={styles.pricingLabel}>Labour</Text>
+                      <View style={styles.labourSegRow}>
+                        {LABOUR_SEGMENTS.map(seg => (
+                          <Pressable
+                            key={seg.type}
+                            onPress={() => onPricingChange?.(index, {labourType: seg.type})}
+                            style={[styles.labourSegBtn, labourType === seg.type && styles.labourSegBtnActive]}>
+                            <Text
+                              style={[
+                                styles.labourSegText,
+                                labourType === seg.type && styles.labourSegTextActive,
+                              ]}>
+                              {seg.label}
+                            </Text>
+                          </Pressable>
+                        ))}
                       </View>
-                      <Field
-                        label="Value"
-                        value={line.labourValue}
-                        onChangeText={text => onPricingChange?.(index, {labourValue: text})}
-                        keyboardType="decimal-pad"
-                        style={{flex: 1}}
-                        placeholder={
-                          line.labourValue === '' &&
-                          pricingView.breakdown.source === 'auto' &&
-                          pricingView.breakdown.labour.value > 0
-                            ? String(pricingView.breakdown.labour.value)
-                            : '0'
-                        }
-                      />
                     </View>
-                    <View style={styles.lineRow}>
-                      {pricingView.metal === 'Gold' ? (
+                    <Field
+                      label="Labour value"
+                      value={line.labourValue}
+                      onChangeText={text => onPricingChange?.(index, {labourValue: text})}
+                      keyboardType="decimal-pad"
+                      placeholder={
+                        line.labourValue === '' &&
+                        pricingView.breakdown.source === 'auto' &&
+                        pricingView.breakdown.labour.value > 0
+                          ? String(pricingView.breakdown.labour.value)
+                          : '0'
+                      }
+                    />
+                    {pricingView.metal === 'Gold' ? (
+                      <>
+                        <View style={styles.lineRow}>
+                          <Field
+                            label="Nag ₹"
+                            value={line.nag}
+                            onChangeText={text => onPricingChange?.(index, {nag: text})}
+                            keyboardType="decimal-pad"
+                            style={{flex: 1}}
+                          />
+                          <Field
+                            label="Povayi ₹"
+                            value={line.povayi}
+                            onChangeText={text => onPricingChange?.(index, {povayi: text})}
+                            keyboardType="decimal-pad"
+                            style={{flex: 1}}
+                          />
+                        </View>
+                        <View style={styles.lineRow}>
+                          <Field
+                            label="Other ₹"
+                            value={line.otherCharges}
+                            onChangeText={text => onPricingChange?.(index, {otherCharges: text})}
+                            keyboardType="decimal-pad"
+                            style={{flex: 1}}
+                          />
+                          <View style={{flex: 1}} />
+                        </View>
+                      </>
+                    ) : (
+                      <View style={styles.lineRow}>
                         <Field
-                          label="Nag ₹"
-                          value={line.nag}
-                          onChangeText={text => onPricingChange?.(index, {nag: text})}
+                          label="Povayi ₹"
+                          value={line.povayi}
+                          onChangeText={text => onPricingChange?.(index, {povayi: text})}
                           keyboardType="decimal-pad"
-                          style={{flex: 1, marginRight: 8}}
+                          style={{flex: 1}}
                         />
-                      ) : null}
-                      <Field
-                        label="Povayi ₹"
-                        value={line.povayi}
-                        onChangeText={text => onPricingChange?.(index, {povayi: text})}
-                        keyboardType="decimal-pad"
-                        style={{flex: pricingView.metal === 'Gold' ? 1 : 2, marginRight: 8}}
-                      />
-                      <Field
-                        label="Other ₹"
-                        value={line.otherCharges}
-                        onChangeText={text => onPricingChange?.(index, {otherCharges: text})}
-                        keyboardType="decimal-pad"
-                        style={{flex: 1}}
-                      />
-                    </View>
+                        <Field
+                          label="Other ₹"
+                          value={line.otherCharges}
+                          onChangeText={text => onPricingChange?.(index, {otherCharges: text})}
+                          keyboardType="decimal-pad"
+                          style={{flex: 1}}
+                        />
+                      </View>
+                    )}
                     <Text style={styles.pricingReadout}>
                       {`Metal ${money(pricingView.breakdown.metalValue)} · Labour ${money(pricingView.breakdown.labour.amount)}${
                         otherChargesTotal > 0 ? ` · Other ${money(otherChargesTotal)}` : ''
@@ -899,8 +930,20 @@ function LineItemsEditor({
                     </Text>
                   </View>
                 ) : null}
-                <Button title="Done" variant="outline" onPress={() => setExpandedIndex(null)} />
-                <Button title="Remove item" variant="outline" onPress={() => onRemove(index)} />
+                <View style={styles.lineRow}>
+                  <Button
+                    title="Done"
+                    variant="outline"
+                    style={{flex: 1}}
+                    onPress={() => setExpandedIndex(null)}
+                  />
+                  <Button
+                    title="Remove item"
+                    variant="outline"
+                    style={{flex: 1}}
+                    onPress={() => onRemove(index)}
+                  />
+                </View>
               </>
             ) : null}
           </View>
@@ -991,9 +1034,10 @@ export function BillingScreen() {
   const createInvoice = useCreateInvoice();
   const updateInvoice = useUpdateInvoice();
 
-  // ── EDIT MODE — More → Billing opened from the Invoices list carries an id.
+  // ── EDIT MODE — the Sales tab opened from the Invoices list carries an id.
   // The whole screen is reused; there's no second bill form to keep in sync.
   const editingInvoiceId = useNavStore(s => s.editingInvoiceId);
+  const clearEditBill = useNavStore(s => s.clearEditBill);
   const editing = editingInvoiceId !== null && editingInvoiceId !== '';
   const {data: editInvoice, isError: editLoadFailed} = useInvoice(editingInvoiceId);
   /** Set once per invoice so a background refetch can't wipe in-progress edits. */
@@ -1080,6 +1124,30 @@ export function BillingScreen() {
       ? parsedSilver10g / 10
       : shopSilverPerGram;
 
+  /** Non-default options light the header dot + sheet summary. */
+  const optionsActive =
+    template !== 'ecommerce' ||
+    classicColor !== 'red' ||
+    twoInOne ||
+    mode !== 'duplicate' ||
+    !weightAfterName ||
+    !goldRateLine ||
+    !silverRateLine ||
+    !signSuffix ||
+    goldRateKaratMode !== 'base' ||
+    hiddenGold.length > 0 ||
+    hiddenSilver.length > 0;
+  const optionsSummary = [
+    template === 'jewellery' ? 'Classic Jewellery' : 'Modern e-commerce',
+    twoInOne ? `2-in-1 ${mode}` : 'Single bill',
+    goldRateLine ? `Karat ${goldRateKaratMode}` : 'No rate row',
+    hiddenGold.length + hiddenSilver.length > 0
+      ? `${hiddenGold.length + hiddenSilver.length} columns hidden`
+      : null,
+  ]
+    .filter(part => part !== null)
+    .join(' · ');
+
   /** Same snapshot web + desktop save — options follow each invoice + render. */
   const billTemplateSettings: BillTemplateSettings = {
     template,
@@ -1135,6 +1203,14 @@ export function BillingScreen() {
 
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<BillDocument | null>(null);
+
+  // ── Bill options sheet + product drill-down (the old Sales screen's
+  //    product detail / edit / stock actions, kept on the unified screen) ──
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [detailProduct, setDetailProduct] = useState<ProductDto | null>(null);
+  const [editingProduct, setEditingProduct] = useState<ProductDto | null>(null);
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [adjustingProduct, setAdjustingProduct] = useState<ProductDto | null>(null);
 
   // "Separate" mode creates a SECOND invoice — that only makes sense when
   // creating. Editing works on one saved bill, so the 2-in-1 pairing UI is off.
@@ -1337,6 +1413,8 @@ export function BillingScreen() {
     [secondLines],
   );
   const secondTotal = Math.max(0, secondSubtotal - (Number(secondDiscount) || 0) - (Number(secondMaterialReturnedValue) || 0) + (Number(secondDelivery) || 0));
+  const paidNow = markPaid ? total : Math.min(Number(paid) || 0, total);
+  const dueNow = Math.max(0, total - paidNow);
 
   function updateLine(index: number, patch: Partial<LineState>) {
     setLines(prev => prev.map((l, i) => (i === index ? {...l, ...patch} : l)));
@@ -1637,13 +1715,15 @@ export function BillingScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- guarded by ref.
   }, [editing, editInvoice, settings]);
 
-  /** Leave edit mode without leaving the Billing tab: clean form, back to the list. */
+  /** Leave edit mode: clean form, then show the invoice list in More. */
   function cancelEdit() {
     seededEditId.current = null;
+    clearEditBill();
     resetForm();
     setPreview(null);
     setSecondPreview(null);
     useNavStore.getState().openMore('invoices');
+    useAppStore.getState().setActiveView('more');
   }
 
   // Back/Close leaving the Billing tab also has to drop the seeded bill.
@@ -1661,10 +1741,12 @@ export function BillingScreen() {
     if (!editing || !editLoadFailed) return;
     errorFeedback('That bill could no longer be found');
     seededEditId.current = null;
+    clearEditBill();
     resetForm();
     setPreview(null);
     setSecondPreview(null);
     useNavStore.getState().openMore('invoices');
+    useAppStore.getState().setActiveView('more');
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot guard.
   }, [editing, editLoadFailed]);
 
@@ -1839,9 +1921,14 @@ export function BillingScreen() {
 
   return (
     <Screen>
-      <HomeHeader title={editing && editInvoice ? `Edit ${editInvoice.invoiceNumber}` : 'Billing'} />
+      <HomeHeader
+        title={editing && editInvoice ? `Edit ${editInvoice.invoiceNumber}` : 'New bill'}
+        onOptionsPress={() => setOptionsOpen(true)}
+        optionsActive={optionsActive}
+        optionsLabel="Bill options"
+      />
       <KeyboardAvoidingView style={{flex: 1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}} {...headerScrollHandlers}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 20}} {...headerScrollHandlers}>
         {/* EDIT MODE — makes it impossible to mistake this for a new bill */}
         {editing && (
           <Card index={0}>
@@ -1859,8 +1946,34 @@ export function BillingScreen() {
           </Card>
         )}
 
-        {/* Template options — same model as web + desktop */}
-        <Card index={0}>
+        {/* Bill options live behind a sheet — the form itself stays short.
+            Same model as web + desktop; the summary keeps them discoverable. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open bill options"
+          onPress={() => {
+            selectionTick();
+            setOptionsOpen(true);
+          }}
+          style={({pressed}) => [styles.optionsRow, pressed && {opacity: 0.75}]}>
+          <View style={styles.optionsIconWrap}>
+            <SlidersHorizontal size={16} color={colors.primary} strokeWidth={2.4} />
+          </View>
+          <View style={{flex: 1}}>
+            <Text style={styles.optionsTitle}>Bill options</Text>
+            <Text style={styles.optionsSummary} numberOfLines={1}>
+              {optionsSummary}
+            </Text>
+          </View>
+          <ChevronRight size={18} color={colors.muted} />
+        </Pressable>
+
+        <ModalSheet
+          visible={optionsOpen}
+          title="Bill options"
+          onClose={() => setOptionsOpen(false)}
+          dismissable
+          scrollable>
           <Text style={styles.optLabel}>Bill template</Text>
           <View style={styles.segmentRow}>
             {(['jewellery', 'ecommerce'] as const).map(t => (
@@ -2146,11 +2259,21 @@ export function BillingScreen() {
               ))}
             </>
           )}
-        </Card>
+        </ModalSheet>
 
+        {/* ── Customer ─────────────────────────────────────────────────── */}
         <Card index={1}>
-          <Field label="Customer" value={customer} onChangeText={setCustomer} />
-          <Field label="Phone" value={customerPhone} onChangeText={setCustomerPhone} keyboardType="phone-pad" />
+          <Text style={styles.sectionTitle}>Customer</Text>
+          <View style={styles.lineRow}>
+            <Field label="Customer" value={customer} onChangeText={setCustomer} style={{flex: 1}} />
+            <Field
+              label="Phone"
+              value={customerPhone}
+              onChangeText={setCustomerPhone}
+              keyboardType="phone-pad"
+              style={{flex: 1}}
+            />
+          </View>
           <Field label="Address" value={customerAddress} onChangeText={setCustomerAddress} />
           <PartyPicker
             parties={parties}
@@ -2166,8 +2289,16 @@ export function BillingScreen() {
             }}
           />
           <DateField label="Date" value={date} onChange={setDate} />
+        </Card>
+
+        {/* ── Rates ────────────────────────────────────────────────────── */}
+        <Card index={2}>
+          <Text style={styles.sectionTitle}>Gold & silver rates</Text>
+          <Text style={styles.sectionHint}>
+            Editing a rate here re-prices every auto-priced line on this bill.
+          </Text>
           <Field
-            label="Gold karat rate (₹/g) — editing re-prices gold lines"
+            label="Gold karat rate (₹/g)"
             value={goldRateInput}
             onChangeText={handleGoldRateChange}
             keyboardType="decimal-pad"
@@ -2197,6 +2328,11 @@ export function BillingScreen() {
             onPress={handleSyncPrices}
             disabled={syncPrices.isPending}
           />
+        </Card>
+
+        {/* ── Items ────────────────────────────────────────────────────── */}
+        <Card index={3}>
+          <Text style={styles.sectionTitle}>Items</Text>
           {/* Same two entry points as web/desktop: browse the stock catalog,
               or scan/type a code (first empty line, else append). */}
           <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setLines, product)} />
@@ -2212,12 +2348,40 @@ export function BillingScreen() {
             onAdd={() => setLines(prev => [...prev, emptyLine()])}
             products={products}
             onSelectProduct={onSelectProduct}
+            onOpenProduct={setDetailProduct}
           />
-          <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="decimal-pad" />
-          <Field label="Delivery charge" value={delivery} onChangeText={setDelivery} keyboardType="decimal-pad" />
-            <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
-            <Field label="Material returned weight" value={materialReturnedWeight} onChangeText={setMaterialReturnedWeight} placeholder="e.g. 5gm" />
-            <Field label="Material returned value (₹)" value={materialReturnedValue} onChangeText={setMaterialReturnedValue} keyboardType="decimal-pad" />
+        </Card>
+
+        {/* ── Charges & payment ────────────────────────────────────────── */}
+        <Card index={4}>
+          <Text style={styles.sectionTitle}>Charges & payment</Text>
+          <View style={styles.lineRow}>
+            <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="decimal-pad" style={{flex: 1}} />
+            <Field
+              label="Delivery charge"
+              value={delivery}
+              onChangeText={setDelivery}
+              keyboardType="decimal-pad"
+              style={{flex: 1}}
+            />
+          </View>
+          <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
+          <View style={styles.lineRow}>
+            <Field
+              label="Material returned weight"
+              value={materialReturnedWeight}
+              onChangeText={setMaterialReturnedWeight}
+              placeholder="e.g. 5gm"
+              style={{flex: 1}}
+            />
+            <Field
+              label="Material returned value (₹)"
+              value={materialReturnedValue}
+              onChangeText={setMaterialReturnedValue}
+              keyboardType="decimal-pad"
+              style={{flex: 1}}
+            />
+          </View>
           <Field label="Amount paid now (₹)" value={paid} onChangeText={setPaid} keyboardType="decimal-pad" />
           <View style={styles.switchRow}>
             <View style={{flex: 1, paddingRight: 12}}>
@@ -2309,24 +2473,10 @@ export function BillingScreen() {
             total={total}
             paid={markPaid ? total : Math.min(Number(paid) || 0, total)}
           />
-          <Button
-            title={
-              saving
-                ? 'Saving…'
-                : editing && !editInvoice
-                  ? 'Loading bill…'
-                  : editing
-                    ? `Save changes — ${money(total)}`
-                    : 'Create invoice'
-            }
-            onPress={handleCreate}
-            loading={saving}
-            disabled={editing && !editInvoice}
-          />
         </Card>
 
         {distinct ? (
-          <Card index={2} style={{borderColor: colors.primary, borderWidth: 1}}>
+          <Card index={5} style={{borderColor: colors.primary, borderWidth: 1}}>
             <View style={styles.secondBillHeader}>
               <Text style={styles.sectionTitle}>Second bill — separate</Text>
               <Badge text="Bill 2" tone="muted" />
@@ -2360,6 +2510,7 @@ export function BillingScreen() {
               onAdd={() => setSecondLines(prev => [...prev, emptyLine()])}
               products={products}
               onSelectProduct={onSecondSelectProduct}
+              onOpenProduct={setDetailProduct}
             />
             <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="decimal-pad" />
             <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="decimal-pad" />
@@ -2382,7 +2533,7 @@ export function BillingScreen() {
         ) : null}
 
         {preview ? (
-          <Card index={3}>
+          <Card index={6}>
             <Text style={styles.sectionTitle}>
               Bill — {preview.billNo}
               {twoInOne ? ' (2-in-1)' : ''}
@@ -2484,7 +2635,69 @@ export function BillingScreen() {
           </Card>
         ) : null}
       </ScrollView>
+
+      {/* Sticky action bar — the total and save are always reachable. */}
+      <View style={styles.saveBar}>
+        <View style={{flex: 1}}>
+          <Text style={styles.saveBarLabel}>{editing ? 'Saving bill' : 'Total'}</Text>
+          <Text style={styles.saveBarTotal}>{money(total)}</Text>
+          <Text style={[styles.saveBarDue, dueNow === 0 && {color: colors.success}]}>
+            {dueNow === 0 ? 'Fully paid' : `Due ${money(dueNow)}`}
+          </Text>
+        </View>
+        <Button
+          title={
+            saving
+              ? 'Saving…'
+              : editing && !editInvoice
+                ? 'Loading bill…'
+                : editing
+                  ? 'Save changes'
+                  : 'Create invoice'
+          }
+          onPress={handleCreate}
+          loading={saving}
+          disabled={editing && !editInvoice}
+          style={{flex: 1.25}}
+        />
+      </View>
       </KeyboardAvoidingView>
+
+      {/* Product drill-down carried over from the old Sales screen: the same
+          detail sheet with edit + stock adjustment, right from a bill line. */}
+      <ProductDetailSheet
+        product={detailProduct}
+        onClose={() => setDetailProduct(null)}
+        onEdit={p => {
+          setDetailProduct(null);
+          setEditingProduct(p);
+          setProductFormOpen(true);
+        }}
+        onAdjust={p => {
+          setDetailProduct(null);
+          setAdjustingProduct(p);
+        }}
+        onSell={() => setDetailProduct(null)}
+      />
+      <EditProductModal
+        visible={productFormOpen}
+        product={editingProduct}
+        mode="bill"
+        onClose={() => {
+          setProductFormOpen(false);
+          setEditingProduct(null);
+        }}
+        onSaved={() => {
+          setProductFormOpen(false);
+          setEditingProduct(null);
+        }}
+      />
+      <AdjustStockModal
+        visible={adjustingProduct !== null}
+        product={adjustingProduct}
+        onClose={() => setAdjustingProduct(null)}
+        onSaved={() => setAdjustingProduct(null)}
+      />
     </Screen>
   );
 }
@@ -2541,7 +2754,45 @@ const makeStyles = () =>
       borderBottomWidth: RNStyleSheet.hairlineWidth,
       borderBottomColor: colors.border,
     },
-    lineRow: {flexDirection: 'row'},
+    lineRow: {flexDirection: 'row', gap: 8},
+    detailLink: {flexDirection: 'row', alignItems: 'center', gap: 4},
+    optionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: spacing.md,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    optionsIconWrap: {
+      width: rs(32),
+      height: rs(32),
+      borderRadius: radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    optionsTitle: {fontSize: 14, fontWeight: '700', color: colors.text},
+    optionsSummary: {fontSize: 12, color: colors.muted, marginTop: 1},
+    sectionHint: {fontSize: 12, color: colors.muted, marginTop: -2, marginBottom: spacing.md},
+    saveBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.md,
+      paddingHorizontal: CARD_MARGIN,
+      paddingVertical: spacing.sm,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    saveBarLabel: {fontSize: 11, fontWeight: '600', color: colors.muted},
+    saveBarTotal: {fontSize: 17, fontWeight: '800', color: colors.text, marginTop: 1},
+    saveBarDue: {fontSize: 11, fontWeight: '600', color: colors.warning, marginTop: 1},
     lineSummary: {flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 6},
     lineSummaryName: {flex: 1, fontSize: 14, fontWeight: '700', color: colors.text},
     lineSummaryMeta: {fontSize: 12, color: colors.muted},
@@ -2590,9 +2841,10 @@ const makeStyles = () =>
     secondBillHeader: {flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4},
     optLabel: {fontSize: 12, fontWeight: '600', color: colors.muted, marginBottom: 6},
     scanMessage: {fontSize: 12, color: colors.danger, marginTop: 4, marginBottom: 8},
-    segmentRow: {flexDirection: 'row', gap: 8, marginBottom: 14},
+    segmentRow: {flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14},
     segment: {
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: '30%',
       borderWidth: 1,
       borderColor: colors.border,
       borderRadius: 10,

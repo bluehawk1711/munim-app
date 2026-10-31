@@ -149,10 +149,14 @@ export async function exportReportToExcel(report: ReportData) {
   ws.columns = [
     { header: "Product Name", key: "productName", width: 30 },
     { header: "SKU", key: "sku", width: 16 },
+    { header: "Article", key: "articleName", width: 16 },
+    { header: "Category", key: "categoryName", width: 16 },
+    { header: "Type", key: "productType", width: 10 },
     { header: "Color", key: "color", width: 12 },
     { header: "Size", key: "size", width: 12 },
     { header: "Stock", key: "stock", width: 10 },
     { header: "Sold Qty", key: "soldQuantity", width: 12 },
+    { header: "Sold Wt (gm)", key: "soldWeightGm", width: 14 },
     { header: "Revenue", key: "revenue", width: 16 },
   ]
 
@@ -166,14 +170,19 @@ export async function exportReportToExcel(report: ReportData) {
     const row = ws.addRow({
       productName: r.productName,
       sku: r.sku,
+      articleName: r.articleName,
+      categoryName: r.categoryName,
+      productType: r.productType,
       color: r.color,
       size: r.size,
       stock: r.stock,
       soldQuantity: r.soldQuantity,
+      soldWeightGm: Math.round(r.soldWeightGm * 1000) / 1000,
       revenue: r.revenue,
     })
     row.getCell("stock").alignment = { horizontal: "right" }
     row.getCell("soldQuantity").alignment = { horizontal: "right" }
+    row.getCell("soldWeightGm").alignment = { horizontal: "right" }
     row.getCell("revenue").numFmt = `"${CURRENCY}"#,##0.00`
     row.getCell("revenue").alignment = { horizontal: "right" }
   })
@@ -183,12 +192,14 @@ export async function exportReportToExcel(report: ReportData) {
     productName: "TOTAL",
     stock: report.totals.stock,
     soldQuantity: report.totals.soldQuantity,
+    soldWeightGm: Math.round((report.totals.weightSoldGm ?? report.totals.soldWeight) * 1000) / 1000,
     revenue: report.totals.revenue,
   })
   totalRow.font = { bold: true }
   totalRow.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE6F4F1" } }
   totalRow.getCell("stock").alignment = { horizontal: "right" }
   totalRow.getCell("soldQuantity").alignment = { horizontal: "right" }
+  totalRow.getCell("soldWeightGm").alignment = { horizontal: "right" }
   totalRow.getCell("revenue").numFmt = `"${CURRENCY}"#,##0.00`
   totalRow.getCell("revenue").alignment = { horizontal: "right" }
 
@@ -240,14 +251,18 @@ export async function exportReportToPdf(report: ReportData) {
 
   autoTable(doc, {
     startY: 86,
-    head: [["Product Name", "SKU", "Color", "Size", "Stock", "Sold Qty", "Revenue"]],
+    head: [["Product Name", "SKU", "Article", "Category", "Type", "Color", "Size", "Stock", "Sold Qty", "Wt (gm)", "Revenue"]],
     body: report.rows.map((r) => [
       r.productName,
       r.sku,
+      r.articleName,
+      r.categoryName,
+      r.productType,
       r.color,
       r.size,
       formatNumber(r.stock),
       formatNumber(r.soldQuantity),
+      Math.round(r.soldWeightGm * 1000) / 1000,
       formatCurrency(r.revenue),
     ]),
     foot: [[
@@ -255,8 +270,12 @@ export async function exportReportToPdf(report: ReportData) {
       "",
       "",
       "",
+      "",
+      "",
+      "",
       formatNumber(report.totals.stock),
       formatNumber(report.totals.soldQuantity),
+      Math.round((report.totals.weightSoldGm ?? report.totals.soldWeight) * 1000) / 1000,
       formatCurrency(report.totals.revenue),
     ]],
     theme: "striped",
@@ -265,9 +284,10 @@ export async function exportReportToPdf(report: ReportData) {
     footStyles: { fillColor: [230, 244, 241], textColor: [15, 118, 110], fontStyle: "bold", fontSize: 9 },
     alternateRowStyles: { fillColor: [247, 250, 250] },
     columnStyles: {
-      4: { halign: "right" },
-      5: { halign: "right" },
-      6: { halign: "right" },
+      7: { halign: "right" },
+      8: { halign: "right" },
+      9: { halign: "right" },
+      10: { halign: "right" },
     },
     margin: { left: 40, right: 40 },
     didDrawPage: () => {

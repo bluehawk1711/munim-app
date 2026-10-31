@@ -396,9 +396,9 @@ export function SettingsView() {
               backfilling={backfillKarats.isPending}
               updatedLabel={goldRates.data?.updatedAt ? formatDateTime(goldRates.data.updatedAt) : null}
             />
-            <div className="bg-muted/40 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t pt-5">
               <div className="min-w-0">
-                <p className="text-sm font-medium">Recalculate prices</p>
+                <p className="text-sm font-medium">Recalculate product prices</p>
                 <p className="text-xs text-muted-foreground">
                   Saves today's rate into every auto-priced product's stored price (manual prices are untouched).
                 </p>

@@ -9,7 +9,6 @@ import {
   Boxes,
   Users,
   HandCoins,
-  ShoppingCart,
   FileBarChart,
   Settings,
   CircleHelp,
@@ -31,7 +30,6 @@ const NAV_SECTIONS: SidebarNavSection[] = [
     items: [
       { key: "/products", label: "Products", icon: Package, description: "Manage inventory" },
       { key: "/articles", label: "Articles", icon: Tag, description: "Designs & analytics" },
-      { key: "/sales", label: "Sales", icon: ShoppingCart, description: "Sell & history" },
       { key: "/catalog", label: "Catalog", icon: Palette, description: "Colors, sizes & categories" },
     ],
   },

@@ -1,4 +1,9 @@
-import type { ArticleDto, ArticleInput, ArticlesAnalytics } from "@munim/core";
+import type {
+  ArticleAnalyticsPreset,
+  ArticleDto,
+  ArticleInput,
+  ArticlesAnalytics,
+} from "@munim/core";
 import type { HttpClient } from "../http.js";
 
 /**
@@ -11,9 +16,10 @@ export function articles(http: HttpClient) {
     list(): Promise<ArticleDto[]> {
       return http.get("/api/articles");
     },
-    /** GET /api/articles/analytics — per-article stock/sales/trend rows. */
-    analytics(): Promise<ArticlesAnalytics> {
-      return http.get("/api/articles/analytics");
+    /** GET /api/articles/analytics?preset= — per-article stock/sales/trend
+     *  rows for the selected time window (defaults to six months). */
+    analytics(preset?: ArticleAnalyticsPreset): Promise<ArticlesAnalytics> {
+      return http.get("/api/articles/analytics", { preset });
     },
     /** POST /api/articles — duplicate-guarded create. */
     create(input: ArticleInput): Promise<ArticleDto> {

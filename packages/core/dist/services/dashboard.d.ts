@@ -1,9 +1,5 @@
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
-/** Free-text material-returned weight ("5gm", "500mg", "5.2") → GRAMS.
- *  `parseNetWeight` strips the unit, so the unit is read from the TEXT itself
- *  ("…mg" → milligrams, anything else → grams). Unparseable → 0. */
-export declare function materialWeightGm(text: string | null | undefined): number;
 /** Period the dashboard KPI tiles are scoped to (chip presets resolve to
  *  ISO date bounds before they reach the API). */
 export type DashboardPeriod = {
@@ -100,80 +96,4 @@ export type DashboardStats = {
     })[];
 };
 export declare function getDashboard(db: DbClient, period?: DashboardPeriod): Promise<DashboardStats>;
-export type ReportType = "daily" | "weekly" | "monthly" | "yearly" | "stock" | "low_stock" | "sold";
-export type ReportRow = {
-    productId: string | null;
-    productName: string;
-    sku: string | null;
-    color: string | null;
-    size: string | null;
-    stock: number;
-    soldQuantity: number;
-    /** Unit weight (null when the product has no weight set). */
-    weight: number | null;
-    /** Display unit: "mg" or "gm". */
-    weightUnit: string;
-    /** Total weight sold (quantity × unit weight). */
-    soldWeight: number;
-    /** Line-level weight sold in GRAMS — frozen `pricing.weightGm` × quantity
-     *  (line weight snapshot as fallback); independent of later product edits. */
-    soldWeightGm: number;
-    revenue: number;
-    profit: number;
-};
-/** One day's section of the day-wise Daily Sales report — a header (the day
- *  and what it did) plus the products sold THAT day. Only `daily` fills this;
- *  every other report type returns []. */
-export type ReportDayGroup = {
-    /** ISO date (yyyy-mm-dd). */
-    day: string;
-    /** Human day label — "20 Oct 2026". */
-    label: string;
-    /** Invoices raised that day (a day with sales has ≥ 1). */
-    invoices: number;
-    daySoldQuantity: number;
-    dayRevenue: number;
-    rows: ReportRow[];
-};
-export declare function getReport(db: DbClient, type: ReportType, startDate?: string, endDate?: string): Promise<{
-    type: ReportType;
-    title: string;
-    generatedAt: string;
-    periodLabel: string;
-    rows: ReportRow[];
-    /** Day sections — populated for `daily` only (see `ReportDayGroup`). */
-    days: ReportDayGroup[];
-    totals: {
-        stock: number;
-        soldQuantity: number;
-        soldWeight: number;
-        weightSoldGm: number;
-        revenue: number;
-        profit: number;
-        materialReceivedGm: number;
-        materialReceivedValue: number;
-    };
-}>;
-/**
- * Serializes a report into RFC-4180 CSV (quoted, escaped, CRLF line endings).
- * Shared by web, desktop AND mobile so every platform exports the same file.
- * Day-wise reports (Daily Sales) emit one row per product per DAY with a
- * leading Date column; flat reports keep the classic columns.
- */
-export declare function reportToCsv(report: {
-    title: string;
-    rows: ReportRow[];
-    days?: ReportDayGroup[];
-    totals: {
-        stock: number;
-        soldQuantity: number;
-        soldWeight: number;
-        revenue: number;
-        profit: number;
-        /** Line-level weight sold (gm) — falls back to soldWeight when absent. */
-        weightSoldGm?: number;
-        materialReceivedGm?: number;
-        materialReceivedValue?: number;
-    };
-}): string;
 //# sourceMappingURL=dashboard.d.ts.map

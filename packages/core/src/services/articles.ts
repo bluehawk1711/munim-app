@@ -9,8 +9,9 @@ import { ProductError, effectivePriceSql } from "./products.js";
  * (dedicated table + `products.articleId` FK, duplicate-guarded CRUD, delete
  * blocked while in use) plus the optional `code` and `description` fields.
  * SHARED by all three apps; `getArticlesAnalytics` powers the Articles page
- * analytics section (stock, sold units/weight, revenue, last sale, 6-month
- * trend) reusing the invoice-item aggregation patterns from dashboard/reports.
+ * analytics section (stock, sold units/weight, revenue, last sale, bucketed
+ * trend over a selectable window) reusing the invoice-item aggregation
+ * patterns from dashboard/reports.
  */
 
 export type ArticleDto = {
@@ -171,6 +172,33 @@ export async function deleteArticle(db: DbClient, id: string): Promise<{ success
 
 /* ── Analytics ────────────────────────────────────────────────── */
 
+/** Selectable Articles analytics window. `month` buckets the current calendar
+ *  month by week (a single monthly bucket would hide the trend); the rest use
+ *  one bucket per calendar month. */
+export const ARTICLE_ANALYTICS_PRESETS = ["month", "3m", "6m", "12m"] as const;
+export type ArticleAnalyticsPreset = (typeof ARTICLE_ANALYTICS_PRESETS)[number];
+
+/** Chip copy + compact suffix (column headers / stat tiles) per preset. */
+export const ARTICLE_ANALYTICS_PRESET_LABELS: Record<
+  ArticleAnalyticsPreset,
+  { label: string; short: string }
+> = {
+  month: { label: "This month", short: "MTD" },
+  "3m": { label: "3 months", short: "3m" },
+  "6m": { label: "6 months", short: "6m" },
+  "12m": { label: "12 months", short: "12m" },
+};
+
+/** Window actually used, echoed back so the apps can label charts correctly. */
+export type ArticleAnalyticsPeriod = {
+  preset: ArticleAnalyticsPreset;
+  /** ISO bounds (upper bound exclusive) of the aggregated window. */
+  from: string;
+  to: string;
+  /** Trend bucket size — weekly for "This month", monthly otherwise. */
+  bucket: "week" | "month";
+};
+
 /** One row of per-article analytics for the Articles page. */
 export type ArticleAnalyticsRow = {
   articleId: string;
@@ -185,28 +213,51 @@ export type ArticleAnalyticsRow = {
   stockWeightGm: number;
   /** On-hand value — stock × effective price (auto price when priced). */
   stockValue: number;
-  /** Units sold in the last 6 months. */
+  /** Units sold in the selected window. */
   soldUnits: number;
-  /** Weight sold in the last 6 months, GRAMS — line-level frozen pricing. */
+  /** Weight sold in the selected window, GRAMS — line-level frozen pricing. */
   soldWeightGm: number;
-  /** Revenue in the last 6 months (invoice-line totals). */
+  /** Revenue in the selected window (invoice-line totals). */
   revenue: number;
   /** When a product of this article last sold (all time), ISO or null. */
   lastSaleAt: string | null;
-  /** Revenue per month for `monthLabels` (oldest → newest). */
+  /** Revenue per trend bucket for `trendLabels` (oldest → newest). */
   trend: number[];
 };
 
 export type ArticlesAnalytics = {
-  /** 6 month labels (e.g. "May") aligned with every row's `trend`. */
-  monthLabels: string[];
+  /** Echo of the requested window + the bucket size used by `trend`. */
+  period: ArticleAnalyticsPeriod;
+  /** Bucket labels (month names or week-start days) aligned with `trend`. */
+  trendLabels: string[];
   rows: ArticleAnalyticsRow[];
 };
 
-function monthRanges(now = new Date()): { label: string; start: Date; end: Date }[] {
-  return Array.from({ length: 6 }, (_, i) => {
-    const start = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-    const end = new Date(now.getFullYear(), now.getMonth() - 4 + i, 1);
+type AnalyticsBucket = { label: string; start: Date; end: Date };
+
+/** Oldest → newest buckets for the chosen window, ending with the current
+ *  month. "This month" splits the calendar month into 7-day buckets labelled
+ *  by the week's start day; every other preset is one calendar month/bucket. */
+export function articleAnalyticsBuckets(
+  preset: ArticleAnalyticsPreset,
+  now = new Date(),
+): AnalyticsBucket[] {
+  if (preset === "month") {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const buckets: AnalyticsBucket[] = [];
+    for (let start = monthStart; start < monthEnd; ) {
+      const end = new Date(Math.min(start.getTime() + 7 * 86_400_000, monthEnd.getTime()));
+      buckets.push({ label: String(start.getDate()), start, end });
+      start = end;
+    }
+    return buckets;
+  }
+
+  const months = preset === "3m" ? 3 : preset === "6m" ? 6 : 12;
+  return Array.from({ length: months }, (_, i) => {
+    const start = new Date(now.getFullYear(), now.getMonth() - months + 1 + i, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() - months + 2 + i, 1);
     return {
       label: start.toLocaleDateString("en-IN", { month: "short" }),
       start,
@@ -220,12 +271,16 @@ function monthRanges(now = new Date()): { label: string; start: Date; end: Date 
  * TS so articles without products/sales still appear (zeroed):
  *   1. stock (products grouped by articleId)
  *   2. last sale (all-time max invoice date per article)
- *   3. 6-month sold/revenue/trend (invoice items through the product)
+ *   3. sold/revenue/trend for the selected window (invoice items through the
+ *      product)
  */
-export async function getArticlesAnalytics(db: DbClient): Promise<ArticlesAnalytics> {
-  const ranges = monthRanges();
+export async function getArticlesAnalytics(
+  db: DbClient,
+  preset: ArticleAnalyticsPreset = "6m",
+): Promise<ArticlesAnalytics> {
+  const ranges = articleAnalyticsBuckets(preset);
   const windowStart = ranges[0]!.start;
-  const windowEnd = ranges[5]!.end;
+  const windowEnd = ranges[ranges.length - 1]!.end;
 
   const [articleRows, stockRows, soldRows, lastSaleRows, trendRows] = await Promise.all([
     db
@@ -323,5 +378,14 @@ export async function getArticlesAnalytics(db: DbClient): Promise<ArticlesAnalyt
 
   rows.sort((a, b) => b.revenue - a.revenue || b.stockValue - a.stockValue);
 
-  return { monthLabels: ranges.map((r) => r.label), rows };
+  return {
+    period: {
+      preset,
+      from: windowStart.toISOString(),
+      to: windowEnd.toISOString(),
+      bucket: preset === "month" ? "week" : "month",
+    },
+    trendLabels: ranges.map((r) => r.label),
+    rows,
+  };
 }

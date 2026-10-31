@@ -32,14 +32,20 @@ Each theme supports light and dark modes.
 
 ### Core Color Tokens
 
+Mobile surfaces are deliberately NEUTRAL — pure white in light mode, pure
+black in dark mode, with neutral zinc gray fills/borders — and only the accent
+theme tints interactive elements (`primary`, `accent`, chart colors, status
+hues). This keeps text contrast high and stops every screen from inheriting a
+washed-out theme background.
+
 ```typescript
 interface MobileColors {
-  bg: string;           // Background color
-  card: string;         // Card background
+  bg: string;           // Screen background — #ffffff / #000000
+  card: string;         // Card background — #ffffff / #0b0b0c
   text: string;         // Primary text
   muted: string;        // Muted text
-  mutedBg: string;      // Muted background (for pressed states)
-  border: string;       // Border color
+  mutedBg: string;      // Neutral fill for pressed states/tiles
+  border: string;       // Neutral border — #e4e4e7 / #27272a
   primary: string;      // Primary action color
   accent: string;       // Accent/highlight color
   onPrimary: string;    // Text on primary
@@ -49,7 +55,7 @@ interface MobileColors {
   successSoft: string;  // Success background
   warningSoft: string;  // Warning background
   dangerSoft: string;   // Danger background
-  mutedSoft: string;    // Muted background for hover/press
+  mutedSoft: string;    // Neutral fill for hover/press
   inputPlaceholder: string; // Input placeholder text
 }
 ```
@@ -281,17 +287,17 @@ Use for custom interactive elements:
 
 ## Modals & Sheets
 
-### ModalSheet (Centered Modal)
+### ModalSheet (bottom sheet by default)
 
-All forms and pickers should use centered modals:
+`ModalSheet` slides up from the bottom and is capped at 85% height. Use it
+for filters, pickers, quick forms and confirmations:
 
 ```tsx
 <ModalSheet
   visible={isOpen}
-  title="Modal title"
+  title="Sheet title"
   onClose={() => setIsOpen(false)}
   dismissable={!isLoading}
-  centered
   scrollable
 >
   {/* Content */}
@@ -299,20 +305,44 @@ All forms and pickers should use centered modals:
 ```
 
 **Props:**
-- `centered`: Makes modal appear in center of screen (not bottom sheet)
-- `scrollable`: Wraps content in ScrollView for long content
+- `centered`: Opt-in compact centered dialog (short confirmations only)
+- `scrollable`: Wraps content in an inner ScrollView for long content
 - `dismissable`: Allows closing by tapping outside (set false during loading)
 
-### When to Use Centered vs Bottom Sheet
+### MunimBottomSheet (gesture-driven, for large forms)
+
+Product create/edit and the product-detail sheet use the Gorhom-based
+`MunimBottomSheet` (`src/components/BottomSheet.tsx`) — drag handle, backdrop,
+keyboard handling, sticky footer. Open/close it with a ref:
+
+```tsx
+const sheetRef = useRef<BottomSheet>(null);
+useEffect(() => {
+  if (visible) sheetRef.current?.snapToIndex(0);
+  else sheetRef.current?.close();
+}, [visible]);
+
+<MunimBottomSheet ref={sheetRef} title="Edit product" onClose={onClose} initialIndex={-1}>
+  <BottomSheetScrollView>{/* fields */}</BottomSheetScrollView>
+  <SheetFooter>{/* primary save button */}</SheetFooter>
+</MunimBottomSheet>
+```
+
+### When to Use Which
 
 | Use Case | Pattern |
 |----------|---------|
-| Forms (add/edit) | Centered + scrollable |
-| Pickers (select from list) | Centered + scrollable |
-| Simple confirmations | Centered |
-| Quick actions | Centered |
+| Large create/edit form (product) | `MunimBottomSheet` + sticky `SheetFooter` |
+| Filters, pickers, short forms | `ModalSheet` (bottom) |
+| Short confirmations | `ModalSheet` `centered` |
 
-**All current screens use centered modals.**
+### AnalyticsSheet (shared)
+
+List screens keep their summary figures OUT of the scroll header — the header's
+BarChart3 action opens `src/components/analytics-sheet.tsx`
+(`ModalSheet` + stat tile grid + optional children such as top articles).
+Used by Invoices, Orders, Articles and Khata. New list screens should reuse it
+instead of adding another stat strip.
 
 ### Modal Content Guidelines
 
@@ -501,22 +531,20 @@ In dark mode, ensure all text has sufficient contrast:
 
 ### Tab Bar
 
-6 tabs at bottom:
+5 tabs at bottom:
 1. **Home** - Dashboard
 2. **Stock** (Inventory) - Product management
-3. **Sales** - Quick sales
-4. **Bills** - Billing/invoicing
-5. **Khata** - Parties & advances
-6. **More** - Settings, reports, catalog, etc.
+3. **Sales** - The app's single billing surface (`BillingScreen`)
+4. **Khata** - Parties & advances
+5. **More** - Invoices, orders, settings, reports, catalog, etc.
 
 ### Screen Titles
 
 | Tab | Screen Title |
 |-----|--------------|
-| Home | "Munim" |
+| Home | "Home" |
 | Stock | "Inventory" |
-| Sales | "Sales" |
-| Bills | "Billing" |
+| Sales | "New bill" (or "Edit INV-…") |
 | Khata | "Parties & Khata" |
 | More | "More" |
 
@@ -530,7 +558,7 @@ In dark mode, ensure all text has sufficient contrast:
 
 ## Common Patterns
 
-### Product Picker (Used in Billing, Sales)
+### Product Picker (Used in Billing / the Sales tab)
 
 ```tsx
 function ProductPicker({products, productId, onSelect}) {
@@ -594,9 +622,10 @@ apps/mobile/
 │   ├── screens/
 │   │   ├── HomeScreen.tsx
 │   │   ├── ProductsScreen.tsx (Inventory)
-│   │   ├── SalesScreen.tsx
-│   │   ├── BillingScreen.tsx
-│   │   ├── PartiesScreen.tsx
+│   │   ├── BillingScreen.tsx (the Sales tab)
+│   │   ├── AdvancesScreen.tsx (the Khata tab)
+│   │   ├── InvoicesScreen.tsx
+│   │   ├── OrdersScreen.tsx
 │   │   └── MoreScreen.tsx
 │   ├── lib/
 │   │   ├── haptics.ts        # Haptic feedback

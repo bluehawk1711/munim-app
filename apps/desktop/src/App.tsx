@@ -10,7 +10,6 @@ import { DashboardPage } from "@/pages/dashboard";
 import { ProductsPage } from "@/pages/products";
 import { ArticlesPage } from "@/pages/articles";
 import { CatalogPage } from "@/pages/catalog";
-import { SalesPage } from "@/pages/sales";
 import { BillingPage } from "@/pages/billing";
 import { InvoicesPage } from "@/pages/invoices";
 import { OrdersPage } from "@/pages/orders";
@@ -26,7 +25,6 @@ const ROUTES: { path: string; title: string; element: ReactNode }[] = [
   { path: "/products", title: "Products & Stock", element: <ProductsPage /> },
   { path: "/catalog", title: "Catalog", element: <CatalogPage /> },
   { path: "/articles", title: "Articles", element: <ArticlesPage /> },
-  { path: "/sales", title: "Sales", element: <SalesPage /> },
   { path: "/billing", title: "New Bill", element: <BillingPage /> },
   { path: "/invoices", title: "Invoices", element: <InvoicesPage /> },
   { path: "/orders", title: "Orders", element: <OrdersPage /> },

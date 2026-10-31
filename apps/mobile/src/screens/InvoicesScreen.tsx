@@ -2,7 +2,6 @@ import React, {useState} from 'react';
 import {
   FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -41,9 +40,9 @@ import {
   Loading,
   ModalSheet,
   Screen,
-  StatBox,
   colors,
 } from '../components/ui';
+import {AnalyticsSheet} from '../components/analytics-sheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
@@ -96,6 +95,10 @@ export function InvoicesScreen() {
     useNavStore.getState().setInvoiceFilter('all');
   }, []);
   const [page, setPage] = useState(1);
+  /** Search + status live in a header-triggered sheet (the list stays clean). */
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  /** Summary figures moved out of the list header into a bottom sheet. */
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   const filters: InvoiceFilters = {search, status, page, pageSize: PAGE_SIZE};
   // Cached list — the shared @munim/query hook owns fetch + invalidation.
@@ -115,6 +118,13 @@ export function InvoicesScreen() {
     setStatus(value);
     setPage(1);
   }
+  function clearFilters() {
+    selectionTick();
+    setSearchFilter('');
+    setStatusFilter('all');
+  }
+  const statusLabel = STATUS_CHIPS.find(c => c.key === status)?.label ?? 'All';
+  const filtersActive = status !== 'all' || search.trim().length > 0;
 
   const [paying, setPaying] = useState<InvoiceDto | null>(null);
   const [payAmount, setPayAmount] = useState('');
@@ -148,10 +158,11 @@ export function InvoicesScreen() {
     setPayNote('');
   }
 
-  /** EDIT BILL — More → Billing in edit mode, pre-filled with this invoice. */
+  /** EDIT BILL — the Sales tab (the app's single billing surface) in edit
+   *  mode, pre-filled with this invoice. */
   function openEdit(inv: InvoiceDto) {
     useNavStore.getState().openEditBill(inv.id);
-    useAppStore.getState().setActiveView('more');
+    useAppStore.getState().setActiveView('sales');
   }
 
   async function confirmPayment() {
@@ -251,7 +262,14 @@ export function InvoicesScreen() {
 
   return (
     <Screen>
-      <HomeHeader title="Invoices" />
+      <HomeHeader
+        title="Invoices"
+        onOptionsPress={() => setFiltersOpen(true)}
+        optionsActive={filtersActive}
+        optionsLabel="Filter bills"
+        onAnalyticsPress={() => setAnalyticsOpen(true)}
+        analyticsLabel="Bill analytics"
+      />
 
       <FlatList
         data={invoices}
@@ -263,50 +281,27 @@ export function InvoicesScreen() {
         style={loading && invoices.length > 0 ? {opacity: 0.55} : null}
         ListHeaderComponent={
           <View>
-            {/* Search + status filter */}
-            <View style={styles.searchWrap}>
-              <View style={styles.searchBox}>
-                <Search size={15} color={colors.muted} />
-                <TextInput
-                  value={search}
-                  onChangeText={setSearchFilter}
-                  placeholder="Search invoice #, customer…"
-                  placeholderTextColor={colors.inputPlaceholder}
-                  style={styles.searchInput}
-                  autoCapitalize="none"
-                />
+            {/* Active filters — search + status live in the header sheet */}
+            <View style={styles.filterSummary}>
+              <View style={{flex: 1}}>
+                <Text style={styles.filterSummaryText} numberOfLines={1}>
+                  {filtersActive
+                    ? `${statusLabel}${search.trim() ? ` · “${search.trim()}”` : ''}`
+                    : 'All bills'}
+                </Text>
+                <Text style={styles.filterSummaryHint}>
+                  {`${totalCount} result${totalCount === 1 ? '' : 's'}`}
+                </Text>
               </View>
-            </View>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.chipsRow}>
-              {STATUS_CHIPS.map(chip => {
-                const active = status === chip.key;
-                return (
-                  <Pressable
-                    key={chip.key}
-                    onPress={() => {
-                      selectionTick();
-                      setStatusFilter(chip.key);
-                    }}
-                    style={[
-                      styles.chip,
-                      active && {backgroundColor: colors.primary, borderColor: colors.primary},
-                    ]}>
-                    <Text style={[styles.chipText, active && {color: colors.onPrimary}]}>
-                      {chip.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            {/* Summary strip */}
-            <View style={styles.statsRow}>
-              <StatBox label="Total" value={money(summary.total)} index={0} />
-              <StatBox label="Unpaid" value={money(summary.unpaid)} valueColor={colors.warning} index={1} />
-              <StatBox label="Collected" value={money(summary.collected)} valueColor={colors.success} index={2} />
+              {filtersActive ? (
+                <Pressable onPress={clearFilters} hitSlop={8}>
+                  <Text style={styles.filterClear}>Clear</Text>
+                </Pressable>
+              ) : (
+                <Pressable onPress={() => setFiltersOpen(true)} hitSlop={8}>
+                  <Text style={styles.filterClear}>Search & filter</Text>
+                </Pressable>
+              )}
             </View>
           </View>
         }
@@ -412,6 +407,72 @@ export function InvoicesScreen() {
           ) : null
         }
       />
+
+      <AnalyticsSheet
+        visible={analyticsOpen}
+        title="Bill analytics"
+        onClose={() => setAnalyticsOpen(false)}
+        note={`Figures cover the bills on this page (${invoices.length} of ${totalCount}). Narrow with filters to see a slice.`}
+        stats={[
+          {label: 'Bills listed', value: String(totalCount), hint: `${totalPages} page${totalPages === 1 ? '' : 's'}`},
+          {label: 'Page total', value: money(summary.total), tone: 'primary'},
+          {label: 'Unpaid', value: money(summary.unpaid), tone: 'warning'},
+          {label: 'Collected', value: money(summary.collected), tone: 'success'},
+        ]}
+      />
+
+      {/* Filter sheet — search + every bill status in one place */}
+      <ModalSheet
+        visible={filtersOpen}
+        title="Filter bills"
+        onClose={() => setFiltersOpen(false)}
+        dismissable>
+        <View style={styles.searchBox}>
+          <Search size={15} color={colors.muted} />
+          <TextInput
+            value={search}
+            onChangeText={setSearchFilter}
+            placeholder="Search invoice #, customer…"
+            placeholderTextColor={colors.inputPlaceholder}
+            style={styles.searchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {search ? (
+            <Pressable onPress={() => setSearchFilter('')} hitSlop={8}>
+              <Text style={styles.filterClear}>Clear</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        <Text style={styles.filterLabel}>Status</Text>
+        <View style={styles.statusChipWrap}>
+          {STATUS_CHIPS.map(chip => {
+            const active = status === chip.key;
+            return (
+              <Pressable
+                key={chip.key}
+                accessibilityRole="button"
+                accessibilityState={{selected: active}}
+                onPress={() => {
+                  selectionTick();
+                  setStatusFilter(chip.key);
+                }}
+                style={[
+                  styles.chip,
+                  active && {backgroundColor: colors.primary, borderColor: colors.primary},
+                ]}>
+                <Text style={[styles.chipText, active && {color: colors.onPrimary}]}>
+                  {chip.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
+          <Button title="Clear all" variant="outline" style={{flex: 1}} onPress={clearFilters} />
+          <Button title="Show results" style={{flex: 1}} onPress={() => setFiltersOpen(false)} />
+        </View>
+      </ModalSheet>
 
       {/* Payment history — the invoice's full trail (amount · method · note · date) */}
       <ModalSheet
@@ -553,7 +614,24 @@ export function InvoicesScreen() {
 
 const makeStyles = () =>
   StyleSheet.create({
-    searchWrap: {marginHorizontal: 16, marginBottom: 10},
+    filterSummary: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginHorizontal: 16,
+      marginBottom: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    filterSummaryText: {fontSize: 13, fontWeight: '700', color: colors.text},
+    filterSummaryHint: {fontSize: 11, color: colors.muted, marginTop: 1},
+    filterClear: {fontSize: 12, fontWeight: '700', color: colors.primary},
+    filterLabel: {fontSize: 12, fontWeight: '700', color: colors.muted, marginBottom: 8},
+    statusChipWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
     searchBox: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -565,7 +643,6 @@ const makeStyles = () =>
       paddingHorizontal: 12,
     },
     searchInput: {flex: 1, paddingVertical: 10, fontSize: 14, color: colors.text},
-    chipsRow: {paddingHorizontal: 16, gap: 8, paddingBottom: 12},
     chip: {
       paddingHorizontal: 14,
       paddingVertical: 7,
@@ -575,7 +652,6 @@ const makeStyles = () =>
       backgroundColor: colors.card,
     },
     chipText: {fontSize: 12, fontWeight: '600', color: colors.muted},
-    statsRow: {flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 10},
     row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
     number: {fontSize: 12, color: colors.muted, fontFamily: 'monospace', fontWeight: '600'},
     name: {fontSize: 15, fontWeight: '600', color: colors.text, marginTop: 3},

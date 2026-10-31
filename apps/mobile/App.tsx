@@ -40,14 +40,15 @@ import {ThemeProvider, useTheme, useThemeStyles} from './src/theme';
 import {PinProvider} from './src/lib/pin-provider';
 import {MobileQueryProvider} from './src/lib/query';
 import {useAppStore} from './src/lib/store';
+import {useNavStore} from './src/lib/nav-store';
 import {loadHapticsEnabled, selectionTick} from './src/lib/haptics';
 import {loadForceTransition} from './src/lib/force-transition';
 import {ToastProvider, useToast, registerToast} from './src/lib/toast';
 import {HomeScreen} from './src/screens/HomeScreen';
 import {ProductsScreen} from './src/screens/ProductsScreen';
-import {SalesScreen} from './src/screens/SalesScreen';
 import {AdvancesScreen} from './src/screens/AdvancesScreen';
 import {MoreScreen} from './src/screens/MoreScreen';
+import {BillingScreen} from './src/screens/BillingScreen';
 
 type Tab = 'home' | 'products' | 'sales' | 'advances' | 'more';
 
@@ -149,6 +150,16 @@ function AppInner() {
   const tab = useAppStore(s => s.activeView) as Tab;
   const setTab = React.useCallback((t: Tab) => useAppStore.getState().setActiveView(t), []);
 
+  // One billing surface: the Sales tab. Leaving it drops any edit target so a
+  // later visit starts on a fresh bill (invoices navigate here to edit).
+  const prevTab = React.useRef(tab);
+  React.useEffect(() => {
+    if (prevTab.current === 'sales' && tab !== 'sales') {
+      useNavStore.getState().clearEditBill();
+    }
+    prevTab.current = tab;
+  }, [tab]);
+
   // Restore persisted preferences before any feedback/animation can fire.
   React.useEffect(() => {
     loadHapticsEnabled().catch(() => {});
@@ -172,7 +183,7 @@ function AppInner() {
             style={styles.screen}>
             {tab === 'home' ? <HomeScreen /> : null}
             {tab === 'products' ? <ProductsScreen /> : null}
-            {tab === 'sales' ? <SalesScreen /> : null}
+            {tab === 'sales' ? <BillingScreen /> : null}
             {tab === 'advances' ? <AdvancesScreen /> : null}
             {tab === 'more' ? <MoreScreen /> : null}
           </Animated.View>

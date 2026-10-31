@@ -93,15 +93,14 @@ export function HomeScreen() {
   const scanningRef = useRef(false);
   const scanQ = useProductByBarcode(scanCode);
 
-  /** Quick sale → stage the product on a new bill, then open More → Billing. */
+  /** Quick sale → stage the product on a new bill, then open the Sales tab. */
   function sendToBill(product: ProductDto) {
     if (product.stock <= 0) {
       errorFeedback(`${product.name} is out of stock`);
       return;
     }
     useAppStore.getState().stageBillProduct(product.id);
-    useNavStore.getState().openMore('billing');
-    useAppStore.getState().setActiveView('more');
+    useAppStore.getState().setActiveView('sales');
     successFeedback(`${product.name} added to a new bill`);
   }
 
@@ -498,8 +497,7 @@ export function HomeScreen() {
             accessibilityLabel="Create new bill or order"
             onPress={() => {
               actionPress();
-              useNavStore.getState().openMore('billing');
-              goTo('more');
+              goTo('sales');
             }}
             style={({pressed}) => [styles.cta, pressed && styles.ctaPressed]}>
             <Plus size={rs(20)} color={palette.onPrimary} strokeWidth={2.6} />

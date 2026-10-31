@@ -40,8 +40,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AnalyticsPeriodFilter,
   toast,
 } from "@munim/ui"
+import {
+  ARTICLE_ANALYTICS_PRESET_LABELS,
+  type ArticleAnalyticsPreset,
+} from "@munim/core"
 import {
   useArticles,
   useArticlesAnalytics,
@@ -66,7 +71,8 @@ type FormState = { mode: "add" } | { mode: "edit"; article: ArticleDto } | null
 
 export function ArticlesView() {
   const articles = useArticles()
-  const analytics = useArticlesAnalytics()
+  const [period, setPeriod] = React.useState<ArticleAnalyticsPreset>("6m")
+  const analytics = useArticlesAnalytics(period)
   const remove = useDeleteArticle()
 
   const setView = useAppStore((s) => s.setActiveView)
@@ -96,6 +102,8 @@ export function ArticlesView() {
   }, [analytics.data])
 
   const detailRow = rows.find((r) => r.articleId === detail) ?? null
+  const periodMeta = ARTICLE_ANALYTICS_PRESET_LABELS[period]
+  const bucketLabel = analytics.data?.period.bucket === "week" ? "Weekly" : "Monthly"
 
   async function confirmDelete() {
     if (!deleting) return
@@ -145,13 +153,13 @@ export function ArticlesView() {
         />
         <Tile
           icon={IndianRupee}
-          label="Revenue · 6 months"
+          label={`Revenue · ${periodMeta.short}`}
           value={formatCurrency(totals.revenue)}
           loading={loading}
         />
         <Tile
           icon={TrendingUp}
-          label="Weight sold · 6 months"
+          label={`Weight sold · ${periodMeta.short}`}
           value={totals.soldWeightGm > 0 ? formatWeight(totals.soldWeightGm) : "—"}
           loading={loading}
         />
@@ -160,14 +168,21 @@ export function ArticlesView() {
       {/* Analytics table */}
       <Card>
         <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="text-base">Article analytics</CardTitle>
               <CardDescription>
-                Last 6 months — {analytics.data?.monthLabels.join(" · ") ?? ""}
+                {periodMeta.label} · {bucketLabel.toLowerCase()} buckets —{" "}
+                {analytics.data?.trendLabels.join(" · ") ?? ""}
               </CardDescription>
             </div>
-            <div className="flex flex-wrap gap-1 rounded-full bg-muted p-1">
+            <AnalyticsPeriodFilter value={period} onChange={setPeriod} />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-muted-foreground text-xs font-medium">Sort by</span>
+            <div className="bg-muted flex flex-wrap gap-1 rounded-full p-1">
               {SORTS.map((s) => (
                 <button
                   key={s.key}
@@ -184,8 +199,6 @@ export function ArticlesView() {
               ))}
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
           {loading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -204,9 +217,9 @@ export function ArticlesView() {
                     <th className="px-1 py-2 font-medium">Article</th>
                     <th className="px-1 py-2 text-right font-medium">Stock</th>
                     <th className="px-1 py-2 text-right font-medium">Stock value</th>
-                    <th className="px-1 py-2 text-right font-medium">Sold (6m)</th>
-                    <th className="px-1 py-2 text-right font-medium">Weight (6m)</th>
-                    <th className="px-1 py-2 text-right font-medium">Revenue (6m)</th>
+                    <th className="px-1 py-2 text-right font-medium">Sold ({periodMeta.short})</th>
+                    <th className="px-1 py-2 text-right font-medium">Weight ({periodMeta.short})</th>
+                    <th className="px-1 py-2 text-right font-medium">Revenue ({periodMeta.short})</th>
                     <th className="px-1 py-2 font-medium">Trend</th>
                     <th className="px-1 py-2" />
                   </tr>
@@ -405,18 +418,18 @@ export function ArticlesView() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <MiniStat label="Products" value={formatNumber(detailRow.productCount)} />
                 <MiniStat label="Stock value" value={formatCurrency(detailRow.stockValue)} />
-                <MiniStat label="Sold (6m)" value={formatNumber(detailRow.soldUnits)} />
+                <MiniStat label={`Sold (${periodMeta.short})`} value={formatNumber(detailRow.soldUnits)} />
                 <MiniStat
-                  label="Revenue (6m)"
+                  label={`Revenue (${periodMeta.short})`}
                   value={formatCurrency(detailRow.revenue)}
                 />
               </div>
               <div>
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Monthly revenue
+                  {bucketLabel} revenue
                 </p>
                 <MonthlySalesChart
-                  data={(analytics.data?.monthLabels ?? []).map((m, i) => ({
+                  data={(analytics.data?.trendLabels ?? []).map((m, i) => ({
                     month: m,
                     revenue: detailRow.trend[i] ?? 0,
                     orders: 0,
