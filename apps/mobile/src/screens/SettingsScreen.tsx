@@ -21,7 +21,7 @@ import {
   type SampleBillKind,
 } from '@munim/core';
 import {savePdf} from '../lib/save-pdf';
-import {Badge, Button, Card, Field, LabourField, Loading, ModalSheet, Screen, Section, colors} from '../components/ui';
+import {Badge, Button, Card, Field, LabourField, Loading, ModalSheet, Screen, Section, SegmentedTabs, colors} from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {ThemeToggleButton} from '../components/theme-toggle';
 import {
@@ -38,10 +38,21 @@ import {
 import {useTheme, useThemeStyles} from '../theme';
 import {usePinLock} from '../lib/pin-provider';
 
+type SettingsGroup = 'profile' | 'rates' | 'bills' | 'appearance';
+
+const SETTINGS_GROUPS: {key: SettingsGroup; label: string}[] = [
+  {key: 'profile', label: 'Profile'},
+  {key: 'rates', label: 'Rates & Metal'},
+  {key: 'bills', label: 'Bill Formats'},
+  {key: 'appearance', label: 'Appearance'},
+];
+
 export function SettingsScreen() {
   const styles = useThemeStyles(makeStyles);
   const {mode, toggle, themeName, setThemeName} = useTheme();
   const pin = usePinLock();
+  /** Grouped settings — one section group visible at a time. */
+  const [group, setGroup] = useState<SettingsGroup>('profile');
   const [pinCurrent, setPinCurrent] = useState('');
   const [pinNew, setPinNew] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
@@ -464,6 +475,12 @@ export function SettingsScreen() {
     ]);
   }
 
+  function changeGroup(next: SettingsGroup) {
+    selectionTick();
+    setGroup(next);
+    scrollRef.current?.scrollTo({y: 0, animated: false});
+  }
+
   if (settings && !shopLoaded) {
     return <Loading />;
   }
@@ -471,8 +488,16 @@ export function SettingsScreen() {
   return (
     <Screen>
       <KeyboardAvoidingView style={{flex: 1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}} {...headerScrollHandlers}>
+      <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 90}} {...headerScrollHandlers}>
       <HomeHeader title="Settings" />
+      <SegmentedTabs<SettingsGroup>
+        options={SETTINGS_GROUPS}
+        value={group}
+        onChange={changeGroup}
+        style={styles.groupTabs}
+      />
+      {group === 'profile' ? (
+        <>
       {urlLoaded && !url.trim() ? (
         <Pressable
           onPress={() => scrollRef.current?.scrollTo({y: dbSectionY.current, animated: true})}
@@ -506,6 +531,39 @@ export function SettingsScreen() {
         </View>
         <Button title={savingShop ? 'Saving…' : 'Save shop profile'} onPress={handleSaveShop} loading={savingShop} />
       </Card>
+      <View
+        onLayout={e => {
+          dbSectionY.current = e.nativeEvent.layout.y;
+        }}>
+        <Section title="Server" index={3} />
+        <Card index={1}>
+          <Text style={{fontSize: 13, color: colors.muted, lineHeight: 19, marginBottom: 12}}>
+            This app talks to the shared Munim API server — the same one web & desktop use. Paste the
+            server URL below — the API key is optional when EXPO_PUBLIC_API_KEY is baked into the build.
+          </Text>
+          <Field
+            label="API server URL"
+            value={url}
+            onChangeText={setUrl}
+            placeholder="https://api.munim.app"
+          />
+          <Field
+            label="API key (optional)"
+            value={apiKey}
+            onChangeText={setApiKey}
+            placeholder="Saved on this device only"
+            secureTextEntry
+          />
+          <View style={{flexDirection: 'row', gap: 10, marginTop: 4}}>
+            <Button title="Test" variant="outline" onPress={handleTest} style={{flex: 1}} />
+            <Button title="Save connection" onPress={() => void handleSaveConnection()} style={{flex: 1}} />
+          </View>
+        </Card>
+      </View>
+        </>
+      ) : null}
+      {group === 'rates' ? (
+        <>
       <Section title="Rates & labour" index={2} />
       <Card index={1}>
         <Text style={styles.switchLabel}>Dynamic pricing — gold &amp; silver</Text>
@@ -590,6 +648,10 @@ export function SettingsScreen() {
           onPress={handleSyncPrices}
         />
       </Card>
+        </>
+      ) : null}
+      {group === 'bills' ? (
+        <>
       <Section title="Bills" index={1} />
       <Card index={1}>
         <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 8}}>
@@ -618,6 +680,10 @@ export function SettingsScreen() {
           />
         </View>
       </Card>
+        </>
+      ) : null}
+      {group === 'appearance' ? (
+        <>
       <Section title="Appearance" index={1} />
       <Card index={1}>
         <View
@@ -866,35 +932,8 @@ export function SettingsScreen() {
           </>
         )}
       </Card>
-      <View
-        onLayout={e => {
-          dbSectionY.current = e.nativeEvent.layout.y;
-        }}>
-      <Section title="Server" index={3} />
-      <Card index={1}>
-        <Text style={{fontSize: 13, color: colors.muted, lineHeight: 19, marginBottom: 12}}>
-          This app talks to the shared Munim API server — the same one web & desktop use. Paste the
-          server URL below — the API key is optional when EXPO_PUBLIC_API_KEY is baked into the build.
-        </Text>
-        <Field
-          label="API server URL"
-          value={url}
-          onChangeText={setUrl}
-          placeholder="https://api.munim.app"
-        />
-        <Field
-          label="API key (optional)"
-          value={apiKey}
-          onChangeText={setApiKey}
-          placeholder="Saved on this device only"
-          secureTextEntry
-        />
-        <View style={{flexDirection: 'row', gap: 10, marginTop: 4}}>
-          <Button title="Test" variant="outline" onPress={handleTest} style={{flex: 1}} />
-          <Button title="Save connection" onPress={() => void handleSaveConnection()} style={{flex: 1}} />
-        </View>
-      </Card>
-      </View>
+        </>
+      ) : null}
       </ScrollView>
       </KeyboardAvoidingView>
 
@@ -997,6 +1036,11 @@ export function SettingsScreen() {
 /** Theme-aware — rebuilt on palette change (banner + swatch labels). */
 const makeStyles = () =>
   StyleSheet.create({
+  groupTabs: {
+    marginHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 4,
+  },
   dbBanner: {
     backgroundColor: colors.warningSoft,
     borderRadius: 12,

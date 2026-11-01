@@ -23,6 +23,7 @@ import {
   buildBillDocument,
   dashboardPresetRange,
   formatDate,
+  groupWeightByDay,
   mergeBillTemplateSettings,
   type BillShopDetails,
   type DashboardPeriod,
@@ -34,7 +35,7 @@ import { money, formatWeight, monthLabelToDate } from "@/lib/format";
 import { downloadBillPdf } from "@/lib/billPdf";
 import { navigate } from "@/lib/navigation";
 import { PageHeader } from "@/components/page-header";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@munim/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Input, Skeleton, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, toast } from "@munim/ui";
 import { AreaChart, Area } from "@/components/charts/area-chart";
 import { LineChart, Line } from "@/components/charts/line-chart";
 import RadarChart from "@/components/charts/radar-chart";
@@ -57,6 +58,8 @@ function StatCard({
   valueClass,
   progress,
   progressClass,
+  onClick,
+  actionLabel,
 }: {
   label: string;
   value: string;
@@ -66,31 +69,52 @@ function StatCard({
   /** Optional progress meter (0..1) shown under the value (Stock Alert tile). */
   progress?: number;
   progressClass?: string;
+  /** Makes the whole tile a button. */
+  onClick?: () => void;
+  /** Tiny affordance shown under the sub line when `onClick` is set. */
+  actionLabel?: string;
 }) {
+  const card = (
+    <Card className={`transition-shadow hover:shadow-md ${onClick ? "hover:border-primary/40 h-full" : ""}`}>
+      <CardContent className="flex items-start justify-between p-4">
+        <div className="min-w-0">
+          <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">{label}</p>
+          <p className={`mt-1 text-2xl font-bold tracking-tight ${valueClass ?? ""}`}>{value}</p>
+          {sub ? <p className="text-muted-foreground mt-1 text-xs">{sub}</p> : null}
+          {onClick && actionLabel ? (
+            <p className="text-primary mt-1 text-xs font-medium">{actionLabel} →</p>
+          ) : null}
+          {progress != null ? (
+            <div className="bg-muted mt-2 h-1.5 w-full overflow-hidden rounded-full">
+              <div className={`h-full rounded-full ${progressClass ?? "bg-primary"}`} style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }} />
+            </div>
+          ) : null}
+        </div>
+        <div className="bg-primary/10 text-primary rounded-lg p-2">
+          <Icon className="h-5 w-5" />
+        </div>
+      </CardContent>
+    </Card>
+  );
   return (
     <m.div
       initial={{ opacity: 0, y: 14, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 240, damping: 22, mass: 0.8 }}
       whileHover={{ y: -3 }}
+      className={onClick ? "h-full" : undefined}
     >
-      <Card className="transition-shadow hover:shadow-md">
-        <CardContent className="flex items-start justify-between p-4">
-          <div className="min-w-0">
-            <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">{label}</p>
-            <p className={`mt-1 text-2xl font-bold tracking-tight ${valueClass ?? ""}`}>{value}</p>
-            {sub ? <p className="text-muted-foreground mt-1 text-xs">{sub}</p> : null}
-            {progress != null ? (
-              <div className="bg-muted mt-2 h-1.5 w-full overflow-hidden rounded-full">
-                <div className={`h-full rounded-full ${progressClass ?? "bg-primary"}`} style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }} />
-              </div>
-            ) : null}
-          </div>
-          <div className="bg-primary/10 text-primary rounded-lg p-2">
-            <Icon className="h-5 w-5" />
-          </div>
-        </CardContent>
-      </Card>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className="focus-visible:ring-ring block h-full w-full rounded-xl text-left focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+        >
+          {card}
+        </button>
+      ) : (
+        card
+      )}
     </m.div>
   );
 }
@@ -197,6 +221,7 @@ export function DashboardPage() {
   const { data: goldRates } = useQueryState(useGoldRates());
   const [trajMode, setTrajMode] = useState<"revenue" | "orders">("revenue");
   const [radarHovered, setRadarHovered] = useState<number | null>(null);
+  const [weightOpen, setWeightOpen] = useState(false);
 
   // Recent settlement invoices — paged straight from the shared list API.
   const [page, setPage] = useState(1);
@@ -211,6 +236,12 @@ export function DashboardPage() {
     for (const p of productsData?.products ?? []) map.set(p.sku, p.imageUrl);
     return map;
   }, [productsData]);
+
+  // Day × product rows behind the "Weight sold" tile (shared grouping).
+  const weightDays = useMemo(
+    () => groupWeightByDay(data?.period.weightBreakdown ?? []),
+    [data],
+  );
 
   const shop: BillShopDetails | null = settings
     ? { name: settings.shopName, address: settings.shopAddress, phones: Array.isArray(settings.shopPhones) ? settings.shopPhones : [], email: settings.shopEmail }
@@ -399,6 +430,8 @@ export function DashboardPage() {
               value={data.period.weightSoldGm > 0 ? formatWeight(data.period.weightSoldGm) : "—"}
               sub="Line weights from the bills"
               icon={Scale}
+              onClick={() => setWeightOpen(true)}
+              actionLabel="View products"
             />
             <StatCard
               label="Material received"
@@ -771,6 +804,60 @@ export function DashboardPage() {
           </Card>
         ) : null}
       </div>
+
+      {/* Weight sold drill-down — which product moved how much weight, per day */}
+      <Dialog open={weightOpen} onOpenChange={setWeightOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Scale className="text-primary h-4 w-4" /> Weight sold
+            </DialogTitle>
+            <DialogDescription>
+              {activeChipLabel} · {formatWeight(data.period.weightSoldGm)} across{" "}
+              {weightDays.length} {weightDays.length === 1 ? "day" : "days"}
+            </DialogDescription>
+          </DialogHeader>
+          {weightDays.length === 0 ? (
+            <div className="rounded-lg border border-dashed px-4 py-10 text-center">
+              <Scale className="text-muted-foreground mx-auto h-6 w-6" />
+              <p className="mt-2 text-sm font-medium">No weight sold in this period</p>
+              <p className="text-muted-foreground text-xs">Bills with weighted items will show their products here.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {weightDays.map((day) => (
+                <div key={day.day} className="space-y-1">
+                  <div className="bg-muted/60 flex items-center justify-between gap-2 rounded-lg px-3 py-2">
+                    <span className="text-sm font-semibold">{day.label}</span>
+                    <span className="text-muted-foreground text-xs tabular-nums">
+                      {formatWeight(day.totalWeightGm)} · {day.totalQuantity} pcs
+                    </span>
+                  </div>
+                  <div className="divide-y">
+                    {day.products.map((product, i) => (
+                      <div
+                        key={`${day.day}-${product.sku ?? product.productName}-${i}`}
+                        className="flex items-center justify-between gap-3 px-1 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{product.productName}</p>
+                          <p className="text-muted-foreground text-xs">
+                            {product.sku ? `${product.sku} · ` : ""}
+                            {product.quantity} pcs
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums">
+                          {formatWeight(product.weightGm)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

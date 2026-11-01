@@ -234,9 +234,10 @@ export const invoiceSchema = z.object({
       weightAfterName: z.boolean().default(true),
       goldRateLine: z.boolean().default(true),
       silverRateLine: z.boolean().default(true),
-      // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag:
-      // 0.200 −". Default ON (client's ask); old snapshots parse to true.
-      signSuffix: z.boolean().default(true),
+      // Legacy N/C signs flag. The N/C column always prints signed grams
+      // now; the field stays (optional) so old invoice snapshots still
+      // parse — no payload builder needs to send it.
+      signSuffix: z.boolean().optional(),
       // Purity line under the gold rate row — omitted by older snapshots /
       // payload builders → undefined, and mergeBillTemplateSettings lands
       // on "base" (legacy base-karat line). `.optional()` (NOT `.default`)

@@ -266,13 +266,13 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
 
   const estNum = (v: number, dp: number): string => v.toFixed(dp);
 
-  // Client's column order, with the MERGED Chejat/Nag column and per-bill
-  // column toggles (settings.hiddenColumns). Gold bills: Description |
-  // Purity | G. Wt. | Chejat/Nag | Rate ₹/gm | Labour | Other Charges |
-  // Amount — Chejat/Nag itemizes the two gold net-weight derivation inputs
-  // (net = gross − nag + chejat) with prefixes, exactly like "Other Charges"
-  // itemizes the frozen charges (never summed on a line; the totals row adds
-  // them once). Silver-only bills show ONE combined Weight column instead.
+  // Client's column order, with the MERGED N/C column and per-bill column
+  // toggles (settings.hiddenColumns). Gold bills: Description | Purity |
+  // G. Wt. | N/C | Rate ₹/gm | Labour | Other Charges | Amount — N/C
+  // itemizes the two gold net-weight derivation inputs (net = gross − nag +
+  // chejat) as signed grams (`+0.150` / `-0.620`), never summed on a line;
+  // the totals row adds them once. Silver-only bills show ONE combined
+  // Weight column instead.
   // Switched-off columns drop out and the freed width goes to Description
   // (else the last visible column) so the grid always totals 100%.
   const split = estimateWeightLayout(bill) === "split";
@@ -288,7 +288,7 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
         { id: "purity", w: 6, header: "Remark" },
         { id: "weight", w: 6.5, header: "G. Wt." },
         { id: "netWeight", w: 6.5, header: "N. Wt." },
-        { id: "chejatNag", w: 13, header: "Chejat/Nag" },
+        { id: "chejatNag", w: 8, header: "N/C" },
         { id: "rate", w: 8, header: "Rate ₹/gm" },
         { id: "labour", w: 13, header: "Labour" },
         { id: "otherCharges", w: 13.5, header: "Other Charges" },
@@ -317,9 +317,9 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
     .map((l) => {
       const est = estimateRowOf(l);
       const labourText = est.labour != null ? `${estNum(est.labour, 2)}${estimateLabourTag(l)}` : "-";
-      // Itemized cell lines — merged Chejat/Nag ("Chejat: 0.150 +" / "Nag:
-      // 0.620 −") and Other Charges ("Nag: 500.00" / "Povayi: …" / "Other: …").
-      const weightLines = estimateWeightLines(l, s.signSuffix);
+      // Itemized cell lines — merged N/C ("+0.150" / "-0.620") and Other
+      // Charges ("Nag: 500.00" / "Povayi: …" / "Other: …").
+      const weightLines = estimateWeightLines(l);
       const chargeLines = estimateChargeLines(est.charges);
       return `<tr>${cols
         .map((c) => {
@@ -371,11 +371,11 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
   const chargeTotals = bill.lines.map((l) => estimateChargesTotal(estimateRowOf(l).charges));
   const hasOtherCharges = chargeTotals.some((v) => v > 0);
   const sumOtherCharges = chargeTotals.reduce((t, v) => t + v, 0);
-  // Merged Chejat/Nag totals cell stacks its prefixed sums (like row cells).
+  // Merged N/C totals cell stacks its signed sums (like row cells).
   const hasCnCol = cols.some((c) => c.id === "chejatNag");
   const cnTotals: string[] = [];
-  if (hasCnCol && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}${s.signSuffix ? " +" : ""}`);
-  if (hasCnCol && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${s.signSuffix ? " -" : ""}`);
+  if (hasCnCol && hasChejat) cnTotals.push(`+${estNum(sumChejat, 3)}`);
+  if (hasCnCol && hasNag) cnTotals.push(`-${estNum(sumNag, 3)}`);
   const sumNet = cols.some((c) => c.id === "netWeight") ? estimateNetWeightTotal(bill.lines) : null;
 
   const adjRows: string[] = [];

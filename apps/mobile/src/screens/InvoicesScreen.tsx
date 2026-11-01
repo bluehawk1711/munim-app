@@ -40,6 +40,7 @@ import {
   Loading,
   ModalSheet,
   Screen,
+  SegmentedTabs,
   colors,
 } from '../components/ui';
 import {AnalyticsSheet} from '../components/analytics-sheet';
@@ -149,6 +150,16 @@ export function InvoicesScreen() {
       collected: acc.collected + inv.amountPaid,
     }),
     {total: 0, unpaid: 0, collected: 0},
+  );
+
+  /** Page-scoped status counts — the same slice the snapshot tiles describe. */
+  const statusCounts = STATUS_CHIPS.reduce<Record<StatusFilter, number>>(
+    (acc, chip) => {
+      acc[chip.key] =
+        chip.key === 'all' ? invoices.length : invoices.filter(inv => inv.status === chip.key).length;
+      return acc;
+    },
+    {all: 0, PAID: 0, PARTIAL: 0, UNPAID: 0, DRAFT: 0},
   );
 
   function openPayment(inv: InvoiceDto) {
@@ -281,7 +292,43 @@ export function InvoicesScreen() {
         style={loading && invoices.length > 0 ? {opacity: 0.55} : null}
         ListHeaderComponent={
           <View>
-            {/* Active filters — search + status live in the header sheet */}
+            {/* Page snapshot — honest scope: only the bills loaded right now. */}
+            <View style={styles.snapshotRow}>
+              <View style={styles.snapshotTile}>
+                <Text style={styles.snapshotLabel}>Page billed</Text>
+                <Text style={styles.snapshotValue} numberOfLines={1} adjustsFontSizeToFit>
+                  {money(summary.total)}
+                </Text>
+              </View>
+              <View style={styles.snapshotTile}>
+                <Text style={styles.snapshotLabel}>Unpaid</Text>
+                <Text style={[styles.snapshotValue, {color: colors.warning}]} numberOfLines={1} adjustsFontSizeToFit>
+                  {money(summary.unpaid)}
+                </Text>
+              </View>
+              <View style={styles.snapshotTile}>
+                <Text style={styles.snapshotLabel}>Collected</Text>
+                <Text style={[styles.snapshotValue, {color: colors.success}]} numberOfLines={1} adjustsFontSizeToFit>
+                  {money(summary.collected)}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.snapshotHint}>
+              {`This page (${invoices.length} of ${totalCount}) · filter to narrow`}
+            </Text>
+
+            {/* Visible status tabs — counts are page counts, like the tiles. */}
+            <SegmentedTabs<StatusFilter>
+              options={STATUS_CHIPS.map(chip => ({
+                key: chip.key,
+                label: chip.label,
+                count: statusCounts[chip.key],
+              }))}
+              value={status}
+              onChange={setStatusFilter}
+              style={styles.statusTabs}
+            />
+
             <View style={styles.filterSummary}>
               <View style={{flex: 1}}>
                 <Text style={styles.filterSummaryText} numberOfLines={1}>
@@ -290,7 +337,7 @@ export function InvoicesScreen() {
                     : 'All bills'}
                 </Text>
                 <Text style={styles.filterSummaryHint}>
-                  {`${totalCount} result${totalCount === 1 ? '' : 's'}`}
+                  {`${totalCount} result${totalCount === 1 ? '' : 's'} · ${statusLabel} status`}
                 </Text>
               </View>
               {filtersActive ? (
@@ -299,7 +346,7 @@ export function InvoicesScreen() {
                 </Pressable>
               ) : (
                 <Pressable onPress={() => setFiltersOpen(true)} hitSlop={8}>
-                  <Text style={styles.filterClear}>Search & filter</Text>
+                  <Text style={styles.filterClear}>Search</Text>
                 </Pressable>
               )}
             </View>
@@ -320,65 +367,73 @@ export function InvoicesScreen() {
           const exportingThis = exporting?.id === item.id;
           return (
             <Card index={index}>
-              <View style={styles.row}>
-                <View style={{flex: 1}}>
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 8}}>
+              <View style={styles.cardHead}>
+                <View style={{flex: 1, minWidth: 0}}>
+                  <View style={styles.cardHeadTop}>
                     <Text style={styles.number}>{item.invoiceNumber}</Text>
                     <Badge text={item.status} tone={badgeTone(item.status)} />
                   </View>
-                  <Text style={styles.name}>{item.customerName ?? 'Walk-in customer'}</Text>
-                  <Text style={styles.meta}>
+                  <Text style={styles.name} numberOfLines={1}>
+                    {item.customerName ?? 'Walk-in customer'}
+                  </Text>
+                  <Text style={styles.meta} numberOfLines={1}>
                     {formatDate(item.date)} · {item.items.length} item
                     {item.items.length !== 1 ? 's' : ''}
                     {item.items[0]?.productName ? ` · ${item.items[0].productName}` : ''}
                   </Text>
                 </View>
-                <View style={{alignItems: 'flex-end', gap: 6, marginTop: 2}}>
-                  <Text style={styles.total}>{money(item.total)}</Text>
+                <Text style={styles.total}>{money(item.total)}</Text>
+              </View>
+              <View style={styles.cardPayRow}>
+                <View style={{flex: 1}}>
                   {/* Orders-style money line — Paid ₹5,000/- · ₹7,200/- due,
                       or the green tick once fully settled. */}
                   <PaymentLine total={item.total} amountPaid={item.amountPaid} />
-                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                    <Pressable
-                      onPress={() => openEdit(item)}
-                      hitSlop={8}
-                      style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}]}
-                      accessibilityLabel={`Edit ${item.invoiceNumber}`}>
-                      <Pencil size={16} color={colors.primary} />
-                    </Pressable>
-                    <Pressable
-                      onPress={() => handleExportInvoice(item)}
-                      hitSlop={8}
-                      disabled={exportingThis}
-                      style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}, exportingThis && {opacity: 0.4}]}
-                      accessibilityLabel={`Share ${item.invoiceNumber}`}>
-                      <Share2 size={16} color={colors.primary} />
-                    </Pressable>
-                    {item.amountPaid > 0 ? (
-                      <Pressable
-                        onPress={() => setPayHistory(item)}
-                        hitSlop={8}
-                        style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}]}
-                        accessibilityLabel={`Payment history for ${item.invoiceNumber}`}>
-                        <History size={16} color={colors.primary} />
-                      </Pressable>
-                    ) : null}
-                    <Button
-                      title="Pay"
-                      variant="outline"
-                      disabled={outstanding <= 0}
-                      onPress={() => openPayment(item)}
-                      style={{paddingVertical: 6, paddingHorizontal: 12}}
-                    />
-                    <Pressable
-                      onPress={() => setDeleting(item)}
-                      hitSlop={8}
-                      style={({pressed}) => [styles.deleteBtn, pressed && {opacity: 0.5}]}
-                      accessibilityLabel={`Delete ${item.invoiceNumber}`}>
-                      <Trash2 size={16} color={colors.danger} />
-                    </Pressable>
-                  </View>
                 </View>
+                {outstanding > 0 ? (
+                  <Text style={styles.duePill}>{`Unpaid ${money(outstanding)}`}</Text>
+                ) : null}
+              </View>
+              <View style={styles.cardActions}>
+                <Pressable
+                  onPress={() => openEdit(item)}
+                  hitSlop={8}
+                  style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}]}
+                  accessibilityLabel={`Edit ${item.invoiceNumber}`}>
+                  <Pencil size={16} color={colors.primary} />
+                </Pressable>
+                <Pressable
+                  onPress={() => handleExportInvoice(item)}
+                  hitSlop={8}
+                  disabled={exportingThis}
+                  style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}, exportingThis && {opacity: 0.4}]}
+                  accessibilityLabel={`Share ${item.invoiceNumber}`}>
+                  <Share2 size={16} color={colors.primary} />
+                </Pressable>
+                {item.amountPaid > 0 ? (
+                  <Pressable
+                    onPress={() => setPayHistory(item)}
+                    hitSlop={8}
+                    style={({pressed}) => [styles.exportBtn, pressed && {opacity: 0.5}]}
+                    accessibilityLabel={`Payment history for ${item.invoiceNumber}`}>
+                    <History size={16} color={colors.primary} />
+                  </Pressable>
+                ) : null}
+                <View style={{flex: 1}} />
+                <Button
+                  title="Pay"
+                  variant="outline"
+                  disabled={outstanding <= 0}
+                  onPress={() => openPayment(item)}
+                  style={{paddingVertical: 6, paddingHorizontal: 16}}
+                />
+                <Pressable
+                  onPress={() => setDeleting(item)}
+                  hitSlop={8}
+                  style={({pressed}) => [styles.deleteBtn, pressed && {opacity: 0.5}]}
+                  accessibilityLabel={`Delete ${item.invoiceNumber}`}>
+                  <Trash2 size={16} color={colors.danger} />
+                </Pressable>
               </View>
             </Card>
           );
@@ -421,10 +476,10 @@ export function InvoicesScreen() {
         ]}
       />
 
-      {/* Filter sheet — search + every bill status in one place */}
+      {/* Filter sheet — search lives here; status has its own visible row above */}
       <ModalSheet
         visible={filtersOpen}
-        title="Filter bills"
+        title="Search bills"
         onClose={() => setFiltersOpen(false)}
         dismissable>
         <View style={styles.searchBox}>
@@ -443,30 +498,6 @@ export function InvoicesScreen() {
               <Text style={styles.filterClear}>Clear</Text>
             </Pressable>
           ) : null}
-        </View>
-        <Text style={styles.filterLabel}>Status</Text>
-        <View style={styles.statusChipWrap}>
-          {STATUS_CHIPS.map(chip => {
-            const active = status === chip.key;
-            return (
-              <Pressable
-                key={chip.key}
-                accessibilityRole="button"
-                accessibilityState={{selected: active}}
-                onPress={() => {
-                  selectionTick();
-                  setStatusFilter(chip.key);
-                }}
-                style={[
-                  styles.chip,
-                  active && {backgroundColor: colors.primary, borderColor: colors.primary},
-                ]}>
-                <Text style={[styles.chipText, active && {color: colors.onPrimary}]}>
-                  {chip.label}
-                </Text>
-              </Pressable>
-            );
-          })}
         </View>
         <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
           <Button title="Clear all" variant="outline" style={{flex: 1}} onPress={clearFilters} />
@@ -614,6 +645,26 @@ export function InvoicesScreen() {
 
 const makeStyles = () =>
   StyleSheet.create({
+    /** Page-scoped snapshot tiles (billed / unpaid / collected). */
+    snapshotRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginHorizontal: 16,
+      marginBottom: 6,
+    },
+    snapshotTile: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    snapshotLabel: {fontSize: 10, fontWeight: '600', color: colors.muted, textTransform: 'uppercase'},
+    snapshotValue: {fontSize: 14, fontWeight: '800', color: colors.text, marginTop: 3},
+    snapshotHint: {fontSize: 10, color: colors.muted, marginHorizontal: 16, marginBottom: 6},
+    statusTabs: {marginBottom: 8},
     filterSummary: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -630,8 +681,6 @@ const makeStyles = () =>
     filterSummaryText: {fontSize: 13, fontWeight: '700', color: colors.text},
     filterSummaryHint: {fontSize: 11, color: colors.muted, marginTop: 1},
     filterClear: {fontSize: 12, fontWeight: '700', color: colors.primary},
-    filterLabel: {fontSize: 12, fontWeight: '700', color: colors.muted, marginBottom: 8},
-    statusChipWrap: {flexDirection: 'row', flexWrap: 'wrap', gap: 8},
     searchBox: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -643,16 +692,34 @@ const makeStyles = () =>
       paddingHorizontal: 12,
     },
     searchInput: {flex: 1, paddingVertical: 10, fontSize: 14, color: colors.text},
-    chip: {
-      paddingHorizontal: 14,
-      paddingVertical: 7,
-      borderRadius: 999,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-    },
-    chipText: {fontSize: 12, fontWeight: '600', color: colors.muted},
     row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
+    cardHead: {flexDirection: 'row', alignItems: 'flex-start', gap: 10},
+    cardHeadTop: {flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap'},
+    cardPayRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 8,
+      paddingTop: 8,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    duePill: {
+      fontSize: 10,
+      fontWeight: '700' as const,
+      color: colors.warning,
+      backgroundColor: colors.warningSoft,
+      borderRadius: 999,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      overflow: 'hidden' as const,
+    },
+    cardActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 10,
+    },
     number: {fontSize: 12, color: colors.muted, fontFamily: 'monospace', fontWeight: '600'},
     name: {fontSize: 15, fontWeight: '600', color: colors.text, marginTop: 3},
     meta: {fontSize: 11, color: colors.muted, marginTop: 2},

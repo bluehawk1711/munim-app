@@ -50,11 +50,66 @@ export type DashboardPeriodKpis = {
   /** Weight sold in the period, GRAMS — line-level frozen pricing.weightGm
    *  (per unit × quantity) with the line's weight snapshot as fallback. */
   weightSoldGm: number;
+  /** Per-day × product weight rows behind `weightSoldGm` — the clickable
+   *  "Weight sold" drill-down on all three dashboards. */
+  weightBreakdown: WeightBreakdownRow[];
   /** Old material handed in by customers — parsed gram sum. */
   materialReceivedGm: number;
   /** Its assessed value (₹). */
   materialReceivedValue: number;
 };
+
+/** One day × product weight row from the dashboard period query. */
+export type WeightBreakdownRow = {
+  /** yyyy-mm-dd — grouped on `invoices.createdAt`, the same basis the period
+   *  chips filter on (backdated bills group by creation day, not the
+   *  printed date; do NOT switch one side to `invoices.date`). */
+  day: string;
+  productName: string;
+  sku: string | null;
+  weightGm: number;
+  quantity: number;
+};
+
+/** One day of the weight drill-down, with its products sorted heaviest first. */
+export type WeightBreakdownDay = {
+  day: string;
+  /** Human label, e.g. "Fri, 31 Oct". */
+  label: string;
+  totalWeightGm: number;
+  totalQuantity: number;
+  products: WeightBreakdownRow[];
+};
+
+/**
+ * Groups flat day × product weight rows into day sections — days descending
+ * (latest first), products heaviest first. Shared by web, desktop and mobile
+ * so every dashboard renders the same drill-down.
+ */
+export function groupWeightByDay(rows: readonly WeightBreakdownRow[]): WeightBreakdownDay[] {
+  const days = new Map<string, WeightBreakdownRow[]>();
+  for (const row of rows) {
+    const list = days.get(row.day);
+    if (list) list.push(row);
+    else days.set(row.day, [row]);
+  }
+  const round2 = (value: number): number => Math.round((value + Number.EPSILON) * 100) / 100;
+  return [...days.entries()]
+    .sort(([a], [b]) => (a < b ? 1 : a > b ? -1 : 0))
+    .map(([day, products]) => {
+      const sorted = [...products].sort((a, b) => b.weightGm - a.weightGm);
+      const parsed = new Date(`${day}T00:00:00`);
+      return {
+        day,
+        label: Number.isNaN(parsed.getTime())
+          ? day
+          : parsed.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" }),
+        totalWeightGm: round2(sorted.reduce((sum, p) => sum + p.weightGm, 0)),
+        totalQuantity: sorted.reduce((sum, p) => sum + p.quantity, 0),
+        products: sorted,
+      };
+    });
+}
 
 export type DashboardStats = {
   totalProducts: number;
@@ -222,8 +277,15 @@ export async function getDashboard(db: DbClient, period?: DashboardPeriod): Prom
   // ── Period KPIs (dashboard chips: Today / This week / This month / Custom)
   // Weight sold prefers the LINE's frozen pricing.weightGm (per unit × qty),
   // falling back to the line's weight snapshot — never the CURRENT product
-  // weight, which may have changed since the sale.
-  const [periodSales, periodWeight, materialRows] = await Promise.all([
+  // weight, which may have changed since the sale. The SAME weighted sum is
+  // grouped per day × product so the "Weight sold" tile and its drill-down
+  // can never disagree.
+  const weightExpr = sql`coalesce(
+    (${schema.invoiceItems.pricing} ->> 'weightGm')::float8,
+    case when ${schema.invoiceItems.weightUnit} = 'mg' then ${schema.invoiceItems.weight} / 1000.0
+         else ${schema.invoiceItems.weight} end
+  ) * ${schema.invoiceItems.quantity}`;
+  const [periodSales, periodWeightRows, materialRows] = await Promise.all([
     db
       .select({
         revenue: sql<number>`coalesce(sum(${schema.invoices.total}),0)::float8`,
@@ -233,15 +295,22 @@ export async function getDashboard(db: DbClient, period?: DashboardPeriod): Prom
       .where(periodWhere),
     db
       .select({
-        weightGm: sql<number>`coalesce(sum(coalesce(
-          (${schema.invoiceItems.pricing} ->> 'weightGm')::float8,
-          case when ${schema.invoiceItems.weightUnit} = 'mg' then ${schema.invoiceItems.weight} / 1000.0
-               else ${schema.invoiceItems.weight} end
-        ) * ${schema.invoiceItems.quantity}), 0)::float8`,
+        day: sql<string>`to_char(${schema.invoices.createdAt}, 'YYYY-MM-DD')`.as("day"),
+        productName: schema.invoiceItems.productName,
+        sku: schema.invoiceItems.sku,
+        weightGm: sql<number>`coalesce(sum(${weightExpr}), 0)::float8`.as("weight_gm"),
+        quantity: sql<number>`coalesce(sum(${schema.invoiceItems.quantity}), 0)::float8`.as("quantity"),
       })
       .from(schema.invoiceItems)
       .innerJoin(schema.invoices, eq(schema.invoices.id, schema.invoiceItems.invoiceId))
-      .where(periodWhere),
+      .where(periodWhere)
+      .groupBy(
+        sql`to_char(${schema.invoices.createdAt}, 'YYYY-MM-DD')`,
+        schema.invoiceItems.productId,
+        schema.invoiceItems.productName,
+        schema.invoiceItems.sku,
+      )
+      .orderBy(sql`1`, desc(sql`coalesce(sum(${weightExpr}), 0)`)),
     db
       .select({
         weight: schema.invoices.materialReturnedWeight,
@@ -256,12 +325,22 @@ export async function getDashboard(db: DbClient, period?: DashboardPeriod): Prom
       ),
   ]);
 
+  const weightBreakdown: WeightBreakdownRow[] = periodWeightRows.map((r) => ({
+    day: r.day,
+    productName: r.productName,
+    sku: r.sku,
+    weightGm: Math.round((r.weightGm + Number.EPSILON) * 100) / 100,
+    quantity: r.quantity,
+  }));
+
   const periodKpis: DashboardPeriodKpis = {
     from: periodFrom ? periodFrom.toISOString() : null,
     to: periodTo ? periodTo.toISOString() : null,
     revenue: periodSales[0]?.revenue ?? 0,
     invoicesCount: periodSales[0]?.count ?? 0,
-    weightSoldGm: periodWeight[0]?.weightGm ?? 0,
+    weightSoldGm:
+      Math.round((weightBreakdown.reduce((s, r) => s + r.weightGm, 0) + Number.EPSILON) * 100) / 100,
+    weightBreakdown,
     materialReceivedGm:
       Math.round(materialRows.reduce((s, r) => s + materialWeightGm(r.weight), 0) * 100) / 100,
     materialReceivedValue:

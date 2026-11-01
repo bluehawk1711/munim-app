@@ -50,10 +50,10 @@ type LineItem = {
   /** Gross-weight free text — bill G.Wt. column + gold's net-weight basis. */
   grossWeight?: string
   /** Bill line's nag-less weight in GRAMS (gold net-weight derivation input:
-   *  net = gross − nag + chejat) — the printed Nag Wt. column. */
+   *  net = gross − nag + chejat) — printed as a signed N/C line. */
   nagLessWeight: string
   /** Bill line's chejat (stone) weight in GRAMS — the other derivation
-   *  input + the printed Chejat Wt. column. */
+   *  input; printed as a signed N/C line. */
   chejatWeight: string
   quantity: number
   price: number
@@ -215,8 +215,6 @@ export function BillingView() {
   const [weightAfterName, setWeightAfterName] = React.useState(true)
   const [goldRateLine, setGoldRateLine] = React.useState(true)
   const [silverRateLine, setSilverRateLine] = React.useState(true)
-  // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
-  const [signSuffix, setSignSuffix] = React.useState(true)
   // Purity line under the gold rate row — shop base / this bill's product
   // karat / custom text / nothing (see GoldRateKaratMode).
   const [goldRateKaratMode, setGoldRateKaratMode] = React.useState<GoldRateKaratMode>("base")
@@ -683,7 +681,6 @@ export function BillingView() {
       weightAfterName,
       goldRateLine,
       silverRateLine,
-      signSuffix,
       goldRateKaratMode,
       goldRateKaratText,
       goldRateKaratValue,
@@ -1026,7 +1023,6 @@ export function BillingView() {
     setWeightAfterName(st?.weightAfterName ?? true)
     setGoldRateLine(st?.goldRateLine ?? true)
     setSilverRateLine(st?.silverRateLine ?? true)
-    setSignSuffix(st?.signSuffix ?? true)
     setGoldRateKaratMode(st?.goldRateKaratMode ?? "base")
     setGoldRateKaratText(st?.goldRateKaratText ?? "")
     setGoldRateKaratValue(st?.goldRateKaratValue ?? 22)
@@ -1433,7 +1429,6 @@ export function BillingView() {
                 weightAfterName={weightAfterName}
                 goldRateLine={goldRateLine}
                 silverRateLine={silverRateLine}
-                signSuffix={signSuffix}
                 goldRateKaratMode={goldRateKaratMode}
                 goldRateKaratText={goldRateKaratText}
                 karatPicker
@@ -1457,10 +1452,6 @@ export function BillingView() {
                   }`)
                 }}
                 onGoldRateKaratText={setGoldRateKaratText}
-                onSignSuffix={(next) => {
-                  setSignSuffix(next)
-                  toast.success(next ? "Chejat/Nag signs shown" : "Chejat/Nag signs hidden")
-                }}
                 onWeightAfterName={(next) => {
                   setWeightAfterName(next)
                   toast.success(next ? "Weight column shown" : "Weight column hidden")

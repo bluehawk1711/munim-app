@@ -23,10 +23,17 @@ import {copyText} from '../lib/clipboard';
 import {uploadImageDirect} from '../lib/cloudinary';
 import {rs, spacing, radii, typography} from '../lib/responsive';
 import {useThemeStyles} from '../theme';
-import {Button, Field, LabourField, ModalSheet, SelectField, colors} from './ui';
+import {Button, Field, LabourField, ModalSheet, SegmentedTabs, SelectField, colors} from './ui';
 import {MunimBottomSheet, BottomSheetScrollView, SheetFooter} from './BottomSheet';
 
 const PRODUCT_SHEET_SNAP_POINTS = ['92%'];
+
+type ProductTab = 'basics' | 'weight' | 'pricing';
+const PRODUCT_TABS: {key: ProductTab; label: string}[] = [
+  {key: 'basics', label: 'Basics & Media'},
+  {key: 'weight', label: 'Weight Matrix'},
+  {key: 'pricing', label: 'Pricing & Labour'},
+];
 
 const KARAT_OPTIONS = Array.from({length: 25}, (_, karat) => ({
   label: `${karat}K · ${karatPurityPercent(karat)}% pure`,
@@ -104,6 +111,7 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       imageActionText: {fontSize: typography.secondary, color: c.primary, fontWeight: '600'},
       imageRemoveText: {fontSize: typography.secondary, color: c.danger, fontWeight: '600'},
       imageHint: {fontSize: 11, color: c.muted, marginBottom: spacing.md},
+      tabRow: {marginBottom: spacing.md},
       hint: {fontSize: 11, color: c.muted, marginTop: -spacing.sm, marginBottom: spacing.sm},
       marginText: {fontSize: 12, color: c.muted, marginBottom: spacing.sm},
       goldBox: {
@@ -158,6 +166,13 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // Full-mode tabs — bill mode keeps today's single scroll (weight + pricing).
+  const [tab, setTab] = useState<ProductTab>('basics');
+  const showTab = (key: ProductTab) => isBillMode || tab === key;
+
+  useEffect(() => {
+    if (visible) setTab('basics');
+  }, [visible]);
 
   // Form fields
   const [name, setName] = useState('');
@@ -465,6 +480,16 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
           contentContainerStyle={{paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl}}
           keyboardShouldPersistTaps="handled">
         {!isBillMode && (
+          <SegmentedTabs<ProductTab>
+            options={PRODUCT_TABS}
+            value={tab}
+            onChange={setTab}
+            style={styles.tabRow}
+          />
+        )}
+        {showTab('basics') ? (
+          <>
+        {!isBillMode && (
           <Field label="Product name *" value={name} onChangeText={setName} placeholder="e.g. Gold Necklace Set" maxLength={120} />
         )}
         {!isBillMode && (
@@ -531,6 +556,17 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             <SelectField label="Article" value={article} placeholder="Select article" onPress={() => setArticlePickerOpen(true)} />
           </>
         )}
+        {!isBillMode && (
+          <>
+            <Field label="Current stock" value={stock} onChangeText={setStock} keyboardType="decimal-pad" />
+            <Field label="Low stock alert at" value={lowStock} onChangeText={setLowStock} keyboardType="decimal-pad" />
+            <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="Optional notes about this product…" multiline maxLength={500} />
+          </>
+        )}
+          </>
+        ) : null}
+        {showTab('weight') ? (
+          <>
         {/* Gold prices on the derived NET weight — the plain Weight input is a
             non-gold concept (same rule as web + desktop: hidden for Gold). */}
         {type !== 'Gold' && (
@@ -601,6 +637,10 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
           </>
         )}
         <Field label="Purity" value={purity} onChangeText={setPurity} placeholder="e.g. 24K / 22K / 916 / 925" maxLength={20} />
+          </>
+        ) : null}
+        {showTab('pricing') ? (
+          <>
         {(type === 'Gold' || type === 'Silver') && (
           <View style={styles.goldBox}>
             <Text style={styles.goldTitle}>{type} pricing</Text>
@@ -681,12 +721,6 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             )}
           </View>
         )}
-        {!isBillMode && (
-          <>
-            <Field label="Current stock" value={stock} onChangeText={setStock} keyboardType="decimal-pad" />
-            <Field label="Low stock alert at" value={lowStock} onChangeText={setLowStock} keyboardType="decimal-pad" />
-          </>
-        )}
         <Field label="Purchase price (₹)" value={buy} onChangeText={setBuy} keyboardType="decimal-pad" />
         <Field
           label="Selling price (₹)"
@@ -706,12 +740,25 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             {(Number(sell) - Number(buy)).toFixed(2)} per unit)
           </Text>
         ) : null}
-        {!isBillMode && (
-          <Field label="Notes" value={notes} onChangeText={setNotes} placeholder="Optional notes about this product…" multiline maxLength={500} />
-        )}
+          </>
+        ) : null}
         </BottomSheetScrollView>
         <SheetFooter>
-          <Button title={saving ? 'Saving…' : isEdit ? 'Save changes' : 'Save product'} onPress={handleSave} loading={saving} />
+          <Button
+            title={
+              saving
+                ? 'Saving…'
+                : isEdit
+                  ? metalPreview
+                    ? `Save changes · ₹${metalPreview.price.toFixed(0)}`
+                    : 'Save changes'
+                  : metalPreview
+                    ? `Save product · ₹${metalPreview.price.toFixed(0)}`
+                    : 'Save product'
+            }
+            onPress={handleSave}
+            loading={saving}
+          />
         </SheetFooter>
       </MunimBottomSheet>
 

@@ -18,6 +18,7 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | Area | Web | Desktop | Mobile | Notes |
 | --- | --- | --- | --- | --- |
 | Dashboard period chips + custom range | ✅ S | ✅ S | ✅ S | KPIs scoped only; charts global |
+| Dashboard: Weight sold drill-down | ✅ C | ✅ C | ✅ C | Tile opens a per-day product weight breakdown; grouped client-side from `period.weightBreakdown` (`groupWeightByDay` in core), so it follows the period chips |
 | Products: search | ✅ S | ✅ S | ⚠️ C | Mobile search is local to loaded pages |
 | Products: status (in/low/out) | ✅ S | ⚠️ C | ⚠️ C | Desktop filters current page; mobile never sends `status` |
 | Products: type (Gold/Silver/…) | ✅ S | ✅ S | ✅ S | Mobile exposes Gold/Silver only |
@@ -64,6 +65,7 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | --- | --- | --- | --- |
 | Dashboard | Period chips Today / Week / Month / Custom | S (`from`,`to`) | `dashboard-view.tsx:41-137` |
 | Dashboard | Custom From/To dates | S | `dashboard-view.tsx:119-137` |
+| Dashboard | Weight sold tile → drill-down dialog (days × products) | C | `dashboard-view.tsx` (`groupWeightByDay`) |
 | Products | Search (name, SKU, barcode, color) | S | `products-view.tsx:402-410` |
 | Products | Barcode lookup + camera | S | `products-view.tsx:413-419` |
 | Products | Color / Size / Category / Article selects | S | `products-view.tsx:457-551` |
@@ -100,6 +102,7 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | Page | Control | Scope | File |
 | --- | --- | --- | --- |
 | Dashboard | Period chips + custom From/To | S | `dashboard.tsx:177-195, 352-387` |
+| Dashboard | Weight sold tile → drill-down dialog (days × products) | C | `dashboard.tsx` (`groupWeightByDay`) |
 | Dashboard | Chart mode Monthly/Quantity | C | `dashboard.tsx:469-481` |
 | Dashboard | Recent invoices Prev/Next (6) | S | `dashboard.tsx:738-753` |
 | Products | Search | S | `products.tsx:1058-1063` |
@@ -128,21 +131,27 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 
 ## Mobile — `apps/mobile/src/screens/*`
 
+> The 2026-11-01 visual overhaul (Billing / Bills / Stock / product sheet /
+> Articles / Settings) changed presentation only — chip rows became
+> `SegmentedTabs` and summaries became visible metric strips, but every query
+> param, scope and filter set below is unchanged.
+
 | Screen | Control | Scope | File |
 | --- | --- | --- | --- |
 | Home | Period chips + custom From/To | S | `HomeScreen.tsx:253-287` |
+| Home | Weight sold tile → drill-down sheet (days × products) | C | `HomeScreen.tsx` (`weightSheetOpen`, `groupWeightByDay`) |
 | Home | Status chips (navigate only) | — | `HomeScreen.tsx:203-217` |
-| Products | Search (local over loaded pages) | C | `ProductsScreen.tsx:449-453, 291-303` |
-| Products | Stock chips (local) | C | `ProductsScreen.tsx:482-502` |
-| Products | Type chips Gold/Silver | S | `ProductsScreen.tsx:504-521` |
-| Products | Price chips Auto/Manual | S | `ProductsScreen.tsx:523-540` |
-| Products | Infinite scroll (`pageSize: 40`) | S | `ProductsScreen.tsx:323-327` |
+| Products | Search (local over loaded pages) | C | `ProductsScreen.tsx` (`search` + `allProducts`) |
+| Products | Stock-status tabs (local, with counts) | C | `ProductsScreen.tsx:525` |
+| Products | Type tabs Gold/Silver | S | `ProductsScreen.tsx:536` |
+| Products | Price chips Auto/Manual | S | `ProductsScreen.tsx` (`priceRow`) |
+| Products | Infinite scroll (`pageSize: 40`) | S | `ProductsScreen.tsx:584-585` |
 | Catalog | Colors/Sizes/Categories tabs | tab switch | `CatalogScreen.tsx:192-213` |
 | Catalog | Search (local) | C | `CatalogScreen.tsx:154-157` |
-| Articles | Period chips | S | `ArticlesScreen.tsx:191-209` |
-| Articles | Sort pills | C | `ArticlesScreen.tsx:212-230` |
-| Bills | Search | S | `InvoicesScreen.tsx:432-440` |
-| Bills | Status chips | S | `InvoicesScreen.tsx:447-470` |
+| Articles | Period tabs | S | `ArticlesScreen.tsx:220` |
+| Articles | Sort tabs | C | `ArticlesScreen.tsx:234` |
+| Bills | Search (filter sheet) | S | `InvoicesScreen.tsx` (`setSearchFilter`) |
+| Bills | Status tabs (page counts) | S | `InvoicesScreen.tsx:321` |
 | Bills | Prev/Next (15) | S | `InvoicesScreen.tsx:386-408` |
 | Orders | Search / status chips / paging | S | `OrdersScreen.tsx:767-803, 933-955` |
 | Parties/Advances | Balance chips | C | `AdvancesScreen.tsx:241-249` |
@@ -150,7 +159,8 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | Reports | Type pills + filter sheet — search, article/category/sub-category/color/size/party pickers, product type/metal/sold/payment chips, karat/silver/weight ranges, dates + quick ranges, Run | S | `ReportFilterSheet.tsx` (same core `toReportFilters`), opened from `ReportsScreen.tsx` window card |
 | Reports | Sort Revenue/Profit/Qty | C | `ReportsScreen.tsx` |
 | Billing | Product picker search (server) + barcode | S | `BillingScreen.tsx:263-284, 393-430` |
-| Settings | Display unit (config) | — | `SettingsScreen.tsx:547-560` |
+| Settings | Group tabs Profile / Rates & Metal / Bill Formats / Appearance (local) | C | `SettingsScreen.tsx:493` |
+| Settings | Silver display unit ₹/gm or ₹/10gm (config) | — | `SettingsScreen.tsx:605` |
 | Help | Static help search | C | `HelpScreen.tsx:136-139` |
 
 ---

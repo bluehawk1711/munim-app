@@ -26,11 +26,40 @@ export type DashboardPeriodKpis = {
     /** Weight sold in the period, GRAMS — line-level frozen pricing.weightGm
      *  (per unit × quantity) with the line's weight snapshot as fallback. */
     weightSoldGm: number;
+    /** Per-day × product weight rows behind `weightSoldGm` — the clickable
+     *  "Weight sold" drill-down on all three dashboards. */
+    weightBreakdown: WeightBreakdownRow[];
     /** Old material handed in by customers — parsed gram sum. */
     materialReceivedGm: number;
     /** Its assessed value (₹). */
     materialReceivedValue: number;
 };
+/** One day × product weight row from the dashboard period query. */
+export type WeightBreakdownRow = {
+    /** yyyy-mm-dd — grouped on `invoices.createdAt`, the same basis the period
+     *  chips filter on (backdated bills group by creation day, not the
+     *  printed date; do NOT switch one side to `invoices.date`). */
+    day: string;
+    productName: string;
+    sku: string | null;
+    weightGm: number;
+    quantity: number;
+};
+/** One day of the weight drill-down, with its products sorted heaviest first. */
+export type WeightBreakdownDay = {
+    day: string;
+    /** Human label, e.g. "Fri, 31 Oct". */
+    label: string;
+    totalWeightGm: number;
+    totalQuantity: number;
+    products: WeightBreakdownRow[];
+};
+/**
+ * Groups flat day × product weight rows into day sections — days descending
+ * (latest first), products heaviest first. Shared by web, desktop and mobile
+ * so every dashboard renders the same drill-down.
+ */
+export declare function groupWeightByDay(rows: readonly WeightBreakdownRow[]): WeightBreakdownDay[];
 export type DashboardStats = {
     totalProducts: number;
     totalStock: number;

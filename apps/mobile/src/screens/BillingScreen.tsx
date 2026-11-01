@@ -1,7 +1,7 @@
 import React, {useMemo, useState} from 'react';
 import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, StyleProp, Switch, Text, TextInput, View, ViewStyle} from 'react-native';
 import * as Print from 'expo-print';
-import {ChevronDown, ChevronRight, Info, Search, SlidersHorizontal} from 'lucide-react-native';
+import {ChevronDown, ChevronRight, Info, Search, SlidersHorizontal, Trash2} from 'lucide-react-native';
 import {
   applyGoldBaseRate,
   buildBillDocument,
@@ -43,6 +43,7 @@ import {
   useGoldRates,
   useInvoice,
   useParties,
+  usePartyBalances,
   useProducts,
   useAllProducts,
   useQueryState,
@@ -62,6 +63,7 @@ import {
   Field,
   ModalSheet,
   Screen,
+  SegmentedTabs,
   colors,
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
@@ -678,23 +680,99 @@ function LineItemsEditor({
         const isOpen = expandedIndex === index;
         const lineTotal = (Number(line.quantity) || 0) * (Number(line.price) || 0);
         const summaryName = `${line.productName || 'New item'}${line.purity.trim() ? ` p:${line.purity.trim()}` : ''}`;
+        const ncChejat = Number(line.chejatWeight) || 0;
+        const ncNag = Number(line.nagLessWeight) || 0;
+        const rateShown = Number(line.ratePerGram) || pricingView?.breakdown.ratePerGram || 0;
+        const labourShown = pricingView?.breakdown.labour.amount ?? 0;
+        const netShown = isGold ? goldNet : Number(line.weight) || null;
+        const toggle = () => setExpandedIndex(isOpen ? null : index);
         return (
-          <View key={index} style={styles.lineBox}>
-            {/* Collapsed summary — tap to expand the inputs (Weight/Price/Remark…). */}
-            <Pressable onPress={() => setExpandedIndex(isOpen ? null : index)}>
-              <View style={styles.lineSummary}>
+          <View key={index} style={styles.lineCard}>
+            {/* Collapsed card — index, name/remark, remove, and a metric grid
+                that mirrors the printed bill columns (N/C is signed only). */}
+            <View style={styles.lineHead}>
+              <View style={styles.lineIndexBadge}>
+                <Text style={styles.lineIndexText}>{index + 1}</Text>
+              </View>
+              <Pressable
+                style={{flex: 1}}
+                onPress={toggle}
+                accessibilityRole="button"
+                accessibilityState={{expanded: isOpen}}
+                accessibilityLabel={`${summaryName}, ${money(lineTotal)}`}>
                 <Text style={styles.lineSummaryName} numberOfLines={1}>
                   {summaryName}
                 </Text>
-                <Text style={styles.lineSummaryMeta}>{`${line.quantity || '0'} × ${money(Number(line.price) || 0)}`}</Text>
-                <Text style={styles.lineSummaryTotal}>{money(lineTotal)}</Text>
+                <Text style={styles.lineRemark} numberOfLines={1}>
+                  {line.description.trim() || line.sku || `${line.quantity || '0'} pcs`}
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onRemove(index)}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${line.productName || 'item'}`}
+                style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.6}]}>
+                <Trash2 size={16} color={colors.danger} />
+              </Pressable>
+              <Pressable
+                onPress={toggle}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel={isOpen ? 'Collapse item' : 'Expand item'}>
                 <ChevronDown
-                  size={16}
+                  size={18}
                   color={colors.muted}
                   style={{transform: [{rotate: isOpen ? '180deg' : '0deg'}]}}
                 />
+              </Pressable>
+            </View>
+            <Pressable onPress={toggle} style={styles.metricGrid}>
+              <View style={styles.metricCell}>
+                <Text style={styles.metricLabel}>G. Wt.</Text>
+                <Text style={styles.metricValue} numberOfLines={1}>
+                  {line.grossWeight.trim() || '—'}
+                </Text>
+              </View>
+              <View style={styles.metricCell}>
+                <Text style={styles.metricLabel}>N/C</Text>
+                {ncChejat > 0 ? (
+                  <Text style={[styles.metricValue, styles.metricSignPos]}>+{ncChejat.toFixed(3)}</Text>
+                ) : null}
+                {ncNag > 0 ? (
+                  <Text style={[styles.metricValue, styles.metricSignNeg]}>-{ncNag.toFixed(3)}</Text>
+                ) : null}
+                {ncChejat <= 0 && ncNag <= 0 ? <Text style={styles.metricValue}>—</Text> : null}
+              </View>
+              <View style={styles.metricCell}>
+                <Text style={styles.metricLabel}>N. Wt.</Text>
+                <Text style={styles.metricValue} numberOfLines={1}>
+                  {netShown != null ? netShown.toFixed(3) : '—'}
+                </Text>
+              </View>
+              <View style={styles.metricCell}>
+                <Text style={styles.metricLabel}>Rate</Text>
+                <Text style={styles.metricValue} numberOfLines={1}>
+                  {rateShown > 0 ? money(rateShown) : '—'}
+                </Text>
+              </View>
+              <View style={styles.metricCell}>
+                <Text style={styles.metricLabel}>Labour</Text>
+                <Text style={styles.metricValue} numberOfLines={1}>
+                  {labourShown > 0 ? money(labourShown) : '—'}
+                </Text>
+              </View>
+              <View style={styles.metricCell}>
+                <Text style={styles.metricLabel}>Other</Text>
+                <Text style={styles.metricValue} numberOfLines={1}>
+                  {otherChargesTotal > 0 ? money(otherChargesTotal) : '—'}
+                </Text>
               </View>
             </Pressable>
+            <View style={styles.lineTotalRow}>
+              <Text style={styles.lineTotalLabel}>Line total</Text>
+              <Text style={styles.lineTotalValue}>{money(lineTotal)}</Text>
+            </View>
             {isOpen ? (
               <>
                 <ProductPicker
@@ -735,28 +813,13 @@ function LineItemsEditor({
                   onChangeText={text => onChange(index, {productName: text})}
                   placeholder="Or type manually"
                 />
+                <Text style={styles.groupLabel}>Weight & remark</Text>
                 <Field
                   label="Description (optional)"
                   value={line.description}
                   onChangeText={text => onChange(index, {description: text})}
                   maxLength={200}
                 />
-                <View style={styles.lineRow}>
-                  <Field
-                    label="Qty"
-                    value={line.quantity}
-                    onChangeText={text => onChange(index, {quantity: text})}
-                    keyboardType="decimal-pad"
-                    style={{flex: 1}}
-                  />
-                  <Field
-                    label="Price"
-                    value={line.price}
-                    onChangeText={text => onChange(index, {price: text})}
-                    keyboardType="decimal-pad"
-                    style={{flex: 2}}
-                  />
-                </View>
                 <View style={styles.lineRow}>
                   <Field
                     label={isGold ? 'G. Wt.' : 'Weight'}
@@ -819,6 +882,23 @@ function LineItemsEditor({
                     </View>
                   </>
                 ) : null}
+                <Text style={styles.groupLabel}>Pricing</Text>
+                <View style={styles.lineRow}>
+                  <Field
+                    label="Qty"
+                    value={line.quantity}
+                    onChangeText={text => onChange(index, {quantity: text})}
+                    keyboardType="decimal-pad"
+                    style={{flex: 1}}
+                  />
+                  <Field
+                    label="Price"
+                    value={line.price}
+                    onChangeText={text => onChange(index, {price: text})}
+                    keyboardType="decimal-pad"
+                    style={{flex: 2}}
+                  />
+                </View>
                 {pricingView ? (
                   <View style={styles.pricingStrip}>
                     <View style={styles.lineRow}>
@@ -876,6 +956,7 @@ function LineItemsEditor({
                           : '0'
                       }
                     />
+                    <Text style={styles.groupLabel}>Charges</Text>
                     {pricingView.metal === 'Gold' ? (
                       <>
                         <View style={styles.lineRow}>
@@ -930,20 +1011,11 @@ function LineItemsEditor({
                     </Text>
                   </View>
                 ) : null}
-                <View style={styles.lineRow}>
-                  <Button
-                    title="Done"
-                    variant="outline"
-                    style={{flex: 1}}
-                    onPress={() => setExpandedIndex(null)}
-                  />
-                  <Button
-                    title="Remove item"
-                    variant="outline"
-                    style={{flex: 1}}
-                    onPress={() => onRemove(index)}
-                  />
-                </View>
+                <Button
+                  title="Done"
+                  variant="outline"
+                  onPress={() => setExpandedIndex(null)}
+                />
               </>
             ) : null}
           </View>
@@ -1027,6 +1099,8 @@ export function BillingScreen() {
   const styles = useThemeStyles(makeStyles);
   const {data: settings} = useQueryState(useSettings());
   const {data: parties} = useQueryState(useParties());
+  /** Khata balances — shown for the selected party right in the bill form. */
+  const {data: partyBalances} = usePartyBalances();
   const {data: productsData} = useQueryState(useAllProducts());
   const products = productsData;
   const pendingBillProductId = useAppStore(s => s.pendingBillProductId);
@@ -1048,6 +1122,10 @@ export function BillingScreen() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [partyId, setPartyId] = useState('');
+  /** Net khata balance of the selected party — >0 means they owe the shop. */
+  const selectedPartyBalance = partyId
+    ? partyBalances?.balances.find(b => b.id === partyId)?.balance ?? null
+    : null;
   const [date, setDate] = useState(() => toYmd(new Date()));
   const [notes, setNotes] = useState('');
   const [discount, setDiscount] = useState('0');
@@ -1070,8 +1148,6 @@ export function BillingScreen() {
   const [weightAfterName, setWeightAfterName] = useState(true);
   const [goldRateLine, setGoldRateLine] = useState(true);
   const [silverRateLine, setSilverRateLine] = useState(true);
-  // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
-  const [signSuffix, setSignSuffix] = useState(true);
   // Purity line under the gold rate row — shop base / this bill's product
   // karat / custom text / nothing (see GoldRateKaratMode).
   const [goldRateKaratMode, setGoldRateKaratMode] = useState<GoldRateKaratMode>('base');
@@ -1133,7 +1209,6 @@ export function BillingScreen() {
     !weightAfterName ||
     !goldRateLine ||
     !silverRateLine ||
-    !signSuffix ||
     goldRateKaratMode !== 'base' ||
     hiddenGold.length > 0 ||
     hiddenSilver.length > 0;
@@ -1157,7 +1232,6 @@ export function BillingScreen() {
     weightAfterName,
     goldRateLine,
     silverRateLine,
-    signSuffix,
     goldRateKaratMode,
     goldRateKaratText,
     goldRateKaratValue,
@@ -1167,7 +1241,7 @@ export function BillingScreen() {
   /** Badge text for the gold-rate purity line — the form-side twin of core's
    *  `goldRateKaratLine`: off → nothing; custom → the operator's text;
    *  product → the first gold line's karat (the selected product's);
-   *  base → the shop base karat. */
+   *  base → the shop base karat, printed bare (`24K`) under the rate. */
   function rateKaratBadge(): string | null {
     if (goldRateKaratMode === 'off') return null;
     if (goldRateKaratMode === 'custom') return goldRateKaratText.trim() || null;
@@ -1183,7 +1257,7 @@ export function BillingScreen() {
       );
       return karat != null && karat > 0 ? `${karat}K` : null;
     }
-    return goldRates?.baseKarat && goldRates.baseKarat > 0 ? `Base ${goldRates.baseKarat}K` : null;
+    return goldRates?.baseKarat && goldRates.baseKarat > 0 ? `${goldRates.baseKarat}K` : null;
   }
   const rateKaratBadgeText = rateKaratBadge();
 
@@ -1682,7 +1756,6 @@ export function BillingScreen() {
     setWeightAfterName(st?.weightAfterName ?? true);
     setGoldRateLine(st?.goldRateLine ?? true);
     setSilverRateLine(st?.silverRateLine ?? true);
-    setSignSuffix(st?.signSuffix ?? true);
     setGoldRateKaratMode(st?.goldRateKaratMode ?? 'base');
     setGoldRateKaratText(st?.goldRateKaratText ?? '');
     setGoldRateKaratValue(st?.goldRateKaratValue ?? 22);
@@ -1975,27 +2048,18 @@ export function BillingScreen() {
           dismissable
           scrollable>
           <Text style={styles.optLabel}>Bill template</Text>
-          <View style={styles.segmentRow}>
-            {(['jewellery', 'ecommerce'] as const).map(t => (
-              <Pressable
-                key={t}
-                accessibilityRole="button"
-                accessibilityLabel={t === 'jewellery' ? 'Classic Jewellery template' : 'Modern E-commerce template'}
-                onPress={() => {
-                  selectionTick();
-                  setTemplate(t);
-                }}
-                style={({pressed}) => [
-                  styles.segment,
-                  template === t && styles.segmentActive,
-                  pressed && {opacity: 0.75},
-                ]}>
-                <Text style={[styles.segmentText, template === t && styles.segmentTextActive]}>
-                  {t === 'jewellery' ? 'Classic Jewellery' : 'Modern E-commerce'}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <SegmentedTabs<BillTemplate>
+            options={[
+              {key: 'jewellery', label: 'Classic Jewellery'},
+              {key: 'ecommerce', label: 'Modern E-commerce'},
+            ]}
+            value={template}
+            onChange={t => {
+              selectionTick();
+              setTemplate(t);
+            }}
+            style={styles.optionTabs}
+          />
 
           {template === 'jewellery' ? (
             <>
@@ -2100,54 +2164,26 @@ export function BillingScreen() {
             />
           </View>
 
-          <View style={styles.switchRow}>
-            <View style={{flex: 1, paddingRight: 12}}>
-              <Text style={styles.switchLabel}>Chejat/Nag signs</Text>
-              <Text style={styles.switchSub}>Print "Chejat: 0.100 +" / "Nag: 0.200 −"</Text>
-            </View>
-            <Switch
-              value={signSuffix}
-              onValueChange={value => {
-                selectionTick();
-                setSignSuffix(value);
-              }}
-              trackColor={{true: colors.primary, false: colors.border}}
-              thumbColor={colors.inverseOnSurface}
-            />
-          </View>
-
           {/* Purity under the gold rate row — shown only while the row itself
               is on. "Product's" prints the bill's first gold line's karat. */}
           {goldRateLine ? (
             <>
               <Text style={styles.optLabel}>Karat line under gold rate</Text>
-              <View style={styles.segmentRow}>
-                {([
-                  {id: 'off', label: 'Off'},
-                  {id: 'base', label: 'Base'},
-                  {id: 'product', label: "Product's"},
-                  {id: 'karat', label: 'Karat'},
-                  {id: 'custom', label: 'Custom'},
-                ] as const).map(opt => (
-                  <Pressable
-                    key={opt.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Karat line: ${opt.label}`}
-                    onPress={() => {
-                      selectionTick();
-                      setGoldRateKaratMode(opt.id);
-                    }}
-                    style={({pressed}) => [
-                      styles.segment,
-                      goldRateKaratMode === opt.id && styles.segmentActive,
-                      pressed && {opacity: 0.75},
-                    ]}>
-                    <Text style={[styles.segmentText, goldRateKaratMode === opt.id && styles.segmentTextActive]}>
-                      {opt.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <SegmentedTabs<GoldRateKaratMode>
+                options={[
+                  {key: 'off', label: 'Off'},
+                  {key: 'base', label: 'Base'},
+                  {key: 'product', label: "Product's"},
+                  {key: 'karat', label: 'Karat'},
+                  {key: 'custom', label: 'Custom'},
+                ]}
+                value={goldRateKaratMode}
+                onChange={modeValue => {
+                  selectionTick();
+                  setGoldRateKaratMode(modeValue);
+                }}
+                style={styles.optionTabs}
+              />
               {goldRateKaratMode === 'karat' ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 8}}>
                   <View style={{flexDirection: 'row', gap: 6}}>
@@ -2188,27 +2224,18 @@ export function BillingScreen() {
           {!editing && twoInOne ? (
             <>
               <Text style={styles.optLabel}>Mode</Text>
-              <View style={styles.segmentRow}>
-                {(['duplicate', 'distinct'] as const).map(m => (
-                  <Pressable
-                    key={m}
-                    accessibilityRole="button"
-                    accessibilityLabel={m === 'duplicate' ? 'Duplicate mode' : 'Separate mode'}
-                    onPress={() => {
-                      selectionTick();
-                      setMode(m);
-                    }}
-                    style={({pressed}) => [
-                      styles.segment,
-                      mode === m && styles.segmentActive,
-                      pressed && {opacity: 0.75},
-                    ]}>
-                    <Text style={[styles.segmentText, mode === m && styles.segmentTextActive]}>
-                      {m === 'duplicate' ? 'Duplicate' : 'Separate'}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <SegmentedTabs<BillMode>
+                options={[
+                  {key: 'duplicate', label: 'Duplicate'},
+                  {key: 'distinct', label: 'Separate'},
+                ]}
+                value={mode}
+                onChange={modeValue => {
+                  selectionTick();
+                  setMode(modeValue);
+                }}
+                style={styles.optionTabs}
+              />
             </>
           ) : null}
 
@@ -2261,18 +2288,97 @@ export function BillingScreen() {
           )}
         </ModalSheet>
 
-        {/* ── Customer ─────────────────────────────────────────────────── */}
+        {/* ── Rates ────────────────────────────────────────────────────── */}
         <Card index={1}>
-          <Text style={styles.sectionTitle}>Customer</Text>
-          <View style={styles.lineRow}>
-            <Field label="Customer" value={customer} onChangeText={setCustomer} style={{flex: 1}} />
-            <Field
-              label="Phone"
-              value={customerPhone}
-              onChangeText={setCustomerPhone}
-              keyboardType="phone-pad"
-              style={{flex: 1}}
-            />
+          <Text style={styles.sectionTitle}>Rates</Text>
+          <Text style={styles.sectionHint}>
+            Editing a rate here re-prices every auto-priced line on this bill.
+          </Text>
+          <View style={styles.rateRow}>
+            <View style={styles.rateTile}>
+              <Field
+                label="Gold rate (₹/g)"
+                value={goldRateInput}
+                onChangeText={handleGoldRateChange}
+                keyboardType="decimal-pad"
+                placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
+                hint={
+                  rateKaratBadgeText ? (
+                    <Text style={styles.rateKaratHint}>{rateKaratBadgeText}</Text>
+                  ) : undefined
+                }
+                style={{marginBottom: 0}}
+              />
+            </View>
+            <View style={styles.rateTile}>
+              <Field
+                label="Silver rate (₹/10g)"
+                value={silverRateInput}
+                onChangeText={handleSilverRateChange}
+                keyboardType="decimal-pad"
+                placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
+                hint={
+                  billSilverRate != null
+                    ? `≈ ₹${billSilverRate.toFixed(2)}/g`
+                    : shopSilverPerGram > 0
+                      ? `≈ ₹${shopSilverPerGram.toFixed(2)}/g`
+                      : undefined
+                }
+                style={{marginBottom: 0}}
+              />
+            </View>
+          </View>
+          <Button
+            variant="outline"
+            title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
+            onPress={handleSyncPrices}
+            disabled={syncPrices.isPending}
+            style={{marginTop: spacing.md}}
+          />
+        </Card>
+
+        {/* ── Customer ─────────────────────────────────────────────────── */}
+        <Card index={2}>
+          <View style={styles.sectionHeadRow}>
+            <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Customer</Text>
+            {selectedPartyBalance != null && selectedPartyBalance !== 0 ? (
+              <View style={styles.khataChip}>
+                <Text
+                  style={[
+                    styles.khataChipText,
+                    {color: selectedPartyBalance > 0 ? colors.success : colors.warning},
+                  ]}>
+                  {selectedPartyBalance > 0
+                    ? `Owes you ${money(selectedPartyBalance)}`
+                    : `You owe ${money(Math.abs(selectedPartyBalance))}`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.customerHead}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {customer.trim() ? customer.trim().charAt(0).toUpperCase() : '?'}
+              </Text>
+            </View>
+            <View style={{flex: 1}}>
+              <View style={styles.lineRow}>
+                <Field
+                  label="Customer"
+                  value={customer}
+                  onChangeText={setCustomer}
+                  placeholder="Walk-in"
+                  style={{flex: 1.3}}
+                />
+                <Field
+                  label="Phone"
+                  value={customerPhone}
+                  onChangeText={setCustomerPhone}
+                  keyboardType="phone-pad"
+                  style={{flex: 1}}
+                />
+              </View>
+            </View>
           </View>
           <Field label="Address" value={customerAddress} onChangeText={setCustomerAddress} />
           <PartyPicker
@@ -2291,48 +2397,16 @@ export function BillingScreen() {
           <DateField label="Date" value={date} onChange={setDate} />
         </Card>
 
-        {/* ── Rates ────────────────────────────────────────────────────── */}
-        <Card index={2}>
-          <Text style={styles.sectionTitle}>Gold & silver rates</Text>
-          <Text style={styles.sectionHint}>
-            Editing a rate here re-prices every auto-priced line on this bill.
-          </Text>
-          <Field
-            label="Gold karat rate (₹/g)"
-            value={goldRateInput}
-            onChangeText={handleGoldRateChange}
-            keyboardType="decimal-pad"
-            placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
-            rightElement={
-              rateKaratBadgeText ? (
-                <View style={styles.goldCaretBadge}>
-                  <Text style={styles.goldCaretBadgeText}>{rateKaratBadgeText}</Text>
-                </View>
-              ) : null
-            }
-          />
-          <Field
-            label={
-              billSilverRate != null
-                ? `Silver rate (₹/10g) ≈ ₹${billSilverRate.toFixed(2)}/g — editing re-prices silver lines`
-                : 'Silver rate (₹/10g) — editing re-prices silver lines'
-            }
-            value={silverRateInput}
-            onChangeText={handleSilverRateChange}
-            keyboardType="decimal-pad"
-            placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
-          />
-          <Button
-            variant="outline"
-            title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
-            onPress={handleSyncPrices}
-            disabled={syncPrices.isPending}
-          />
-        </Card>
-
         {/* ── Items ────────────────────────────────────────────────────── */}
         <Card index={3}>
-          <Text style={styles.sectionTitle}>Items</Text>
+          <View style={styles.sectionHeadRow}>
+            <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Items</Text>
+            <Text style={styles.sectionCount}>
+              {`${lines.filter(l => l.productName.trim()).length} ${
+                lines.filter(l => l.productName.trim()).length === 1 ? 'line' : 'lines'
+              }`}
+            </Text>
+          </View>
           {/* Same two entry points as web/desktop: browse the stock catalog,
               or scan/type a code (first empty line, else append). */}
           <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setLines, product)} />
@@ -2365,22 +2439,25 @@ export function BillingScreen() {
               style={{flex: 1}}
             />
           </View>
-          <Field label="Material returned title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
-          <View style={styles.lineRow}>
-            <Field
-              label="Material returned weight"
-              value={materialReturnedWeight}
-              onChangeText={setMaterialReturnedWeight}
-              placeholder="e.g. 5gm"
-              style={{flex: 1}}
-            />
-            <Field
-              label="Material returned value (₹)"
-              value={materialReturnedValue}
-              onChangeText={setMaterialReturnedValue}
-              keyboardType="decimal-pad"
-              style={{flex: 1}}
-            />
+          <View style={styles.subCard}>
+            <Text style={styles.groupLabel}>Material returned</Text>
+            <Field label="Title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
+            <View style={styles.lineRow}>
+              <Field
+                label="Weight"
+                value={materialReturnedWeight}
+                onChangeText={setMaterialReturnedWeight}
+                placeholder="e.g. 5gm"
+                style={{flex: 1}}
+              />
+              <Field
+                label="Value (₹)"
+                value={materialReturnedValue}
+                onChangeText={setMaterialReturnedValue}
+                keyboardType="decimal-pad"
+                style={{flex: 1}}
+              />
+            </View>
           </View>
           <Field label="Amount paid now (₹)" value={paid} onChangeText={setPaid} keyboardType="decimal-pad" />
           <View style={styles.switchRow}>
@@ -2421,28 +2498,32 @@ export function BillingScreen() {
               (recorded on the payment, shown in the invoice's Payments trail). */}
           <View>
             <Text style={styles.optLabel}>Paid via</Text>
-            <View style={styles.segmentRow}>
-              {[...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})), {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'}].map(m => (
-                <Pressable
-                  key={m.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Pay by ${m.label}`}
-                  onPress={() => {
-                    selectionTick();
-                    // Custom… starts empty so the operator types the real
-                    // method; a preset stores its id.
-                    setPaymentMethod(m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
-                  }}
-                  style={({pressed}) => [
-                    styles.segment,
-                    (paymentMethod === m.id || (m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod))) && styles.segmentActive,
-                    pressed && {opacity: 0.75},
-                  ]}>
-                  <Text style={[styles.segmentText, (paymentMethod === m.id || (m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod))) && styles.segmentTextActive]}>
-                    {m.label}
-                  </Text>
-                </Pressable>
-              ))}
+            <View style={styles.methodGrid}>
+              {[...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})), {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'}].map(m => {
+                const active =
+                  paymentMethod === m.id ||
+                  (m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod));
+                return (
+                  <Pressable
+                    key={m.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pay by ${m.label}`}
+                    accessibilityState={{selected: active}}
+                    onPress={() => {
+                      selectionTick();
+                      // Custom… starts empty so the operator types the real
+                      // method; a preset stores its id.
+                      setPaymentMethod(m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
+                    }}
+                    style={({pressed}) => [
+                      styles.methodBtn,
+                      active && styles.methodBtnActive,
+                      pressed && {opacity: 0.75},
+                    ]}>
+                    <Text style={[styles.methodBtnText, active && styles.methodBtnTextActive]}>{m.label}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
             {!PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod) ? (
               <Field
@@ -2462,17 +2543,19 @@ export function BillingScreen() {
             maxLength={120}
           />
           <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
-          <TotalsBlock
-            styles={styles}
-            label="Total"
-            subtotal={subtotal}
-            discount={Number(discount) || 0}
-            delivery={Number(delivery) || 0}
-            materialReturned={Number(materialReturnedValue) || 0}
-            materialTitle={materialReturnedTitle}
-            total={total}
-            paid={markPaid ? total : Math.min(Number(paid) || 0, total)}
-          />
+          <View style={styles.totalCard}>
+            <TotalsBlock
+              styles={styles}
+              label="Total"
+              subtotal={subtotal}
+              discount={Number(discount) || 0}
+              delivery={Number(delivery) || 0}
+              materialReturned={Number(materialReturnedValue) || 0}
+              materialTitle={materialReturnedTitle}
+              total={total}
+              paid={markPaid ? total : Math.min(Number(paid) || 0, total)}
+            />
+          </View>
         </Card>
 
         {distinct ? (
@@ -2518,17 +2601,19 @@ export function BillingScreen() {
             <Field label="Material returned weight" value={secondMaterialReturnedWeight} onChangeText={setSecondMaterialReturnedWeight} placeholder="e.g. 5gm" />
             <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="decimal-pad" />
             <Field label="Amount paid now (₹)" value={secondPaid} onChangeText={setSecondPaid} keyboardType="decimal-pad" />
-            <TotalsBlock
-              styles={styles}
-              label="Bill 2 total"
-              subtotal={secondSubtotal}
-              discount={Number(secondDiscount) || 0}
-              delivery={Number(secondDelivery) || 0}
-              materialReturned={Number(secondMaterialReturnedValue) || 0}
-              materialTitle={secondMaterialReturnedTitle}
-              total={secondTotal}
-              paid={markPaid ? secondTotal : Math.min(Number(secondPaid) || 0, secondTotal)}
-            />
+            <View style={styles.totalCard}>
+              <TotalsBlock
+                styles={styles}
+                label="Bill 2 total"
+                subtotal={secondSubtotal}
+                discount={Number(secondDiscount) || 0}
+                delivery={Number(secondDelivery) || 0}
+                materialReturned={Number(secondMaterialReturnedValue) || 0}
+                materialTitle={secondMaterialReturnedTitle}
+                total={secondTotal}
+                paid={markPaid ? secondTotal : Math.min(Number(secondPaid) || 0, secondTotal)}
+              />
+            </View>
           </Card>
         ) : null}
 
@@ -2704,13 +2789,141 @@ export function BillingScreen() {
 
 const makeStyles = () =>
   RNStyleSheet.create({
-    lineBox: {
+    /** Collapsed bill line card (metric grid + expand). */
+    lineCard: {
       borderWidth: 1,
       borderColor: colors.border,
-      borderRadius: 12,
-      padding: 10,
-      marginBottom: 10,
+      borderRadius: radii.md,
+      padding: spacing.sm,
+      marginBottom: spacing.sm,
+      backgroundColor: colors.card,
     },
+    lineHead: {flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingBottom: rs(6)},
+    lineIndexBadge: {
+      width: rs(24),
+      height: rs(24),
+      borderRadius: radii.full,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+    },
+    lineIndexText: {fontSize: 11, fontWeight: '800', color: colors.primary},
+    lineRemark: {fontSize: 12, color: colors.muted, marginTop: 1},
+    iconBtn: {padding: rs(4)},
+    metricGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: rs(6),
+      backgroundColor: colors.mutedSoft,
+      borderRadius: radii.sm,
+      padding: rs(8),
+      marginBottom: rs(6),
+    },
+    metricCell: {flexBasis: '30%', flexGrow: 1, minWidth: rs(70)},
+    metricLabel: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.muted,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    metricValue: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: 1,
+      fontVariant: ['tabular-nums'],
+    },
+    metricSignPos: {color: colors.success},
+    metricSignNeg: {color: colors.danger},
+    lineTotalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: rs(6),
+      borderTopWidth: RNStyleSheet.hairlineWidth,
+      borderTopColor: colors.border,
+    },
+    lineTotalLabel: {fontSize: 12, fontWeight: '600', color: colors.muted},
+    lineTotalValue: {fontSize: 15, fontWeight: '800', color: colors.primary},
+    groupLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.primary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+      marginTop: spacing.sm,
+      marginBottom: rs(6),
+    },
+    /** Rates card — Gold / Silver tiles side by side. */
+    rateRow: {flexDirection: 'row', gap: spacing.sm},
+    rateTile: {
+      flex: 1,
+      backgroundColor: colors.mutedSoft,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.sm,
+    },
+    rateKaratHint: {fontSize: 12, fontWeight: '700', color: colors.primary, marginTop: rs(4)},
+    sectionHeadRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: spacing.sm,
+      marginBottom: 8,
+    },
+    sectionCount: {fontSize: 12, color: colors.muted, fontWeight: '600'},
+    customerHead: {flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm},
+    avatar: {
+      width: rs(42),
+      height: rs(42),
+      borderRadius: rs(21),
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.accent,
+      marginTop: rs(20),
+    },
+    avatarText: {fontSize: 16, fontWeight: '800', color: colors.primary},
+    khataChip: {
+      borderRadius: radii.full,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: 3,
+      backgroundColor: colors.mutedSoft,
+    },
+    khataChipText: {fontSize: 11, fontWeight: '700'},
+    /** Material-returned sub-card inside Charges & payment. */
+    subCard: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      padding: spacing.sm,
+      marginBottom: spacing.sm,
+      backgroundColor: colors.mutedSoft,
+    },
+    methodGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.sm},
+    methodBtn: {
+      flexBasis: '47%',
+      flexGrow: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: radii.md,
+      paddingVertical: spacing.sm,
+      alignItems: 'center',
+      backgroundColor: colors.card,
+    },
+    methodBtnActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    methodBtnText: {fontSize: 13, fontWeight: '600', color: colors.text},
+    methodBtnTextActive: {color: colors.onPrimary},
+    totalCard: {
+      backgroundColor: colors.mutedSoft,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: spacing.md,
+      marginTop: spacing.sm,
+    },
+    optionTabs: {marginHorizontal: -spacing.lg, marginBottom: spacing.md},
     productPicker: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2793,10 +3006,7 @@ const makeStyles = () =>
     saveBarLabel: {fontSize: 11, fontWeight: '600', color: colors.muted},
     saveBarTotal: {fontSize: 17, fontWeight: '800', color: colors.text, marginTop: 1},
     saveBarDue: {fontSize: 11, fontWeight: '600', color: colors.warning, marginTop: 1},
-    lineSummary: {flexDirection: 'row', alignItems: 'center', paddingVertical: 4, gap: 6},
     lineSummaryName: {flex: 1, fontSize: 14, fontWeight: '700', color: colors.text},
-    lineSummaryMeta: {fontSize: 12, color: colors.muted},
-    lineSummaryTotal: {fontSize: 14, fontWeight: '700', color: colors.primary},
     skuRow: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6},
     skuChip: {
       fontSize: 11,
@@ -2931,18 +3141,6 @@ const makeStyles = () =>
     },
     paidDueLabel: {fontSize: typography.caption, color: colors.muted},
     paidDueValue: {fontWeight: '700' as const, color: colors.text},
-    /** Small pill showing which karat the gold-rate field is priced at. */
-    goldCaretBadge: {
-      borderRadius: 999,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      backgroundColor: colors.primary + '22',
-    },
-    goldCaretBadgeText: {
-      fontSize: 11,
-      fontWeight: '700' as const,
-      color: colors.primary,
-    },
     name: {fontSize: 15, fontWeight: '600', color: colors.text},
     meta: {fontSize: 12, color: colors.muted, marginTop: 2},
   });
