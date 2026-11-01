@@ -15,6 +15,11 @@ on:
         options:
           - "release" # self-contained APK with bundled JS + baked secrets (default — installable on any device, skips onboarding)
           - "debug" # dev-client shell — loads JS from Metro (pnpm start); only useful when paired with a running Metro server
+      architectures:
+        description: "Android ABIs (blank = arm64-v8a for debug, arm64-v8a+armeabi-v7a for release). Each extra ABI means one more full C++ compile."
+        required: false
+        default: ""
+        type: string
 
 jobs:
   android-apk:
@@ -126,14 +131,55 @@ jobs:
 
           yes | "$SDKMANAGER" --licenses > /dev/null || true
 
+      # Gradle downloads the NDK on the first run (~1.5 GB, several minutes).
+      # Keep it between builds so only the first run pays that cost.
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: /usr/local/lib/android/sdk/ndk/27.1.12297006
+          key: android-ndk-27.1.12297006-${{ runner.os }}
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # Resolve which ABIs to compile: every extra ABI recompiles the native
+      # C++ (reanimated, worklets, fabric) from scratch, so this is the single
+      # biggest lever on build time. Debug dev clients target modern phones;
+      # release keeps 32-bit ARM for older shop devices. x86* is emulator-only.
+      - name: Resolve Android ABIs
+        shell: bash
+        env:
+          INPUT_ARCHS: ${{ inputs.architectures }}
+          VARIANT: ${{ inputs.variant }}
+        run: |
+          if [ -n "$INPUT_ARCHS" ]; then
+            ARCHS="$INPUT_ARCHS"
+          elif [ "$VARIANT" = "release" ]; then
+            ARCHS="arm64-v8a,armeabi-v7a"
+          else
+            ARCHS="arm64-v8a"
+          fi
+          echo "ANDROID_ARCHS=$ARCHS" >> "$GITHUB_ENV"
+          echo "Building ABIs: $ARCHS"
 
       - name: Generate native android project (expo prebuild)
         working-directory: apps/mobile
         run: |
           npx expo prebuild --platform android --clean
+          # AGP + Kotlin + Hermes bundling run faster with a bigger heap than
+          # the RN template default of 2 GB (runners have 16 GB).
+          sed -i 's/-Xmx2048m -XX:MaxMetaspaceSize=512m/-Xmx4g -XX:MaxMetaspaceSize=1g/' android/gradle.properties
+          grep -q -- '-Xmx4g' android/gradle.properties || { echo "::error::failed to raise Gradle heap"; exit 1; }
           df -h /
+
+      # Cache ~/.gradle between runs (dependency jars, wrapper distribution,
+      # transforms and the Gradle build cache). Placed after prebuild so the
+      # wrapper version is known when the cache key is computed.
+      - name: Setup Gradle (dependency + build cache)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-home-cache-cleanup: true
 
       # Build-time env — bake the API URL/key and the Cloudinary UNSIGNED
       # upload preset into the APK. EXPO_PUBLIC_* vars are inlined by Expo at
@@ -148,7 +194,7 @@ jobs:
           EXPO_PUBLIC_API_KEY: ${{ secrets.EXPO_PUBLIC_API_KEY }}
           EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME }}
           EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET }}
-        run: pnpm build:android
+        run: pnpm build:android -- --arch="$ANDROID_ARCHS"
 
       - name: Build release APK (bundled JS, debug-signed)
         if: inputs.variant == 'release'
@@ -158,7 +204,7 @@ jobs:
           EXPO_PUBLIC_API_KEY: ${{ secrets.EXPO_PUBLIC_API_KEY }}
           EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME }}
           EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET: ${{ secrets.EXPO_PUBLIC_CLOUDINARY_UPLOAD_PRESET }}
-        run: pnpm build:android:release
+        run: pnpm build:android:release -- --arch="$ANDROID_ARCHS"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

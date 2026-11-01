@@ -43,6 +43,8 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -57,6 +59,16 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
+
+      # Turbo's local cache lets unchanged workspace packages (core, ui, theme,
+      # query, api-client…) skip recompiling on every installer build.
+      - name: Cache Turbo build outputs
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('turbo.json', 'pnpm-lock.yaml') }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

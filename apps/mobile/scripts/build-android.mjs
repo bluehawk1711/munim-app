@@ -4,6 +4,10 @@
  *
  *   pnpm build:android          → debug APK  (the dev client)
  *   pnpm build:android:release  → release APK
+ *   ... --arch=arm64-v8a        → only build the given ABIs (comma-separated).
+ *                                 Each ABI is a full native C++ compile, so
+ *                                 dropping emulator ABIs and 32-bit ARM cuts
+ *                                 build time a lot. Defaults to all four ABIs.
  *
  * Rebuilds @munim/core and @munim/theme first (the mobile JS bundles resolve
  * their dist output — same "dependsOn ^build" convention as turbo), then runs
@@ -24,6 +28,8 @@ const androidDir = join(mobileDir, "android");
 const isRelease = process.argv.includes("--variant=release");
 const variant = isRelease ? "release" : "debug";
 const win32 = process.platform === "win32";
+const archArg = process.argv.find((arg) => arg.startsWith("--arch="));
+const architectures = archArg ? archArg.slice("--arch=".length).trim() : "";
 
 function run(cmd, args, cwd) {
   const res = spawnSync(cmd, args, { cwd, stdio: "inherit", shell: win32 });
@@ -58,7 +64,11 @@ if (!existsSync(androidDir)) {
 
 const gradlew = win32 ? "gradlew.bat" : "./gradlew";
 const task = isRelease ? ":app:assembleRelease" : ":app:assembleDebug";
-console.log(`\n→ Running Gradle ${task} (first run downloads Gradle 9.3.1 + deps — be patient)…\n`);
+const gradleArgs = [task, "--build-cache", "--console=plain"];
+if (architectures) {
+  gradleArgs.push(`-PreactNativeArchitectures=${architectures}`);
+}
+console.log(`\n→ Running Gradle ${gradleArgs.join(" ")} (first run downloads Gradle 9.3.1 + deps — be patient)…\n`);
 
 // On Linux/macOS the Gradle wrapper needs the exec bit; git may not preserve
 // it (checked out from Windows), which shows up in CI as `spawnSync ./gradlew
@@ -71,7 +81,7 @@ if (!win32) {
   }
 }
 
-const gradleStatus = run(gradlew, [task], androidDir);
+const gradleStatus = run(gradlew, gradleArgs, androidDir);
 if (gradleStatus !== 0) {
   console.error("\n✗ Android build failed — see the Gradle output above.");
   process.exit(gradleStatus);
