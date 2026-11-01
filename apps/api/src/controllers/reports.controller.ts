@@ -25,9 +25,9 @@ export class ReportsController {
   ) {
     // Cache the raw report; CSV is a pure transform applied per request.
     const report = await this.cache.cacheAside(
-      cacheKeys.report({ type: query.type, startDate: query.startDate, endDate: query.endDate }),
+      cacheKeys.report(query),
       CACHE_TTL.reports,
-      () => getReport(this.db, query.type, query.startDate, query.endDate),
+      () => getReport(this.db, query),
     );
     if (format === "csv") {
       return reportToCsv(report);

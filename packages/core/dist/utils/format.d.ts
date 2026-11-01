@@ -10,4 +10,8 @@ export declare function monthLabel(date: Date): string;
  */
 export declare function formatWeight(weight: number | null | undefined, unit?: string | null): string;
 export declare function todayISO(): string;
+/** Local midnight of the given date — inclusive lower bound for ranges. */
+export declare function startOfDay(date: Date): Date;
+/** Local midnight of the 1st of the given date's month. */
+export declare function startOfMonth(date: Date): Date;
 //# sourceMappingURL=format.d.ts.map

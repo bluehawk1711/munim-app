@@ -115,7 +115,7 @@ function measureEcommerceBillHeight(
       estimateRowStackLines(line, visible),
     );
   }
-  // Merged Chejat/Nag totals cell stacks its prefixed sums → taller row.
+  // Merged N/C totals cell stacks its signed sums → taller row.
   let totalsStack = 0;
   if (visible.chejatNag) {
     if (bill.lines.some((l) => l.chejatWeight != null && l.chejatWeight > 0)) totalsStack += 1;
@@ -318,18 +318,18 @@ function drawEcommerceBill(
   rateRowsOf(bill, settings).forEach((row, i) => {
     doc.setFontSize(7);
     doc.setTextColor(colors.gold[0], colors.gold[1], colors.gold[2]);
-    // Starts at +15 so a gold bill's rate (with its "24K" suffix) + a silver
-    // rate row (mixed-metal bills) all fit inside the 26mm header box.
+    // Starts at +15 so a gold bill's rate + its karat line + a silver rate
+    // row (mixed-metal bills) all fit inside the 26mm header box.
     money(doc, row, x0 + tableW - 3, boxTop + 15 + i * 4.5, "right", true);
   });
 
   // ── Estimate items table (client's column order, per-bill toggles) ─────
-  // Gold bills: Description | Purity | G. Wt. | Chejat/Nag | Rate ₹/gm |
-  // Labour | Other Charges | Amount. The Chejat/Nag column MERGES the two
-  // gold net-weight derivation inputs (net = gross − nag + chejat) into one
-  // cell, itemized with prefixes exactly like Other Charges
-  // ("Chejat: 0.150" / "Nag: 0.620"). Silver-only bills show ONE combined
-  // Weight column instead (gross/nag/chejat are gold-only at this shop).
+  // Gold bills: Description | Purity | G. Wt. | N/C | Rate ₹/gm | Labour |
+  // Other Charges | Amount. The N/C column MERGES the two gold net-weight
+  // derivation inputs into one cell of signed grams (`+0.150` / `-0.620`),
+  // never summed on a line; the totals row adds them once. Silver-only
+  // bills show ONE combined Weight column instead (gross/nag/chejat are
+  // gold-only at this shop).
   // Columns the operator switched off on the New Bill screen
   // (settings.hiddenColumns) are dropped and the freed width goes to
   // Description (else the last visible column), so the grid always spans the
@@ -351,7 +351,7 @@ function drawEcommerceBill(
         { id: "purity", w: 11, header: "Remark" },
         { id: "weight", w: 12, header: "G. Wt." },
         { id: "netWeight", w: 12, header: "N. Wt." },
-        { id: "chejatNag", w: 22, header: "Chejat/Nag" },
+        { id: "chejatNag", w: 12, header: "N/C" },
         { id: "rate", w: 15, header: "Rate ₹/gm" },
         { id: "labour", w: 22, header: "Labour" },
         { id: "otherCharges", w: 27, header: "Other Charges" },
@@ -401,7 +401,7 @@ function drawEcommerceBill(
   doc.setFont("notosans", "bold");
   doc.setFontSize(7.5);
   headers.forEach((h, c) => {
-    // Shrink headers ("Amount (Rupees)", "Chejat Wt.") to stay on one line.
+    // Shrink headers ("Amount (Rupees)", "Other Charges") to stay on one line.
     let fs = 7.5;
     doc.setFontSize(fs);
     const avail = (colW[c] ?? 0) - (c === 0 || c === lastCol ? 4 : 2);
@@ -425,10 +425,10 @@ function drawEcommerceBill(
     rowTops.push(itemY);
     const est = estimateRowOf(item);
     // Itemized stacks — Other Charges ("Nag: 500.00" …) and the merged
-    // Chejat/Nag cell ("Chejat: 0.150" …) — grow the row 3.6mm per extra
-    // line (gated on the columns actually being visible) so nothing overlaps.
+    // N/C cell (signed grams) — grow the row 3.6mm per extra line (gated on
+    // the columns actually being visible) so nothing overlaps.
     const chargeLines = estimateChargeLines(est.charges);
-    const weightLines = estimateWeightLines(item, settings.signSuffix);
+    const weightLines = estimateWeightLines(item);
     const stackN = estimateRowStackLines(item, {
       chejatNag: iChejatNag >= 0,
       otherCharges: iOtherCharges >= 0,
@@ -480,7 +480,7 @@ function drawEcommerceBill(
     if (iNetWeight >= 0) {
       doc.text(cellText(netWeightCellOf(item)), colX[iNetWeight]! + colW[iNetWeight]! / 2, baseY, { align: "center" });
     }
-    // Merged Chejat/Nag cell — itemized prefixes, exactly like Other Charges.
+    // Merged N/C cell — signed grams, exactly like the other itemized stacks.
     if (iChejatNag >= 0) {
       const cnX = colX[iChejatNag]! + colW[iChejatNag]! - 2;
       doc.setFontSize(7.5);
@@ -538,10 +538,10 @@ function drawEcommerceBill(
   const chargeTotals = bill.lines.map((l) => estimateChargesTotal(estimateRowOf(l).charges));
   const hasOtherCharges = chargeTotals.some((v) => v > 0);
   const sumOtherCharges = chargeTotals.reduce((s, v) => s + v, 0);
-  // Merged Chejat/Nag totals cell stacks its prefixed sums (like row cells).
+  // Merged N/C totals cell stacks its signed sums (like row cells).
   const cnTotals: string[] = [];
-  if (split && iChejatNag >= 0 && hasChejat) cnTotals.push(`Chejat: ${estNum(sumChejat, 3)}${settings.signSuffix ? " +" : ""}`);
-  if (split && iChejatNag >= 0 && hasNag) cnTotals.push(`Nag: ${estNum(sumNag, 3)}${settings.signSuffix ? " -" : ""}`);
+  if (split && iChejatNag >= 0 && hasChejat) cnTotals.push(`+${estNum(sumChejat, 3)}`);
+  if (split && iChejatNag >= 0 && hasNag) cnTotals.push(`-${estNum(sumNag, 3)}`);
   const sumNet = split && iNetWeight >= 0 ? estimateNetWeightTotal(bill.lines) : null;
   const totalsTop = itemY;
 

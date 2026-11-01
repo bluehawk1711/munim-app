@@ -10,7 +10,7 @@ import type {
   InvoiceFilters,
   OrderFilters,
   CatalogKind,
-  ReportQueryValues,
+  ReportFilters,
 } from "@munim/core";
 
 export const qk = {
@@ -84,7 +84,7 @@ export const qk = {
 
   reports: {
     all: ["reports"] as const,
-    get: (query: ReportQueryValues) => ["reports", "get", query] as const,
+    get: (query: ReportFilters | null) => ["reports", "get", query] as const,
   },
 
   settings: ["settings"] as const,

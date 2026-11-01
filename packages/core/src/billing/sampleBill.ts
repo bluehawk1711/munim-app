@@ -87,6 +87,7 @@ export function buildSampleBill(kind: SampleBillKind): BillDocument {
       materialReturnedValue: 18000,
       amountPaid: 150000,
       goldRate: 8245.5,
+      goldRateKarat: 24,
     });
   }
   return buildBillDocument({

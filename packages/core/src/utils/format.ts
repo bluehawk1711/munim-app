@@ -52,3 +52,18 @@ export function formatWeight(weight: number | null | undefined, unit?: string | 
 export function todayISO(): string {
   return new Date().toISOString();
 }
+
+/** Local midnight of the given date — inclusive lower bound for ranges. */
+export function startOfDay(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Local midnight of the 1st of the given date's month. */
+export function startOfMonth(date: Date): Date {
+  const d = new Date(date);
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}

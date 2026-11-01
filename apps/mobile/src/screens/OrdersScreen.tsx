@@ -56,9 +56,9 @@ import {
   Loading,
   ModalSheet,
   Screen,
-  StatBox,
   colors,
 } from '../components/ui';
+import {AnalyticsSheet} from '../components/analytics-sheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {savePdf} from '../lib/save-pdf';
@@ -454,6 +454,7 @@ export function OrdersScreen() {
   const getClient = useApiClient();
 
   const [formOpen, setFormOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [editing, setEditing] = useState<OrderDto | null>(null);
   const [form, setForm] = useState<FormState>(blankForm);
   const [formBusy, setFormBusy] = useState(false);
@@ -483,6 +484,9 @@ export function OrdersScreen() {
     return {
       openValue: open.reduce((s, o) => s + o.total, 0),
       openCount: open.length,
+      billedCount: orders.filter(o => o.status === 'COMPLETED').length,
+      cancelledCount: orders.filter(o => o.status === 'CANCELLED').length,
+      pageValue: orders.reduce((s, o) => s + o.total, 0),
       totalCount,
     };
   }, [orders, totalCount]);
@@ -742,7 +746,11 @@ export function OrdersScreen() {
 
   return (
     <Screen>
-      <HomeHeader title="Orders" />
+      <HomeHeader
+        title="Orders"
+        onAnalyticsPress={() => setAnalyticsOpen(true)}
+        analyticsLabel="Quote analytics"
+      />
 
       <KeyboardAvoidingView
         style={{flex: 1}}
@@ -793,16 +801,6 @@ export function OrdersScreen() {
                   );
                 })}
               </ScrollView>
-              <View style={styles.statsRow}>
-                <StatBox label="Open value" value={money(summary.openValue)} index={0} />
-                <StatBox
-                  label="Open"
-                  value={String(summary.openCount)}
-                  valueColor={colors.warning}
-                  index={1}
-                />
-                <StatBox label="Total" value={String(summary.totalCount)} index={2} />
-              </View>
               <View style={styles.ctaWrap}>
                 <Button title="+ New order" onPress={openCreate} />
               </View>
@@ -1354,6 +1352,19 @@ export function OrdersScreen() {
           </>
         ) : null}
       </ModalSheet>
+
+      <AnalyticsSheet
+        visible={analyticsOpen}
+        title="Quote analytics"
+        onClose={() => setAnalyticsOpen(false)}
+        note={`Figures cover the quotes on this page (${orders.length} of ${summary.totalCount}).`}
+        stats={[
+          {label: 'Open value', value: money(summary.openValue), tone: 'primary', hint: `${summary.openCount} open`},
+          {label: 'Page value', value: money(summary.pageValue)},
+          {label: 'Billed', value: String(summary.billedCount), tone: 'success'},
+          {label: 'Cancelled', value: String(summary.cancelledCount), tone: 'danger'},
+        ]}
+      />
     </Screen>
   );
 }
@@ -1382,7 +1393,6 @@ const makeStyles = () =>
       backgroundColor: colors.card,
     },
     chipText: {fontSize: 12, fontWeight: '600', color: colors.muted},
-    statsRow: {flexDirection: 'row', gap: 10, marginHorizontal: 16, marginBottom: 10},
     ctaWrap: {marginHorizontal: 16, marginBottom: 12},
     row: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center'},
     rowHeadline: {flexDirection: 'row', alignItems: 'center', gap: 8},

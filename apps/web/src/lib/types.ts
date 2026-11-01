@@ -208,53 +208,6 @@ export type JobLetter = {
   createdAt: string
 }
 
-/* ── Reports ──────────────────────────────────────────────────── */
+/* ── Reports — shared core types (single source of truth) ─────── */
 
-export type ReportType =
-  | "daily"
-  | "weekly"
-  | "monthly"
-  | "yearly"
-  | "stock"
-  | "low_stock"
-  | "sold"
-
-export type ReportRow = {
-  productId: string | null
-  productName: string
-  sku: string | null
-  color: string | null
-  size: string | null
-  stock: number
-  soldQuantity: number
-  /** Unit weight. */
-  weight: number | null
-  /** Display unit: "mg" or "gm". */
-  weightUnit: string
-  /** Total weight sold (quantity × unit weight). */
-  soldWeight: number
-  /** Line-level weight sold (gm) — frozen pricing.weightGm × qty. */
-  soldWeightGm: number
-  revenue: number
-  profit: number
-}
-
-export type ReportData = {
-  type: ReportType
-  title: string
-  generatedAt: string
-  periodLabel: string
-  rows: ReportRow[]
-  totals: {
-    stock: number
-    soldQuantity: number
-    soldWeight: number
-    /** Line-level weight sold (gm). */
-    weightSoldGm: number
-    revenue: number
-    profit: number
-    /** Old material handed in by customers (grams + assessed ₹). */
-    materialReceivedGm: number
-    materialReceivedValue: number
-  }
-}
+export type { ReportType, ReportRow, ReportResult as ReportData } from "@munim/core"

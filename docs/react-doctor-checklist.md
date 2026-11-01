@@ -195,17 +195,15 @@ pnpm --filter @munim/mobile doctor
   `ProductsScreen.tsx:74`, `SettingsScreen.tsx:24`.
 - [ ] **`prefer-module-scope-pure-function` (2)** — `BillingScreen.tsx:243`,
   `InvoicesScreen.tsx:149`.
-- [ ] **`js-combine-iterations` (2)** — `BillingScreen.tsx:244`,
-  `PartiesScreen.tsx:65`.
+- [ ] **`js-combine-iterations` (1)** — `BillingScreen.tsx:244`.
 - [ ] **`no-array-index-as-key` (5)** — `BillingScreen.tsx:148`,
   `PinLockScreen.tsx:256,260,271`, `ReportsScreen.tsx:120`.
-- [ ] **`rn-no-inline-flatlist-renderitem` (7)** — `AdvancesScreen.tsx:375`,
+- [ ] **`rn-no-inline-flatlist-renderitem` (5)** — `AdvancesScreen.tsx:375`,
   `BillingScreen.tsx:106`, `InvoicesScreen.tsx:222`, `JobLettersScreen.tsx:107`,
-  `PartiesScreen.tsx:175`, `ProductsScreen.tsx:395`, `SalesScreen.tsx:145` —
-  hoist `renderItem` out of the component (or memoize).
-- [ ] **`rn-list-callback-per-row` (17)** — inline handlers in every screen's
+  `ProductsScreen.tsx:395` — hoist `renderItem` out of the component (or memoize).
+- [ ] **`rn-list-callback-per-row` (15)** — inline handlers in every screen's
   `renderItem` (AdvancesScreen 1, BillingScreen 1, InvoicesScreen 2,
-  JobLettersScreen 2, PartiesScreen 8, ProductsScreen 4, SalesScreen 1) —
+  JobLettersScreen 2, ProductsScreen 4, other screens the rest) —
   hoist to named functions.
 - [ ] **`rn-no-inline-object-in-list-item` (39)** — inline style/object literals
   in list items across all screens — extract to memoized components or styles.

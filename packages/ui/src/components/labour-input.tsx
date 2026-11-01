@@ -15,7 +15,6 @@
  * (gold falls back to the shop default, silver means no labour).
  */
 import * as React from "react";
-import { IndianRupee, Percent, Scale } from "lucide-react";
 import { LABOUR_TYPES, type LabourType } from "@munim/core";
 import { Input } from "./input.js";
 import { Label } from "./label.js";
@@ -37,10 +36,10 @@ export type LabourInputProps = {
   className?: string;
 };
 
-const METHOD_META: Record<LabourType, { label: string; unit: string; title: string; Icon: typeof Percent }> = {
-  PERCENT: { label: "%", unit: "%", title: "Percent of metal value", Icon: Percent },
-  FIXED: { label: "₹", unit: "₹", title: "Fixed amount added", Icon: IndianRupee },
-  PER_GRAM: { label: "₹/g", unit: "₹/g", title: "Rupees per gram × weight", Icon: Scale },
+const METHOD_META: Record<LabourType, { label: string; unit: string; title: string }> = {
+  PERCENT: { label: "%", unit: "%", title: "Percent of metal value" },
+  FIXED: { label: "₹", unit: "₹", title: "Fixed amount added" },
+  PER_GRAM: { label: "₹/g", unit: "₹/g", title: "Rupees per gram × weight" },
 };
 
 export function LabourInput({
@@ -93,9 +92,7 @@ export function LabourInput({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <m.Icon className="h-3.5 w-3.5" />
-              {m.label}
-            </button>
+              {m.label}            </button>
           );
         })}
       </div>

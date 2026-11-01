@@ -39,7 +39,7 @@ export type GoldRateKaratMode = "off" | "base" | "product" | "karat" | "custom";
  *  has its own fixed layout and ignores these. `weight` is gold's G. Wt.
  *  column (silver's combined Weight column shares the same toggle);
  *  `netWeight` is gold's N. Wt. column (net = gross − nag + chejat);
- *  `chejatNag` is the gold-only merged Chejat/Nag stack. */
+ *  `chejatNag` is the gold-only merged N/C stack (signed grams). */
 export type EstimateColumnId =
   | "description"
   | "purity"
@@ -59,14 +59,14 @@ export const GOLD_ESTIMATE_COLUMNS = [
   { id: "purity", label: "Remark" },
   { id: "weight", label: "G. Wt." },
   { id: "netWeight", label: "N. Wt." },
-  { id: "chejatNag", label: "Chejat/Nag" },
+  { id: "chejatNag", label: "N/C" },
   { id: "rate", label: "Rate ₹/gm" },
   { id: "labour", label: "Labour" },
   { id: "otherCharges", label: "Other Charges" },
   { id: "amount", label: "Amount" },
 ] as const satisfies readonly { id: EstimateColumnId; label: string }[];
 
-/** Silver's grid fields — one combined Weight column, no Chejat/Nag. */
+/** Silver's grid fields — one combined Weight column, no N/C. */
 export const SILVER_ESTIMATE_COLUMNS = [
   { id: "description", label: "Description" },
   { id: "purity", label: "Remark" },
@@ -90,10 +90,10 @@ export interface BillTemplateSettings {
   goldRateLine: boolean;
   /** Show the shop's silver rate row (₹/g) on the bill. */
   silverRateLine: boolean;
-  /** Chejat/Nag cell signs — ON prints `Chejat: 0.100 +` / `Nag: 0.200 −`
-   *  (chejat adds to the net weight, nag less subtracts); OFF keeps the
-   *  plain `Chejat: 0.100` / `Nag: 0.200` labels. */
-  signSuffix: boolean;
+  /** Legacy toggle from the old labelled N/C column. Kept (optional) so
+   *  saved invoice snapshots still typecheck; the N/C column now always
+   *  prints signed grams (`+0.150` / `-0.620`) and ignores this flag. */
+  signSuffix?: boolean;
   /** Purity line under the gold rate row (see `GoldRateKaratMode`).
    *  Optional so pre-toggle snapshots and partial payload builders still
    *  typecheck — `mergeBillTemplateSettings` defaults it to "base"
@@ -107,7 +107,7 @@ export interface BillTemplateSettings {
   goldRateKaratValue?: number;
   /** Estimate-grid columns turned OFF via the New Bill screen's per-metal
    *  column toggles — hidden from the printed bill. Gold grid and silver
-   *  grid have different fields (gold: G. Wt. + Chejat/Nag; silver: the
+   *  grid have different fields (gold: G. Wt. + N/C; silver: the
    *  combined Weight), so each keeps its own list. Missing side / missing
    *  key (old snapshots, web payloads) = every column shown. Optional so
    *  payload builders that predate the toggles still typecheck. */
@@ -179,10 +179,10 @@ export interface BillLineInput {
   /** Gross-weight free text (bill G. Wt. column in the estimate template). */
   grossWeight?: string | null;
   /** Bill line's nag-less weight in GRAMS — gold net-weight derivation input
-   *  (`net = gross − nag + chejat`); the printed Nag Wt. column. */
+   *  (`net = gross − nag + chejat`); printed as a signed N/C line. */
   nagLessWeight?: number | null;
   /** Bill line's chejat (stone) weight in GRAMS — the other derivation
-   *  input; the printed Chejat Wt. column. */
+   *  input; printed as a signed N/C line. */
   chejatWeight?: number | null;
   /** Product weight + unit snapshot — display for the WEIGHT column only. */
   weight?: number | null;
@@ -237,8 +237,8 @@ export interface BillDocument {
   currency: string;
   /** Shop's gold rate (₹/g) at build time — drives the gold rate row. */
   goldRate: number | null;
-  /** Purity of `goldRate` (e.g. 24 → "24K") — printed as a suffix on the
-   *  gold rate row. null → no suffix (legacy bills / rates never stamped). */
+  /** Purity of `goldRate` (e.g. 24 → "24K") — printed on its own line
+   *  directly under the gold rate row. null → nothing (legacy bills). */
   goldRateKarat: number | null;
   /** Shop's silver rate (₹/g) at build time — drives the silver rate row. */
   silverRate: number | null;
@@ -265,7 +265,8 @@ export interface BuildBillInput {
   currency?: string;
   /** Shop rates (₹/g) to print as rate rows; omitted → rows hidden. */
   goldRate?: number | null;
-  /** Purity stamp for the gold rate row — the shop's base karat. */
+  /** Purity stamp for the gold rate (the shop's base karat) — prints as its
+   *  own line directly under the ₹/gm rate. */
   goldRateKarat?: number | null;
   silverRate?: number | null;
 }
@@ -329,18 +330,16 @@ export function estimateChargeLines(
   return parts;
 }
 
-/** The merged Chejat/Nag cell lines — `Chejat: 0.150 +` / `Nag: 0.620 −`,
- *  one per non-empty derivation input (grams, 3 dp), itemized with prefixes
- *  exactly like the Other Charges cell (client merged the two columns into
- *  one). `signs` appends the direction marker — chejat ADDS to the net
- *  weight, nag less SUBTRACTS from it — and is driven by the per-bill
- *  `signSuffix` toggle (off → the plain labels). Empty → []. */
-export function estimateWeightLines(line: BillLineInput, signs = false): string[] {
+/** The merged N/C cell lines — signed grams, one per non-empty derivation
+ *  input (3 dp): chejat ADDS to the net weight (`+0.150`), nag less SUBTRACTS
+ *  (`-0.620`). The column header is `N/C`, so no prefixes are printed.
+ *  Empty → []. */
+export function estimateWeightLines(line: BillLineInput): string[] {
   const parts: string[] = [];
   if (line.chejatWeight != null && line.chejatWeight > 0)
-    parts.push(`Chejat: ${line.chejatWeight.toFixed(3)}${signs ? " +" : ""}`);
+    parts.push(`+${line.chejatWeight.toFixed(3)}`);
   if (line.nagLessWeight != null && line.nagLessWeight > 0)
-    parts.push(`Nag: ${line.nagLessWeight.toFixed(3)}${signs ? " -" : ""}`);
+    parts.push(`-${line.nagLessWeight.toFixed(3)}`);
   return parts;
 }
 
@@ -377,7 +376,7 @@ export function estimateNetWeightTotal(lines: readonly BillLineInput[]): number 
 }
 
 /** Tallest itemized stack in a row — the Other Charges lines vs the merged
- *  Chejat/Nag lines — gated on which columns are actually visible (a hidden
+ *  N/C lines — gated on which columns are actually visible (a hidden
  *  column's stack doesn't grow the row). Shared by the PDF's draw + height
  *  measurement so the sheet frame always hugs the real table. */
 export function estimateRowStackLines(
@@ -399,8 +398,8 @@ export function estimateRowHeightMm(
   return Math.max(hasDescription ? 10 : 7, 7 + 3.6 * (stackLines - 1));
 }
 
-/** Totals-row height (mm): 7, or taller when the merged Chejat/Nag totals
- *  cell stacks its prefixed sums ("Chejat: …" above "Nag: …"). */
+/** Totals-row height (mm): 7, or taller when the merged N/C totals
+ *  cell stacks its signed sums above each other. */
 export function estimateTotalsHeightMm(stackLines: number): number {
   return Math.max(7, 7 + 3.6 * (stackLines - 1));
 }
@@ -418,7 +417,7 @@ export function purityCellOf(line: BillLineInput): string | null {
   return line.purity?.trim() || null;
 }
 
-/** Grams for the estimate's Chejat/Nag weight columns (null → "-"). */
+/** Grams for the estimate's N/C weight columns (null → "-"). */
 export function weightCellOf(value: number | null | undefined): string | null {
   return value != null && value > 0 ? value.toFixed(3) : null;
 }
@@ -493,10 +492,10 @@ export function firstGoldKarat(
 }
 
 /**
- * The karat suffix on the "Gold rate: ₹X per gm" row, per the template's
- * `goldRateKaratMode` — THE one resolver, shared by the PDF/HTML rate rows,
- * the share text and the bill-form badge so every surface agrees.
- * Returns null when nothing should print.
+ * The karat printed on its own line directly under the "Gold rate: ₹X per
+ * gm" row, per the template's `goldRateKaratMode` — THE one resolver,
+ * shared by the PDF/HTML rate rows, the share text and the bill-form hint
+ * so every surface agrees. Returns null when nothing should print.
  */
 export function goldRateKaratLine(
   bill: BillDocument,
@@ -524,18 +523,17 @@ export function goldRateKaratLine(
 /**
  * Shop rate rows gated by the per-bill toggles, present rate values AND the
  * metals the bill actually contains (a silver-only bill never prints the
- * gold rate, and vice versa). Rates state their unit — per gm.
+ * gold rate, and vice versa). Rates state their unit — per gm. The gold
+ * karat prints as its own row directly UNDER the per-gram rate (`24K`).
  */
 export function rateRowsOf(bill: BillDocument, settings: BillTemplateSettings): string[] {
   const { gold, silver } = declaredMetals(bill);
   const anyMetal = gold || silver;
   const rows: string[] = [];
   if (settings.goldRateLine && bill.goldRate != null && bill.goldRate > 0 && (!anyMetal || gold)) {
-    // Karat rides on the same row — "Gold rate: ₹8,405.50 per gm (22K)".
+    rows.push(`Gold rate: ${formatCurrency(bill.goldRate)} per gm`);
     const karat = goldRateKaratLine(bill, settings);
-    rows.push(
-      `Gold rate: ${formatCurrency(bill.goldRate)} per gm${karat ? ` (${karat})` : ""}`,
-    );
+    if (karat) rows.push(karat);
   }
   if (settings.silverRateLine && bill.silverRate != null && bill.silverRate > 0 && (!anyMetal || silver)) {
     rows.push(`Silver rate: ${formatCurrency(bill.silverRate)} per gm`);
@@ -600,7 +598,7 @@ export function buildBillDocument(input: BuildBillInput): BillDocument {
  * Plain-text render of a bill — the platform-agnostic export that works in
  * every app (copy/share/print). Richer renders (jsPDF, HTML) should consume
  * BillDocument and keep the same numbers. `settings` drives the gold-rate
- * rate row's karat suffix (omitted → the defaults, i.e. the legacy base karat).
+ * rate row's karat line (omitted → the defaults, i.e. the legacy base karat).
  */
 export function renderBillText(bill: BillDocument, settings?: BillTemplateSettings): string {
   const currency = bill.currency === "INR" ? "₹" : `${bill.currency} `;
@@ -618,8 +616,9 @@ export function renderBillText(bill: BillDocument, settings?: BillTemplateSettin
     "",
     `BILL NO: ${bill.billNo}        DATE: ${bill.date}`,
     showGoldRate
-      ? `Gold rate:   ${currency}${bill.goldRate?.toFixed(2)} per gm${goldKarat ? ` (${goldKarat})` : ""}`
+      ? `Gold rate:   ${currency}${bill.goldRate?.toFixed(2)} per gm`
       : "",
+    showGoldRate && goldKarat ? `             ${goldKarat}` : "",
     showSilverRate ? `Silver rate: ${currency}${bill.silverRate?.toFixed(2)} per gm` : "",
     `Customer: ${bill.customerName ?? ""}${bill.customerPhone ? ` (${bill.customerPhone})` : ""}`,
     "",

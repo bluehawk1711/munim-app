@@ -25,7 +25,7 @@ import {Pressable, StyleSheet, Text, View} from 'react-native';
 import BottomSheet, {BottomSheetFlatList} from '@gorhom/bottom-sheet';
 import {Check, Search, X} from 'lucide-react-native';
 import {colors, useThemeStyles} from '../theme';
-import {MunimBottomSheet} from './BottomSheet';
+import {BottomSheetTextInput, MunimBottomSheet} from './BottomSheet';
 import {rw, rh, rs, typography, spacing, radii, TOUCH_TARGET} from '../lib/responsive';
 
 export type PickerOption = {
@@ -123,12 +123,25 @@ export const SheetPicker = forwardRef<BottomSheet, SheetPickerProps>(
         {/* Search bar */}
         <View style={pickerStyles.searchContainer}>
           <Search size={rs(16)} color={colors.muted} style={pickerStyles.searchIcon} />
-          <Pressable
+          <BottomSheetTextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder={searchPlaceholder}
+            placeholderTextColor={colors.muted}
             style={pickerStyles.searchInput}
-            onPress={() => {}}>
-            {/* Using a simple TextInput-like approach with Pressable to avoid
-               BottomSheetTextInput complexity — Gorhom handles focus */}
-          </Pressable>
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {query ? (
+            <Pressable
+              onPress={() => setQuery('')}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search">
+              <X size={rs(16)} color={colors.muted} />
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Options list */}
@@ -186,6 +199,9 @@ const makePickerStyles = () =>
   },
   searchInput: {
     flex: 1,
+    paddingVertical: 0,
+    fontSize: typography.body,
+    color: colors.text,
   },
   list: {
     paddingHorizontal: spacing.lg,

@@ -12,7 +12,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {FlashList} from '@shopify/flash-list';
 import {formatDate} from '@munim/core';
-import {TrendingDown, TrendingUp} from 'lucide-react-native';
+import {TrendingUp} from 'lucide-react-native';
 import {type PartyBalanceDto} from '@munim/core';
 import type BottomSheet from '@gorhom/bottom-sheet';
 import {
@@ -26,7 +26,7 @@ import {
 } from '@munim/query';
 import {money} from '../lib/format';
 import {successFeedback, errorFeedback, selectionTick} from '../lib/haptics';
-import {rw, rh, rs, typography, spacing, radii, GRID_GAP, CARD_MARGIN, TOUCH_TARGET} from '../lib/responsive';
+import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 import {
   Button,
   Card,
@@ -38,6 +38,7 @@ import {
   ThreeDotMenu,
   colors,
 } from '../components/ui';
+import {AnalyticsSheet} from '../components/analytics-sheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {MunimBottomSheet, BottomSheetScrollView} from '../components/BottomSheet';
 import {useThemeStyles} from '../theme';
@@ -58,6 +59,7 @@ export function AdvancesScreen() {
 
   // Filter
   const [filter, setFilter] = useState<BalanceFilter>('all');
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   // Action sheet
   const [action, setAction] = useState<Action | null>(null);
@@ -91,7 +93,7 @@ export function AdvancesScreen() {
   const createAdvance = useCreateAdvance();
   const recordPartyPayment = useRecordPartyPayment();
 
-  // Add party (ported from PartiesScreen — the Khata tab is this screen).
+  // Add party — the Khata tab owns party creation.
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newPhone, setNewPhone] = useState('');
@@ -223,42 +225,18 @@ export function AdvancesScreen() {
 
   return (
     <Screen>
-      <HomeHeader title="Khata & Advance" addLabel="Add party" onAddPress={openAddParty} />
+      <HomeHeader
+        title="Khata & Advance"
+        addLabel="Add party"
+        onAddPress={openAddParty}
+        onAnalyticsPress={() => setAnalyticsOpen(true)}
+        analyticsLabel="Khata analytics"
+      />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{paddingBottom: spacing.xxxl}}
         {...headerScrollHandlers}>
-        {/* Summary cards — 2-column */}
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryRow}>
-            <Card style={styles.summaryCard} index={0}>
-              <View style={[styles.summaryIcon, {backgroundColor: colors.successSoft}]}>
-                <TrendingUp size={rs(16)} color={colors.success} strokeWidth={2.2} />
-              </View>
-              <Text style={styles.summaryLabel} numberOfLines={1}>You'll Get</Text>
-              <Text style={[styles.summaryValue, {color: colors.success}]}>{money(totalReceivable)}</Text>
-            </Card>
-            <Card style={styles.summaryCard} index={1}>
-              <View style={[styles.summaryIcon, {backgroundColor: colors.dangerSoft}]}>
-                <TrendingDown size={rs(16)} color={colors.danger} strokeWidth={2.2} />
-              </View>
-              <Text style={styles.summaryLabel} numberOfLines={1}>You'll Give</Text>
-              <Text style={[styles.summaryValue, {color: colors.danger}]}>{money(totalPayable)}</Text>
-            </Card>
-          </View>
-          <Card style={[styles.summaryCard, {marginHorizontal: CARD_MARGIN}]} index={2}>
-            <Text style={styles.summaryLabel}>Net position</Text>
-            <Text style={[styles.summaryValue, {color: totalReceivable - totalPayable >= 0 ? colors.success : colors.danger, marginTop: spacing.sm}]}>
-              {money(totalReceivable - totalPayable)}
-            </Text>
-            <View style={{flexDirection: 'row', justifyContent: 'space-between', marginTop: spacing.sm}}>
-              <Text style={[styles.summaryLabel, {color: colors.success}]}>{money(totalReceivable)} you'll get</Text>
-              <Text style={[styles.summaryLabel, {color: colors.danger}]}>{money(totalPayable)} you'll give</Text>
-            </View>
-          </Card>
-        </View>
-
         {/* Filter chips */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
           {(['all', 'get', 'give', 'settled'] as const).map(f => (
@@ -346,8 +324,7 @@ export function AdvancesScreen() {
         />
       </ModalSheet>
 
-      {/* Add party — centered modal (ported from PartiesScreen; the Khata tab
-          is this screen, so the add flow lives here.) */}
+      {/* Add party — the Khata tab owns the add flow. */}
       <ModalSheet visible={addOpen} title="Add party" onClose={() => setAddOpen(false)} dismissable={!adding} centered>
         <Field label="Name" value={newName} onChangeText={setNewName} placeholder="e.g. Ramesh" />
         <Field label="Phone" value={newPhone} onChangeText={setNewPhone} placeholder="e.g. 98765 43210" keyboardType="phone-pad" />
@@ -377,6 +354,24 @@ export function AdvancesScreen() {
           </>
         ) : null}
       </ModalSheet>
+
+      <AnalyticsSheet
+        visible={analyticsOpen}
+        title="Khata analytics"
+        onClose={() => setAnalyticsOpen(false)}
+        note="Live balances across every party."
+        stats={[
+          {label: "You'll get", value: money(totalReceivable), tone: 'success', hint: `${receivables.length} part${receivables.length === 1 ? 'y' : 'ies'}`},
+          {label: "You'll give", value: money(totalPayable), tone: 'danger', hint: `${payables.length} part${payables.length === 1 ? 'y' : 'ies'}`},
+          {
+            label: 'Net position',
+            value: money(totalReceivable - totalPayable),
+            tone: totalReceivable - totalPayable >= 0 ? 'success' : 'danger',
+            hint: `${settled.length} settled`,
+          },
+          {label: 'Parties', value: String(balances?.length ?? 0)},
+        ]}
+      />
 
       {/* Party ledger bottom sheet */}
       <MunimBottomSheet
@@ -459,12 +454,6 @@ function TypeSelector({value, onChange}: {value: PartyType; onChange: (t: PartyT
 
 const makeStyles = () =>
   StyleSheet.create({
-    summaryGrid: {marginBottom: spacing.sm},
-    summaryRow: {flexDirection: 'row', gap: GRID_GAP, paddingHorizontal: CARD_MARGIN, marginBottom: GRID_GAP},
-    summaryCard: {flex: 1, marginHorizontal: 0, marginBottom: 0, paddingVertical: spacing.md, paddingHorizontal: spacing.md},
-    summaryIcon: {width: rs(30), height: rs(30), borderRadius: rs(8), alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xs},
-    summaryLabel: {fontSize: typography.label, color: colors.muted, fontWeight: '600', flexShrink: 1},
-    summaryValue: {fontSize: typography.h2, fontWeight: '700', marginTop: rs(4)},
     filterRow: {paddingHorizontal: CARD_MARGIN, paddingVertical: spacing.sm, gap: spacing.sm},
     filterChip: {paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card},
     filterChipActive: {backgroundColor: colors.primary, borderColor: colors.primary},

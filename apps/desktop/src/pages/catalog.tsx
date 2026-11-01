@@ -461,7 +461,7 @@ export function CatalogPage() {
                         )}
                       </PieCenter>
                     </PieChart>
-                    <Legend items={composition.legend} className="w-full">
+                    <Legend items={composition.legend} className="w-full" scrollable scrollMaxHeightClassName="max-h-36">
                       <LegendItem className="rounded-lg px-2 py-1 transition-colors hover:bg-muted/60">
                         <LegendMarker />
                         <LegendLabel className="min-w-0 flex-1 truncate text-xs" />

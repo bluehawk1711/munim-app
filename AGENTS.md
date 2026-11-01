@@ -68,6 +68,23 @@ on two window sizes. Mobile is tracked separately (see `docs/features.md`).
 - When adding a module to one app, update the other app, `docs/features.md`,
   this rules file, and the web/desktop sidebar navigation in the same change.
 
+## 4c. Filter parity (mandatory)
+
+- **`docs/filters.md` is the single source of truth for every filter** —
+  search boxes, status/balance chips, date ranges & quick ranges, selects,
+  sort controls, analytics toggles and pagination — on every page of web,
+  desktop and mobile, with server/client scope and parity gaps.
+- **After EVERY edit — a bug fix, a new feature, a redesign, a rename, a
+  deleted control, or any functional change — re-read `docs/filters.md` and
+  update it in the same change.** A stale matrix is treated as a bug.
+- Before shipping any list page, diff its filters against the other two
+  platforms in the matrix. A filter present on one platform and missing on
+  another must either be added or recorded as an intentional, documented gap.
+- New list filters MUST be expressed in the shared core filter types (e.g.
+  `ReportFilters`, `ProductFilters`, `InvoiceFilters`) and sent as query
+  params — never re-implemented per app. Web and desktop share the filter UI
+  from `@munim/ui`; mobile renders the same fields with RN controls.
+
 ## 5. Skills to use during development
 
 Installed in `.agents/skills/`:
@@ -154,6 +171,9 @@ Rules:
   repo-wide.
 - Typecheck your change (`tsc --noEmit` for the affected app/package) before
   finishing. Keep the whole repo typechecking clean.
+- Every change that touches a page's controls, list query, or business logic
+  must end with a **filter-matrix review** (`docs/filters.md`) and a
+  `docs/features.md` update when behaviour changed.
 - After rebuilding `packages/core` (`tsc` in `packages/core`), consumers read
   the fresh `dist/` — rebuild core whenever its public API changes.
 - Commit messages describe the _why_, not just the _what_.

@@ -16,20 +16,22 @@ import {
   TrendingUp,
   Weight,
 } from "lucide-react"
-import { Button, Input, Label, Card, CardContent, CardHeader, CardTitle, CardDescription, Badge, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton } from "@munim/ui"
-
-
-
-
-
-
-
+import { Button, Card, CardContent, CardHeader, CardTitle, CardDescription, Badge, Separator, Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Skeleton, ReportFilterPanel } from "@munim/ui"
 
 import { useReport } from "@/hooks/use-dashboard"
+import { useArticles } from "@/hooks/use-articles"
+import { useCatalog } from "@/hooks/use-catalog"
+import { useParties } from "@/hooks/use-parties"
 import { exportReportToExcel, exportReportToPdf } from "@/lib/export"
-import { reportToCsv, dashboardPresetRange } from "@munim/core"
+import {
+  reportToCsv,
+  emptyReportFilterForm,
+  toReportFilters,
+  type ReportFilters,
+  type ReportFilterFormValues,
+  type ReportType,
+} from "@munim/core"
 import { formatCurrency, formatNumber, formatDateTime, formatWeight } from "@/lib/format"
-import type { ReportType } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { toast } from "@munim/ui"
 
@@ -49,20 +51,32 @@ const REPORT_OPTIONS: {
 ]
 
 export function ReportsView() {
-  const [type, setType] = React.useState<ReportType | null>("monthly")
-  const [startDate, setStartDate] = React.useState("")
-  const [endDate, setEndDate] = React.useState("")
-  const [activeType, setActiveType] = React.useState<ReportType | null>("monthly")
-  const [activeStart, setActiveStart] = React.useState("")
-  const [activeEnd, setActiveEnd] = React.useState("")
+  const [type, setType] = React.useState<ReportType>("monthly")
+  const [form, setForm] = React.useState<ReportFilterFormValues>(emptyReportFilterForm)
+  const [active, setActive] = React.useState<ReportFilters | null>({ type: "monthly" })
 
-  const { data: report, isLoading, isFetching, refetch } = useReport(activeType, activeStart || undefined, activeEnd || undefined)
+  const { data: report, isLoading, isFetching, refetch } = useReport(active)
+
+  // Filter option sources — the same masters the rest of the app uses.
+  const { data: articles } = useArticles()
+  const { data: colors } = useCatalog("color")
+  const { data: sizes } = useCatalog("size")
+  const { data: categories } = useCatalog("category")
+  const { data: parties } = useParties()
+
+  const filterOptions = React.useMemo(
+    () => ({
+      articles: articles ?? [],
+      categories: categories ?? [],
+      colors: colors ?? [],
+      sizes: sizes ?? [],
+      parties: parties ?? [],
+    }),
+    [articles, categories, colors, sizes, parties]
+  )
 
   function generate() {
-    if (!type) return
-    setActiveType(type)
-    setActiveStart(startDate)
-    setActiveEnd(endDate)
+    setActive(toReportFilters(type, form))
   }
 
   async function handleExcel() {
@@ -139,48 +153,22 @@ export function ReportsView() {
             })}
           </div>
 
-          <div className="space-y-2">
-            <p className="text-[11px] text-muted-foreground">
-              Quick range — sets the dates below.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {(["today", "week", "month"] as const).map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    const range = dashboardPresetRange(key)
-                    setStartDate(range.from)
-                    setEndDate(range.to)
-                  }}
-                  className="rounded-full border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
-                >
-                  {key === "today" ? "Today" : key === "week" ? "This week" : "This month"}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Date range — optional, applies to any report type. Leave blank for the default period.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:max-w-md">
-              <div className="space-y-1.5">
-                <Label htmlFor="startDate" className="text-xs">Start Date</Label>
-                <Input id="startDate" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-9" />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="endDate" className="text-xs">End Date</Label>
-                <Input id="endDate" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-9" />
-              </div>
-            </div>
+          <div className="border-t pt-4">
+            <ReportFilterPanel
+              value={form}
+              onChange={setForm}
+              options={filterOptions}
+              onApply={generate}
+              busy={isFetching}
+            />
           </div>
 
           <div className="flex items-center gap-2">
-            <Button onClick={generate} disabled={!type} className="gap-1.5">
-              <RefreshCw className="h-4 w-4" /> Generate Report
-            </Button>
-            {activeType && (
+            {active && (
               <Badge variant="secondary" className="gap-1">
-                Active: {REPORT_OPTIONS.find((o) => o.key === activeType)?.label}
+                Active: {REPORT_OPTIONS.find((o) => o.key === active.type)?.label}
+                {active.startDate ? ` · ${active.startDate}` : ""}
+                {active.endDate ? ` → ${active.endDate}` : ""}
               </Badge>
             )}
           </div>
@@ -188,7 +176,7 @@ export function ReportsView() {
       </Card>
 
       {/* Report results */}
-      {activeType && (
+      {active && (
         <Card>
           <CardHeader className="pb-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -282,6 +270,9 @@ export function ReportsView() {
                       <TableRow className="bg-muted/40">
                         <TableHead className="h-10 text-xs">Product Name</TableHead>
                         <TableHead className="text-xs">SKU</TableHead>
+                        <TableHead className="text-xs">Article</TableHead>
+                        <TableHead className="text-xs">Category</TableHead>
+                        <TableHead className="text-xs">Type</TableHead>
                         <TableHead className="text-xs">Color</TableHead>
                         <TableHead className="text-xs">Size</TableHead>
                         <TableHead className="text-right text-xs">Stock</TableHead>
@@ -293,7 +284,7 @@ export function ReportsView() {
                     <TableBody>
                       {report.rows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={11} className="py-10 text-center text-sm text-muted-foreground">
                             No data for this report in the selected period.
                           </TableCell>
                         </TableRow>
@@ -302,6 +293,9 @@ export function ReportsView() {
                           <TableRow key={`${r.sku ?? "n"}-${r.productId ?? r.productName}`} className="hover:bg-muted/30">
                             <TableCell className="font-medium">{r.productName}</TableCell>
                             <TableCell className="font-mono text-xs">{r.sku}</TableCell>
+                            <TableCell className="text-xs">{r.articleName ?? "—"}</TableCell>
+                            <TableCell className="text-xs">{r.categoryName ?? "—"}</TableCell>
+                            <TableCell className="text-xs">{r.productType ?? "—"}</TableCell>
                             <TableCell>{r.color}</TableCell>
                             <TableCell>{r.size}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(r.stock)}</TableCell>

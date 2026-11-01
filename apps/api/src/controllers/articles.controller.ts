@@ -1,6 +1,7 @@
-import { Body, Controller, Delete, Get, Inject, Param, Patch, Post } from "@nestjs/common";
+import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, Query } from "@nestjs/common";
 import { z } from "zod";
 import {
+  ARTICLE_ANALYTICS_PRESETS,
   createArticle,
   deleteArticle,
   getArticlesAnalytics,
@@ -28,10 +29,14 @@ const articleSchema = z.object({
   description: descriptionSchema,
 });
 
+const analyticsQuerySchema = z.object({
+  preset: z.enum(ARTICLE_ANALYTICS_PRESETS).optional(),
+});
+
 /**
  * Articles — product classification like a category plus code/description.
- * `GET /api/articles/analytics` powers the Articles page analytics section
- * (stock, sold units/weight, revenue, last sale, 6-month trend).
+ * `GET /api/articles/analytics?preset=` powers the Articles page analytics
+ * section (stock, sold units/weight, revenue, last sale, bucketed trend).
  */
 @Controller("articles")
 export class ArticlesController {
@@ -48,9 +53,15 @@ export class ArticlesController {
   }
 
   @Get("analytics")
-  async analytics() {
-    return this.cache.cacheAside(cacheKeys.articlesAnalytics, CACHE_TTL.reports, () =>
-      getArticlesAnalytics(this.db),
+  async analytics(
+    @Query(new ZodValidationPipe(analyticsQuerySchema))
+    query: z.infer<typeof analyticsQuerySchema>,
+  ) {
+    const preset = query.preset ?? "6m";
+    return this.cache.cacheAside(
+      cacheKeys.articlesAnalytics({ preset }),
+      CACHE_TTL.reports,
+      () => getArticlesAnalytics(this.db, preset),
     );
   }
 

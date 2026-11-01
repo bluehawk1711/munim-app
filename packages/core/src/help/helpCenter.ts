@@ -44,11 +44,12 @@ export const HELP_SECTIONS: HelpSection[] = [
       {
         id: "page-dashboard",
         title: "Dashboard",
-        keywords: ["home", "overview", "kpi", "charts", "today"],
+        keywords: ["home", "overview", "kpi", "charts", "today", "weight", "breakdown", "drill-down"],
         body: [
           "The at-a-glance screen: sales totals, weight sold, material received, low-stock alerts and category charts.",
           "Use the period chips (Today / This week / This month / Custom) to re-scope every tile and chart.",
           "Tiles are clickable — they jump to the matching report with the same period applied.",
+          "Click (mobile: tap) the Weight sold tile for a drill-down listing, day by day, which product sold how much weight — newest day first, products heaviest first.",
         ],
       },
       {
@@ -221,7 +222,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         title: "Weight",
         keywords: ["gross", "net", "gm", "weight unit"],
         body: [
-          "Line weight in grams (or the product's unit). For gold, the NET weight is what pricing uses — Chejat adds and Nag less subtracts to reach it.",
+          "Line weight in grams (or the product's unit). For gold, the NET weight is what pricing uses — Chejat adds and Nag less subtracts to reach it; the bill prints both moves as signed grams in the N/C column.",
           "Toggle 'Weight after name' (template option) to print the weight right after the product name instead of its own column.",
         ],
       },
@@ -248,7 +249,7 @@ export const HELP_SECTIONS: HelpSection[] = [
         title: "Estimate grid columns",
         keywords: ["columns", "weight", "rate", "labour", "amount", "show hide"],
         body: [
-          "The printed estimate table. Gold grid columns: G. Wt., Chejat/Nag, Rate, Labour, Other Charges, Amount; silver grid uses its combined Weight column.",
+          "The printed estimate table. Gold grid columns: G. Wt., N/C, Rate, Labour, Other Charges, Amount; silver grid uses its combined Weight column.",
           "Turn columns off with the per-metal toggles on the New Bill screen — hidden columns are remembered per bill in the template settings.",
         ],
       },
@@ -351,16 +352,16 @@ export const HELP_SECTIONS: HelpSection[] = [
         title: "Purity (karat) line",
         keywords: ["karat", "purity", "22k", "hallmark", "base"],
         body: [
-          "The purity line under the gold rate: Base (shop's base karat), Product (the karat resolved from the bill's items), Custom text (e.g. '22K hallmark'), or Off.",
+          "The purity line under the gold rate: Base (shop's base karat), Product (the karat resolved from the bill's items), Custom text (e.g. '22K hallmark'), or Off. It prints as its own line directly under the ₹/gm rate, e.g. '24K'.",
         ],
       },
       {
-        id: "tpl-sign-suffix",
-        title: "Chejat/Nag signs",
-        keywords: ["plus", "minus", "chejat", "nag"],
+        id: "tpl-nc-column",
+        title: "N/C column",
+        keywords: ["plus", "minus", "chejat", "nag", "net weight"],
         body: [
-          "ON: prints 'Chejat: 0.100 +' and 'Nag: 0.200 −' — showing chejat adds to net weight and nag less subtracts.",
-          "OFF: prints the plain values without + / −.",
+          "The gold bill's N/C column prints only signed grams: '+0.150' for chejat (adds to net weight) and '-0.620' for nag less (subtracts).",
+          "No Chejat/Nag labels are printed; the totals row sums both moves the same way.",
         ],
       },
       {

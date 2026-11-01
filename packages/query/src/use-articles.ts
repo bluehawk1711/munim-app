@@ -1,9 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { ArticleDto, ArticleInput, ArticlesAnalytics } from "@munim/core";
+import type {
+  ArticleAnalyticsPreset,
+  ArticleDto,
+  ArticleInput,
+  ArticlesAnalytics,
+} from "@munim/core";
 import { useApiClient } from "./provider.js";
 import { qk } from "./keys.js";
 
-export type { ArticleDto, ArticleInput, ArticlesAnalytics };
+export type { ArticleDto, ArticleInput, ArticlesAnalytics, ArticleAnalyticsPreset, ArticleAnalyticsPeriod } from "@munim/core";
 
 /** GET /api/articles — every article with its product count. */
 export function useArticles() {
@@ -17,15 +22,19 @@ export function useArticles() {
   });
 }
 
-/** GET /api/articles/analytics — per-article stock/sales/trend rows. */
-export function useArticlesAnalytics() {
+/** GET /api/articles/analytics?preset= — per-article stock/sales/trend rows
+ *  for the selected window. The key includes the preset so switching the
+ *  filter is cached per window, while `invalidateQueries(qk.articles.all)`
+ *  still clears every window (key-prefix match). */
+export function useArticlesAnalytics(preset?: ArticleAnalyticsPreset) {
   const getClient = useApiClient();
   return useQuery({
-    queryKey: qk.articles.analytics,
+    queryKey: [...qk.articles.analytics, preset ?? "6m"],
     queryFn: async () => {
       const api = await getClient();
-      return api.articles.analytics();
+      return api.articles.analytics(preset);
     },
+    placeholderData: (previous) => previous,
   });
 }
 

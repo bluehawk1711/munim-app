@@ -18,7 +18,6 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Image,
   Pressable,
-  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -56,6 +55,7 @@ import {
   Loading,
   ModalSheet,
   Screen,
+  SegmentedTabs,
   ConfirmDialog,
   colors,
 } from '../components/ui';
@@ -65,7 +65,6 @@ import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {EditProductModal} from '../components/EditProductModal';
 import {AdjustStockModal} from '../components/AdjustStockModal';
 import {useAppStore} from '../lib/store';
-import {useNavStore} from '../lib/nav-store';
 import {useThemeStyles} from '../theme';
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
@@ -106,17 +105,32 @@ function BarcodeChip({value}: {value: string}) {
 type ProductRowProps = {
   item: ProductDto;
   onPress: (p: ProductDto) => void;
+  onBill: (p: ProductDto) => void;
   index: number;
 };
 
-const ProductRow = React.memo(function ProductRow({item, onPress, index}: ProductRowProps) {
+const ProductRow = React.memo(function ProductRow({item, onPress, onBill}: ProductRowProps) {
   const styles = useThemeStyles(makeRowStyles);
 
-  const variantBits = [item.color, item.size !== 'Standard' ? item.size : null, item.purity]
+  const variantBits = [item.article, item.color, item.size !== 'Standard' ? item.size : null, item.purity]
     .filter(Boolean)
     .join(' · ');
 
   const typeColor = PRODUCT_TYPE_COLORS[item.type ?? 'Other'] ?? PRODUCT_TYPE_COLORS.Other;
+  const classification = classifyProduct({
+    type: item.type,
+    goldKarat: item.goldKarat,
+    purity: item.purity,
+    categoryName: item.category,
+  }).text;
+  // Weight-forward line — gold leads with the derived net weight (what
+  // pricing uses), everything else with its own weight + unit.
+  const weightText =
+    item.type === 'Gold' && item.netWeight != null
+      ? `${item.netWeight} net`
+      : item.weight != null
+        ? formatWeight(item.weight, item.weightUnit)
+        : null;
 
   const stockPillStyle =
     item.stock <= 0 ? styles.pillOut : isLow(item) ? styles.pillLow : styles.pillOk;
@@ -130,44 +144,26 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
         {item.imageUrl ? (
           <Image source={{uri: item.imageUrl}} style={styles.thumbImg} />
         ) : (
-          <Package size={rs(20)} color={colors.muted} />
+          <Package size={rs(24)} color={colors.muted} />
         )}
       </View>
 
-      {/* Name / variant chip / price + cost line */}
+      {/* Name / classification + variant / weight / price */}
       <View style={styles.main}>
         <Text style={styles.name} numberOfLines={1}>
           {item.name}
         </Text>
-        {variantBits || item.weight != null ? (
-          <View style={styles.variantChip}>
-            <View style={[styles.typeBadge, {backgroundColor: `${typeColor}22`, borderColor: `${typeColor}44`}]}>
-              <Text style={[styles.typeBadgeText, {color: typeColor}]}>
-                {classifyProduct({
-                  type: item.type,
-                  goldKarat: item.goldKarat,
-                  purity: item.purity,
-                  categoryName: item.category,
-                }).text}
-              </Text>
-            </View>
-            <Text style={styles.variantText} numberOfLines={1}>
-              {              [
-                item.article || null,
-                variantBits || null,
-                // Gold shows the DERIVED net weight when present (what pricing
-                // uses) — same "(net)" display as the web + desktop listings.
-                item.type === 'Gold' && item.netWeight != null
-                  ? `${item.netWeight} (net)`
-                  : item.weight != null
-                    ? `${formatWeight(item.weight, item.weightUnit)}`
-                    : null,
-              ]
-                .filter(Boolean)
-                .join('  ·  ')}
-            </Text>
+        <View style={styles.chipRow}>
+          <View style={[styles.typeBadge, {backgroundColor: `${typeColor}22`, borderColor: `${typeColor}44`}]}>
+            <Text style={[styles.typeBadgeText, {color: typeColor}]}>{classification}</Text>
           </View>
-        ) : null}
+          {variantBits ? (
+            <Text style={styles.variantText} numberOfLines={1}>
+              {variantBits}
+            </Text>
+          ) : null}
+        </View>
+        {weightText ? <Text style={styles.weightText}>{weightText}</Text> : null}
         <View style={styles.priceRow}>
           <Text style={styles.price}>{price(item.effectivePrice)}</Text>
           {item.stock <= 0 ? (
@@ -178,15 +174,25 @@ const ProductRow = React.memo(function ProductRow({item, onPress, index}: Produc
         </View>
       </View>
 
-      {/* Right stock pill */}
-      <View style={[styles.pill, stockPillStyle]}>
-        <Text style={styles.pillText} numberOfLines={1}>
-          {item.stock <= 0
-            ? '0 units'
-            : isLow(item)
-              ? `${item.stock} units (Low)`
-              : `${item.stock} units`}
-        </Text>
+      {/* Stock pill + quick bill action */}
+      <View style={styles.rightCol}>
+        <View style={[styles.pill, stockPillStyle]}>
+          <Text style={styles.pillText} numberOfLines={1}>
+            {item.stock <= 0
+              ? '0 units'
+              : isLow(item)
+                ? `${item.stock} units (Low)`
+                : `${item.stock} units`}
+          </Text>
+        </View>
+        <Pressable
+          onPress={() => onBill(item)}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Bill ${item.name}`}
+          style={({pressed}) => [styles.billBtn, pressed && {opacity: 0.7}]}>
+          <Text style={styles.billBtnText}>Bill</Text>
+        </Pressable>
       </View>
     </Pressable>
   );
@@ -260,17 +266,16 @@ export function ProductsScreen() {
   // Backfill
   const [backfilling, setBackfilling] = useState(false);
 
-  /** Quick sale → stage the product on a new bill, then open More → Billing. */
-  function sendToBill(product: ProductDto) {
+  /** Quick sale → stage the product on a new bill, then open the Sales tab. */
+  const sendToBill = useCallback((product: ProductDto) => {
     if (product.stock <= 0) {
       errorFeedback(`${product.name} is out of stock`);
       return;
     }
     useAppStore.getState().stageBillProduct(product.id);
-    useNavStore.getState().openMore('billing');
-    useAppStore.getState().setActiveView('more');
+    useAppStore.getState().setActiveView('sales');
     successFeedback(`${product.name} added to a new bill`);
-  }
+  }, []);
 
   // Barcode scan result handler — a found product is staged on the new bill.
   useEffect(() => {
@@ -316,6 +321,13 @@ export function ProductsScreen() {
       low: allProducts.filter(isLow).length,
       out: allProducts.filter(isOut).length,
     }),
+    [allProducts],
+  );
+
+  /** Loaded-page stock figures — labelled "loaded", not server totals. */
+  const loadedUnits = useMemo(() => allProducts.reduce((sum, p) => sum + p.stock, 0), [allProducts]);
+  const loadedValue = useMemo(
+    () => allProducts.reduce((sum, p) => sum + p.effectivePrice * p.stock, 0),
     [allProducts],
   );
 
@@ -414,9 +426,9 @@ export function ProductsScreen() {
 
   const renderItem = useCallback(
     ({item, index}: {item: ProductDto; index: number}) => (
-      <ProductRow item={item} onPress={onPressRow} index={index} />
+      <ProductRow item={item} onPress={onPressRow} onBill={sendToBill} index={index} />
     ),
-    [onPressRow],
+    [onPressRow, sendToBill],
   );
 
   const keyExtractor = useCallback((item: ProductDto) => item.id, []);
@@ -443,6 +455,37 @@ export function ProductsScreen() {
   return (
     <Screen>
       <HomeHeader title="Stock" />
+
+      {/* Loaded-page metric strip — loaded figures are labelled as such. */}
+      <View style={styles.metricStrip}>
+        <View style={styles.metricTile}>
+          <Text style={styles.metricLabel}>Products</Text>
+          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+            {totalCount}
+          </Text>
+        </View>
+        <View style={styles.metricTile}>
+          <Text style={styles.metricLabel}>Units (loaded)</Text>
+          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+            {String(loadedUnits)}
+          </Text>
+        </View>
+        <View style={styles.metricTile}>
+          <Text style={styles.metricLabel}>Stock value</Text>
+          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+            {price(loadedValue)}
+          </Text>
+        </View>
+        <View style={styles.metricTile}>
+          <Text style={styles.metricLabel}>Low / Out</Text>
+          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
+            {`${counts.low} / ${counts.out}`}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.metricHint}>
+        {`${allProducts.length} loaded of ${totalCount} · value from loaded products`}
+      </Text>
 
       {/* Search + scan row, with add-product icon button beside it */}
       <View style={styles.searchBarRow}>
@@ -478,69 +521,47 @@ export function ProductsScreen() {
         </Pressable>
       </View>
 
-      {/* Filter badges — one horizontally scrollable row (stock · type · price) */}
-      <View style={styles.chipScrollWrap}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipScrollContent}>
-          {FILTERS.map(f => {
-            const active = stockFilter === f.key;
-            return (
-              <Pressable
-                key={f.key}
-                onPress={() => {
-                  selectionTick();
-                  setStockFilter(f.key);
-                  setPage(1);
-                  setAllProducts([]);
-                }}
-                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
-                {f.key === 'low' && f.count > 0 ? <View style={styles.dotWarning} /> : null}
-                {f.key === 'out' && f.count > 0 ? <View style={styles.dotDanger} /> : null}
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {f.label}
-                </Text>
-                {f.count > 0 ? <Text style={[styles.chipCount, active && styles.chipTextActive]}>{f.count}</Text> : null}
-              </Pressable>
-            );
-          })}
-          <View style={styles.chipDivider} />
-          {TYPE_FILTERS.map(f => {
-            const active = typeFilter === f.key;
-            return (
-              <Pressable
-                key={f.key}
-                onPress={() => {
-                  selectionTick();
-                  setTypeFilter(f.key);
-                  setPage(1);
-                  setAllProducts([]);
-                }}
-                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {f.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-          <View style={styles.chipDivider} />
-          {PRICE_FILTERS.map(f => {
-            const active = priceFilter === f.key;
-            return (
-              <Pressable
-                key={f.key}
-                onPress={() => {
-                  selectionTick();
-                  setPriceFilter(f.key);
-                  setPage(1);
-                  setAllProducts([]);
-                }}
-                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                  {f.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+      {/* Stock tabs (counts) + type tabs — the same filter row language. */}
+      <SegmentedTabs<StockFilter>
+        options={FILTERS}
+        value={stockFilter}
+        onChange={key => {
+          selectionTick();
+          setStockFilter(key);
+          setPage(1);
+          setAllProducts([]);
+        }}
+        style={styles.filterTabs}
+      />
+      <SegmentedTabs<TypeFilter>
+        options={TYPE_FILTERS}
+        value={typeFilter}
+        onChange={key => {
+          selectionTick();
+          setTypeFilter(key);
+          setPage(1);
+          setAllProducts([]);
+        }}
+        style={styles.filterTabs}
+      />
+      <View style={styles.priceRow}>
+        <Text style={styles.priceLabel}>Pricing</Text>
+        {PRICE_FILTERS.map(f => {
+          const active = priceFilter === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              onPress={() => {
+                selectionTick();
+                setPriceFilter(f.key);
+                setPage(1);
+                setAllProducts([]);
+              }}
+              style={({pressed}) => [styles.priceChip, active && styles.priceChipActive, pressed && {opacity: 0.8}]}>
+              <Text style={[styles.priceChipText, active && styles.priceChipTextActive]}>{f.label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {missingBarcodes ? (
@@ -593,7 +614,7 @@ export function ProductsScreen() {
         onSell={p => { setDetailTarget(null); sendToBill(p); }}
       />
 
-      {/* Product form sheet — centered modal */}
+      {/* Product form — draggable bottom sheet */}
       <EditProductModal
         visible={formOpen}
         product={editing}
@@ -658,8 +679,8 @@ const makeRowStyles = () =>
       backgroundColor: colors.mutedSoft,
     },
     thumb: {
-      width: rs(64),
-      height: rs(64),
+      width: rs(72),
+      height: rs(72),
       borderRadius: radii.md,
       borderWidth: 1,
       borderColor: colors.border,
@@ -672,30 +693,28 @@ const makeRowStyles = () =>
     thumbImg: {width: '100%', height: '100%'},
     main: {flex: 1, minWidth: 0},
     name: {fontSize: rs(15), fontWeight: '700', color: colors.text},
-    variantChip: {
-      alignSelf: 'flex-start',
+    chipRow: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: colors.mutedSoft,
-      borderRadius: radii.sm,
-      paddingHorizontal: rs(7),
-      paddingVertical: rs(2.5),
+      gap: rs(6),
       marginTop: rs(4),
       maxWidth: '100%',
-      gap: rs(4),
     },
     typeBadge: {
       borderRadius: radii.full,
       paddingHorizontal: rs(5),
       paddingVertical: rs(1),
       borderWidth: 1,
+      flexShrink: 0,
     },
     typeBadgeText: {fontSize: rs(9), fontWeight: '700'},
-    variantText: {fontSize: rs(10.5), fontWeight: '600', color: colors.muted},
-    priceRow: {flexDirection: 'row', alignItems: 'baseline', gap: rs(8), marginTop: rs(5)},
+    variantText: {fontSize: rs(10.5), fontWeight: '600', color: colors.muted, flexShrink: 1},
+    weightText: {fontSize: rs(12), fontWeight: '700', color: colors.text, marginTop: rs(3)},
+    priceRow: {flexDirection: 'row', alignItems: 'baseline', gap: rs(8), marginTop: rs(4)},
     price: {fontSize: rs(17), fontWeight: '800', color: colors.primary},
     costText: {fontSize: rs(11.5), color: colors.muted},
     outText: {fontSize: rs(11.5), fontWeight: '600', color: colors.danger},
+    rightCol: {alignItems: 'flex-end', gap: rs(6), flexShrink: 0},
     pill: {
       borderRadius: radii.full,
       paddingHorizontal: rs(9),
@@ -713,12 +732,58 @@ const makeRowStyles = () =>
       color: colors.text,
       textAlign: 'right',
     },
+    billBtn: {
+      borderRadius: radii.full,
+      backgroundColor: colors.primary,
+      paddingHorizontal: rs(12),
+      paddingVertical: rs(5),
+    },
+    billBtnText: {fontSize: rs(11), fontWeight: '700', color: colors.onPrimary},
   });
 
 /* ─── Screen styles ──────────────────────────────────────────────────── */
 
 const makeStyles = () =>
   StyleSheet.create({
+    metricStrip: {
+      flexDirection: 'row',
+      gap: rs(6),
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: rs(6),
+    },
+    metricTile: {
+      flex: 1,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      borderRadius: radii.md,
+      paddingHorizontal: rs(8),
+      paddingVertical: rs(8),
+    },
+    metricLabel: {fontSize: rs(9.5), fontWeight: '600', color: colors.muted, textTransform: 'uppercase'},
+    metricValue: {fontSize: rs(12.5), fontWeight: '800', color: colors.text, marginTop: rs(3)},
+    metricHint: {fontSize: rs(10), color: colors.muted, marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm},
+    filterTabs: {marginBottom: rs(2)},
+    priceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(6),
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: spacing.sm,
+      paddingLeft: rs(2),
+    },
+    priceLabel: {fontSize: rs(10.5), fontWeight: '700', color: colors.muted},
+    priceChip: {
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(4),
+    },
+    priceChipActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    priceChipText: {fontSize: rs(10.5), fontWeight: '600', color: colors.muted},
+    priceChipTextActive: {color: colors.onPrimary},
     searchBarRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -758,54 +823,5 @@ const makeStyles = () =>
       alignItems: 'center',
       justifyContent: 'center',
       flexShrink: 0,
-    },
-    chipScrollWrap: {
-      marginHorizontal: CARD_MARGIN,
-      marginBottom: spacing.sm,
-    },
-    chipScrollContent: {
-      gap: rs(6),
-      alignItems: 'center',
-      paddingRight: rs(6),
-    },
-    chipDivider: {
-      width: 1,
-      height: rs(18),
-      backgroundColor: colors.border,
-      marginHorizontal: rs(3),
-    },
-    chip: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: rs(5),
-      borderRadius: radii.full,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      paddingHorizontal: rs(11),
-      paddingVertical: rs(6),
-    },
-    chipActive: {
-      backgroundColor: colors.primary,
-      borderColor: colors.primary,
-    },
-    chipText: {fontSize: rs(11.5), fontWeight: '600', color: colors.muted},
-    chipTextActive: {color: colors.onPrimary},
-    chipCount: {
-      fontSize: rs(10.5),
-      fontWeight: '800',
-      color: colors.muted,
-    },
-    dotWarning: {
-      width: rs(6),
-      height: rs(6),
-      borderRadius: radii.full,
-      backgroundColor: colors.warning,
-    },
-    dotDanger: {
-      width: rs(6),
-      height: rs(6),
-      borderRadius: radii.full,
-      backgroundColor: colors.danger,
     },
   });

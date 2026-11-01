@@ -12,13 +12,23 @@ import { themes } from "./tokens.js";
 export function mobileColorsFor(mode, themeName = "apple") {
     const t = themes[themeName]?.[mode] ?? themes.apple[mode];
     const softIsDark = mode === "dark";
+    // Mobile keeps surfaces neutral (pure white / black) and lets the accent
+    // theme tint only the interactive elements. Tinted theme backgrounds made
+    // every screen look washed out and hurt text contrast.
+    const neutralSurface = {
+        bg: softIsDark ? "#000000" : "#ffffff",
+        card: softIsDark ? "#0b0b0c" : "#ffffff",
+        mutedBg: softIsDark ? "#18181b" : "#f4f4f5",
+        mutedSoft: softIsDark ? "#18181b" : "#f4f4f5",
+        border: softIsDark ? "#27272a" : "#e4e4e7",
+    };
     return {
-        bg: t.background,
-        card: t.card,
+        bg: neutralSurface.bg,
+        card: neutralSurface.card,
         text: t.foreground,
         muted: t.mutedForeground,
-        mutedBg: t.muted,
-        border: t.border,
+        mutedBg: neutralSurface.mutedBg,
+        border: neutralSurface.border,
         primary: t.primary,
         accent: t.accent,
         accentForeground: t.accentForeground,
@@ -30,7 +40,7 @@ export function mobileColorsFor(mode, themeName = "apple") {
         successSoft: softIsDark ? "#0f3327" : "#d1fae5",
         warningSoft: softIsDark ? "#3a2d11" : "#fef3c7",
         dangerSoft: softIsDark ? "#401418" : "#fee2e2",
-        mutedSoft: t.border,
+        mutedSoft: neutralSurface.mutedSoft,
         inputPlaceholder: softIsDark ? "#6f6d68" : "#9aa1ac",
         // Camera/scan surfaces stay black in both modes — content on them uses
         // inverseOnSurface so it remains readable regardless of mode.

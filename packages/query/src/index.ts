@@ -80,6 +80,8 @@ export type {
   ArticleDto,
   ArticleInput,
   ArticlesAnalytics,
+  ArticleAnalyticsPreset,
+  ArticleAnalyticsPeriod,
 } from "./use-articles.js";
 export {
   useJobLetters,

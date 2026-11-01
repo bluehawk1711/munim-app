@@ -51,6 +51,7 @@ import {
   Badge,
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   Select,
@@ -92,10 +93,10 @@ type LineState = {
   /** Gross-weight free text — bill G. Wt. column. */
   grossWeight: string;
   /** Bill line's nag-less weight in GRAMS (string field) — gold net-weight
-   *  derivation input (net = gross − nag + chejat) + printed Nag Wt. column. */
+   *  derivation input (net = gross − nag + chejat); printed as a signed N/C line. */
   nagLessWeight: string;
-  /** Bill line's chejat (stone) weight in GRAMS — the other derivation input
-   *  + printed Chejat Wt. column. */
+  /** Bill line's chejat (stone) weight in GRAMS — the other derivation input;
+   *  printed as a signed N/C line. */
   chejatWeight: string;
   quantity: string;
   price: string;
@@ -293,8 +294,6 @@ export function BillingPage() {
   const [weightAfterName, setWeightAfterName] = useState(true);
   const [goldRateLine, setGoldRateLine] = useState(true);
   const [silverRateLine, setSilverRateLine] = useState(true);
-  // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −".
-  const [signSuffix, setSignSuffix] = useState(true);
   // Purity line under the gold rate row — shop base / this bill's product
   // karat / custom text / nothing (see GoldRateKaratMode).
   const [goldRateKaratMode, setGoldRateKaratMode] = useState<GoldRateKaratMode>("base");
@@ -327,7 +326,6 @@ export function BillingPage() {
     weightAfterName,
     goldRateLine,
     silverRateLine,
-    signSuffix,
     goldRateKaratMode,
     goldRateKaratText,
     goldRateKaratValue,
@@ -1035,7 +1033,6 @@ export function BillingPage() {
     setWeightAfterName(st?.weightAfterName ?? true);
     setGoldRateLine(st?.goldRateLine ?? true);
     setSilverRateLine(st?.silverRateLine ?? true);
-    setSignSuffix(st?.signSuffix ?? true);
     setGoldRateKaratMode(st?.goldRateKaratMode ?? "base");
     setGoldRateKaratText(st?.goldRateKaratText ?? "");
     setGoldRateKaratValue(st?.goldRateKaratValue ?? 22);
@@ -1340,8 +1337,11 @@ export function BillingPage() {
                 </Card>
               )}
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">Bill details</CardTitle>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Customer &amp; bill details</CardTitle>
+                  <CardDescription className="text-xs">
+                    Who the bill is for, when it is dated, and the terms printed on it.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <CustomerFields
@@ -1358,11 +1358,35 @@ export function BillingPage() {
                     error={fieldError("customer")}
                   />
 
-                  <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="b-date">Date</Label>
+                      <Label htmlFor="b-date">Bill date</Label>
                       <Input id="b-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
                     </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="b-notes">Notes / terms</Label>
+                      <textarea
+                        id="b-notes"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Thank you for your business!"
+                        rows={2}
+                        className="border-input bg-background focus-visible:ring-ring w-full resize-none rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-1"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Rates for this bill</CardTitle>
+                  <CardDescription className="text-xs">
+                    Editing a rate re-prices only the matching metal lines on this bill.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="b-gold-rate">Gold karat rate (₹/g)</Label>
                       <Input
@@ -1375,9 +1399,9 @@ export function BillingPage() {
                         placeholder={goldBaseRate != null ? String(goldBaseRate) : "—"}
                       />
                       <div className="flex items-center gap-2">
-                        <p className="text-muted-foreground text-[11px]">Editing re-prices gold lines on this bill.</p>
+                        <p className="text-muted-foreground text-[11px]">Gold lines re-price automatically.</p>
                         {rateKaratBadgeText && (
-                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                          <span className="bg-primary/15 text-primary rounded-full px-2 py-0.5 text-[10px] font-semibold">
                             {rateKaratBadgeText}
                           </span>
                         )}
@@ -1395,28 +1419,22 @@ export function BillingPage() {
                         placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : "—"}
                       />
                       <p className="text-muted-foreground text-[11px]">
-                        {billSilverRate != null ? `≈ ₹${billSilverRate.toFixed(2)}/g · ` : ""}Editing re-prices silver lines on this bill.
+                        {billSilverRate != null ? `≈ ₹${billSilverRate.toFixed(2)}/g · ` : ""}Silver lines re-price automatically.
                       </p>
                     </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="b-notes">Notes / terms</Label>
-                    <textarea
-                      id="b-notes"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="Thank you for your business!"
-                      rows={3}
-                      className="border-input bg-background focus-visible:ring-ring w-full resize-none rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-1"
-                    />
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between gap-2">
-                    <CardTitle className="text-sm">Items</CardTitle>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-sm">Items</CardTitle>
+                      <CardDescription className="text-xs">
+                        Pull from stock or scan a barcode, then fine-tune weight, pricing and quantity per line.
+                      </CardDescription>
+                    </div>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1430,24 +1448,30 @@ export function BillingPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Add from stock (auto-fills price &amp; details)</Label>
-                    <ProductSearchSelect
-                      products={allProducts}
-                      disableOutOfStock
-                      placeholder="Search product…"
-                      onSelect={(p) => addPickedProduct(p)}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
-                    <div className="flex items-center gap-2">
-                      <BarcodeLookupInput
-                        onLookup={handleBarcodeAdd}
-                        placeholder="Scan barcode or type SKU…"
-                        className="flex-1 sm:max-w-[320px]"
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Add from stock</Label>
+                      <ProductSearchSelect
+                        products={allProducts}
+                        disableOutOfStock
+                        placeholder="Search product…"
+                        onSelect={(p) => addPickedProduct(p)}
                       />
-                      <CameraScanButton onDetected={handleBarcodeAdd} label="Scan barcode to add an item" />
+                      <p className="text-muted-foreground text-[11px]">
+                        Auto-fills price, weight and metal details.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Scan barcode / type SKU</Label>
+                      <div className="flex items-center gap-2">
+                        <BarcodeLookupInput
+                          onLookup={handleBarcodeAdd}
+                          placeholder="Scan barcode or type SKU…"
+                          className="flex-1"
+                        />
+                        <CameraScanButton onDetected={handleBarcodeAdd} label="Scan barcode to add an item" />
+                      </div>
+                      <p className="text-muted-foreground text-[11px]">Fastest way to add a counter item.</p>
                     </div>
                   </div>
                   <LineItemsEditor
@@ -1468,7 +1492,17 @@ export function BillingPage() {
                   {fieldError("price") && (
                     <p className="text-xs font-medium text-destructive">{fieldError("price")}</p>
                   )}
-                  <SeparatorLine />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Charges, payment &amp; totals</CardTitle>
+                  <CardDescription className="text-xs">
+                    Adjustments, how the customer pays, material handed back, and the live total.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
                   <AdjustmentFields
                     discount={discount}
                     delivery={deliveryCharge}
@@ -1493,16 +1527,23 @@ export function BillingPage() {
                       />
                     </div>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-          <Label htmlFor="b-mr-title">Material returned title</Label>
-          <Input id="b-mr-title" value={materialReturnedTitle} onChange={(e) => setMaterialReturnedTitle(e.target.value)} placeholder="Material Returned" />
-          <Label htmlFor="b-mr-weight">Material returned weight</Label>
-          <Input id="b-mr-weight" value={materialReturnedWeight} onChange={(e) => setMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="b-mr-value">Material returned value (₹)</Label>
-                      <Input id="b-mr-value" type="number" min={0} value={materialReturnedValue} onChange={(e) => setMaterialReturnedValue(e.target.value)} />
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">
+                      Material returned
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="b-mr-title">Title</Label>
+                        <Input id="b-mr-title" value={materialReturnedTitle} onChange={(e) => setMaterialReturnedTitle(e.target.value)} placeholder="Material Returned" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="b-mr-weight">Weight</Label>
+                        <Input id="b-mr-weight" value={materialReturnedWeight} onChange={(e) => setMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="b-mr-value">Value (₹)</Label>
+                        <Input id="b-mr-value" type="number" min={0} value={materialReturnedValue} onChange={(e) => setMaterialReturnedValue(e.target.value)} />
+                      </div>
                     </div>
                   </div>
                   <TotalsSummary
@@ -1519,12 +1560,16 @@ export function BillingPage() {
 
               {distinct && (
                 <Card className="border-primary/30">
-                  <CardHeader>
+                  <CardHeader className="pb-3">
                     <CardTitle className="flex items-center gap-2 text-sm">
                       Second Bill — separate <Badge variant="secondary">Bill 2</Badge>
                     </CardTitle>
+                    <CardDescription className="text-xs">
+                      A different customer gets their own bill on the same page.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">Customer</p>
                     <CustomerFields
                       name={secondCustomerName}
                       phone={secondCustomerPhone}
@@ -1538,27 +1583,31 @@ export function BillingPage() {
                       idPrefix="sb"
                       error={fieldError("second-customer")}
                     />
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Add from stock (auto-fills price &amp; details)</Label>
-                      <ProductSearchSelect
-                        products={allProducts}
-                        disableOutOfStock
-                        placeholder="Search product…"
-                        onSelect={(p) => addPickedProduct(p, "second")}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Fast entry — scan barcode or type SKU</Label>
-                      <div className="flex items-center gap-2">
-                        <BarcodeLookupInput
-                          onLookup={(c) => handleBarcodeAdd(c, "second")}
-                          placeholder="Scan barcode or type SKU…"
-                          className="flex-1 sm:max-w-[320px]"
+                    <SeparatorLine />
+                    <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">Items</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Add from stock</Label>
+                        <ProductSearchSelect
+                          products={allProducts}
+                          disableOutOfStock
+                          placeholder="Search product…"
+                          onSelect={(p) => addPickedProduct(p, "second")}
                         />
-                        <CameraScanButton
-                          onDetected={(c) => handleBarcodeAdd(c, "second")}
-                          label="Scan barcode to add an item"
-                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Scan barcode / type SKU</Label>
+                        <div className="flex items-center gap-2">
+                          <BarcodeLookupInput
+                            onLookup={(c) => handleBarcodeAdd(c, "second")}
+                            placeholder="Scan barcode or type SKU…"
+                            className="flex-1"
+                          />
+                          <CameraScanButton
+                            onDetected={(c) => handleBarcodeAdd(c, "second")}
+                            label="Scan barcode to add an item"
+                          />
+                        </div>
                       </div>
                     </div>
                     <LineItemsEditor
@@ -1577,6 +1626,7 @@ export function BillingPage() {
                       <p className="text-xs font-medium text-destructive">{fieldError("second-items")}</p>
                     )}
                     <SeparatorLine />
+                    <p className="text-muted-foreground text-[11px] font-semibold tracking-wide uppercase">Charges &amp; totals</p>
                     <AdjustmentFields
                       discount={secondDiscount}
                       delivery={secondDeliveryCharge}
@@ -1586,15 +1636,17 @@ export function BillingPage() {
                       onPaid={setSecondAmountPaid}
                       idPrefix="sb"
                     />
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <div className="space-y-1.5">
-                        <Label htmlFor="sb-mr-title">Material returned title</Label>
+                        <Label htmlFor="sb-mr-title">Material title</Label>
                         <Input id="sb-mr-title" value={secondMaterialReturnedTitle} onChange={(e) => setSecondMaterialReturnedTitle(e.target.value)} placeholder="Material Returned" />
-                        <Label htmlFor="sb-mr-weight">Material returned weight</Label>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="sb-mr-weight">Material weight</Label>
                         <Input id="sb-mr-weight" value={secondMaterialReturnedWeight} onChange={(e) => setSecondMaterialReturnedWeight(e.target.value)} placeholder="e.g. 5gm" />
                       </div>
                       <div className="space-y-1.5">
-                        <Label htmlFor="sb-mr-value">Material returned value (₹)</Label>
+                        <Label htmlFor="sb-mr-value">Material value (₹)</Label>
                         <Input id="sb-mr-value" type="number" min={0} value={secondMaterialReturnedValue} onChange={(e) => setSecondMaterialReturnedValue(e.target.value)} />
                       </div>
                     </div>
@@ -1662,7 +1714,7 @@ export function BillingPage() {
               </Button>
             </div>
 
-        <div className="space-y-5">
+        <div className="space-y-5 xl:sticky xl:top-5 xl:max-h-[calc(100vh-2.5rem)] xl:self-start xl:overflow-y-auto xl:pr-1">
           <Card className="h-fit">
             <CardHeader>
               <CardTitle className="text-sm">Bill preview</CardTitle>
@@ -1706,7 +1758,6 @@ export function BillingPage() {
                 weightAfterName={weightAfterName}
                 goldRateLine={goldRateLine}
                 silverRateLine={silverRateLine}
-                signSuffix={signSuffix}
                 goldRateKaratMode={goldRateKaratMode}
                 goldRateKaratText={goldRateKaratText}
                 karatPicker
@@ -1732,10 +1783,6 @@ export function BillingPage() {
                   );
                 }}
                 onGoldRateKaratText={setGoldRateKaratText}
-                onSignSuffix={(next) => {
-                  setSignSuffix(next);
-                  toast.success(next ? "Chejat/Nag signs shown" : "Chejat/Nag signs hidden");
-                }}
                 onWeightAfterName={(next) => {
                   setWeightAfterName(next);
                   toast.success(next ? "Weight column shown" : "Weight column hidden");

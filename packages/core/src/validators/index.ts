@@ -4,6 +4,13 @@
  * Move any new schema here instead of defining it in an app.
  */
 import { z } from "zod";
+import {
+  REPORT_METALS,
+  REPORT_PAYMENT_STATUSES,
+  REPORT_PRODUCT_TYPES,
+  REPORT_SOLD_STATES,
+  REPORT_TYPES,
+} from "../services/reports.js";
 
 /* ── Shared field helpers ─────────────────────────────────────── */
 
@@ -227,9 +234,10 @@ export const invoiceSchema = z.object({
       weightAfterName: z.boolean().default(true),
       goldRateLine: z.boolean().default(true),
       silverRateLine: z.boolean().default(true),
-      // Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag:
-      // 0.200 −". Default ON (client's ask); old snapshots parse to true.
-      signSuffix: z.boolean().default(true),
+      // Legacy N/C signs flag. The N/C column always prints signed grams
+      // now; the field stays (optional) so old invoice snapshots still
+      // parse — no payload builder needs to send it.
+      signSuffix: z.boolean().optional(),
       // Purity line under the gold rate row — omitted by older snapshots /
       // payload builders → undefined, and mergeBillTemplateSettings lands
       // on "base" (legacy base-karat line). `.optional()` (NOT `.default`)
@@ -541,10 +549,42 @@ export type SettingsFormValues = z.infer<typeof settingsSchema>;
 
 /* ── Reports ──────────────────────────────────────────────────── */
 
+/** Query strings arrive as "" when a filter is cleared — treat as absent. */
+const reportText = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().trim().optional(),
+);
+const reportNumber = z.preprocess(
+  (v) => (v === "" || v === null ? undefined : v),
+  z.coerce.number().optional(),
+);
+
+/**
+ * GET /api/reports — every facet the report pages expose on web, desktop and
+ * mobile. Mirrors core `ReportFilters`; an empty filter set reproduces the
+ * legacy type + date-range report.
+ */
 export const reportQuerySchema = z.object({
-  type: z.enum(["daily", "weekly", "monthly", "yearly", "stock", "low_stock", "sold"]),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
+  type: z.enum(REPORT_TYPES),
+  startDate: reportText,
+  endDate: reportText,
+  search: reportText,
+  articleId: reportText,
+  categoryId: reportText,
+  subCategoryId: reportText,
+  color: reportText,
+  size: reportText,
+  productType: z.enum(REPORT_PRODUCT_TYPES).optional(),
+  metal: z.enum(REPORT_METALS).optional(),
+  goldKaratMin: reportNumber,
+  goldKaratMax: reportNumber,
+  silverPurityMin: reportNumber,
+  silverPurityMax: reportNumber,
+  weightMinGm: reportNumber,
+  weightMaxGm: reportNumber,
+  soldState: z.enum(REPORT_SOLD_STATES).optional(),
+  paymentStatus: z.enum(REPORT_PAYMENT_STATUSES).optional(),
+  partyId: reportText,
 });
 
 export type ReportQueryValues = z.infer<typeof reportQuerySchema>;

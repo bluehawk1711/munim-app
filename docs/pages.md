@@ -22,6 +22,7 @@ Contents:
 The at-a-glance screen: sales totals, weight sold, material received, low-stock alerts and category charts.
 Use the period chips (Today / This week / This month / Custom) to re-scope every tile and chart.
 Tiles are clickable — they jump to the matching report with the same period applied.
+**Weight sold** opens a per-day breakdown instead: each day lists the products sold with the weight and quantity that day.
 
 ### Products (`products`)
 Your full inventory list with search, filters and per-row actions (Sell, Print label, Edit, Adjust stock, Delete).
@@ -116,7 +117,7 @@ POVAYI and Other Charges are flat amounts added to the line total.
 Both print as separate rows so the customer sees exactly what makes up the amount.
 
 ### Estimate grid columns
-The printed estimate table. Gold grid columns: G. Wt., Chejat/Nag, Rate, Labour, Other Charges, Amount; silver grid uses its combined Weight column.
+The printed estimate table. Gold grid columns: G. Wt., N/C, Rate, Labour, Other Charges, Amount; silver grid uses its combined Weight column.
 Turn columns off with the per-metal toggles on the New Bill screen — hidden columns are remembered per bill in the template settings.
 
 ### Discount
@@ -162,9 +163,11 @@ Prints the shop's silver rate (₹/gm) row — only relevant when silver items a
 
 ### Purity (karat) line
 The purity line under the gold rate: Base (shop's base karat), Product (the karat resolved from the bill's items), Custom text (e.g. '22K hallmark'), or Off.
+It prints as its own line directly under the ₹/gm rate (e.g. `24K`), not as a suffix on the rate row.
 
-### Chejat/Nag signs
-ON: prints 'Chejat: 0.100 +' and 'Nag: 0.200 −' — showing chejat adds to net weight and nag less subtracts.
+### N/C column
+Replaces the old Chejat/Nag column. Prints signed grams only: `+0.150` for chejat (adds to net weight) and `-0.620` for nag less (subtracts).
+No Chejat/Nag labels are printed; the totals row sums both moves the same way.
 OFF: prints the plain values without + / −.
 
 ### Per-metal column toggles

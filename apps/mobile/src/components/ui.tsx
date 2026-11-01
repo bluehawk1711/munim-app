@@ -5,8 +5,9 @@
  * scales correctly across device widths.
  *
  * Components: Screen, Header, Section, Card, Button, Field, SelectField,
- * Badge, StatBox, Row, Loading, Empty, ErrorBox, ModalSheet, SafeScreen,
- * AccordionCard, EmptyState, ErrorState, InlineSpinner, ConfirmDialog.
+ * Badge, StatBox, SegmentedTabs, Row, Loading, Empty, ErrorBox, ModalSheet,
+ * SafeScreen, AccordionCard, EmptyState, ErrorState, InlineSpinner,
+ * ConfirmDialog.
  */
 
 import React from 'react';
@@ -38,7 +39,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {ChevronDown, ChevronRight, MoreVertical, X} from 'lucide-react-native';
 import type {LabourType} from '@munim/core';
 import {colors, useTheme, useThemeStyles} from '../theme';
-import {actionPress} from '../lib/haptics';
+import {actionPress, selectionTick} from '../lib/haptics';
 import {
   rw,
   rh,
@@ -141,8 +142,48 @@ const makeStyles = () =>
       padding: spacing.lg,
       flex: 1,
     },
+    statWrap: {flex: 1},
     statLabel: {fontSize: typography.label, color: colors.muted, fontWeight: '600'},
     statValue: {fontSize: typography.h3, fontWeight: '700', color: colors.text, marginTop: rs(4)},
+    statHint: {fontSize: typography.badge, color: colors.muted, marginTop: rs(2)},
+    statEmphasis: {borderColor: colors.primary},
+    /** Pill segments — horizontally scrollable tab/filter row. */
+    segmentsScroll: {flexGrow: 0},
+    segmentsRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: rs(6),
+      paddingHorizontal: CARD_MARGIN,
+      paddingVertical: rs(4),
+    },
+    segment: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: rs(5),
+      paddingHorizontal: spacing.md,
+      paddingVertical: rs(7),
+      borderRadius: radii.full,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      minHeight: rs(34),
+    },
+    segmentActive: {backgroundColor: colors.primary, borderColor: colors.primary},
+    segmentLabel: {fontSize: typography.secondary, fontWeight: '600', color: colors.muted},
+    segmentLabelActive: {color: colors.onPrimary},
+    segmentCount: {
+      minWidth: rs(18),
+      paddingHorizontal: rs(4),
+      paddingVertical: rs(1),
+      borderRadius: radii.full,
+      backgroundColor: colors.mutedSoft,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    segmentCountActive: {backgroundColor: 'rgba(255,255,255,0.22)'},
+    segmentCountText: {fontSize: typography.badge, fontWeight: '700', color: colors.muted},
+    segmentCountTextActive: {color: colors.onPrimary},
+    fieldHint: {fontSize: typography.badge, color: colors.muted, marginTop: rs(4)},
     row: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
@@ -356,6 +397,8 @@ type FieldProps = {
   editable?: boolean;
   /** Node rendered inline at the right of the input (e.g. the gold-rate karat badge). */
   rightElement?: React.ReactNode;
+  /** Helper line under the input row (karat line, derived rate, hint text). */
+  hint?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -370,6 +413,7 @@ export function Field({
   multiline,
   editable = true,
   rightElement,
+  hint,
   style,
 }: FieldProps) {
   const styles = useThemeStyles(makeStyles);
@@ -392,6 +436,9 @@ export function Field({
         />
         {rightElement ?? null}
       </View>
+      {hint ? (
+        typeof hint === 'string' ? <Text style={styles.fieldHint}>{hint}</Text> : hint
+      ) : null}
     </View>
   );
 }
@@ -556,15 +603,126 @@ export function Badge({text, tone}: {text: string; tone: 'success' | 'warning' |
 
 /* ─── StatBox ───────────────────────────────────────────────────────── */
 
-export function StatBox({label, value, valueColor, index = 0}: {label: string; value: string; valueColor?: string; index?: number}) {
+export function StatBox({
+  label,
+  value,
+  valueColor,
+  index = 0,
+  onPress,
+  hint,
+  emphasis,
+}: {
+  label: string;
+  value: string;
+  valueColor?: string;
+  index?: number;
+  /** Renders the tile as a button (label/role announced). */
+  onPress?: () => void;
+  /** Small helper line under the value. */
+  hint?: string;
+  /** Highlights the tile border (primary) — e.g. the selected metric. */
+  emphasis?: boolean;
+}) {
   const styles = useThemeStyles(makeStyles);
-  return (
-    <Animated.View entering={FadeInUp.duration(280).delay(index * 60)} style={styles.stat}>
+  const body = (
+    <>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={[styles.statValue, valueColor ? {color: valueColor} : null]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
+      {hint ? <Text style={styles.statHint}>{hint}</Text> : null}
+    </>
+  );
+  if (onPress) {
+    return (
+      <Animated.View entering={FadeInUp.duration(280).delay(index * 60)} style={styles.statWrap}>
+        <Pressable
+          onPress={() => {
+            selectionTick();
+            onPress();
+          }}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}: ${value}${hint ? `. ${hint}` : ''}`}
+          style={({pressed}) => [styles.stat, emphasis && styles.statEmphasis, pressed && {opacity: 0.85}]}>
+          {body}
+        </Pressable>
+      </Animated.View>
+    );
+  }
+  return (
+    <Animated.View
+      entering={FadeInUp.duration(280).delay(index * 60)}
+      style={[styles.stat, emphasis && styles.statEmphasis]}>
+      {body}
     </Animated.View>
+  );
+}
+
+/* ─── SegmentedTabs (pill tab / filter row) ─────────────────────────── */
+
+export type SegmentedTabOption<T extends string> = {
+  key: T;
+  label: string;
+  /** Optional count bubble (filters show their live counts). */
+  count?: number;
+};
+
+/**
+ * Horizontally scrollable pill row — the mobile twin of the web/desktop
+ * segmented controls. Announce each option as a tab and its selected state.
+ * Use as `<SegmentedTabs<Mode> …>` in TSX files.
+ */
+export function SegmentedTabs<T extends string>({
+  options,
+  value,
+  onChange,
+  style,
+}: {
+  options: ReadonlyArray<SegmentedTabOption<T>>;
+  value: T;
+  onChange: (key: T) => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const styles = useThemeStyles(makeStyles);
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      style={[styles.segmentsScroll, style]}
+      contentContainerStyle={styles.segmentsRow}
+      accessibilityRole="tablist">
+      {options.map(option => {
+        const active = option.key === value;
+        return (
+          <Pressable
+            key={option.key}
+            accessibilityRole="tab"
+            accessibilityState={{selected: active}}
+            accessibilityLabel={option.count != null ? `${option.label}, ${option.count}` : option.label}
+            onPress={() => {
+              if (active) return;
+              selectionTick();
+              onChange(option.key);
+            }}
+            style={({pressed}) => [
+              styles.segment,
+              active && styles.segmentActive,
+              pressed && !active && {opacity: 0.7},
+            ]}>
+            <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]} numberOfLines={1}>
+              {option.label}
+            </Text>
+            {option.count != null ? (
+              <View style={[styles.segmentCount, active && styles.segmentCountActive]}>
+                <Text style={[styles.segmentCountText, active && styles.segmentCountTextActive]}>
+                  {option.count}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
 

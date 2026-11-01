@@ -21,7 +21,8 @@ import type {
   ActivityLog,
   Settings,
 } from "../db/schema.js";
-import type { DashboardStats, ReportDayGroup, ReportRow, ReportType } from "../services/dashboard.js";
+import type { DashboardStats } from "../services/dashboard.js";
+import type { ReportDayGroup, ReportRow, ReportType } from "../services/reports.js";
 import type { LedgerLine } from "../services/parties.js";
 import type {
   CategoryBreakdown,

@@ -18,9 +18,15 @@ import {
   useDeleteArticle,
 } from "@munim/query";
 import { formatCurrency, formatNumber, formatWeight, formatDate } from "@munim/core";
+import {
+  ARTICLE_ANALYTICS_PRESET_LABELS,
+  type ArticleAnalyticsPreset,
+  type ArticleDto,
+} from "@munim/core";
 import { toast } from "@munim/ui";
 import { PageHeader } from "@/components/page-header";
 import {
+  AnalyticsPeriodFilter,
   Button,
   Input,
   Label,
@@ -36,7 +42,6 @@ import {
   Skeleton,
 } from "@munim/ui";
 import { navigate } from "@/lib/navigation";
-import type { ArticleDto } from "@munim/core";
 
 type SortKey = "revenue" | "weight" | "stockValue";
 
@@ -80,7 +85,8 @@ function StatTile({
 
 export function ArticlesPage() {
   const articles = useArticles();
-  const analytics = useArticlesAnalytics();
+  const [period, setPeriod] = useState<ArticleAnalyticsPreset>("6m");
+  const analytics = useArticlesAnalytics(period);
   const remove = useDeleteArticle();
 
   const [form, setForm] = useState<FormState>(null);
@@ -107,6 +113,8 @@ export function ArticlesPage() {
   }, [analytics.data]);
 
   const detailRow = rows.find((r) => r.articleId === detail) ?? null;
+  const periodMeta = ARTICLE_ANALYTICS_PRESET_LABELS[period];
+  const bucketLabel = analytics.data?.period.bucket === "week" ? "Weekly" : "Monthly";
   const loading = articles.isLoading || analytics.isLoading;
   const list = articles.data ?? [];
 
@@ -139,10 +147,10 @@ export function ArticlesPage() {
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile icon={Boxes} label="Articles" value={formatNumber(totals.count)} loading={loading} />
         <StatTile icon={Scale} label="Stock value" value={formatCurrency(totals.stockValue)} loading={loading} />
-        <StatTile icon={IndianRupee} label="Revenue · 6 months" value={formatCurrency(totals.revenue)} loading={loading} />
+        <StatTile icon={IndianRupee} label={`Revenue · ${periodMeta.short}`} value={formatCurrency(totals.revenue)} loading={loading} />
         <StatTile
           icon={TrendingUp}
-          label="Weight sold · 6 months"
+          label={`Weight sold · ${periodMeta.short}`}
           value={totals.soldWeightGm > 0 ? formatWeight(totals.soldWeightGm) : "—"}
           loading={loading}
         />
@@ -150,31 +158,36 @@ export function ArticlesPage() {
 
       {/* Analytics */}
       <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2 p-4 pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3 p-4 pb-3">
           <div>
             <h3 className="text-sm font-semibold">Article analytics</h3>
             <p className="text-muted-foreground text-xs">
-              Last 6 months — {analytics.data?.monthLabels.join(" · ") ?? ""}
+              {periodMeta.label} · {bucketLabel.toLowerCase()} buckets —{" "}
+              {analytics.data?.trendLabels.join(" · ") ?? ""}
             </p>
           </div>
-          <div className="bg-muted flex flex-wrap gap-1 rounded-full p-1">
-            {SORTS.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setSort(s.key)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                  sort === s.key
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
+          <AnalyticsPeriodFilter value={period} onChange={setPeriod} />
         </div>
         <CardContent>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-muted-foreground text-xs font-medium">Sort by</span>
+            <div className="bg-muted flex flex-wrap gap-1 rounded-full p-1">
+              {SORTS.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setSort(s.key)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                    sort === s.key
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
           {loading ? (
             <div className="space-y-2">
               {[0, 1, 2].map((i) => (
@@ -193,9 +206,9 @@ export function ArticlesPage() {
                     <th className="px-1 py-2 font-medium">Article</th>
                     <th className="px-1 py-2 text-right font-medium">Stock</th>
                     <th className="px-1 py-2 text-right font-medium">Stock value</th>
-                    <th className="px-1 py-2 text-right font-medium">Sold (6m)</th>
-                    <th className="px-1 py-2 text-right font-medium">Weight (6m)</th>
-                    <th className="px-1 py-2 text-right font-medium">Revenue (6m)</th>
+                    <th className="px-1 py-2 text-right font-medium">Sold ({periodMeta.short})</th>
+                    <th className="px-1 py-2 text-right font-medium">Weight ({periodMeta.short})</th>
+                    <th className="px-1 py-2 text-right font-medium">Revenue ({periodMeta.short})</th>
                     <th className="px-1 py-2 font-medium">Trend</th>
                     <th className="px-1 py-2" />
                   </tr>
@@ -393,15 +406,15 @@ export function ArticlesPage() {
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <MiniStat label="Products" value={formatNumber(detailRow.productCount)} />
                 <MiniStat label="Stock value" value={formatCurrency(detailRow.stockValue)} />
-                <MiniStat label="Sold (6m)" value={formatNumber(detailRow.soldUnits)} />
-                <MiniStat label="Revenue (6m)" value={formatCurrency(detailRow.revenue)} />
+                <MiniStat label={`Sold (${periodMeta.short})`} value={formatNumber(detailRow.soldUnits)} />
+                <MiniStat label={`Revenue (${periodMeta.short})`} value={formatCurrency(detailRow.revenue)} />
               </div>
               <div>
                 <p className="text-muted-foreground mb-1 text-xs font-semibold uppercase tracking-wide">
-                  Monthly revenue
+                  {bucketLabel} revenue
                 </p>
                 <TrendBars
-                  labels={analytics.data?.monthLabels ?? []}
+                  labels={analytics.data?.trendLabels ?? []}
                   values={detailRow.trend}
                 />
               </div>
@@ -427,7 +440,7 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** 6-month bar row — labels under each column (no chart lib needed). */
+/** Bucketed revenue bar row — labels under each column (no chart lib needed). */
 function TrendBars({ labels, values }: { labels: string[]; values: number[] }) {
   const max = Math.max(...values, 1);
   return (

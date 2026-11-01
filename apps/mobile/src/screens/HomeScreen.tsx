@@ -12,7 +12,7 @@
  * tab (optionally with an invoice status filter via nav-store).
  */
 
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {
   ShoppingCart,
@@ -27,6 +27,7 @@ import {
   dashboardPresetRange,
   formatDate,
   formatWeight,
+  groupWeightByDay,
   type DashboardPeriod,
   type DashboardPreset,
   type ProductDto,
@@ -36,7 +37,7 @@ import {ApiClientError} from '@munim/api-client';
 import {useDashboard, useProductByBarcode, useQueryState} from '@munim/query';
 import {money} from '../lib/format';
 import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
-import {Badge, Card, Empty, ErrorBox, Loading, Screen} from '../components/ui';
+import {Badge, Card, Empty, ErrorBox, Loading, ModalSheet, Screen} from '../components/ui';
 import {LineChart, BarChart, DonutChart} from '../components/charts';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
@@ -87,21 +88,27 @@ export function HomeScreen() {
     PERIOD_CHIPS.find(c => c.key === periodPreset)?.label ?? 'Period';
   const {data, error, loading, reload} = useQueryState(useDashboard(period));
 
+  // Weight drill-down: per day, which product sold how much weight.
+  const [weightSheetOpen, setWeightSheetOpen] = useState(false);
+  const weightDays = useMemo(
+    () => groupWeightByDay(data?.period.weightBreakdown ?? []),
+    [data],
+  );
+
   // ── Scan-to-sell (header scan button) ───────────────────────────────────
   const [scanOpen, setScanOpen] = useState(false);
   const [scanCode, setScanCode] = useState<string | null>(null);
   const scanningRef = useRef(false);
   const scanQ = useProductByBarcode(scanCode);
 
-  /** Quick sale → stage the product on a new bill, then open More → Billing. */
+  /** Quick sale → stage the product on a new bill, then open the Sales tab. */
   function sendToBill(product: ProductDto) {
     if (product.stock <= 0) {
       errorFeedback(`${product.name} is out of stock`);
       return;
     }
     useAppStore.getState().stageBillProduct(product.id);
-    useNavStore.getState().openMore('billing');
-    useAppStore.getState().setActiveView('more');
+    useAppStore.getState().setActiveView('sales');
     successFeedback(`${product.name} added to a new bill`);
   }
 
@@ -294,13 +301,25 @@ export function HomeScreen() {
                 </Text>
                 <Text style={styles.periodTileHint}>{data.period.invoicesCount} bills</Text>
               </View>
-              <View style={styles.periodTile}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Weight sold breakdown"
+                onPress={() => {
+                  selectionTick();
+                  setWeightSheetOpen(true);
+                }}
+                style={({pressed}) => [styles.periodTile, pressed && {opacity: 0.75}]}>
                 <Text style={styles.periodTileLabel}>Weight sold</Text>
                 <Text style={styles.periodTileValue} numberOfLines={1} adjustsFontSizeToFit>
                   {data.period.weightSoldGm > 0 ? formatWeight(data.period.weightSoldGm) : '—'}
                 </Text>
-                <Text style={styles.periodTileHint}>from bill lines</Text>
-              </View>
+                <View style={styles.weightHintRow}>
+                  <Text style={[styles.periodTileHint, {color: palette.primary}]}>
+                    Tap for products
+                  </Text>
+                  <ChevronRight size={rs(11)} color={palette.primary} />
+                </View>
+              </Pressable>
               <View style={styles.periodTile}>
                 <Text style={styles.periodTileLabel}>Material in</Text>
                 <Text style={styles.periodTileValue} numberOfLines={1} adjustsFontSizeToFit>
@@ -498,8 +517,7 @@ export function HomeScreen() {
             accessibilityLabel="Create new bill or order"
             onPress={() => {
               actionPress();
-              useNavStore.getState().openMore('billing');
-              goTo('more');
+              goTo('sales');
             }}
             style={({pressed}) => [styles.cta, pressed && styles.ctaPressed]}>
             <Plus size={rs(20)} color={palette.onPrimary} strokeWidth={2.6} />
@@ -507,6 +525,46 @@ export function HomeScreen() {
           </Pressable>
         </ScrollView>
       )}
+
+      {/* Weight sold drill-down — per day, which product sold how much weight */}
+      <ModalSheet
+        visible={weightSheetOpen}
+        title="Weight sold"
+        onClose={() => setWeightSheetOpen(false)}
+        dismissable
+        size="large"
+        scrollable>
+        <Text style={styles.weightSheetNote}>
+          {activeChipLabel} · from bill lines · grouped by bill day
+        </Text>
+        {weightDays.length === 0 ? (
+          <Text style={styles.weightEmpty}>No weight was sold in this period.</Text>
+        ) : (
+          weightDays.map(day => (
+            <View key={day.day} style={styles.weightDay}>
+              <View style={styles.weightDayHead}>
+                <Text style={styles.weightDayLabel}>{day.label}</Text>
+                <Text style={styles.weightDayTotal}>
+                  {formatWeight(day.totalWeightGm)} · {day.totalQuantity} pcs
+                </Text>
+              </View>
+              {day.products.map((p, i) => (
+                <View key={`${day.day}-${p.productName}-${p.sku ?? i}`} style={styles.weightRow}>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.weightName} numberOfLines={1}>
+                      {p.productName}
+                    </Text>
+                    <Text style={styles.weightMeta}>
+                      {p.quantity} pcs{p.sku ? ` · ${p.sku}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={styles.weightValue}>{formatWeight(p.weightGm)}</Text>
+                </View>
+              ))}
+            </View>
+          ))
+        )}
+      </ModalSheet>
 
       {/* Scan-to-bill: camera scanner → product lands on the new bill */}
       <BarcodeScannerModal visible={scanOpen} onClose={() => setScanOpen(false)} onDetected={handleScanDetected} />
@@ -660,6 +718,30 @@ const makeStyles = (c: MobileColors) =>
     },
     periodTileValue: {fontSize: 17, fontWeight: '700', color: c.text},
     periodTileHint: {fontSize: 10, color: c.muted},
+    weightHintRow: {flexDirection: 'row' as const, alignItems: 'center' as const, gap: 2},
+    weightSheetNote: {fontSize: typography.caption, color: c.muted, marginBottom: spacing.md},
+    weightEmpty: {fontSize: typography.body, color: c.muted, textAlign: 'center' as const, paddingVertical: spacing.xl},
+    weightDay: {marginBottom: spacing.md},
+    weightDayHead: {
+      flexDirection: 'row' as const,
+      alignItems: 'baseline' as const,
+      justifyContent: 'space-between' as const,
+      paddingBottom: spacing.xs,
+      marginBottom: spacing.xs,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    weightDayLabel: {fontSize: typography.secondary, fontWeight: '700' as const, color: c.text},
+    weightDayTotal: {fontSize: typography.caption, fontWeight: '600' as const, color: c.primary},
+    weightRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: spacing.sm,
+      paddingVertical: spacing.xs + 2,
+    },
+    weightName: {fontSize: typography.secondary, fontWeight: '600' as const, color: c.text},
+    weightMeta: {fontSize: typography.caption, color: c.muted},
+    weightValue: {fontSize: typography.secondary, fontWeight: '700' as const, color: c.text},
     /* Quick actions */
     quickRow: {
       flexDirection: 'row',

@@ -6,7 +6,7 @@
  * Jewellery / Modern E-commerce), classic accent color (red / yellow with a
  * swatch), the 2-in-1 toggle and its Duplicate / Separate mode select, plus
  * the per-bill display toggles (Weight column, rate rows, gold-rate karat
- * line with its show/source/custom-text options, Chejat/Nag signs).
+ * line with its show/source/custom-text options).
  *
  * `karatPicker` opts the caller into the extra "Pick a karat…" source — a
  * second dropdown (24K…9K) that prints the chosen karat under the gold rate
@@ -48,7 +48,6 @@ export function BillTemplateOptions({
   weightAfterName,
   goldRateLine,
   silverRateLine,
-  signSuffix,
   goldRateKaratMode,
   goldRateKaratText,
   karatPicker,
@@ -61,7 +60,6 @@ export function BillTemplateOptions({
   onWeightAfterName,
   onGoldRateLine,
   onSilverRateLine,
-  onSignSuffix,
   onGoldRateKaratMode,
   onGoldRateKaratText,
   className,
@@ -73,8 +71,6 @@ export function BillTemplateOptions({
   weightAfterName: boolean;
   goldRateLine: boolean;
   silverRateLine: boolean;
-  /** Chejat/Nag direction marks — ON prints "Chejat: 0.100 +" / "Nag: 0.200 −". */
-  signSuffix: boolean;
   /** What prints under the gold rate row — see `GoldRateKaratMode`. */
   goldRateKaratMode: GoldRateKaratMode;
   /** Free text for mode "custom". */
@@ -91,7 +87,6 @@ export function BillTemplateOptions({
   onWeightAfterName: (on: boolean) => void;
   onGoldRateLine: (on: boolean) => void;
   onSilverRateLine: (on: boolean) => void;
-  onSignSuffix: (on: boolean) => void;
   onGoldRateKaratMode: (m: GoldRateKaratMode) => void;
   onGoldRateKaratText: (t: string) => void;
   className?: string;
@@ -235,18 +230,6 @@ export function BillTemplateOptions({
           Silver rate line
         </label>
       </div>
-
-      {template === "ecommerce" && (
-        <div className="flex items-center gap-2">
-          <Switch checked={signSuffix} onCheckedChange={onSignSuffix} aria-label="Chejat/Nag signs" />
-          <label
-            className="cursor-pointer text-xs font-medium text-muted-foreground select-none"
-            onClick={() => onSignSuffix(!signSuffix)}
-          >
-            Chejat/Nag signs
-          </label>
-        </div>
-      )}
     </div>
   );
 }

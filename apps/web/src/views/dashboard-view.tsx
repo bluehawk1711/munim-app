@@ -16,7 +16,7 @@ import {
   Scale,
   Recycle,
 } from "lucide-react"
-import { dashboardPresetRange, type DashboardPeriod, type DashboardPreset } from "@munim/core"
+import { dashboardPresetRange, groupWeightByDay, type DashboardPeriod, type DashboardPreset } from "@munim/core"
 import { useDashboard } from "@/hooks/use-dashboard"
 import { useAppStore } from "@/store/view-store"
 import { StatCard } from "@/components/app/stat-card"
@@ -29,7 +29,7 @@ const CategorySalesChart = dynamic(() => import("@/components/charts").then((m) 
 const InvoiceStatusChart = dynamic(() => import("@/components/charts").then((m) => m.InvoiceStatusChart), { ssr: false })
 const AdvanceSplitChart = dynamic(() => import("@/components/charts").then((m) => m.AdvanceSplitChart), { ssr: false })
 const SoldPerMonthChart = dynamic(() => import("@/components/charts").then((m) => m.SoldPerMonthChart), { ssr: false })
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badge, Separator, ScrollArea } from "@munim/ui"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, Button, Badge, Separator, ScrollArea, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@munim/ui"
 
 
 
@@ -59,6 +59,12 @@ export function DashboardView() {
   const { data, isLoading, isError, refetch } = useDashboard(period)
   const setView = useAppStore((s) => s.setActiveView)
   const setSellDialogOpen = useAppStore((s) => s.setSellDialogOpen)
+  const [weightOpen, setWeightOpen] = React.useState(false)
+  // Day × product rows behind the "Weight sold" tile.
+  const weightDays = React.useMemo(
+    () => groupWeightByDay(data?.period.weightBreakdown ?? []),
+    [data?.period.weightBreakdown],
+  )
 
   if (isLoading) {
     return (
@@ -155,6 +161,8 @@ export function DashboardView() {
             accent="teal"
             hint="Line weights from the bills"
             loading={isLoading}
+            onClick={() => setWeightOpen(true)}
+            actionLabel="View products"
           />
           <StatCard
             title="Material received"
@@ -401,6 +409,63 @@ export function DashboardView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Weight sold drill-down — which product moved how much weight, per day */}
+      <Dialog open={weightOpen} onOpenChange={setWeightOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Scale className="h-4 w-4 text-primary" />
+              Weight sold
+            </DialogTitle>
+            <DialogDescription>
+              {activeChipLabel} · {formatWeight(data?.period.weightSoldGm ?? 0)} across{" "}
+              {formatNumber(weightDays.length)} {weightDays.length === 1 ? "day" : "days"}
+            </DialogDescription>
+          </DialogHeader>
+          {weightDays.length === 0 ? (
+            <div className="rounded-lg border border-dashed px-4 py-10 text-center">
+              <Scale className="mx-auto h-6 w-6 text-muted-foreground" />
+              <p className="mt-2 text-sm font-medium">No weight sold in this period</p>
+              <p className="text-xs text-muted-foreground">
+                Bills with weighted items will show their products here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {weightDays.map((day) => (
+                <div key={day.day} className="space-y-1">
+                  <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 px-3 py-2">
+                    <span className="text-sm font-semibold">{day.label}</span>
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {formatWeight(day.totalWeightGm)} · {formatNumber(day.totalQuantity)} pcs
+                    </span>
+                  </div>
+                  <div className="divide-y">
+                    {day.products.map((product, i) => (
+                      <div
+                        key={`${day.day}-${product.sku ?? product.productName}-${i}`}
+                        className="flex items-center justify-between gap-3 px-1 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{product.productName}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {product.sku ? `${product.sku} · ` : ""}
+                            {formatNumber(product.quantity)} pcs
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-sm font-semibold tabular-nums">
+                          {formatWeight(product.weightGm)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Separator />
     </div>

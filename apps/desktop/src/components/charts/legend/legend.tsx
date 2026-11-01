@@ -28,6 +28,12 @@ export interface LegendProps {
   className?: string;
   /** Children - should contain a single LegendItem that will be mapped for each item */
   children: ReactElement;
+  /** Cap rendered rows; the remainder collapses into a "+N more" hint. */
+  maxItems?: number;
+  /** Scroll the item list inside a bounded height (keeps tall legends compact). */
+  scrollable?: boolean;
+  /** Max-height utility for the scroll area. Default: `max-h-36`. */
+  scrollMaxHeightClassName?: string;
 }
 
 export function Legend({
@@ -38,6 +44,9 @@ export function Legend({
   titleClassName = "text-sm font-semibold",
   className = "",
   children,
+  maxItems,
+  scrollable = false,
+  scrollMaxHeightClassName = "max-h-36",
 }: LegendProps) {
   const [internalHoveredIndex, setInternalHoveredIndex] = useState<
     number | null
@@ -61,6 +70,8 @@ export function Legend({
     hoveredIndex,
     setHoveredIndex,
   };
+  const visibleItems = maxItems ? items.slice(0, maxItems) : items;
+  const hiddenCount = items.length - visibleItems.length;
 
   return (
     <LegendProvider value={contextValue}>
@@ -70,32 +81,44 @@ export function Legend({
             {title}
           </h3>
         )}
-        {items.map((item, index) => {
-          const isHovered = hoveredIndex === index;
-          const isFaded = hoveredIndex !== null && hoveredIndex !== index;
-          const percentage = item.maxValue
-            ? (item.value / item.maxValue) * 100
-            : 0;
+        <div
+          className={cn(
+            "flex flex-col gap-2",
+            scrollable && cn("overflow-y-auto pr-1", scrollMaxHeightClassName),
+          )}
+        >
+          {visibleItems.map((item, index) => {
+            const isHovered = hoveredIndex === index;
+            const isFaded = hoveredIndex !== null && hoveredIndex !== index;
+            const percentage = item.maxValue
+              ? (item.value / item.maxValue) * 100
+              : 0;
 
-          const itemContext = {
-            item,
-            index,
-            isHovered,
-            isFaded,
-            percentage,
-          };
+            const itemContext = {
+              item,
+              index,
+              isHovered,
+              isFaded,
+              percentage,
+            };
 
-          // Clone the child element for each item
-          if (isValidElement(children)) {
-            return (
-              <LegendItemProvider key={item.label} value={itemContext}>
-                {cloneElement(children)}
-              </LegendItemProvider>
-            );
-          }
+            // Clone the child element for each item
+            if (isValidElement(children)) {
+              return (
+                <LegendItemProvider key={item.label} value={itemContext}>
+                  {cloneElement(children)}
+                </LegendItemProvider>
+              );
+            }
 
-          return null;
-        })}
+            return null;
+          })}
+        </div>
+        {hiddenCount > 0 && (
+          <p className="text-legend-muted-foreground text-[11px]">
+            +{hiddenCount} more
+          </p>
+        )}
       </div>
     </LegendProvider>
   );

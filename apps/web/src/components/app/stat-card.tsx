@@ -3,6 +3,7 @@
 import * as React from "react"
 import { useInView, useMotionValue, useSpring, useTransform } from "motion/react"
 import * as m from "motion/react-m"
+import { ChevronRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, Skeleton } from "@munim/ui"
 
@@ -15,6 +16,10 @@ type StatCardProps = {
   hint?: React.ReactNode
   accent?: "primary" | "amber" | "rose" | "teal"
   loading?: boolean
+  /** Makes the whole card a button (keyboard + focus ring). */
+  onClick?: () => void
+  /** Tiny affordance shown under the hint when `onClick` is set. */
+  actionLabel?: string
 }
 
 const ACCENT_STYLES: Record<NonNullable<StatCardProps["accent"]>, string> = {
@@ -85,40 +90,63 @@ export function StatCard({
   hint,
   accent = "primary",
   loading,
+  onClick,
+  actionLabel,
 }: StatCardProps) {
+  const card = (
+    <Card className={cn("card-lift overflow-hidden", onClick && "h-full hover:border-primary/40")}>
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1">
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            {loading ? (
+              <Skeleton className="h-7 w-24" />
+            ) : (
+              <CountUpValue raw={value} />
+            )}
+            {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+            {onClick && actionLabel ? (
+              <span className="inline-flex items-center gap-0.5 text-xs font-medium text-primary">
+                {actionLabel}
+                <ChevronRight className="h-3 w-3" />
+              </span>
+            ) : null}
+          </div>
+          <m.div
+            whileHover={{ rotate: 6, scale: 1.08 }}
+            transition={{ type: "spring", stiffness: 300, damping: 15 }}
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm",
+              ACCENT_STYLES[accent],
+              ACCENT_GLOW[accent]
+            )}
+          >
+            <Icon className="h-5 w-5" />
+          </m.div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+
   return (
     <m.div
       initial={{ opacity: 0, y: 16, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: "spring", stiffness: 220, damping: 22, mass: 0.8 }}
       whileHover={{ y: -3 }}
+      className={onClick ? "h-full" : undefined}
     >
-      <Card className="card-lift overflow-hidden">
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <p className="text-sm font-medium text-muted-foreground">{title}</p>
-              {loading ? (
-                <Skeleton className="h-7 w-24" />
-              ) : (
-                <CountUpValue raw={value} />
-              )}
-              {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-            </div>
-            <m.div
-              whileHover={{ rotate: 6, scale: 1.08 }}
-              transition={{ type: "spring", stiffness: 300, damping: 15 }}
-              className={cn(
-                "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm",
-                ACCENT_STYLES[accent],
-                ACCENT_GLOW[accent]
-              )}
-            >
-              <Icon className="h-5 w-5" />
-            </m.div>
-          </div>
-        </CardContent>
-      </Card>
+      {onClick ? (
+        <button
+          type="button"
+          onClick={onClick}
+          className="block h-full w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        >
+          {card}
+        </button>
+      ) : (
+        card
+      )}
     </m.div>
   )
 }
