@@ -52,8 +52,11 @@ jobs:
           node-version: 24
           cache: pnpm
 
+      # Pinned: rust-cache keys on the exact rustc version, so following
+      # `stable` silently invalidated the whole target cache (a 9-minute
+      # full rebuild) whenever a patch release landed. Bump deliberately.
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.99.1
 
       - name: Cache Rust dependencies
         uses: swatinem/rust-cache@v2
