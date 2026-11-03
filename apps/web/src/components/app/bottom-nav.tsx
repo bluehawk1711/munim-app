@@ -16,10 +16,12 @@ import { cn } from "@/lib/utils"
 
 type Tab = { key: ViewKey; label: string; icon: React.ComponentType<{ className?: string }> }
 
+// Same five tabs as the mobile app. "Sales" is the BILLING screen there (the
+// old standalone sales list is retired), so web's tab opens it too.
 const TABS: Tab[] = [
   { key: "dashboard", label: "Home", icon: Home },
   { key: "products", label: "Stock", icon: Package },
-  { key: "sales", label: "Sales", icon: ShoppingCart },
+  { key: "billing", label: "Sales", icon: ShoppingCart },
   { key: "advances", label: "Khata", icon: Users },
 ]
 

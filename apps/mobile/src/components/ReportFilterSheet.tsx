@@ -6,9 +6,8 @@
  * desktop share the @munim/ui `ReportFilterPanel`; this is its RN twin.
  */
 
-import React, {useRef, useState} from 'react';
-import {Pressable, StyleSheet, Text, TextInput, View} from 'react-native';
-import BottomSheet from '@gorhom/bottom-sheet';
+import React, {useEffect, useState} from 'react';
+import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {ChevronDown, RotateCcw, Search} from 'lucide-react-native';
 import {
   REPORT_METALS,
@@ -24,7 +23,8 @@ import {
   type ReportProductType,
   type ReportSoldState,
 } from '@munim/core';
-import {Button, ModalSheet, colors} from './ui';
+import {Button, colors} from './ui';
+import {BottomSheetScrollView, BottomSheetTextInput, MunimBottomSheet} from './BottomSheet';
 import {DateField} from './date-field';
 import {SheetPicker, type PickerOption} from './SheetPicker';
 import {useThemeStyles} from '../theme';
@@ -72,7 +72,6 @@ export function ReportFilterSheet({
   visible,
   onClose,
   value,
-  onChange,
   options,
   onApply,
   busy,
@@ -80,22 +79,26 @@ export function ReportFilterSheet({
   visible: boolean;
   onClose: () => void;
   value: ReportFilterFormValues;
-  onChange: (next: ReportFilterFormValues) => void;
   options: ReportFilterOptionSets;
-  onApply: () => void;
+  /** Called once, with the finished draft, when "Run report" is pressed. */
+  onApply: (next: ReportFilterFormValues) => void;
   busy?: boolean;
 }) {
   const styles = useThemeStyles(makeStyles);
-  const pickerRef = useRef<BottomSheet>(null);
   const [picker, setPicker] = useState<PickerConfig | null>(null);
+  // Draft-in-sheet: typing/narrowing here never re-renders the report list
+  // behind the sheet; the parent only sees the form on "Run report".
+  const [draft, setDraft] = useState<ReportFilterFormValues>(value);
+
+  useEffect(() => {
+    if (visible) setDraft(value);
+  }, [visible, value]);
 
   const set = <K extends keyof ReportFilterFormValues,>(key: K, next: ReportFilterFormValues[K]) =>
-    onChange({...value, [key]: next});
+    setDraft(prev => ({...prev, [key]: next}));
 
   const openPicker = (config: PickerConfig) => {
     setPicker(config);
-    // Let the config state commit before presenting the nested sheet.
-    requestAnimationFrame(() => pickerRef.current?.snapToIndex(0));
   };
 
   const refOptions = (items: {id: string; name: string}[]) =>
@@ -104,10 +107,10 @@ export function ReportFilterSheet({
   const nameOptions = (items: {name: string}[]) =>
     items.map(item => ({value: item.name, label: item.name}));
 
-  const activeCount = countActiveReportFilters(value);
+  const activeCount = countActiveReportFilters(draft);
 
   const pickerLabel = (key: PickerKey, fallback: string): string => {
-    const current = value[key];
+    const current = draft[key];
     if (!current) return fallback;
     if (key === 'color' || key === 'size') return current;
     const list =
@@ -137,7 +140,11 @@ export function ReportFilterSheet({
 
   return (
     <>
-      <ModalSheet visible={visible} title="Report filters" onClose={onClose} dismissable scrollable>
+      <MunimBottomSheet visible={visible} title="Report filters" onClose={onClose} snapPoints={['92%']}>
+        <BottomSheetScrollView
+          style={{flex: 1}}
+          contentContainerStyle={{paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl}}
+          keyboardShouldPersistTaps="handled">
         <Text style={styles.note}>
           Every filter below applies to the next run on all report types.
         </Text>
@@ -145,8 +152,8 @@ export function ReportFilterSheet({
         {/* Search */}
         <View style={styles.searchRow}>
           <Search size={rs(16)} color={colors.muted} strokeWidth={2.2} />
-          <TextInput
-            value={value.search}
+          <BottomSheetTextInput
+            value={draft.search}
             onChangeText={v => set('search', v)}
             placeholder="Product, SKU, barcode…"
             placeholderTextColor={colors.muted}
@@ -197,35 +204,35 @@ export function ReportFilterSheet({
             {value: '', label: 'All'},
             ...REPORT_PRODUCT_TYPES.map(t => ({value: t, label: PRODUCT_TYPE_LABELS[t]})),
           ]}
-          selected={value.productType}
+          selected={draft.productType}
           onSelect={v => set('productType', v as ReportProductType | '')}
         />
         <Text style={styles.sectionLabel}>METAL</Text>
         <ChipRow
           options={[{value: '', label: 'All'}, ...REPORT_METALS.map(m => ({value: m, label: m}))]}
-          selected={value.metal}
+          selected={draft.metal}
           onSelect={v => set('metal', v as ReportMetal | '')}
         />
 
         {/* Numeric ranges */}
         <Text style={styles.sectionLabel}>RANGES</Text>
         <View style={styles.rangeRow}>
-          <RangeInput label="Gold karat" minValue={value.goldKaratMin} maxValue={value.goldKaratMax} onMin={v => set('goldKaratMin', v)} onMax={v => set('goldKaratMax', v)} />
-          <RangeInput label="Silver purity %" minValue={value.silverPurityMin} maxValue={value.silverPurityMax} onMin={v => set('silverPurityMin', v)} onMax={v => set('silverPurityMax', v)} />
-          <RangeInput label="Sold weight (gm)" minValue={value.weightMinGm} maxValue={value.weightMaxGm} onMin={v => set('weightMinGm', v)} onMax={v => set('weightMaxGm', v)} />
+          <RangeInput label="Gold karat" minValue={draft.goldKaratMin} maxValue={draft.goldKaratMax} onMin={v => set('goldKaratMin', v)} onMax={v => set('goldKaratMax', v)} />
+          <RangeInput label="Silver purity %" minValue={draft.silverPurityMin} maxValue={draft.silverPurityMax} onMin={v => set('silverPurityMin', v)} onMax={v => set('silverPurityMax', v)} />
+          <RangeInput label="Sold weight (gm)" minValue={draft.weightMinGm} maxValue={draft.weightMaxGm} onMin={v => set('weightMinGm', v)} onMax={v => set('weightMaxGm', v)} />
         </View>
 
         {/* Sold + payment state */}
         <Text style={styles.sectionLabel}>SOLD STATE</Text>
         <ChipRow
           options={REPORT_SOLD_STATES.map(s => ({value: s, label: SOLD_LABELS[s]}))}
-          selected={value.soldState}
+          selected={draft.soldState}
           onSelect={v => set('soldState', v as ReportSoldState)}
         />
         <Text style={styles.sectionLabel}>PAYMENT STATUS</Text>
         <ChipRow
           options={REPORT_PAYMENT_STATUSES.map(s => ({value: s, label: PAYMENT_LABELS[s]}))}
-          selected={value.paymentStatus}
+          selected={draft.paymentStatus}
           onSelect={v => set('paymentStatus', v as ReportPaymentStatus)}
         />
 
@@ -238,7 +245,7 @@ export function ReportFilterSheet({
               accessibilityRole="button"
               onPress={() => {
                 const range = dashboardPresetRange(key);
-                onChange({...value, startDate: range.from, endDate: range.to});
+                setDraft(prev => ({...prev, startDate: range.from, endDate: range.to}));
               }}
               style={({pressed}) => [styles.quickChip, pressed && {opacity: 0.75}]}>
               <Text style={styles.quickChipText}>
@@ -247,8 +254,8 @@ export function ReportFilterSheet({
             </Pressable>
           ))}
         </View>
-        <DateField label="Start date" value={value.startDate} onChange={v => set('startDate', v)} placeholder="Any start date" />
-        <DateField label="End date" value={value.endDate} onChange={v => set('endDate', v)} placeholder="Any end date" />
+        <DateField label="Start date" value={draft.startDate} onChange={v => set('startDate', v)} placeholder="Any start date" />
+        <DateField label="End date" value={draft.endDate} onChange={v => set('endDate', v)} placeholder="Any end date" />
 
         {/* Actions */}
         <View style={styles.actionRow}>
@@ -257,24 +264,26 @@ export function ReportFilterSheet({
             variant="outline"
             size="small"
             disabled={activeCount === 0}
-            onPress={() => onChange(emptyReportFilterForm())}
+            onPress={() => setDraft(emptyReportFilterForm())}
             style={styles.actionBtn}
             icon={<RotateCcw size={rs(14)} color={colors.muted} strokeWidth={2.2} />}
           />
           <Button
             title={activeCount > 0 ? `Run report · ${activeCount} filter${activeCount === 1 ? '' : 's'}` : 'Run report'}
-            onPress={onApply}
+            onPress={() => onApply(draft)}
             loading={busy}
             style={styles.actionGrow}
           />
         </View>
-      </ModalSheet>
+        </BottomSheetScrollView>
+      </MunimBottomSheet>
 
       <SheetPicker
-        ref={pickerRef}
+        visible={picker !== null}
+        onClose={() => setPicker(null)}
         title={picker?.title ?? 'Select'}
         options={picker?.options ?? []}
-        selected={picker ? value[picker.key] || null : null}
+        selected={picker ? draft[picker.key] || null : null}
         showNone
         onSelect={v => {
           if (picker) set(picker.key, v ?? '');
@@ -331,7 +340,7 @@ function RangeInput({
     <View style={styles.rangeField}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <View style={styles.rangeInputs}>
-        <TextInput
+        <BottomSheetTextInput
           value={minValue}
           onChangeText={onMin}
           placeholder="Min"
@@ -340,7 +349,7 @@ function RangeInput({
           style={styles.rangeInput}
           accessibilityLabel={`${label} minimum`}
         />
-        <TextInput
+        <BottomSheetTextInput
           value={maxValue}
           onChangeText={onMax}
           placeholder="Max"
@@ -422,8 +431,10 @@ const makeStyles = () =>
       gap: rs(6),
     },
     chip: {
-      paddingHorizontal: rs(12),
-      paddingVertical: rs(6),
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(5),
+      minHeight: rs(30),
+      justifyContent: 'center' as const,
       borderRadius: radii.full,
       borderWidth: 1,
       borderColor: colors.border,
@@ -460,14 +471,16 @@ const makeStyles = () =>
       marginBottom: spacing.sm,
     },
     quickChip: {
-      paddingHorizontal: rs(12),
-      paddingVertical: rs(6),
+      paddingHorizontal: rs(10),
+      paddingVertical: rs(5),
+      minHeight: rs(30),
+      justifyContent: 'center' as const,
       borderRadius: radii.full,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.card,
     },
-    quickChipText: {fontSize: rs(11), fontWeight: '600', color: colors.muted},
+    quickChipText: {fontSize: rs(11.5), fontWeight: '600', color: colors.muted},
     actionRow: {
       flexDirection: 'row',
       gap: rs(8),

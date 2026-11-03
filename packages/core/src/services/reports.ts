@@ -156,6 +156,36 @@ export function toReportFilters(type: ReportType, form: ReportFilterFormValues):
   };
 }
 
+/**
+ * True when an APPLIED filter set narrows the report beyond its type/period —
+ * dashboard charts (turnover, category split, units) are shop-wide and cannot
+ * honour these facets, so platforms hide them while a narrowing filter is on.
+ */
+export function hasReportNarrowing(filters: ReportFilters | null | undefined): boolean {
+  if (!filters) return false;
+  return Boolean(
+    filters.startDate ||
+      filters.endDate ||
+      filters.search ||
+      filters.articleId ||
+      filters.categoryId ||
+      filters.subCategoryId ||
+      filters.color ||
+      filters.size ||
+      filters.productType ||
+      filters.metal ||
+      filters.goldKaratMin != null ||
+      filters.goldKaratMax != null ||
+      filters.silverPurityMin != null ||
+      filters.silverPurityMax != null ||
+      filters.weightMinGm != null ||
+      filters.weightMaxGm != null ||
+      (filters.soldState != null && filters.soldState !== "all") ||
+      (filters.paymentStatus != null && filters.paymentStatus !== "any") ||
+      filters.partyId,
+  );
+}
+
 /** How many narrowing facets are active — drives the "Filters (n)" badge. */
 export function countActiveReportFilters(form: ReportFilterFormValues): number {
   let count = 0;

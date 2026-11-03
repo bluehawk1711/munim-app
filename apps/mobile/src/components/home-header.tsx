@@ -5,65 +5,31 @@
  * name is intentionally NOT repeated here — it already lives in Settings and
  * the Home hero, and printing it on every screen just ate vertical space.
  *
- * Scroll-aware: screens report their vertical scroll offset through
- * `headerScrollHandlers` (onScroll + scrollEventThrottle) and the header
- * compacts — smaller title and tighter padding — once content is scrolled,
- * giving more room to the content beneath.
+ * Deliberately small: the title stays at a single compact size and never
+ * grows/expands on scroll, so every screen keeps the same calm 30 px action
+ * row and the content below gets the space instead.
  *
  * All colors are theme tokens (no hardcoded hex), so it follows the accent
  * theme + dark mode.
  */
 
-import React, {useEffect} from 'react';
+import React from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import {BarChart3, Plus, ScanLine, Search, SlidersHorizontal, Store} from 'lucide-react-native';
 import {colors, useThemeStyles} from '../theme';
 import {useAppStore} from '../lib/store';
 import {useNavStore} from '../lib/nav-store';
-import {rs, typography, spacing, radii, CARD_MARGIN} from '../lib/responsive';
+import {rs, radii, CARD_MARGIN} from '../lib/responsive';
 import {selectionTick} from '../lib/haptics';
 
 /* ─── Scroll-offset store ────────────────────────────────────────────── */
 /**
- * Minimal external store so the header re-renders on scroll without wiring
- * every screen into props/context. Screens spread `headerScrollHandlers`
- * onto their ScrollView/FlatList/FlashList; the header compacts past the
- * threshold. Offset resets on mount so switching screens starts expanded.
+ * Kept so every screen can keep spreading `headerScrollHandlers` onto its
+ * scroller (harmless); the header no longer changes size on scroll.
  */
-const COMPACT_THRESHOLD = 24;
-const EXPAND_THRESHOLD = 18; // Hysteresis: expand at a lower threshold to prevent jitter
-
-let headerOffset = 0;
-let isCompact = false;
-const listeners = new Set<() => void>();
-
-function setHeaderOffset(y: number) {
-  const next = Math.max(0, y);
-  // Dead-zone: skip if <2px change to reduce jitter during slow scrolls.
-  if (Math.abs(next - headerOffset) < 2) return;
-  headerOffset = next;
-  // Hysteresis: compact at COMPACT_THRESHOLD, expand at EXPAND_THRESHOLD
-  if (isCompact && next < EXPAND_THRESHOLD) isCompact = false;
-  else if (!isCompact && next > COMPACT_THRESHOLD) isCompact = true;
-  listeners.forEach(l => l());
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-}
-
-/** Spread onto any ScrollView / FlatList / FlashList driving this header. */
 export const headerScrollHandlers = {
-  onScroll: (e: {nativeEvent: {contentOffset: {y: number}}}) => {
-    setHeaderOffset(e.nativeEvent.contentOffset.y);
-  },
   scrollEventThrottle: 16 as const,
 };
-
-export function resetHeaderScroll() {
-  setHeaderOffset(0);
-}
 
 /* ─── Header ─────────────────────────────────────────────────────────── */
 
@@ -99,18 +65,6 @@ export function HomeHeader({
 }) {
   const styles = useThemeStyles(makeStyles);
 
-  // Scroll state from the external store (re-renders only on real changes).
-  const compact = React.useSyncExternalStore(
-    subscribe,
-    () => isCompact,
-    () => false,
-  );
-
-  // Fresh screen → start expanded (previous screen's scroll shouldn't leak).
-  useEffect(() => {
-    resetHeaderScroll();
-  }, [title]);
-
   function openSearch() {
     selectionTick();
     // Search lives in the Inventory screen — jump there.
@@ -124,9 +78,9 @@ export function HomeHeader({
   }
 
   return (
-    <View style={[styles.wrap, compact && styles.wrapCompact]}>
+    <View style={styles.wrap}>
       <View style={styles.topRow}>
-        <Text style={[styles.title, compact && styles.titleCompact]} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
         <View style={styles.actions}>
@@ -209,11 +163,7 @@ const makeStyles = () =>
   StyleSheet.create({
     wrap: {
       paddingHorizontal: CARD_MARGIN,
-      paddingTop: rs(6),
-      paddingBottom: spacing.sm,
-    },
-    wrapCompact: {
-      paddingTop: rs(2),
+      paddingTop: rs(4),
       paddingBottom: rs(6),
     },
     topRow: {
@@ -228,8 +178,8 @@ const makeStyles = () =>
       flexShrink: 0,
     },
     iconBtn: {
-      width: rs(34),
-      height: rs(34),
+      width: rs(30),
+      height: rs(30),
       borderRadius: radii.full,
       borderWidth: 1,
       borderColor: colors.border,
@@ -250,12 +200,8 @@ const makeStyles = () =>
     },
     title: {
       flex: 1,
-      fontSize: typography.h1,
+      fontSize: rs(18),
       fontWeight: '800',
       color: colors.text,
-    },
-    titleCompact: {
-      fontSize: rs(17),
-      fontWeight: '700',
     },
   });

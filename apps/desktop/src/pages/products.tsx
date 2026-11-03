@@ -1052,43 +1052,50 @@ export function ProductsPage() {
 
       {/* Search + filter card */}
       <Card>
-        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="relative w-full max-w-sm flex-1">
-            <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-            <Input
-              placeholder="Search by product name, SKU, 13-digit code…"
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setTablePage(1); }}
-              className="h-9 pl-9 text-sm"
-            />
+        <div className="space-y-3 p-4">
+          {/* Search gets its own line with a real minimum width — it used to
+              share one flex row with two selects + the chips, so flex-1"/
+              shrunk it to a sliver and the typed text was invisible. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative w-full min-w-0 sm:min-w-[280px] sm:flex-1">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Input
+                placeholder="Search by product name, SKU, 13-digit code…"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setTablePage(1); }}
+                className="h-9 pl-9 text-sm"
+              />
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Select
+                value={articleFilter}
+                onValueChange={(v) => { setArticleFilter(v); setTablePage(1); }}
+              >
+                <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by article">
+                  <SelectValue placeholder="Article" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All articles</SelectItem>
+                  {articleNames.map((a) => (
+                    <SelectItem key={a} value={a}>{a}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select
+                value={priceFilter}
+                onValueChange={(v) => { setPriceFilter(v === "auto" || v === "manual" ? v : "all"); setTablePage(1); }}
+              >
+                <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by price mode">
+                  <SelectValue placeholder="Pricing" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All pricing</SelectItem>
+                  <SelectItem value="auto">Auto-priced</SelectItem>
+                  <SelectItem value="manual">Manual price</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <Select
-            value={articleFilter}
-            onValueChange={(v) => { setArticleFilter(v); setTablePage(1); }}
-          >
-            <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by article">
-              <SelectValue placeholder="Article" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All articles</SelectItem>
-              {articleNames.map((a) => (
-                <SelectItem key={a} value={a}>{a}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={priceFilter}
-            onValueChange={(v) => { setPriceFilter(v === "auto" || v === "manual" ? v : "all"); setTablePage(1); }}
-          >
-            <SelectTrigger className="h-9 w-[150px]" aria-label="Filter by price mode">
-              <SelectValue placeholder="Pricing" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All pricing</SelectItem>
-              <SelectItem value="auto">Auto-priced</SelectItem>
-              <SelectItem value="manual">Manual price</SelectItem>
-            </SelectContent>
-          </Select>
           <div className="flex flex-wrap items-center gap-1.5">
             {chips.map((chip) => {
               const active = chip.kind === activeCategory.kind;

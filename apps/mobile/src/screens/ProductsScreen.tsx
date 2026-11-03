@@ -18,6 +18,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   Image,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
@@ -55,7 +56,6 @@ import {
   Loading,
   ModalSheet,
   Screen,
-  SegmentedTabs,
   ConfirmDialog,
   colors,
 } from '../components/ui';
@@ -220,6 +220,10 @@ export function ProductsScreen() {
   const data = listData?.products ?? [];
   const totalCount = listData?.pagination.totalCount ?? 0;
   const totalPages = listData?.pagination.totalPages ?? 1;
+  // Shimmer only on a genuine cold load: once rows have been shown, a
+  // background refetch (come back to the tab, change a filter) keeps the list
+  // on screen instead of flashing the skeleton.
+  const showSkeleton = loading && allProducts.length === 0;
 
   // Append products when page changes
   useEffect(() => {
@@ -321,13 +325,6 @@ export function ProductsScreen() {
       low: allProducts.filter(isLow).length,
       out: allProducts.filter(isOut).length,
     }),
-    [allProducts],
-  );
-
-  /** Loaded-page stock figures — labelled "loaded", not server totals. */
-  const loadedUnits = useMemo(() => allProducts.reduce((sum, p) => sum + p.stock, 0), [allProducts]);
-  const loadedValue = useMemo(
-    () => allProducts.reduce((sum, p) => sum + p.effectivePrice * p.stock, 0),
     [allProducts],
   );
 
@@ -456,37 +453,6 @@ export function ProductsScreen() {
     <Screen>
       <HomeHeader title="Stock" />
 
-      {/* Loaded-page metric strip — loaded figures are labelled as such. */}
-      <View style={styles.metricStrip}>
-        <View style={styles.metricTile}>
-          <Text style={styles.metricLabel}>Products</Text>
-          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
-            {totalCount}
-          </Text>
-        </View>
-        <View style={styles.metricTile}>
-          <Text style={styles.metricLabel}>Units (loaded)</Text>
-          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
-            {String(loadedUnits)}
-          </Text>
-        </View>
-        <View style={styles.metricTile}>
-          <Text style={styles.metricLabel}>Stock value</Text>
-          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
-            {price(loadedValue)}
-          </Text>
-        </View>
-        <View style={styles.metricTile}>
-          <Text style={styles.metricLabel}>Low / Out</Text>
-          <Text style={styles.metricValue} numberOfLines={1} adjustsFontSizeToFit>
-            {`${counts.low} / ${counts.out}`}
-          </Text>
-        </View>
-      </View>
-      <Text style={styles.metricHint}>
-        {`${allProducts.length} loaded of ${totalCount} · value from loaded products`}
-      </Text>
-
       {/* Search + scan row, with add-product icon button beside it */}
       <View style={styles.searchBarRow}>
         <View style={styles.searchWrap}>
@@ -521,47 +487,66 @@ export function ProductsScreen() {
         </Pressable>
       </View>
 
-      {/* Stock tabs (counts) + type tabs — the same filter row language. */}
-      <SegmentedTabs<StockFilter>
-        options={FILTERS}
-        value={stockFilter}
-        onChange={key => {
-          selectionTick();
-          setStockFilter(key);
-          setPage(1);
-          setAllProducts([]);
-        }}
-        style={styles.filterTabs}
-      />
-      <SegmentedTabs<TypeFilter>
-        options={TYPE_FILTERS}
-        value={typeFilter}
-        onChange={key => {
-          selectionTick();
-          setTypeFilter(key);
-          setPage(1);
-          setAllProducts([]);
-        }}
-        style={styles.filterTabs}
-      />
-      <View style={styles.priceRow}>
-        <Text style={styles.priceLabel}>Pricing</Text>
-        {PRICE_FILTERS.map(f => {
-          const active = priceFilter === f.key;
-          return (
-            <Pressable
-              key={f.key}
-              onPress={() => {
-                selectionTick();
-                setPriceFilter(f.key);
-                setPage(1);
-                setAllProducts([]);
-              }}
-              style={({pressed}) => [styles.priceChip, active && styles.priceChipActive, pressed && {opacity: 0.8}]}>
-              <Text style={[styles.priceChipText, active && styles.priceChipTextActive]}>{f.label}</Text>
-            </Pressable>
-          );
-        })}
+      {/* Filter badges — one horizontally scrollable row (stock · type · price),
+          every badge sharing the same size and pill language. */}
+      <View style={styles.chipScrollWrap}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.chipScrollContent}>
+          {FILTERS.map(f => {
+            const active = stockFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  selectionTick();
+                  setStockFilter(f.key);
+                  setPage(1);
+                }}
+                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+                {f.key === 'low' && f.count > 0 ? <View style={styles.dotWarning} /> : null}
+                {f.key === 'out' && f.count > 0 ? <View style={styles.dotDanger} /> : null}
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+                {f.count > 0 ? (
+                  <Text style={[styles.chipCount, active && styles.chipTextActive]}>{f.count}</Text>
+                ) : null}
+              </Pressable>
+            );
+          })}
+          <View style={styles.chipDivider} />
+          {TYPE_FILTERS.map(f => {
+            const active = typeFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  selectionTick();
+                  setTypeFilter(f.key);
+                  setPage(1);
+                }}
+                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
+          <View style={styles.chipDivider} />
+          {PRICE_FILTERS.map(f => {
+            const active = priceFilter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  selectionTick();
+                  setPriceFilter(f.key);
+                  setPage(1);
+                }}
+                style={({pressed}) => [styles.chip, active && styles.chipActive, pressed && {opacity: 0.8}]}>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       {missingBarcodes ? (
@@ -572,7 +557,7 @@ export function ProductsScreen() {
 
       {error ? (
         <ErrorBox message={error} onRetry={reload} />
-      ) : loading || !data ? (
+      ) : showSkeleton ? (
         <Loading />
       ) : (
         <FlashList
@@ -745,45 +730,57 @@ const makeRowStyles = () =>
 
 const makeStyles = () =>
   StyleSheet.create({
-    metricStrip: {
-      flexDirection: 'row',
-      gap: rs(6),
-      marginHorizontal: CARD_MARGIN,
-      marginBottom: rs(6),
-    },
-    metricTile: {
-      flex: 1,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.card,
-      borderRadius: radii.md,
-      paddingHorizontal: rs(8),
-      paddingVertical: rs(8),
-    },
-    metricLabel: {fontSize: rs(9.5), fontWeight: '600', color: colors.muted, textTransform: 'uppercase'},
-    metricValue: {fontSize: rs(12.5), fontWeight: '800', color: colors.text, marginTop: rs(3)},
-    metricHint: {fontSize: rs(10), color: colors.muted, marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm},
-    filterTabs: {marginBottom: rs(2)},
-    priceRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: rs(6),
+    chipScrollWrap: {
       marginHorizontal: CARD_MARGIN,
       marginBottom: spacing.sm,
-      paddingLeft: rs(2),
     },
-    priceLabel: {fontSize: rs(10.5), fontWeight: '700', color: colors.muted},
-    priceChip: {
+    chipScrollContent: {
+      gap: rs(6),
+      alignItems: 'center',
+      paddingRight: rs(6),
+    },
+    chipDivider: {
+      width: 1,
+      height: rs(18),
+      backgroundColor: colors.border,
+      marginHorizontal: rs(3),
+    },
+    chip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(5),
       borderRadius: radii.full,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.card,
-      paddingHorizontal: rs(10),
-      paddingVertical: rs(4),
+      paddingHorizontal: rs(11),
+      paddingVertical: rs(6),
+      minHeight: rs(30),
+      flexShrink: 0,
     },
-    priceChipActive: {backgroundColor: colors.primary, borderColor: colors.primary},
-    priceChipText: {fontSize: rs(10.5), fontWeight: '600', color: colors.muted},
-    priceChipTextActive: {color: colors.onPrimary},
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipText: {fontSize: rs(11.5), fontWeight: '600', color: colors.muted},
+    chipTextActive: {color: colors.onPrimary},
+    chipCount: {
+      fontSize: rs(10.5),
+      fontWeight: '800',
+      color: colors.muted,
+    },
+    dotWarning: {
+      width: rs(6),
+      height: rs(6),
+      borderRadius: radii.full,
+      backgroundColor: colors.warning,
+    },
+    dotDanger: {
+      width: rs(6),
+      height: rs(6),
+      borderRadius: radii.full,
+      backgroundColor: colors.danger,
+    },
     searchBarRow: {
       flexDirection: 'row',
       alignItems: 'center',

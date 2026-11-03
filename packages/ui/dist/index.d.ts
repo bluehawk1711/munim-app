@@ -36,6 +36,7 @@ export * from "./components/invoice-payment-line.js";
 export * from "./components/invoice-detail-body.js";
 export * from "./components/invoice-status-badge.js";
 export * from "./components/order-detail-body.js";
+export * from "./components/order-payments-dialog.js";
 export * from "./components/order-status-badge.js";
 export * from "./components/label-print-dialog.js";
 export * from "./components/label-print-select-dialog.js";

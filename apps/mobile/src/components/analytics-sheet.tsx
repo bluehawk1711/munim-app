@@ -7,7 +7,7 @@
 import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 import type {MobileColors} from '@munim/theme';
-import {ModalSheet} from './ui';
+import {MunimBottomSheet, BottomSheetScrollView} from './BottomSheet';
 import {useThemeStyles} from '../theme';
 import {rs, typography, spacing, radii} from '../lib/responsive';
 
@@ -40,31 +40,34 @@ export function AnalyticsSheet({
   const styles = useThemeStyles(makeStyles);
 
   return (
-    <ModalSheet visible={visible} title={title} onClose={onClose} dismissable scrollable>
-      {note ? <Text style={styles.note}>{note}</Text> : null}
-      <View style={styles.grid}>
-        {stats.map(stat => (
-          <View key={stat.label} style={styles.tile}>
-            <Text style={styles.label} numberOfLines={1}>
-              {stat.label.toUpperCase()}
-            </Text>
-            <Text
-              style={[styles.value, stat.tone ? styles[stat.tone] : null]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.65}>
-              {stat.value}
-            </Text>
-            {stat.hint ? (
-              <Text style={styles.hint} numberOfLines={1}>
-                {stat.hint}
+    <MunimBottomSheet visible={visible} title={title} onClose={onClose} snapPoints={['85%']}>
+      <BottomSheetScrollView
+        contentContainerStyle={{paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl}}>
+        {note ? <Text style={styles.note}>{note}</Text> : null}
+        <View style={styles.grid}>
+          {stats.map(stat => (
+            <View key={stat.label} style={styles.tile}>
+              <Text style={styles.label} numberOfLines={1}>
+                {stat.label.toUpperCase()}
               </Text>
-            ) : null}
-          </View>
-        ))}
-      </View>
-      {children ? <View style={styles.children}>{children}</View> : null}
-    </ModalSheet>
+              <Text
+                style={[styles.value, stat.tone ? styles[stat.tone] : null]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.65}>
+                {stat.value}
+              </Text>
+              {stat.hint ? (
+                <Text style={styles.hint} numberOfLines={1}>
+                  {stat.hint}
+                </Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+        {children ? <View style={styles.children}>{children}</View> : null}
+      </BottomSheetScrollView>
+    </MunimBottomSheet>
   );
 }
 

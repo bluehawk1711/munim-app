@@ -13,6 +13,7 @@ import {
   Copy,
   Banknote,
   FileDown,
+  History,
 } from "lucide-react"
 import {
   buildBillDocument,
@@ -46,6 +47,7 @@ import {
   DialogTitle,
   OrderStatusBadge,
   OrderDetailBody,
+  OrderPaymentsDialog,
   RecordPaymentDialog,
   ConfirmDialog,
   ProductSearchSelect,
@@ -667,9 +669,12 @@ export function OrdersView() {
   const [cancelling, setCancelling] = React.useState<OrderRow | null>(null)
   const [deleting, setDeleting] = React.useState<OrderRow | null>(null)
   const [paying, setPaying] = React.useState<OrderRow | null>(null)
+  /** Order whose payment trail is open in the history dialog. */
+  const [payHistory, setPayHistory] = React.useState<OrderRow | null>(null)
   /** Order whose invoice PDF is being downloaded (per-row spinner). */
   const [exportingInvoice, setExportingInvoice] = React.useState<string | null>(null)
   const { data: orderPayments } = useOrderPayments(detail?.id ?? null)
+  const { data: historyPayments } = useOrderPayments(payHistory?.id ?? null)
 
   const { data, isLoading } = useOrders({ search, status, page, pageSize: 15 })
   const orders = React.useMemo(() => data?.orders ?? [], [data])
@@ -1035,6 +1040,18 @@ export function OrdersView() {
                           <Banknote className="h-3.5 w-3.5" />
                         </Button>
                       )}
+                      {o.amountPaid > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Payment history"
+                          aria-label={`Payment history for ${o.orderNumber}`}
+                          onClick={() => setPayHistory(o)}
+                        >
+                          <History className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       {o.status === "OPEN" && (
                         <>
                           <Button
@@ -1122,6 +1139,14 @@ export function OrdersView() {
           onClose={() => setFormOpen(false)}
         />
       )}
+
+      {/* Payment history — same trail mobile shows from its History button. */}
+      <OrderPaymentsDialog
+        open={!!payHistory}
+        onOpenChange={(open) => !open && setPayHistory(null)}
+        order={payHistory}
+        payments={historyPayments}
+      />
 
       {/* Detail */}
       <Dialog open={!!detail} onOpenChange={(open) => !open && setDetail(null)}>

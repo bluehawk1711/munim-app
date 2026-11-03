@@ -149,6 +149,16 @@ const makeStyles = () =>
     statEmphasis: {borderColor: colors.primary},
     /** Pill segments — horizontally scrollable tab/filter row. */
     segmentsScroll: {flexGrow: 0},
+    // Non-scrolling twin (see SegmentedTabs `wrap`) — same row look, but a
+    // normal View, so the pills can never be clipped by a scroll frame.
+    segmentsWrapRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      flexWrap: 'wrap' as const,
+      gap: rs(6),
+      paddingHorizontal: CARD_MARGIN,
+      paddingVertical: rs(4),
+    },
     segmentsRow: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
@@ -167,21 +177,39 @@ const makeStyles = () =>
       borderColor: colors.border,
       backgroundColor: colors.card,
       minHeight: rs(34),
+      flexShrink: 0,
     },
     segmentActive: {backgroundColor: colors.primary, borderColor: colors.primary},
-    segmentLabel: {fontSize: typography.secondary, fontWeight: '600', color: colors.muted},
+    segmentLabel: {
+      fontSize: typography.secondary,
+      lineHeight: rFont(20),
+      fontWeight: '600' as const,
+      color: colors.muted,
+      flexShrink: 0,
+    },
     segmentLabelActive: {color: colors.onPrimary},
+    // Count bubble — needs real vertical room: with 1pt padding the digits
+    // were clipped top and bottom on Android (the label's line box is taller
+    // than the bubble). minHeight + lineHeight keep the whole glyph.
     segmentCount: {
-      minWidth: rs(18),
-      paddingHorizontal: rs(4),
-      paddingVertical: rs(1),
+      minWidth: rs(20),
+      minHeight: rs(18),
+      paddingHorizontal: rs(6),
+      paddingVertical: rs(2),
       borderRadius: radii.full,
       backgroundColor: colors.mutedSoft,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
     },
     segmentCountActive: {backgroundColor: 'rgba(255,255,255,0.22)'},
-    segmentCountText: {fontSize: typography.badge, fontWeight: '700', color: colors.muted},
+    segmentCountText: {
+      fontSize: typography.badge,
+      lineHeight: rFont(15),
+      includeFontPadding: false,
+      textAlign: 'center' as const,
+      fontWeight: '700' as const,
+      color: colors.muted,
+    },
     segmentCountTextActive: {color: colors.onPrimary},
     fieldHint: {fontSize: typography.badge, color: colors.muted, marginTop: rs(4)},
     row: {
@@ -430,7 +458,7 @@ export function Field({
           maxLength={maxLength}
           multiline={multiline}
           editable={editable}
-          style={[styles.input, multiline && styles.inputMultiline, rightElement ? styles.inputFlex : null]}
+          style={[styles.input, styles.inputFlex, multiline && styles.inputMultiline]}
           placeholderTextColor={colors.inputPlaceholder}
           autoCapitalize={multiline ? 'sentences' : 'none'}
         />
@@ -677,51 +705,73 @@ export function SegmentedTabs<T extends string>({
   value,
   onChange,
   style,
+  wrap = false,
 }: {
   options: ReadonlyArray<SegmentedTabOption<T>>;
   value: T;
   onChange: (key: T) => void;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Render the tabs as a plain wrapping row instead of a horizontal
+   * ScrollView. Inside a Gorhom sheet the ScrollView's measured frame was
+   * shorter than the pills, clipping them top and bottom — a normal View can
+   * never clip its children. Use it when the labels fit on screen.
+   */
+  wrap?: boolean;
 }) {
   const styles = useThemeStyles(makeStyles);
+  const rows = options.map(option => {
+    const active = option.key === value;
+    return (
+      <Pressable
+        key={option.key}
+        accessibilityRole="tab"
+        accessibilityState={{selected: active}}
+        accessibilityLabel={option.count != null ? `${option.label}, ${option.count}` : option.label}
+        onPress={() => {
+          if (active) return;
+          selectionTick();
+          onChange(option.key);
+        }}
+        style={({pressed}) => [
+          styles.segment,
+          active && styles.segmentActive,
+          pressed && !active && {opacity: 0.7},
+        ]}>
+        <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]} numberOfLines={1}>
+          {option.label}
+        </Text>
+        {option.count != null ? (
+          <View style={[styles.segmentCount, active && styles.segmentCountActive]}>
+            <Text style={[styles.segmentCountText, active && styles.segmentCountTextActive]}>
+              {option.count}
+            </Text>
+          </View>
+        ) : null}
+      </Pressable>
+    );
+  });
+
+  if (wrap) {
+    return (
+      <View
+        style={[styles.segmentsWrapRow, style]}
+        accessibilityRole="tablist">
+        {rows}
+      </View>
+    );
+  }
+
   return (
     <ScrollView
       horizontal
+      nestedScrollEnabled
+      directionalLockEnabled
       showsHorizontalScrollIndicator={false}
       style={[styles.segmentsScroll, style]}
       contentContainerStyle={styles.segmentsRow}
       accessibilityRole="tablist">
-      {options.map(option => {
-        const active = option.key === value;
-        return (
-          <Pressable
-            key={option.key}
-            accessibilityRole="tab"
-            accessibilityState={{selected: active}}
-            accessibilityLabel={option.count != null ? `${option.label}, ${option.count}` : option.label}
-            onPress={() => {
-              if (active) return;
-              selectionTick();
-              onChange(option.key);
-            }}
-            style={({pressed}) => [
-              styles.segment,
-              active && styles.segmentActive,
-              pressed && !active && {opacity: 0.7},
-            ]}>
-            <Text style={[styles.segmentLabel, active && styles.segmentLabelActive]} numberOfLines={1}>
-              {option.label}
-            </Text>
-            {option.count != null ? (
-              <View style={[styles.segmentCount, active && styles.segmentCountActive]}>
-                <Text style={[styles.segmentCountText, active && styles.segmentCountTextActive]}>
-                  {option.count}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-        );
-      })}
+      {rows}
     </ScrollView>
   );
 }

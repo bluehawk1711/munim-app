@@ -18,12 +18,12 @@
  * print buttons (mobile reports export = Share CSV).
  */
 
-import React, {useMemo, useState} from 'react';
-import {Pressable, ScrollView, Share, StyleSheet, Text, View} from 'react-native';
+import React, {useDeferredValue, useMemo, useState} from 'react';
+import {Pressable, Share, StyleSheet, Text, TextInput, View} from 'react-native';
 import {
   BarChart3,
   CalendarRange,
-  ChevronDown,
+  Search,
   TrendingUp,
 } from 'lucide-react-native';
 import {
@@ -31,10 +31,12 @@ import {
   emptyReportFilterForm,
   toReportFilters,
   countActiveReportFilters,
+  hasReportNarrowing,
   formatCurrency,
   formatWeight,
   type ReportFilterFormValues,
   type ReportFilters,
+  type ReportRow,
   type ReportType,
 } from '@munim/core';
 import {useArticles, useCatalog, useDashboard, useParties, useQueryState, useReport} from '@munim/query';
@@ -43,7 +45,8 @@ import {successFeedback, selectionTick} from '../lib/haptics';
 import {LineChart} from '../components/charts';
 import {Button, Card, Empty, ErrorBox, Loading, Screen, colors} from '../components/ui';
 import {ReportFilterSheet, type ReportFilterOptionSets} from '../components/ReportFilterSheet';
-import {HomeHeader, headerScrollHandlers} from '../components/home-header';
+import {HomeHeader} from '../components/home-header';
+import {ParallaxScrollView} from '../components/ParallaxScrollView';
 import {useThemeStyles} from '../theme';
 import {rs, spacing, radii, CARD_MARGIN} from '../lib/responsive';
 
@@ -61,6 +64,29 @@ const SALES_TYPES: ReportType[] = ['daily', 'weekly', 'monthly', 'yearly', 'sold
 
 type SortKey = 'revenue' | 'profit' | 'qty';
 
+/** Client-side row search — matches every facet the report row carries. */
+function matchesRow(r: ReportRow, query: string): boolean {
+  const q = query.trim().toLowerCase();
+  if (!q) return true;
+  return [
+    r.productName,
+    r.sku,
+    r.articleName,
+    r.categoryName,
+    r.subCategoryName,
+    r.productType,
+    r.color,
+    r.size,
+    r.purity,
+    r.goldKarat != null ? `${r.goldKarat}K` : null,
+    r.silverPercentage != null ? `${r.silverPercentage}%` : null,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .includes(q);
+}
+
 /** Hero figure: ₹ with no decimals (₹17,587) via the shared formatter. */
 const heroMoney = (v: number) => formatCurrency(Math.round(v));
 
@@ -72,6 +98,9 @@ export function ReportsScreen() {
   const [active, setActive] = useState<ReportFilters>({type: 'monthly'});
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('revenue');
+  const [rowQuery, setRowQuery] = useState('');
+  // Defer the filter input so typing never blocks the (possibly long) list.
+  const deferredQuery = useDeferredValue(rowQuery);
 
   const {data: report, loading, error, reload} = useQueryState(useReport(active));
   // Shared dashboard stats power the turnover trajectory (cached by
@@ -96,9 +125,18 @@ export function ReportsScreen() {
   const activeFilterCount = countActiveReportFilters(form);
 
   const isSalesType = SALES_TYPES.includes(active.type);
+  // Dashboard charts are shop-wide and cannot honour narrowing facets.
+  const narrowing = hasReportNarrowing(active);
 
   function runReport() {
     setActive(toReportFilters(type, form));
+    setFilterOpen(false);
+  }
+
+  /** Sheet "Run report" — commits the sheet's draft in one go. */
+  function applyFilters(next: ReportFilterFormValues) {
+    setForm(next);
+    setActive(toReportFilters(type, next));
     setFilterOpen(false);
   }
 
@@ -132,85 +170,24 @@ export function ReportsScreen() {
     return trajectory.reduce((best, cur) => (cur.value > best.value ? cur : best));
   }, [trajectory]);
 
-  // Sorted itemized records (API returns revenue-desc; re-sort client-side).
+  // Sorted + row-search-filtered itemized records (API returns revenue-desc).
+  // `deferredQuery` keeps the search box responsive on long reports.
   const rows = useMemo(() => {
-    const list = [...(report?.rows ?? [])];
+    const list = (report?.rows ?? []).filter(r => matchesRow(r, deferredQuery));
     if (sortKey === 'profit') list.sort((a, b) => b.profit - a.profit);
     else if (sortKey === 'qty') list.sort((a, b) => b.soldQuantity - a.soldQuantity);
     return list;
-  }, [report, sortKey]);
+  }, [report, sortKey, deferredQuery]);
 
   // Day-wise Daily Sales — core fills `days` for the daily report only; the
-  // flat list stays for every other type.
-  const dayGroups = report?.days?.length ? report.days : null;
-
-  // One itemized record card — reused by the flat list AND the per-day
-  // Daily Sales sections.
-  const renderRecord = (
-    r: (typeof rows)[number],
-    key: string,
-    index: number,
-  ) => {
-    const marginPct = r.revenue > 0 ? Math.round((r.profit / r.revenue) * 100) : 0;
-    const avgPerUnit =
-      r.soldQuantity > 0 ? Math.round(r.revenue / r.soldQuantity) : null;
-    return (
-      <Card key={key} index={index} style={styles.recordCard}>
-        <View style={styles.recordTop}>
-          <View style={styles.recordMain}>
-            <Text style={styles.recordName} numberOfLines={1}>
-              {r.productName}
-            </Text>
-            <Text style={styles.recordMeta} numberOfLines={1}>
-              {[
-                r.articleName || null,
-                r.categoryName || null,
-                r.productType || null,
-                r.color || null,
-                r.size || null,
-                r.weight != null ? formatWeight(r.weight, r.weightUnit) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </Text>
-          </View>
-          <Text style={styles.recordRevenue}>{formatCurrency(r.revenue)}</Text>
-        </View>
-
-        <View style={styles.recordMid}>
-          <Text style={styles.recordSold}>
-            {r.soldQuantity} sold ·{' '}
-            {r.stock <= 0 ? (
-              <Text style={{color: colors.danger, fontWeight: '700'}}>0 in stock</Text>
-            ) : (
-              `${r.stock} in stock`
-            )}
-          </Text>
-          {avgPerUnit != null ? (
-            <Text style={styles.recordAvg}>
-              Avg {formatCurrency(avgPerUnit)} / pc
-            </Text>
-          ) : null}
-        </View>
-
-        <View style={styles.recordBottom}>
-          <Text style={styles.recordCost}>
-            Cost basis {formatCurrency(r.revenue - r.profit)}
-          </Text>
-          <Text
-            style={[
-              styles.recordProfit,
-              {color: r.profit < 0 ? colors.danger : colors.success},
-            ]}>
-            {r.profit < 0
-              ? `Profit ${formatCurrency(r.profit)}`
-              : `Profit +${formatCurrency(r.profit)}`}
-            {' '}({marginPct}%)
-          </Text>
-        </View>
-      </Card>
-    );
-  };
+  // flat list stays for every other type. The row search narrows day rows too.
+  const dayGroups = useMemo(() => {
+    if (!report?.days?.length) return null;
+    if (!deferredQuery.trim()) return report.days;
+    return report.days
+      .map(d => ({...d, rows: d.rows.filter(r => matchesRow(r, deferredQuery))}))
+      .filter(d => d.rows.length > 0);
+  }, [report, deferredQuery]);
 
   const margin =
     report && report.totals.revenue > 0
@@ -224,31 +201,34 @@ export function ReportsScreen() {
     <Screen>
       <HomeHeader title="Reports" />
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <ParallaxScrollView
+        headerHeight={rs(150)}
+        collapsedHeaderHeight={0}
         contentContainerStyle={{paddingBottom: 110}}
-        {...headerScrollHandlers}>
-        {/* Eyebrow */}
-        <Text style={styles.eyebrow}>ANALYTICS SUITE</Text>
-        <Text style={styles.lead}>Sales, stock & profit insights</Text>
+        header={
+          <>
+            <Text style={styles.eyebrow}>ANALYTICS SUITE</Text>
+            <Text style={styles.lead}>Sales, stock & profit insights</Text>
 
-        {/* Report type pills */}
-        <View style={styles.typeWrap}>
-          {REPORT_OPTIONS.map(opt => {
-            const selected = type === opt.key;
-            return (
-              <PressablePill
-                key={opt.key}
-                label={opt.label}
-                selected={selected}
-                onPress={() => {
-                  selectionTick();
-                  setType(opt.key);
-                }}
-              />
-            );
-          })}
-        </View>
+            {/* Report type pills */}
+            <View style={styles.typeWrap}>
+              {REPORT_OPTIONS.map(opt => {
+                const selected = type === opt.key;
+                return (
+                  <PressablePill
+                    key={opt.key}
+                    label={opt.label}
+                    selected={selected}
+                    onPress={() => {
+                      selectionTick();
+                      setType(opt.key);
+                    }}
+                  />
+                );
+              })}
+            </View>
+          </>
+        }>
 
         {/* Report window + filters card */}
         <Card index={0} style={styles.windowCard}>
@@ -287,16 +267,6 @@ export function ReportsScreen() {
             />
           </View>
         </Card>
-
-        <ReportFilterSheet
-          visible={filterOpen}
-          onClose={() => setFilterOpen(false)}
-          value={form}
-          onChange={setForm}
-          options={optionSets}
-          onApply={runReport}
-          busy={loading}
-        />
 
         {error ? (
           <ErrorBox message={error} onRetry={reload} />
@@ -343,8 +313,9 @@ export function ReportsScreen() {
               </Card>
             </View>
 
-            {/* Turnover trajectory (sales reports only) */}
-            {isSalesType && trajectory.length > 0 ? (
+            {/* Turnover trajectory (sales reports only). Hidden while a
+                narrowing filter is applied — this chart is shop-wide. */}
+            {isSalesType && !narrowing && trajectory.length > 0 ? (
               <Card index={3} style={styles.chartCard}>
                 <View style={styles.chartHeader}>
                   <Text style={styles.chartTitle}>TURNOVER TRAJECTORY</Text>
@@ -358,36 +329,55 @@ export function ReportsScreen() {
               </Card>
             ) : null}
 
+            {/* Row search — client-side over the loaded report rows. */}
+            <View style={styles.rowSearch}>
+              <Search size={rs(15)} color={colors.muted} strokeWidth={2.2} />
+              <TextInput
+                value={rowQuery}
+                onChangeText={setRowQuery}
+                placeholder="Search this report — product, SKU, article…"
+                placeholderTextColor={colors.inputPlaceholder}
+                style={styles.rowSearchInput}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+            </View>
+
             {/* Itemized records — day-wise Daily Sales shows one section per
                 DATE with that day's products + takings; other types keep the
                 flat sortable list. */}
             {dayGroups ? (
-              dayGroups.map((d, di) => (
-                <View key={d.day}>
-                  <View style={styles.dayHeader}>
-                    <View style={{flex: 1, paddingRight: 8}}>
-                      <Text style={styles.sectionTitle}>{d.label}</Text>
-                      <Text style={styles.sectionCount}>
-                        {d.invoices} invoice{d.invoices !== 1 ? 's' : ''} ·{' '}
-                        {d.daySoldQuantity} sold
-                      </Text>
+              dayGroups.length === 0 ? (
+                <Empty text="No rows match your search" />
+              ) : (
+                dayGroups.map((d, di) => (
+                  <View key={d.day}>
+                    <View style={styles.dayHeader}>
+                      <View style={{flex: 1, paddingRight: 8}}>
+                        <Text style={styles.sectionTitle}>{d.label}</Text>
+                        <Text style={styles.sectionCount}>
+                          {d.invoices} invoice{d.invoices !== 1 ? 's' : ''} ·{' '}
+                          {d.daySoldQuantity} sold
+                        </Text>
+                      </View>
+                      <Text style={styles.dayRevenue}>{money(d.dayRevenue)}</Text>
                     </View>
-                    <Text style={styles.dayRevenue}>{money(d.dayRevenue)}</Text>
+                    {d.rows.length === 0 ? (
+                      <Empty text="No sales this day" />
+                    ) : (
+                      d.rows.map((r, i) => (
+                        <RecordCard key={`${d.day}-${r.sku ?? 'n'}-${i}`} r={r} index={di * 100 + i} />
+                      ))
+                    )}
                   </View>
-                  {d.rows.length === 0 ? (
-                    <Empty text="No sales this day" />
-                  ) : (
-                    d.rows.map((r, i) =>
-                      renderRecord(r, `${d.day}-${r.sku ?? 'n'}-${i}`, di * 100 + i),
-                    )
-                  )}
-                </View>
-              ))
+                ))
+              )
             ) : (
               <>
             <View style={styles.sectionRow}>
               <Text style={styles.sectionTitle}>Itemized Records</Text>
-              <Text style={styles.sectionCount}>{report.rows.length} Products</Text>
+              <Text style={styles.sectionCount}>{rows.length} Products</Text>
             </View>
             <View style={styles.sortRow}>
               {(
@@ -401,7 +391,6 @@ export function ReportsScreen() {
                   key={opt.key}
                   label={opt.label}
                   selected={sortKey === opt.key}
-                  small
                   onPress={() => {
                     selectionTick();
                     setSortKey(opt.key);
@@ -411,9 +400,17 @@ export function ReportsScreen() {
             </View>
 
             {rows.length === 0 ? (
-              <Empty text="No data for this report in the selected period" />
+              <Empty
+                text={
+                  rowQuery.trim()
+                    ? 'No rows match your search'
+                    : 'No data for this report in the selected period'
+                }
+              />
             ) : (
-              rows.map((r, i) => renderRecord(r, `${r.productId ?? 'x'}-${i}`, i))
+              rows.map((r, i) => (
+                <RecordCard key={`${r.productId ?? 'x'}-${i}`} r={r} index={i} />
+              ))
             )}
               </>
             )}
@@ -455,22 +452,99 @@ export function ReportsScreen() {
             ) : null}
           </>
         )}
-      </ScrollView>
+      </ParallaxScrollView>
+
+      {/* Outside the scroll view so the Gorhom sheet can overlay the screen. */}
+      <ReportFilterSheet
+        visible={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        value={form}
+        options={optionSets}
+        onApply={applyFilters}
+        busy={loading}
+      />
     </Screen>
   );
 }
+
+/* ─── Itemized record card (flat list + per-day Daily Sales) ─────────── */
+
+const RecordCard = React.memo(function RecordCard({
+  r,
+  index,
+}: {
+  r: ReportRow;
+  index: number;
+}) {
+  const styles = useThemeStyles(makeStyles);
+  const marginPct = r.revenue > 0 ? Math.round((r.profit / r.revenue) * 100) : 0;
+  const avgPerUnit = r.soldQuantity > 0 ? Math.round(r.revenue / r.soldQuantity) : null;
+  return (
+    <Card index={index} style={styles.recordCard}>
+      <View style={styles.recordTop}>
+        <View style={styles.recordMain}>
+          <Text style={styles.recordName} numberOfLines={1}>
+            {r.productName}
+          </Text>
+          <Text style={styles.recordMeta} numberOfLines={1}>
+            {[
+              r.articleName || null,
+              r.categoryName || null,
+              r.subCategoryName || null,
+              r.productType || null,
+              r.color || null,
+              r.size || null,
+              r.weight != null ? formatWeight(r.weight, r.weightUnit) : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </Text>
+        </View>
+        <Text style={styles.recordRevenue}>{formatCurrency(r.revenue)}</Text>
+      </View>
+
+      <View style={styles.recordMid}>
+        <Text style={styles.recordSold}>
+          {r.soldQuantity} sold ·{' '}
+          {r.stock <= 0 ? (
+            <Text style={{color: colors.danger, fontWeight: '700'}}>0 in stock</Text>
+          ) : (
+            `${r.stock} in stock`
+          )}
+        </Text>
+        {avgPerUnit != null ? (
+          <Text style={styles.recordAvg}>Avg {formatCurrency(avgPerUnit)} / pc</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.recordBottom}>
+        <Text style={styles.recordCost}>
+          Cost basis {formatCurrency(r.revenue - r.profit)}
+        </Text>
+        <Text
+          style={[
+            styles.recordProfit,
+            {color: r.profit < 0 ? colors.danger : colors.success},
+          ]}>
+          {r.profit < 0
+            ? `Profit ${formatCurrency(r.profit)}`
+            : `Profit +${formatCurrency(r.profit)}`}{' '}
+          ({marginPct}%)
+        </Text>
+      </View>
+    </Card>
+  );
+});
 
 /* ─── Pill (report type / sort selector) ─────────────────────────────── */
 
 function PressablePill({
   label,
   selected,
-  small = false,
   onPress,
 }: {
   label: string;
   selected: boolean;
-  small?: boolean;
   onPress: () => void;
 }) {
   const styles = useThemeStyles(makeStyles);
@@ -478,18 +552,10 @@ function PressablePill({
     <Pressable
       onPress={onPress}
       hitSlop={4}
-      style={({pressed}) => [
-        styles.pill,
-        small && styles.pillSmall,
-        selected && styles.pillSelected,
-        pressed && {opacity: 0.75},
-      ]}>
+      style={({pressed}) => [styles.pill, selected && styles.pillSelected, pressed && {opacity: 0.75}]}>
       <Text style={[styles.pillText, selected && styles.pillTextSelected]} numberOfLines={1}>
         {label}
       </Text>
-      {!small && selected ? (
-        <ChevronDown size={rs(12)} color={colors.onPrimary} strokeWidth={2.6} />
-      ) : null}
     </Pressable>
   );
 }
@@ -525,12 +591,9 @@ const makeStyles = () =>
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.card,
-      paddingHorizontal: rs(12),
-      paddingVertical: rs(7),
-    },
-    pillSmall: {
       paddingHorizontal: rs(10),
       paddingVertical: rs(5),
+      minHeight: rs(30),
     },
     pillSelected: {
       backgroundColor: colors.primary,
@@ -691,6 +754,26 @@ const makeStyles = () =>
       gap: rs(6),
       marginBottom: spacing.sm,
       paddingHorizontal: CARD_MARGIN,
+    },
+    // Row search — client-side filter over the loaded report rows.
+    rowSearch: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(8),
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: spacing.sm,
+      paddingHorizontal: rs(12),
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      minHeight: rs(42),
+    },
+    rowSearchInput: {
+      flex: 1,
+      fontSize: rs(13),
+      color: colors.text,
+      paddingVertical: rs(9),
     },
     recordCard: {marginBottom: spacing.sm},
     recordTop: {

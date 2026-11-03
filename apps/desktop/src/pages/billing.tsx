@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { Plus, Trash2, Download, Loader2, FileDown, CheckCircle2, RefreshCw, Copy, ArrowLeft, TriangleAlert } from "lucide-react";
 import {
   applyGoldBaseRate,
+  billLineBasisSeed,
   buildBillDocument,
   calcNetWeight,
   evaluateConfigHealth,
@@ -783,6 +784,17 @@ export function BillingPage() {
    *  re-priced with the bill's CURRENT rates). */
   function lineForProduct(p: ProductOption): LineState {
     const full = allProducts?.find((x) => x.id === p.id);
+    // One shared seeding rule (core): gross weight when the product has one,
+    // else its stored NET weight — a net-only gold product must still bill its
+    // net, and nag/chejat are then not seeded (net is already net).
+    const basis = billLineBasisSeed({
+      grossWeight: p.grossWeight ?? full?.grossWeight ?? null,
+      netWeight: full?.netWeight ?? null,
+      nagLessWeight: full?.nagLessWeight ?? null,
+      chejatWeight: full?.chejatWeight ?? null,
+      nagUnit: full?.nagUnit ?? null,
+      weightUnit: p.weightUnit ?? null,
+    });
     const base: LineState = {
       ...emptyLine(),
       productId: p.id,
@@ -790,13 +802,15 @@ export function BillingPage() {
       sku: p.sku ?? "",
       color: p.color ?? "",
       size: p.size ?? "",
-      weight: p.weight != null ? String(p.weight) : "",
+      // A net-weight-only product has no gross number to show, so its own
+      // weight field carries the seeded net instead of a stale 0.
+      weight: p.weight != null && p.weight > 0 ? String(p.weight) : basis.grossWeight,
       weightUnit: p.weightUnit === "mg" ? ("mg" as const) : ("gm" as const),
       weightEdited: false,
       purity: p.purity ?? "",
-      grossWeight: p.grossWeight ?? "",
-      nagLessWeight: gramsField(weightTextToGrams(full?.nagLessWeight ?? null, full?.nagUnit ?? null)),
-      chejatWeight: gramsField(weightTextToGrams(full?.chejatWeight ?? null, full?.nagUnit ?? null)),
+      grossWeight: basis.grossWeight,
+      nagLessWeight: gramsField(basis.nagLessWeight),
+      chejatWeight: gramsField(basis.chejatWeight),
       price: String(p.effectivePrice ?? p.sellingPrice),
       silverPercentage: String(p.silverPercentage ?? 100),
     };

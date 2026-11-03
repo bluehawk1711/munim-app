@@ -3,7 +3,6 @@
 import {
   LayoutDashboard,
   Package,
-  ShoppingCart,
   FileBarChart,
   Boxes,
   Palette,
@@ -42,7 +41,6 @@ const NAV_SECTIONS: {
     items: [
       { key: "products", label: "Products", icon: Package, description: "Manage inventory" },
       { key: "articles", label: "Articles", icon: Tag, description: "Designs & analytics" },
-      { key: "sales", label: "Sales", icon: ShoppingCart, description: "Sell & history" },
       { key: "catalog", label: "Catalog", icon: Palette, description: "Colors, sizes & categories" },
     ],
   },
@@ -80,6 +78,10 @@ const NAV_SECTIONS: {
 /** Every destination, flattened — shared by the sidebar, the mobile nav sheet
  *  and the bottom tab bar (single source of truth for nav order + labels). */
 export const NAV_ITEMS: NavItem[] = NAV_SECTIONS.flatMap((section) => section.items)
+
+// NOTE: the legacy standalone `sales` view is retired from navigation — selling
+// happens in New Bill + Invoices (mobile's Sales tab IS the billing screen).
+// The route stays registered so old links/bookmarks still resolve.
 
 /** Web sidebar — the shared sectioned design from @munim/ui, wired to the
  *  web's view store + URL sync. Desktop renders the same component. */

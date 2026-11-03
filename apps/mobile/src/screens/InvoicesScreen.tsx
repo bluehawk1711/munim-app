@@ -4,7 +4,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import * as Print from 'expo-print';
@@ -44,6 +43,11 @@ import {
   colors,
 } from '../components/ui';
 import {AnalyticsSheet} from '../components/analytics-sheet';
+import {
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+  MunimBottomSheet,
+} from '../components/BottomSheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {useNavStore} from '../lib/nav-store';
@@ -61,6 +65,9 @@ const STATUS_CHIPS: {key: StatusFilter; label: string}[] = [
 ];
 
 const PAGE_SIZE = 15;
+
+/** Stable identity so the sheet doesn't re-snap on every render. */
+const FILTER_SNAP_POINTS = ['42%'];
 
 /** Orders-style money line under an invoice row: "Paid ₹5,000/- · ₹7,200/-
  *  due" (warning) or the green tick "Paid ₹12,200/- · settled" once fully
@@ -476,34 +483,40 @@ export function InvoicesScreen() {
         ]}
       />
 
-      {/* Filter sheet — search lives here; status has its own visible row above */}
-      <ModalSheet
+      {/* Filter sheet — same Gorhom sheet as the report filter / product sheets,
+          so the keyboard, backdrop and scroll behave like every other sheet. */}
+      <MunimBottomSheet
         visible={filtersOpen}
         title="Search bills"
         onClose={() => setFiltersOpen(false)}
-        dismissable>
-        <View style={styles.searchBox}>
-          <Search size={15} color={colors.muted} />
-          <TextInput
-            value={search}
-            onChangeText={setSearchFilter}
-            placeholder="Search invoice #, customer…"
-            placeholderTextColor={colors.inputPlaceholder}
-            style={styles.searchInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-          {search ? (
-            <Pressable onPress={() => setSearchFilter('')} hitSlop={8}>
-              <Text style={styles.filterClear}>Clear</Text>
-            </Pressable>
-          ) : null}
-        </View>
-        <View style={{flexDirection: 'row', gap: 8, marginTop: 16}}>
-          <Button title="Clear all" variant="outline" style={{flex: 1}} onPress={clearFilters} />
-          <Button title="Show results" style={{flex: 1}} onPress={() => setFiltersOpen(false)} />
-        </View>
-      </ModalSheet>
+        snapPoints={FILTER_SNAP_POINTS}>
+        <BottomSheetScrollView
+          contentContainerStyle={styles.filterSheetBody}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.searchBox}>
+            <Search size={15} color={colors.muted} />
+            <BottomSheetTextInput
+              value={search}
+              onChangeText={setSearchFilter}
+              placeholder="Search invoice #, customer…"
+              placeholderTextColor={colors.inputPlaceholder}
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {search ? (
+              <Pressable onPress={() => setSearchFilter('')} hitSlop={8}>
+                <Text style={styles.filterClear}>Clear</Text>
+              </Pressable>
+            ) : null}
+          </View>
+          <View style={styles.filterActions}>
+            <Button title="Clear all" variant="outline" style={{flex: 1}} onPress={clearFilters} />
+            <Button title="Show results" style={{flex: 1}} onPress={() => setFiltersOpen(false)} />
+          </View>
+        </BottomSheetScrollView>
+      </MunimBottomSheet>
 
       {/* Payment history — the invoice's full trail (amount · method · note · date) */}
       <ModalSheet
@@ -681,6 +694,8 @@ const makeStyles = () =>
     filterSummaryText: {fontSize: 13, fontWeight: '700', color: colors.text},
     filterSummaryHint: {fontSize: 11, color: colors.muted, marginTop: 1},
     filterClear: {fontSize: 12, fontWeight: '700', color: colors.primary},
+    filterSheetBody: {paddingHorizontal: 16, paddingBottom: 24},
+    filterActions: {flexDirection: 'row', gap: 8, marginTop: 16},
     searchBox: {
       flexDirection: 'row',
       alignItems: 'center',

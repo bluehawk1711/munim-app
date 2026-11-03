@@ -19,7 +19,7 @@
  *   </BottomSheet>
  */
 
-import React, {forwardRef, useCallback, useMemo, useRef} from 'react';
+import React, {forwardRef, useCallback, useEffect, useMemo, useRef} from 'react';
 import {
   Keyboard,
   Platform,
@@ -131,6 +131,11 @@ export type MunimBottomSheetProps = {
   enableDismissOnDrag?: boolean;
   /** Index of the initially open snap point. Default 0. */
   initialIndex?: number;
+  /**
+   * Controlled visibility. When provided the sheet opens/closes with this
+   * boolean; omit it to drive the sheet imperatively through the ref.
+   */
+  visible?: boolean;
 };
 
 /**
@@ -152,6 +157,7 @@ export const MunimBottomSheet = forwardRef<BottomSheet, MunimBottomSheetProps>(
       enableBackdrop = true,
       enableDismissOnDrag = true,
       initialIndex = 0,
+      visible,
     },
     ref,
   ) {
@@ -175,6 +181,17 @@ export const MunimBottomSheet = forwardRef<BottomSheet, MunimBottomSheetProps>(
     const handleDismiss = useCallback(() => {
       onClose?.();
     }, [onClose]);
+
+    // Controlled mode: mount at -1 (closed) and snap between open/closed so
+    // screens can keep the sheet mounted while toggling a boolean.
+    useEffect(() => {
+      if (visible === undefined) return;
+      if (visible) {
+        resolvedRef.current?.snapToIndex(initialIndex >= 0 ? initialIndex : 0);
+      } else {
+        resolvedRef.current?.close();
+      }
+    }, [visible, initialIndex, resolvedRef]);
 
     const renderHandle = useMemo(
       () => createHandle(title),
@@ -205,7 +222,7 @@ export const MunimBottomSheet = forwardRef<BottomSheet, MunimBottomSheetProps>(
     return (
       <BottomSheet
         ref={resolvedRef}
-        index={initialIndex}
+        index={visible === undefined ? initialIndex : -1}
         snapPoints={snapPoints}
         enablePanDownToClose={enableDismissOnDrag}
         enableDynamicSizing={false}

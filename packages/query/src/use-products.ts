@@ -58,6 +58,12 @@ export function useProducts(
       products: data.products,
       pagination: data.pagination,
     }),
+    // The catalog changes on user action (create/edit/stock), and every such
+    // mutation invalidates this key — so a screen can safely trust cache for a
+    // minute and show rows immediately instead of a loading skeleton. Keep the
+    // entry around for half an hour so tab switches never go cold.
+    staleTime: 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     placeholderData: (previous) => previous,
   });
 }

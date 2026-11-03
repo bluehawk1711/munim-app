@@ -529,7 +529,12 @@ export function SettingsScreen() {
             thumbColor={colors.card}
           />
         </View>
-        <Button title={savingShop ? 'Saving…' : 'Save shop profile'} onPress={handleSaveShop} loading={savingShop} />
+        <Button
+          title={savingShop ? 'Saving…' : 'Save shop profile'}
+          onPress={handleSaveShop}
+          loading={savingShop}
+          style={{marginTop: 12}}
+        />
       </Card>
       <View
         onLayout={e => {

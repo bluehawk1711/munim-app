@@ -111,7 +111,8 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
       imageActionText: {fontSize: typography.secondary, color: c.primary, fontWeight: '600'},
       imageRemoveText: {fontSize: typography.secondary, color: c.danger, fontWeight: '600'},
       imageHint: {fontSize: 11, color: c.muted, marginBottom: spacing.md},
-      tabRow: {marginBottom: spacing.md},
+      tabRow: {marginBottom: spacing.sm},
+      sheetScroll: {flex: 1},
       hint: {fontSize: 11, color: c.muted, marginTop: -spacing.sm, marginBottom: spacing.sm},
       marginText: {fontSize: 12, color: c.muted, marginBottom: spacing.sm},
       goldBox: {
@@ -476,17 +477,23 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
         snapPoints={PRODUCT_SHEET_SNAP_POINTS}
         initialIndex={-1}
         enableDismissOnDrag={!saving && !uploading}>
-        <BottomSheetScrollView
-          contentContainerStyle={{paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl}}
-          keyboardShouldPersistTaps="handled">
+        {/* Tabs sit ABOVE the vertical scroll view: nested horizontal
+            scrollables inside a Gorhom sheet were being clipped/truncated. */}
         {!isBillMode && (
           <SegmentedTabs<ProductTab>
             options={PRODUCT_TABS}
             value={tab}
             onChange={setTab}
+            // Plain wrapping row: a horizontal ScrollView inside the sheet
+            // measured shorter than the pills and clipped them top/bottom.
+            wrap
             style={styles.tabRow}
           />
         )}
+        <BottomSheetScrollView
+          style={styles.sheetScroll}
+          contentContainerStyle={{paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl}}
+          keyboardShouldPersistTaps="handled">
         {showTab('basics') ? (
           <>
         {!isBillMode && (

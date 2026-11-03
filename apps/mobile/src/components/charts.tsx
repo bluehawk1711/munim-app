@@ -67,8 +67,12 @@ export function BarChart({
 }: BarChartProps) {
   const {colors: palette} = useTheme();
   const styles = useThemeStyles(makeStyles);
-  const base = color ?? palette.chart1;
   const accent = highlightColor ?? palette.primary;
+  // The apple theme's chart1 IS its primary gold, so past bars and the
+  // highlighted "current" bar came out the same shade — a flat, muddy block in
+  // dark mode. When they'd collide, fall back to the next chart hue so the
+  // current period always reads as the accent.
+  const base = color ?? (palette.chart1 === accent ? palette.chart2 : palette.chart1);
   const hi = highlightIndex ?? Math.max(0, data.length - 1);
   const [width, setWidth] = useState(0);
 
@@ -226,9 +230,13 @@ export function LineChart({
           formatYLabel={(label: string) => formatValue(Number(label))}
           pointerConfig={{
             pointer1Color: accent,
+            // Explicit box for the tooltip: without one the library sized the
+            // label to a few pixels and the value wrapped/clamped to nothing.
+            pointerLabelWidth: rs(84),
+            pointerLabelHeight: rs(30),
             pointerLabelComponent: (items: Array<{value: number}>) => (
               <View style={styles.pointerLabel}>
-                <Text style={styles.pointerText}>
+                <Text style={styles.pointerText} numberOfLines={1}>
                   {formatValue(items[0]?.value ?? 0)}
                 </Text>
               </View>
@@ -308,6 +316,12 @@ export function DonutChart({
           donut
           focusOnPress={!!onSegmentPress}
           showText={false}
+          // The library paints the donut hole (behind the center label) with
+          // its own default WHITE disc — in dark mode that made the light
+          // center text sit on a white blob. Use the card surface instead, and
+          // keep the chart's own box transparent.
+          innerCircleColor={palette.card}
+          backgroundColor="transparent"
           centerLabelComponent={() => center}
         />
       ) : (
@@ -395,12 +409,18 @@ const makeStyles = (c: MobileColors) =>
       borderRadius: radii.sm,
       paddingHorizontal: rs(8),
       paddingVertical: rs(4),
-      alignSelf: 'flex-start',
+      // Fill the pointer's box instead of collapsing to the text width, so the
+      // badge is a readable pill rather than a clamped sliver.
+      alignSelf: 'stretch',
+      minWidth: rs(68),
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     pointerText: {
       fontSize: typography.caption,
       fontWeight: '700',
       color: c.inverseOnSurface,
+      textAlign: 'center',
     },
     donutWrap: {
       alignItems: 'center',

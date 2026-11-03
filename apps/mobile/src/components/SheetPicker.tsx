@@ -5,24 +5,24 @@
  * selected state, and a cancel button. Replaces inline text inputs
  * where a picker is more appropriate (Color, Size, Category, Party, etc.).
  *
+ * Controlled by `visible` — mount it once next to the parent sheet and the
+ * picker only overlays when open. (A ref/index-driven sheet used to mount open
+ * at index 0, which is why the report filter sheet was unusable.)
+ *
  * Usage:
  *   <SheetPicker
- *     ref={pickerRef}
+ *     visible={picker !== null}
+ *     onClose={() => setPicker(null)}
  *     title="Select Color"
  *     options={colors.map(c => ({ label: c.name, value: c.id }))}
  *     selected={currentColor}
  *     onSelect={setCurrentColor}
  *   />
- *
- *   // Trigger:
- *   <Pressable onPress={() => pickerRef.current?.present()}>
- *     <Text>{currentColor || 'Pick a color'}</Text>
- *   </Pressable>
  */
 
-import React, {forwardRef, useCallback, useMemo, useRef, useState} from 'react';
+import React, {useCallback, useMemo, useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
-import BottomSheet, {BottomSheetFlatList} from '@gorhom/bottom-sheet';
+import {BottomSheetFlatList} from '@gorhom/bottom-sheet';
 import {Check, Search, X} from 'lucide-react-native';
 import {colors, useThemeStyles} from '../theme';
 import {BottomSheetTextInput, MunimBottomSheet} from './BottomSheet';
@@ -36,6 +36,10 @@ export type PickerOption = {
 };
 
 type SheetPickerProps = {
+  /** Controlled visibility — the picker only overlays while true. */
+  visible: boolean;
+  /** Called for both dismiss gestures and after a selection. */
+  onClose: () => void;
   /** Sheet title. */
   title: string;
   /** Available options. */
@@ -50,15 +54,18 @@ type SheetPickerProps = {
   searchPlaceholder?: string;
 };
 
-export const SheetPicker = forwardRef<BottomSheet, SheetPickerProps>(
-  function SheetPicker(
-    {title, options, selected, onSelect, showNone = false, searchPlaceholder = 'Search…'},
-    ref,
-  ) {
+export function SheetPicker({
+  visible,
+  onClose,
+  title,
+  options,
+  selected,
+  onSelect,
+  showNone = false,
+  searchPlaceholder = 'Search…',
+}: SheetPickerProps) {
     const [query, setQuery] = useState('');
     const pickerStyles = useThemeStyles(makePickerStyles);
-    const sheetRef = useRef<BottomSheet>(null);
-    const resolvedRef = (ref as React.RefObject<BottomSheet>) ?? sheetRef;
 
     const filtered = useMemo(() => {
       if (!query.trim()) return options;
@@ -73,15 +80,16 @@ export const SheetPicker = forwardRef<BottomSheet, SheetPickerProps>(
     const handleSelect = useCallback(
       (value: string | null) => {
         onSelect(value);
-        resolvedRef.current?.close();
         setQuery('');
+        onClose();
       },
-      [onSelect, resolvedRef],
+      [onSelect, onClose],
     );
 
     const handleClose = useCallback(() => {
       setQuery('');
-    }, []);
+      onClose();
+    }, [onClose]);
 
     const renderItem = useCallback(
       ({item}: {item: PickerOption}) => {
@@ -116,7 +124,7 @@ export const SheetPicker = forwardRef<BottomSheet, SheetPickerProps>(
 
     return (
       <MunimBottomSheet
-        ref={resolvedRef}
+        visible={visible}
         title={title}
         onClose={handleClose}
         snapPoints={['60%', '85%']}>
@@ -178,8 +186,7 @@ export const SheetPicker = forwardRef<BottomSheet, SheetPickerProps>(
         />
       </MunimBottomSheet>
     );
-  },
-);
+}
 
 /** Theme-aware picker styles — rebuilt on every palette change. */
 const makePickerStyles = () =>

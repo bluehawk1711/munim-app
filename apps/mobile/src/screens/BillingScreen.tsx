@@ -1,9 +1,10 @@
-import React, {useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Alert, FlatList, KeyboardAvoidingView, ListRenderItemInfo, Platform, Pressable, ScrollView, Share, StyleProp, Switch, Text, TextInput, View, ViewStyle} from 'react-native';
 import * as Print from 'expo-print';
-import {ChevronDown, ChevronRight, Info, Search, SlidersHorizontal, Trash2} from 'lucide-react-native';
+import {ChevronDown, ChevronRight, Info, Plus, ScanLine, Search, SlidersHorizontal, Trash2} from 'lucide-react-native';
 import {
   applyGoldBaseRate,
+  billLineBasisSeed,
   buildBillDocument,
   calcNetWeight,
   CUSTOM_PAYMENT_METHOD,
@@ -67,6 +68,7 @@ import {
   colors,
 } from '../components/ui';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
+import {MunimBottomSheet, BottomSheetScrollView} from '../components/BottomSheet';
 import {BarcodeScannerModal} from '../components/BarcodeScannerModal';
 import {ProductDetailSheet} from '../components/ProductDetailSheet';
 import {EditProductModal} from '../components/EditProductModal';
@@ -415,19 +417,34 @@ function FastEntry({
     <>
       <View>
         <Text style={styles.optLabel}>{title}</Text>
-        <View style={styles.searchWrap}>
-          <TextInput
-            style={[styles.searchInput, {flex: 1}]}
-            value={code}
-            onChangeText={setCode}
-            placeholder="Scan barcode or type SKU…"
-            placeholderTextColor={colors.inputPlaceholder}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={() => void submit(code)}
-          />
-          <Button title="Add" variant="outline" onPress={() => void submit(code)} />
+        <View style={styles.fastRow}>
+          <View style={[styles.searchWrap, styles.fastField]}>
+            <ScanLine size={rs(15)} color={colors.muted} strokeWidth={2.2} />
+            <TextInput
+              style={[styles.searchInput, {flex: 1}]}
+              value={code}
+              onChangeText={setCode}
+              placeholder="Scan barcode or type SKU…"
+              placeholderTextColor={colors.inputPlaceholder}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={() => void submit(code)}
+            />
+          </View>
+          <Pressable
+            onPress={() => void submit(code)}
+            disabled={code.trim().length === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Add this product to the bill"
+            style={({pressed}) => [
+              styles.fastAdd,
+              code.trim().length === 0 && styles.fastAddDisabled,
+              pressed && {opacity: 0.85},
+            ]}>
+            <Plus size={rs(15)} color={colors.onPrimary} strokeWidth={2.6} />
+            <Text style={styles.fastAddText}>Add</Text>
+          </Pressable>
         </View>
         <Button
           title="Scan barcode to add"
@@ -654,7 +671,23 @@ function LineItemsEditor({
   onOpenProduct?: (product: ProductDto) => void;
 }) {
   const styles = useThemeStyles(makeStyles);
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(0);
+  // Accordion: at rest every line is a compact summary; tapping one expands
+  // its inputs and collapses the others. A newly added line opens itself.
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const prevCount = useRef(lines.length);
+  useEffect(() => {
+    if (lines.length > prevCount.current) setExpandedIndex(lines.length - 1);
+    prevCount.current = lines.length;
+  }, [lines.length]);
+
+  const removeLine = (index: number) => {
+    setExpandedIndex(current => {
+      if (current === null) return null;
+      if (current === index) return null;
+      return current > index ? current - 1 : current;
+    });
+    onRemove(index);
+  };
   return (
     <>
       {lines.map((line, index) => {
@@ -708,7 +741,7 @@ function LineItemsEditor({
                 </Text>
               </Pressable>
               <Pressable
-                onPress={() => onRemove(index)}
+                onPress={() => removeLine(index)}
                 hitSlop={8}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${line.productName || 'item'}`}
@@ -1021,7 +1054,7 @@ function LineItemsEditor({
           </View>
         );
       })}
-      <Button title="+ Add item" variant="outline" onPress={onAdd} style={{marginBottom: 12}} />
+      <Button title="+ Add item" variant="outline" onPress={onAdd} style={{marginTop: spacing.md, marginBottom: 12}} />
     </>
   );
 }
@@ -1502,6 +1535,17 @@ export function BillingScreen() {
    *  inputs (rate from the live breakdown; labour/charges from the product
    *  row), then re-prices through the engine so price + rate land together. */
   function pickLine(base: LineState, productId: string, product?: ProductDto): LineState {
+    // One shared seeding rule (core): the product's gross weight when it has
+    // one, else its stored NET weight — a net-only gold product must still
+    // bill its net, and nag/chejat are then not seeded (net is already net).
+    const basis = billLineBasisSeed({
+      grossWeight: product?.grossWeight ?? null,
+      netWeight: product?.netWeight ?? null,
+      nagLessWeight: product?.nagLessWeight ?? null,
+      chejatWeight: product?.chejatWeight ?? null,
+      nagUnit: product?.nagUnit ?? null,
+      weightUnit: product?.weightUnit ?? null,
+    });
     const picked: LineState = {
       ...base,
       productId,
@@ -1510,13 +1554,16 @@ export function BillingScreen() {
       color: product?.color ?? '',
       size: product?.size ?? '',
       description: '',
-      weight: product?.weight != null ? String(product.weight) : '',
+      weight:
+        product?.weight != null && product.weight > 0
+          ? String(product.weight)
+          : basis.grossWeight,
       weightUnit: product?.weightUnit === 'mg' ? 'mg' : 'gm',
       weightEdited: false,
       purity: product?.purity ?? '',
-      grossWeight: product?.grossWeight ?? '',
-      nagLessWeight: gramsField(weightTextToGrams(product?.nagLessWeight ?? null, product?.nagUnit ?? null)),
-      chejatWeight: gramsField(weightTextToGrams(product?.chejatWeight ?? null, product?.nagUnit ?? null)),
+      grossWeight: basis.grossWeight,
+      nagLessWeight: gramsField(basis.nagLessWeight),
+      chejatWeight: gramsField(basis.chejatWeight),
       price: product ? String(product.effectivePrice) : '',
       silverPercentage: product ? String(product.silverPercentage ?? 100) : '100',
       ratePerGram: '',
@@ -1963,11 +2010,10 @@ export function BillingScreen() {
       return;
     }
     try {
-      let html = renderBillHtml(preview, billTemplateSettings);
-      if (twoInOne) {
-        const second = secondPreview ? renderBillHtml(secondPreview, billTemplateSettings) : html;
-        html = `${html}<div style="page-break-after: always"></div>${second}`;
-      }
+      // Core owns the 2-in-1 sheet: `second` is used only in "distinct" mode
+      // and "duplicate" prints the same bill twice — identical to the PDF
+      // renderer web/desktop use.
+      const html = renderBillHtml(preview, billTemplateSettings, secondPreview);
       const {uri} = await Print.printToFileAsync({
         html,
         base64: false,
@@ -1981,10 +2027,7 @@ export function BillingScreen() {
   /** Auto-generate PDF after invoice creation — same flow as web's handleSaveAndPrint. */
   async function generateAndSharePdf(doc: BillDocument, secondDoc?: BillDocument | null) {
     try {
-      let html = renderBillHtml(doc, billTemplateSettings);
-      if (secondDoc) {
-        html = `${html}<div style="page-break-after: always"></div>${renderBillHtml(secondDoc, billTemplateSettings)}`;
-      }
+      const html = renderBillHtml(doc, billTemplateSettings, secondDoc);
       const {uri} = await Print.printToFileAsync({html, base64: false});
       await savePdf(uri, doc.billNo);
     } catch {
@@ -2004,7 +2047,7 @@ export function BillingScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom: 20}} {...headerScrollHandlers}>
         {/* EDIT MODE — makes it impossible to mistake this for a new bill */}
         {editing && (
-          <Card index={0}>
+          <Card index={0} style={styles.billCard}>
             <Text style={styles.switchLabel}>Editing {editInvoice?.invoiceNumber ?? 'bill'}</Text>
             <Text style={styles.switchSub}>
               Saving replaces the saved bill. Stock moves by the difference only, the paid amount is reconciled with
@@ -2041,12 +2084,476 @@ export function BillingScreen() {
           <ChevronRight size={18} color={colors.muted} />
         </Pressable>
 
-        <ModalSheet
+
+        {/* ── Rates ────────────────────────────────────────────────────── */}
+        <Card index={1} style={styles.billCard}>
+          <Text style={styles.sectionTitle}>Rates</Text>
+          <Text style={styles.sectionHint}>
+            Editing a rate here re-prices every auto-priced line on this bill.
+          </Text>
+          <View style={styles.rateRow}>
+            <View style={styles.rateTile}>
+              <Field
+                label="Gold rate (₹/g)"
+                value={goldRateInput}
+                onChangeText={handleGoldRateChange}
+                keyboardType="decimal-pad"
+                placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
+                hint={
+                  rateKaratBadgeText ? (
+                    <Text style={styles.rateKaratHint}>{rateKaratBadgeText}</Text>
+                  ) : undefined
+                }
+                style={{marginBottom: 0}}
+              />
+            </View>
+            <View style={styles.rateTile}>
+              <Field
+                label="Silver rate (₹/10g)"
+                value={silverRateInput}
+                onChangeText={handleSilverRateChange}
+                keyboardType="decimal-pad"
+                placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
+                hint={
+                  billSilverRate != null
+                    ? `≈ ₹${billSilverRate.toFixed(2)}/g`
+                    : shopSilverPerGram > 0
+                      ? `≈ ₹${shopSilverPerGram.toFixed(2)}/g`
+                      : undefined
+                }
+                style={{marginBottom: 0}}
+              />
+            </View>
+          </View>
+          <Button
+            variant="outline"
+            title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
+            onPress={handleSyncPrices}
+            disabled={syncPrices.isPending}
+            style={{marginTop: spacing.md}}
+          />
+        </Card>
+
+        {/* ── Customer ─────────────────────────────────────────────────── */}
+        <Card index={2} style={styles.billCard}>
+          <View style={styles.sectionHeadRow}>
+            <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Customer</Text>
+            {selectedPartyBalance != null && selectedPartyBalance !== 0 ? (
+              <View style={styles.khataChip}>
+                <Text
+                  style={[
+                    styles.khataChipText,
+                    {color: selectedPartyBalance > 0 ? colors.success : colors.warning},
+                  ]}>
+                  {selectedPartyBalance > 0
+                    ? `Owes you ${money(selectedPartyBalance)}`
+                    : `You owe ${money(Math.abs(selectedPartyBalance))}`}
+                </Text>
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.customerHead}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>
+                {customer.trim() ? customer.trim().charAt(0).toUpperCase() : '?'}
+              </Text>
+            </View>
+            <View style={{flex: 1}}>
+              <View style={styles.lineRow}>
+                <Field
+                  label="Customer"
+                  value={customer}
+                  onChangeText={setCustomer}
+                  placeholder="Walk-in"
+                  style={{flex: 1.3}}
+                />
+                <Field
+                  label="Phone"
+                  value={customerPhone}
+                  onChangeText={setCustomerPhone}
+                  keyboardType="phone-pad"
+                  style={{flex: 1}}
+                />
+              </View>
+            </View>
+          </View>
+          <Field label="Address" value={customerAddress} onChangeText={setCustomerAddress} />
+          <PartyPicker
+            parties={parties}
+            partyId={partyId}
+            selected={parties?.find(p => p.id === partyId)?.name ?? ''}
+            onChange={(id, party) => {
+              setPartyId(id);
+              if (party) {
+                setCustomer(party.name);
+                setCustomerPhone(party.phone ?? '');
+                setCustomerAddress(party.address ?? '');
+              }
+            }}
+          />
+          <DateField label="Date" value={date} onChange={setDate} />
+        </Card>
+
+        {/* ── Items ────────────────────────────────────────────────────── */}
+        <Card index={3} style={styles.billCard}>
+          <View style={styles.sectionHeadRow}>
+            <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Items</Text>
+            <Text style={styles.sectionCount}>
+              {`${lines.filter(l => l.productName.trim()).length} ${
+                lines.filter(l => l.productName.trim()).length === 1 ? 'line' : 'lines'
+              }`}
+            </Text>
+          </View>
+          {/* Same two entry points as web/desktop: browse the stock catalog,
+              or scan/type a code (first empty line, else append). */}
+          <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setLines, product)} />
+          <FastEntry onAdd={raw => addByCode(raw, 'first')} />
+          <LineItemsEditor
+            lines={lines}
+            onChange={updateLine}
+            onWeightChange={makeWeightHandler(setLines)}
+            onBasisChange={makeBasisHandler(setLines)}
+            onPricingChange={makePricingHandler(setLines)}
+            pricing={index => (lines[index] ? pricingViewFor(lines[index]) : null)}
+            onRemove={index => setLines(prev => prev.filter((_, i) => i !== index))}
+            onAdd={() => setLines(prev => [...prev, emptyLine()])}
+            products={products}
+            onSelectProduct={onSelectProduct}
+            onOpenProduct={setDetailProduct}
+          />
+        </Card>
+
+        {/* ── Charges & payment ────────────────────────────────────────── */}
+        <Card index={4} style={styles.billCard}>
+          <Text style={styles.sectionTitle}>Charges & payment</Text>
+          <View style={styles.lineRow}>
+            <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="decimal-pad" style={{flex: 1}} />
+            <Field
+              label="Delivery charge"
+              value={delivery}
+              onChangeText={setDelivery}
+              keyboardType="decimal-pad"
+              style={{flex: 1}}
+            />
+          </View>
+          <View style={styles.subCard}>
+            <Text style={styles.groupLabel}>Material returned</Text>
+            <Field label="Title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
+            <View style={styles.lineRow}>
+              <Field
+                label="Weight"
+                value={materialReturnedWeight}
+                onChangeText={setMaterialReturnedWeight}
+                placeholder="e.g. 5gm"
+                style={{flex: 1}}
+              />
+              <Field
+                label="Value (₹)"
+                value={materialReturnedValue}
+                onChangeText={setMaterialReturnedValue}
+                keyboardType="decimal-pad"
+                style={{flex: 1}}
+              />
+            </View>
+          </View>
+          <Field label="Amount paid now (₹)" value={paid} onChangeText={setPaid} keyboardType="decimal-pad" />
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Auto-save the PDF</Text>
+              <Text style={styles.switchSub}>
+                {editing ? 'Save after saving the bill' : 'Save after creating the bill'}
+              </Text>
+            </View>
+            <Switch
+              value={autoSavePdf}
+              onValueChange={value => {
+                selectionTick();
+                setAutoSavePdf(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
+          <View style={styles.switchRow}>
+            <View style={{flex: 1, paddingRight: 12}}>
+              <Text style={styles.switchLabel}>Mark as fully paid</Text>
+              <Text style={styles.switchSub}>
+                {`Paid becomes the full ${money(total)}${distinct ? ` · bill 2 ${money(secondTotal)}` : ''}`}
+              </Text>
+            </View>
+            <Switch
+              value={markPaid}
+              onValueChange={value => {
+                selectionTick();
+                setMarkPaid(value);
+              }}
+              trackColor={{true: colors.primary, false: colors.border}}
+              thumbColor={colors.inverseOnSurface}
+            />
+          </View>
+          {/* How the advance is coming in — Cash / Online + optional note
+              (recorded on the payment, shown in the invoice's Payments trail). */}
+          <View>
+            <Text style={styles.optLabel}>Paid via</Text>
+            <View style={styles.methodGrid}>
+              {[...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})), {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'}].map(m => {
+                const active =
+                  paymentMethod === m.id ||
+                  (m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod));
+                return (
+                  <Pressable
+                    key={m.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Pay by ${m.label}`}
+                    accessibilityState={{selected: active}}
+                    onPress={() => {
+                      selectionTick();
+                      // Custom… starts empty so the operator types the real
+                      // method; a preset stores its id.
+                      setPaymentMethod(m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
+                    }}
+                    style={({pressed}) => [
+                      styles.methodBtn,
+                      active && styles.methodBtnActive,
+                      pressed && {opacity: 0.75},
+                    ]}>
+                    <Text style={[styles.methodBtnText, active && styles.methodBtnTextActive]}>{m.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {!PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod) ? (
+              <Field
+                label="Custom method"
+                value={paymentMethod}
+                onChangeText={setPaymentMethod}
+                placeholder="e.g. Paytm, cheque no…"
+                maxLength={40}
+              />
+            ) : null}
+          </View>
+          <Field
+            label="Payment note (optional)"
+            value={paymentNote}
+            onChangeText={setPaymentNote}
+            placeholder={paymentMethod === 'online' || (paymentMethod !== '' && paymentMethod !== 'cash') ? 'UPI id / transaction no.' : 'e.g. cash in hand'}
+            maxLength={120}
+          />
+          <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
+          <View style={styles.totalCard}>
+            <TotalsBlock
+              styles={styles}
+              label="Total"
+              subtotal={subtotal}
+              discount={Number(discount) || 0}
+              delivery={Number(delivery) || 0}
+              materialReturned={Number(materialReturnedValue) || 0}
+              materialTitle={materialReturnedTitle}
+              total={total}
+              paid={markPaid ? total : Math.min(Number(paid) || 0, total)}
+            />
+          </View>
+        </Card>
+
+        {distinct ? (
+          <Card index={5} style={[styles.billCard, {borderColor: colors.primary, borderWidth: 1}]}>
+            <View style={styles.secondBillHeader}>
+              <Text style={styles.sectionTitle}>Second bill — separate</Text>
+              <Badge text="Bill 2" tone="muted" />
+            </View>
+            <Field label="Customer" value={secondCustomer} onChangeText={setSecondCustomer} />
+            <Field label="Phone" value={secondCustomerPhone} onChangeText={setSecondCustomerPhone} keyboardType="phone-pad" />
+            <Field label="Address" value={secondCustomerAddress} onChangeText={setSecondCustomerAddress} />
+            <PartyPicker
+              parties={parties}
+              partyId={secondPartyId}
+              selected={parties?.find(p => p.id === secondPartyId)?.name ?? ''}
+              onChange={(id, party) => {
+                setSecondPartyId(id);
+                if (party) {
+                  setSecondCustomer(party.name);
+                  setSecondCustomerPhone(party.phone ?? '');
+                  setSecondCustomerAddress(party.address ?? '');
+                }
+              }}
+            />
+            <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setSecondLines, product)} />
+            <FastEntry onAdd={raw => addByCode(raw, 'second')} />
+              <LineItemsEditor
+                lines={secondLines}
+                onChange={updateSecondLine}
+                onWeightChange={makeWeightHandler(setSecondLines)}
+                onBasisChange={makeBasisHandler(setSecondLines)}
+                onPricingChange={makePricingHandler(setSecondLines)}
+                pricing={index => (secondLines[index] ? pricingViewFor(secondLines[index]) : null)}
+              onRemove={index => setSecondLines(prev => prev.filter((_, i) => i !== index))}
+              onAdd={() => setSecondLines(prev => [...prev, emptyLine()])}
+              products={products}
+              onSelectProduct={onSecondSelectProduct}
+              onOpenProduct={setDetailProduct}
+            />
+            <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="decimal-pad" />
+            <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="decimal-pad" />
+            <Field label="Material returned title" value={secondMaterialReturnedTitle} onChangeText={setSecondMaterialReturnedTitle} placeholder="Material Returned" />
+            <Field label="Material returned weight" value={secondMaterialReturnedWeight} onChangeText={setSecondMaterialReturnedWeight} placeholder="e.g. 5gm" />
+            <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="decimal-pad" />
+            <Field label="Amount paid now (₹)" value={secondPaid} onChangeText={setSecondPaid} keyboardType="decimal-pad" />
+            <View style={styles.totalCard}>
+              <TotalsBlock
+                styles={styles}
+                label="Bill 2 total"
+                subtotal={secondSubtotal}
+                discount={Number(secondDiscount) || 0}
+                delivery={Number(secondDelivery) || 0}
+                materialReturned={Number(secondMaterialReturnedValue) || 0}
+                materialTitle={secondMaterialReturnedTitle}
+                total={secondTotal}
+                paid={markPaid ? secondTotal : Math.min(Number(secondPaid) || 0, secondTotal)}
+              />
+            </View>
+          </Card>
+        ) : null}
+
+        {preview ? (
+          <Card index={6} style={styles.billCard}>
+            <Text style={styles.sectionTitle}>
+              Bill — {preview.billNo}
+              {twoInOne ? ' (2-in-1)' : ''}
+            </Text>
+            {/* Structured preview — matches desktop's sidebar card */}
+            <View style={styles.previewCard}>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Customer</Text>
+                <Text style={styles.previewValue}>{preview.customerName || 'Walk-in'}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Date</Text>
+                <Text style={styles.previewValue}>{formatDate(preview.date)}</Text>
+              </View>
+              {preview.customerPhone ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Phone</Text>
+                  <Text style={styles.previewValue}>{preview.customerPhone}</Text>
+                </View>
+              ) : null}
+              <View style={styles.previewDivider} />
+              {preview.lines.map((line, i) => (
+                <View key={i} style={styles.previewLineItem}>
+                  <Text style={styles.previewLineName} numberOfLines={1}>
+                    {line.productName}
+                    {line.sku ? ` (${line.sku})` : ''}
+                  </Text>
+                  <Text style={styles.previewLineQty}>×{line.quantity}</Text>
+                  <Text style={styles.previewLinePrice}>{money(line.price * line.quantity)}</Text>
+                </View>
+              ))}
+              <View style={styles.previewDivider} />
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Subtotal</Text>
+                <Text style={styles.previewValue}>{money(preview.subtotal)}</Text>
+              </View>
+              {preview.discount > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Discount</Text>
+                  <Text style={[styles.previewValue, {color: colors.danger}]}>-{money(preview.discount)}</Text>
+                </View>
+              ) : null}
+              {preview.deliveryCharge > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Delivery</Text>
+                  <Text style={styles.previewValue}>+{money(preview.deliveryCharge)}</Text>
+                </View>
+              ) : null}
+              {preview.materialReturnedValue > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>{preview.materialReturnedTitle?.trim() || 'Material Returned'}{preview.materialReturnedWeight ? ` (${preview.materialReturnedWeight})` : ''}</Text>
+                  <Text style={[styles.previewValue, {color: colors.danger}]}>−{money(preview.materialReturnedValue)}</Text>
+                </View>
+              ) : null}
+              <View style={[styles.previewRow, styles.previewTotalRow]}>
+                <Text style={styles.previewTotalLabel}>Total</Text>
+                <Text style={styles.previewTotalValue}>{money(preview.total)}</Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={styles.previewLabel}>Paid</Text>
+                <Text style={[styles.previewValue, {color: colors.success}]}>{money(preview.amountPaid)}</Text>
+              </View>
+              {preview.dueAmount > 0 ? (
+                <View style={styles.previewRow}>
+                  <Text style={styles.previewLabel}>Due</Text>
+                  <Text style={[styles.previewValue, {color: colors.danger, fontWeight: '700'}]}>{money(preview.dueAmount)}</Text>
+                </View>
+              ) : null}
+              <Text style={styles.previewAmountWords}>{preview.amountInWords}</Text>
+            </View>
+            {secondPreview ? (
+              <>
+                <Text style={styles.sectionTitle}>Bill 2 — {secondPreview.billNo}</Text>
+                <View style={styles.previewCard}>
+                  {secondPreview.lines.map((line, i) => (
+                    <View key={i} style={styles.previewLineItem}>
+                      <Text style={styles.previewLineName} numberOfLines={1}>
+                        {line.productName}
+                      </Text>
+                      <Text style={styles.previewLineQty}>×{line.quantity}</Text>
+                      <Text style={styles.previewLinePrice}>{money(line.price * line.quantity)}</Text>
+                    </View>
+                  ))}
+                  <View style={[styles.previewRow, styles.previewTotalRow]}>
+                    <Text style={styles.previewTotalLabel}>Total</Text>
+                    <Text style={styles.previewTotalValue}>{money(secondPreview.total)}</Text>
+                  </View>
+                </View>
+              </>
+            ) : null}
+            <View style={{flexDirection: 'row', gap: 8}}>
+              <Button
+                title={twoInOne ? 'Share 2-in-1 PDF' : 'Share PDF'}
+                style={{flex: 1}}
+                onPress={handlePdf}
+              />
+              <Button title="Share text" variant="outline" style={{flex: 1}} onPress={handleShareBill} />
+            </View>
+          </Card>
+        ) : null}
+      </ScrollView>
+
+      {/* Sticky action bar — the total and save are always reachable. */}
+      <View style={styles.saveBar}>
+        <View style={{flex: 1}}>
+          <Text style={styles.saveBarLabel}>{editing ? 'Saving bill' : 'Total'}</Text>
+          <Text style={styles.saveBarTotal}>{money(total)}</Text>
+          <Text style={[styles.saveBarDue, dueNow === 0 && {color: colors.success}]}>
+            {dueNow === 0 ? 'Fully paid' : `Due ${money(dueNow)}`}
+          </Text>
+        </View>
+        <Button
+          title={
+            saving
+              ? 'Saving…'
+              : editing && !editInvoice
+                ? 'Loading bill…'
+                : editing
+                  ? 'Save changes'
+                  : 'Create invoice'
+          }
+          onPress={handleCreate}
+          loading={saving}
+          disabled={editing && !editInvoice}
+          style={{flex: 1.25}}
+        />
+      </View>
+      </KeyboardAvoidingView>
+
+      {/* Rendered outside the page ScrollView so the Gorhom sheet overlays the screen. */}
+        <MunimBottomSheet
           visible={optionsOpen}
           title="Bill options"
           onClose={() => setOptionsOpen(false)}
-          dismissable
-          scrollable>
+          snapPoints={['92%']}>
+          <BottomSheetScrollView
+            style={{flex: 1}}
+            contentContainerStyle={{paddingHorizontal: spacing.lg, paddingBottom: spacing.xxxl}}>
           <Text style={styles.optLabel}>Bill template</Text>
           <SegmentedTabs<BillTemplate>
             options={[
@@ -2185,7 +2692,7 @@ export function BillingScreen() {
                 style={styles.optionTabs}
               />
               {goldRateKaratMode === 'karat' ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 8}}>
+                <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator={false} style={{marginBottom: 8}}>
                   <View style={{flexDirection: 'row', gap: 6}}>
                     {Array.from({length: 16}, (_, i) => 24 - i).map(k => (
                       <Pressable
@@ -2286,467 +2793,9 @@ export function BillingScreen() {
               ))}
             </>
           )}
-        </ModalSheet>
+        </BottomSheetScrollView>
+        </MunimBottomSheet>
 
-        {/* ── Rates ────────────────────────────────────────────────────── */}
-        <Card index={1}>
-          <Text style={styles.sectionTitle}>Rates</Text>
-          <Text style={styles.sectionHint}>
-            Editing a rate here re-prices every auto-priced line on this bill.
-          </Text>
-          <View style={styles.rateRow}>
-            <View style={styles.rateTile}>
-              <Field
-                label="Gold rate (₹/g)"
-                value={goldRateInput}
-                onChangeText={handleGoldRateChange}
-                keyboardType="decimal-pad"
-                placeholder={goldBaseRate != null ? String(goldBaseRate) : '—'}
-                hint={
-                  rateKaratBadgeText ? (
-                    <Text style={styles.rateKaratHint}>{rateKaratBadgeText}</Text>
-                  ) : undefined
-                }
-                style={{marginBottom: 0}}
-              />
-            </View>
-            <View style={styles.rateTile}>
-              <Field
-                label="Silver rate (₹/10g)"
-                value={silverRateInput}
-                onChangeText={handleSilverRateChange}
-                keyboardType="decimal-pad"
-                placeholder={shopSilverPer10g > 0 ? String(shopSilverPer10g) : '—'}
-                hint={
-                  billSilverRate != null
-                    ? `≈ ₹${billSilverRate.toFixed(2)}/g`
-                    : shopSilverPerGram > 0
-                      ? `≈ ₹${shopSilverPerGram.toFixed(2)}/g`
-                      : undefined
-                }
-                style={{marginBottom: 0}}
-              />
-            </View>
-          </View>
-          <Button
-            variant="outline"
-            title={syncPrices.isPending ? 'Recalculating…' : 'Recalculate prices'}
-            onPress={handleSyncPrices}
-            disabled={syncPrices.isPending}
-            style={{marginTop: spacing.md}}
-          />
-        </Card>
-
-        {/* ── Customer ─────────────────────────────────────────────────── */}
-        <Card index={2}>
-          <View style={styles.sectionHeadRow}>
-            <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Customer</Text>
-            {selectedPartyBalance != null && selectedPartyBalance !== 0 ? (
-              <View style={styles.khataChip}>
-                <Text
-                  style={[
-                    styles.khataChipText,
-                    {color: selectedPartyBalance > 0 ? colors.success : colors.warning},
-                  ]}>
-                  {selectedPartyBalance > 0
-                    ? `Owes you ${money(selectedPartyBalance)}`
-                    : `You owe ${money(Math.abs(selectedPartyBalance))}`}
-                </Text>
-              </View>
-            ) : null}
-          </View>
-          <View style={styles.customerHead}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {customer.trim() ? customer.trim().charAt(0).toUpperCase() : '?'}
-              </Text>
-            </View>
-            <View style={{flex: 1}}>
-              <View style={styles.lineRow}>
-                <Field
-                  label="Customer"
-                  value={customer}
-                  onChangeText={setCustomer}
-                  placeholder="Walk-in"
-                  style={{flex: 1.3}}
-                />
-                <Field
-                  label="Phone"
-                  value={customerPhone}
-                  onChangeText={setCustomerPhone}
-                  keyboardType="phone-pad"
-                  style={{flex: 1}}
-                />
-              </View>
-            </View>
-          </View>
-          <Field label="Address" value={customerAddress} onChangeText={setCustomerAddress} />
-          <PartyPicker
-            parties={parties}
-            partyId={partyId}
-            selected={parties?.find(p => p.id === partyId)?.name ?? ''}
-            onChange={(id, party) => {
-              setPartyId(id);
-              if (party) {
-                setCustomer(party.name);
-                setCustomerPhone(party.phone ?? '');
-                setCustomerAddress(party.address ?? '');
-              }
-            }}
-          />
-          <DateField label="Date" value={date} onChange={setDate} />
-        </Card>
-
-        {/* ── Items ────────────────────────────────────────────────────── */}
-        <Card index={3}>
-          <View style={styles.sectionHeadRow}>
-            <Text style={[styles.sectionTitle, {marginBottom: 0}]}>Items</Text>
-            <Text style={styles.sectionCount}>
-              {`${lines.filter(l => l.productName.trim()).length} ${
-                lines.filter(l => l.productName.trim()).length === 1 ? 'line' : 'lines'
-              }`}
-            </Text>
-          </View>
-          {/* Same two entry points as web/desktop: browse the stock catalog,
-              or scan/type a code (first empty line, else append). */}
-          <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setLines, product)} />
-          <FastEntry onAdd={raw => addByCode(raw, 'first')} />
-          <LineItemsEditor
-            lines={lines}
-            onChange={updateLine}
-            onWeightChange={makeWeightHandler(setLines)}
-            onBasisChange={makeBasisHandler(setLines)}
-            onPricingChange={makePricingHandler(setLines)}
-            pricing={index => (lines[index] ? pricingViewFor(lines[index]) : null)}
-            onRemove={index => setLines(prev => prev.filter((_, i) => i !== index))}
-            onAdd={() => setLines(prev => [...prev, emptyLine()])}
-            products={products}
-            onSelectProduct={onSelectProduct}
-            onOpenProduct={setDetailProduct}
-          />
-        </Card>
-
-        {/* ── Charges & payment ────────────────────────────────────────── */}
-        <Card index={4}>
-          <Text style={styles.sectionTitle}>Charges & payment</Text>
-          <View style={styles.lineRow}>
-            <Field label="Discount" value={discount} onChangeText={setDiscount} keyboardType="decimal-pad" style={{flex: 1}} />
-            <Field
-              label="Delivery charge"
-              value={delivery}
-              onChangeText={setDelivery}
-              keyboardType="decimal-pad"
-              style={{flex: 1}}
-            />
-          </View>
-          <View style={styles.subCard}>
-            <Text style={styles.groupLabel}>Material returned</Text>
-            <Field label="Title" value={materialReturnedTitle} onChangeText={setMaterialReturnedTitle} placeholder="Material Returned" />
-            <View style={styles.lineRow}>
-              <Field
-                label="Weight"
-                value={materialReturnedWeight}
-                onChangeText={setMaterialReturnedWeight}
-                placeholder="e.g. 5gm"
-                style={{flex: 1}}
-              />
-              <Field
-                label="Value (₹)"
-                value={materialReturnedValue}
-                onChangeText={setMaterialReturnedValue}
-                keyboardType="decimal-pad"
-                style={{flex: 1}}
-              />
-            </View>
-          </View>
-          <Field label="Amount paid now (₹)" value={paid} onChangeText={setPaid} keyboardType="decimal-pad" />
-          <View style={styles.switchRow}>
-            <View style={{flex: 1, paddingRight: 12}}>
-              <Text style={styles.switchLabel}>Auto-save the PDF</Text>
-              <Text style={styles.switchSub}>
-                {editing ? 'Save after saving the bill' : 'Save after creating the bill'}
-              </Text>
-            </View>
-            <Switch
-              value={autoSavePdf}
-              onValueChange={value => {
-                selectionTick();
-                setAutoSavePdf(value);
-              }}
-              trackColor={{true: colors.primary, false: colors.border}}
-              thumbColor={colors.inverseOnSurface}
-            />
-          </View>
-          <View style={styles.switchRow}>
-            <View style={{flex: 1, paddingRight: 12}}>
-              <Text style={styles.switchLabel}>Mark as fully paid</Text>
-              <Text style={styles.switchSub}>
-                {`Paid becomes the full ${money(total)}${distinct ? ` · bill 2 ${money(secondTotal)}` : ''}`}
-              </Text>
-            </View>
-            <Switch
-              value={markPaid}
-              onValueChange={value => {
-                selectionTick();
-                setMarkPaid(value);
-              }}
-              trackColor={{true: colors.primary, false: colors.border}}
-              thumbColor={colors.inverseOnSurface}
-            />
-          </View>
-          {/* How the advance is coming in — Cash / Online + optional note
-              (recorded on the payment, shown in the invoice's Payments trail). */}
-          <View>
-            <Text style={styles.optLabel}>Paid via</Text>
-            <View style={styles.methodGrid}>
-              {[...PAYMENT_METHOD_PRESETS.map(p => ({id: p.id, label: p.label})), {id: CUSTOM_PAYMENT_METHOD, label: 'Custom…'}].map(m => {
-                const active =
-                  paymentMethod === m.id ||
-                  (m.id === CUSTOM_PAYMENT_METHOD && !PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod));
-                return (
-                  <Pressable
-                    key={m.id}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Pay by ${m.label}`}
-                    accessibilityState={{selected: active}}
-                    onPress={() => {
-                      selectionTick();
-                      // Custom… starts empty so the operator types the real
-                      // method; a preset stores its id.
-                      setPaymentMethod(m.id === CUSTOM_PAYMENT_METHOD ? '' : m.id);
-                    }}
-                    style={({pressed}) => [
-                      styles.methodBtn,
-                      active && styles.methodBtnActive,
-                      pressed && {opacity: 0.75},
-                    ]}>
-                    <Text style={[styles.methodBtnText, active && styles.methodBtnTextActive]}>{m.label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {!PAYMENT_METHOD_PRESETS.some(p => p.id === paymentMethod) ? (
-              <Field
-                label="Custom method"
-                value={paymentMethod}
-                onChangeText={setPaymentMethod}
-                placeholder="e.g. Paytm, cheque no…"
-                maxLength={40}
-              />
-            ) : null}
-          </View>
-          <Field
-            label="Payment note (optional)"
-            value={paymentNote}
-            onChangeText={setPaymentNote}
-            placeholder={paymentMethod === 'online' || (paymentMethod !== '' && paymentMethod !== 'cash') ? 'UPI id / transaction no.' : 'e.g. cash in hand'}
-            maxLength={120}
-          />
-          <Field label="Notes / terms" value={notes} onChangeText={setNotes} placeholder="Thank you for your business!" multiline />
-          <View style={styles.totalCard}>
-            <TotalsBlock
-              styles={styles}
-              label="Total"
-              subtotal={subtotal}
-              discount={Number(discount) || 0}
-              delivery={Number(delivery) || 0}
-              materialReturned={Number(materialReturnedValue) || 0}
-              materialTitle={materialReturnedTitle}
-              total={total}
-              paid={markPaid ? total : Math.min(Number(paid) || 0, total)}
-            />
-          </View>
-        </Card>
-
-        {distinct ? (
-          <Card index={5} style={{borderColor: colors.primary, borderWidth: 1}}>
-            <View style={styles.secondBillHeader}>
-              <Text style={styles.sectionTitle}>Second bill — separate</Text>
-              <Badge text="Bill 2" tone="muted" />
-            </View>
-            <Field label="Customer" value={secondCustomer} onChangeText={setSecondCustomer} />
-            <Field label="Phone" value={secondCustomerPhone} onChangeText={setSecondCustomerPhone} keyboardType="phone-pad" />
-            <Field label="Address" value={secondCustomerAddress} onChangeText={setSecondCustomerAddress} />
-            <PartyPicker
-              parties={parties}
-              partyId={secondPartyId}
-              selected={parties?.find(p => p.id === secondPartyId)?.name ?? ''}
-              onChange={(id, party) => {
-                setSecondPartyId(id);
-                if (party) {
-                  setSecondCustomer(party.name);
-                  setSecondCustomerPhone(party.phone ?? '');
-                  setSecondCustomerAddress(party.address ?? '');
-                }
-              }}
-            />
-            <AddFromStockButton products={products} onSelect={(_id, product) => addPickedToLines(setSecondLines, product)} />
-            <FastEntry onAdd={raw => addByCode(raw, 'second')} />
-              <LineItemsEditor
-                lines={secondLines}
-                onChange={updateSecondLine}
-                onWeightChange={makeWeightHandler(setSecondLines)}
-                onBasisChange={makeBasisHandler(setSecondLines)}
-                onPricingChange={makePricingHandler(setSecondLines)}
-                pricing={index => (secondLines[index] ? pricingViewFor(secondLines[index]) : null)}
-              onRemove={index => setSecondLines(prev => prev.filter((_, i) => i !== index))}
-              onAdd={() => setSecondLines(prev => [...prev, emptyLine()])}
-              products={products}
-              onSelectProduct={onSecondSelectProduct}
-              onOpenProduct={setDetailProduct}
-            />
-            <Field label="Discount" value={secondDiscount} onChangeText={setSecondDiscount} keyboardType="decimal-pad" />
-            <Field label="Delivery charge" value={secondDelivery} onChangeText={setSecondDelivery} keyboardType="decimal-pad" />
-            <Field label="Material returned title" value={secondMaterialReturnedTitle} onChangeText={setSecondMaterialReturnedTitle} placeholder="Material Returned" />
-            <Field label="Material returned weight" value={secondMaterialReturnedWeight} onChangeText={setSecondMaterialReturnedWeight} placeholder="e.g. 5gm" />
-            <Field label="Material returned value (₹)" value={secondMaterialReturnedValue} onChangeText={setSecondMaterialReturnedValue} keyboardType="decimal-pad" />
-            <Field label="Amount paid now (₹)" value={secondPaid} onChangeText={setSecondPaid} keyboardType="decimal-pad" />
-            <View style={styles.totalCard}>
-              <TotalsBlock
-                styles={styles}
-                label="Bill 2 total"
-                subtotal={secondSubtotal}
-                discount={Number(secondDiscount) || 0}
-                delivery={Number(secondDelivery) || 0}
-                materialReturned={Number(secondMaterialReturnedValue) || 0}
-                materialTitle={secondMaterialReturnedTitle}
-                total={secondTotal}
-                paid={markPaid ? secondTotal : Math.min(Number(secondPaid) || 0, secondTotal)}
-              />
-            </View>
-          </Card>
-        ) : null}
-
-        {preview ? (
-          <Card index={6}>
-            <Text style={styles.sectionTitle}>
-              Bill — {preview.billNo}
-              {twoInOne ? ' (2-in-1)' : ''}
-            </Text>
-            {/* Structured preview — matches desktop's sidebar card */}
-            <View style={styles.previewCard}>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Customer</Text>
-                <Text style={styles.previewValue}>{preview.customerName || 'Walk-in'}</Text>
-              </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Date</Text>
-                <Text style={styles.previewValue}>{formatDate(preview.date)}</Text>
-              </View>
-              {preview.customerPhone ? (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Phone</Text>
-                  <Text style={styles.previewValue}>{preview.customerPhone}</Text>
-                </View>
-              ) : null}
-              <View style={styles.previewDivider} />
-              {preview.lines.map((line, i) => (
-                <View key={i} style={styles.previewLineItem}>
-                  <Text style={styles.previewLineName} numberOfLines={1}>
-                    {line.productName}
-                    {line.sku ? ` (${line.sku})` : ''}
-                  </Text>
-                  <Text style={styles.previewLineQty}>×{line.quantity}</Text>
-                  <Text style={styles.previewLinePrice}>{money(line.price * line.quantity)}</Text>
-                </View>
-              ))}
-              <View style={styles.previewDivider} />
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Subtotal</Text>
-                <Text style={styles.previewValue}>{money(preview.subtotal)}</Text>
-              </View>
-              {preview.discount > 0 ? (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Discount</Text>
-                  <Text style={[styles.previewValue, {color: colors.danger}]}>-{money(preview.discount)}</Text>
-                </View>
-              ) : null}
-              {preview.deliveryCharge > 0 ? (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Delivery</Text>
-                  <Text style={styles.previewValue}>+{money(preview.deliveryCharge)}</Text>
-                </View>
-              ) : null}
-              {preview.materialReturnedValue > 0 ? (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>{preview.materialReturnedTitle?.trim() || 'Material Returned'}{preview.materialReturnedWeight ? ` (${preview.materialReturnedWeight})` : ''}</Text>
-                  <Text style={[styles.previewValue, {color: colors.danger}]}>−{money(preview.materialReturnedValue)}</Text>
-                </View>
-              ) : null}
-              <View style={[styles.previewRow, styles.previewTotalRow]}>
-                <Text style={styles.previewTotalLabel}>Total</Text>
-                <Text style={styles.previewTotalValue}>{money(preview.total)}</Text>
-              </View>
-              <View style={styles.previewRow}>
-                <Text style={styles.previewLabel}>Paid</Text>
-                <Text style={[styles.previewValue, {color: colors.success}]}>{money(preview.amountPaid)}</Text>
-              </View>
-              {preview.dueAmount > 0 ? (
-                <View style={styles.previewRow}>
-                  <Text style={styles.previewLabel}>Due</Text>
-                  <Text style={[styles.previewValue, {color: colors.danger, fontWeight: '700'}]}>{money(preview.dueAmount)}</Text>
-                </View>
-              ) : null}
-              <Text style={styles.previewAmountWords}>{preview.amountInWords}</Text>
-            </View>
-            {secondPreview ? (
-              <>
-                <Text style={styles.sectionTitle}>Bill 2 — {secondPreview.billNo}</Text>
-                <View style={styles.previewCard}>
-                  {secondPreview.lines.map((line, i) => (
-                    <View key={i} style={styles.previewLineItem}>
-                      <Text style={styles.previewLineName} numberOfLines={1}>
-                        {line.productName}
-                      </Text>
-                      <Text style={styles.previewLineQty}>×{line.quantity}</Text>
-                      <Text style={styles.previewLinePrice}>{money(line.price * line.quantity)}</Text>
-                    </View>
-                  ))}
-                  <View style={[styles.previewRow, styles.previewTotalRow]}>
-                    <Text style={styles.previewTotalLabel}>Total</Text>
-                    <Text style={styles.previewTotalValue}>{money(secondPreview.total)}</Text>
-                  </View>
-                </View>
-              </>
-            ) : null}
-            <View style={{flexDirection: 'row', gap: 8}}>
-              <Button
-                title={twoInOne ? 'Share 2-in-1 PDF' : 'Share PDF'}
-                style={{flex: 1}}
-                onPress={handlePdf}
-              />
-              <Button title="Share text" variant="outline" style={{flex: 1}} onPress={handleShareBill} />
-            </View>
-          </Card>
-        ) : null}
-      </ScrollView>
-
-      {/* Sticky action bar — the total and save are always reachable. */}
-      <View style={styles.saveBar}>
-        <View style={{flex: 1}}>
-          <Text style={styles.saveBarLabel}>{editing ? 'Saving bill' : 'Total'}</Text>
-          <Text style={styles.saveBarTotal}>{money(total)}</Text>
-          <Text style={[styles.saveBarDue, dueNow === 0 && {color: colors.success}]}>
-            {dueNow === 0 ? 'Fully paid' : `Due ${money(dueNow)}`}
-          </Text>
-        </View>
-        <Button
-          title={
-            saving
-              ? 'Saving…'
-              : editing && !editInvoice
-                ? 'Loading bill…'
-                : editing
-                  ? 'Save changes'
-                  : 'Create invoice'
-          }
-          onPress={handleCreate}
-          loading={saving}
-          disabled={editing && !editInvoice}
-          style={{flex: 1.25}}
-        />
-      </View>
-      </KeyboardAvoidingView>
 
       {/* Product drill-down carried over from the old Sales screen: the same
           detail sheet with edit + stock adjustment, right from a bill line. */}
@@ -2789,6 +2838,9 @@ export function BillingScreen() {
 
 const makeStyles = () =>
   RNStyleSheet.create({
+    /** Billing is a dense form — trim the shared Card's double inset so the
+        inputs and line rows get the screen width instead of 32pt gutters. */
+    billCard: {marginHorizontal: rs(8), paddingHorizontal: spacing.md},
     /** Collapsed bill line card (metric grid + expand). */
     lineCard: {
       borderWidth: 1,
@@ -2923,7 +2975,7 @@ const makeStyles = () =>
       padding: spacing.md,
       marginTop: spacing.sm,
     },
-    optionTabs: {marginHorizontal: -spacing.lg, marginBottom: spacing.md},
+    optionTabs: {marginHorizontal: -spacing.md, marginBottom: spacing.md},
     productPicker: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -2959,6 +3011,32 @@ const makeStyles = () =>
       backgroundColor: colors.card,
     },
     searchInput: {paddingVertical: spacing.md, fontSize: typography.body},
+    // Fast entry — a contained scan field with a compact, solid Add button,
+    // so the two read as one control instead of an outline button squeezed
+    // inside a bordered input.
+    fastRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: rs(8),
+      marginBottom: spacing.md,
+    },
+    fastField: {flex: 1, marginBottom: 0, gap: rs(6), paddingHorizontal: spacing.sm},
+    fastAdd: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: rs(4),
+      paddingHorizontal: rs(16),
+      minHeight: rs(44),
+      borderRadius: radii.md,
+      backgroundColor: colors.primary,
+    },
+    fastAddDisabled: {opacity: 0.45},
+    fastAddText: {
+      color: colors.onPrimary,
+      fontSize: typography.secondary,
+      fontWeight: '700',
+    },
     pickRow: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -170,7 +170,7 @@ export function SellProductDialog() {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[480px]">
         {completedSale ? (
-          <SaleSuccess sale={completedSale} onClose={() => handleClose(false)} onViewHistory={() => { handleClose(false); setView("sales") }} />
+          <SaleSuccess sale={completedSale} onClose={() => handleClose(false)} onViewHistory={() => { handleClose(false); setView("invoices") }} />
         ) : (
           <>
             <DialogHeader>

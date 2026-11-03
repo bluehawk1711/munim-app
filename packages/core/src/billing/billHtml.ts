@@ -123,11 +123,11 @@ ${PAGE_CSS}
   .seal-line { position: absolute; left: 40%; right: 1.5%; top: 63.6%; border-top: 1.5px solid var(--d); }
 `;
 
-function renderClassicHtml(
+function renderClassicSheet(
   bill: BillDocument,
   s: BillTemplateSettings,
   color: BillClassicColor,
-): string {
+): Sheet {
   const theme = classicColors[color];
   const vars = `--p:${rgb(theme.primary)};--s:${rgb(theme.secondary)};--a:${rgb(theme.accent)};--d:${rgb(theme.dark)}`;
   const showWeight = s.weightAfterName;
@@ -171,8 +171,7 @@ function renderClassicHtml(
       </table>`
     : "";
 
-  return `${docStart(`${billKindLabel(bill)} ${bill.billNo}`, CLASSIC_CSS)}
-<div class="classic" style="${vars}">
+  return { css: CLASSIC_CSS, body: `<div class="classic" style="${vars}">
   <span class="corner tl"></span><span class="corner tr"></span>
   <span class="corner bl"></span><span class="corner br"></span>
   <div class="watermark">JW</div>
@@ -209,9 +208,7 @@ function renderClassicHtml(
       <span class="seal-line"></span>
     </div>
   </div>
-</div>
-</body>
-</html>`;
+</div>` };
 }
 
 /* ------------------------------------------------------------------ */
@@ -261,7 +258,7 @@ ${PAGE_CSS}
   .foot .em { font-size: 10px; color: ${rgb(ecommerceColors.primary)}; margin-top: 4px; }
 `;
 
-function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): string {
+function renderEcommerceSheet(bill: BillDocument, s: BillTemplateSettings): Sheet {
   const rates = rateRowHtml(rateRowsOf(bill, s));
 
   const estNum = (v: number, dp: number): string => v.toFixed(dp);
@@ -401,8 +398,7 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
     }</td></tr>`,
   );
 
-  return `${docStart(`${billKindLabel(bill)} ${bill.billNo}`, ECOMMERCE_CSS)}
-<div class="ecom">
+  return { css: ECOMMERCE_CSS, body: `<div class="ecom">
  <div class="inner">
   <div class="letterhead">
     <div class="shop">${esc(bill.shop.name)}</div>
@@ -469,20 +465,57 @@ function renderEcommerceHtml(bill: BillDocument, s: BillTemplateSettings): strin
     ${bill.shop.email ? `<div class="em">${esc(bill.shop.email)}</div>` : ""}
   </div>
  </div>
-</div>
-</body>
-</html>`;
+</div>` };
 }
+
+/** One template's sheet: its CSS plus the body markup (no <html> wrapper). */
+type Sheet = { css: string; body: string };
+
+/** 2-in-1 layout — two bills stacked on ONE A4 page, each in a half slot.
+ *  Mirrors `generateBillPDF`'s two-in-1 draw (top = bill, bottom = the second
+ *  bill in "distinct" mode, else the same bill again): natural size inside a
+ *  half-page slot, overflow clipped, so both renderers print the same thing. */
+const TWO_UP_CSS = `
+  .two-up { display: block; }
+  .sheet-half { height: 140mm; overflow: hidden; position: relative; }
+  .sheet-half.second { border-top: 1px dashed #b0b0b0; margin-top: 1mm; padding-top: 1mm; }
+`;
 
 /**
  * HTML render of a bill — the shared, print-friendly markup used by the
  * mobile app (expo-print). Renders the SAME template (Classic Jewellery /
- * Modern E-commerce) and display toggles as the web/desktop PDF renderer.
- * Omitted settings → defaults (Classic Jewellery, red, all toggles ON).
+ * Modern E-commerce), the same display toggles AND the same 2-in-1 sheet as
+ * the web/desktop PDF renderer (`generateBillPDF`). Omitted settings →
+ * defaults (E-commerce, red, all toggles ON).
+ *
+ * `second` is only used when `twoInOne` is on and the mode is "distinct" —
+ * exactly `generateBillPDF(bill, settings, second)`'s contract.
  */
-export function renderBillHtml(bill: BillDocument, settings?: BillTemplateSettings): string {
+export function renderBillHtml(
+  bill: BillDocument,
+  settings?: BillTemplateSettings,
+  second?: BillDocument | null,
+): string {
   const s = mergeBillTemplateSettings(settings);
-  return s.template === "ecommerce"
-    ? renderEcommerceHtml(bill, s)
-    : renderClassicHtml(bill, s, s.classicColor);
+  const sheetOf = (doc: BillDocument): Sheet =>
+    s.template === "ecommerce"
+      ? renderEcommerceSheet(doc, s)
+      : renderClassicSheet(doc, s, s.classicColor);
+
+  const sheet = sheetOf(bill);
+  const close = `</body>\n</html>`;
+
+  if (!s.twoInOne) {
+    return `${docStart(`${billKindLabel(bill)} ${bill.billNo}`, sheet.css)}\n${sheet.body}\n${close}`;
+  }
+
+  // 2-in-1: bottom half is the SECOND bill only in "distinct" mode; the
+  // default "duplicate" mode prints the same bill twice (like the PDF).
+  const bottom = s.mode === "distinct" && second ? sheetOf(second) : sheet;
+  return `${docStart(`${billKindLabel(bill)} ${bill.billNo} (2-in-1)`, sheet.css + TWO_UP_CSS)}
+<div class="two-up">
+  <div class="sheet-half">${sheet.body}</div>
+  <div class="sheet-half second">${bottom.body}</div>
+</div>
+${close}`;
 }

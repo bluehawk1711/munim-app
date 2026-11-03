@@ -7,7 +7,9 @@
  *   Color · Size
  *   ┌ BARCODE/EAN-13  8901247009381  [Copy] ┐
  *   [Buy Price] [Sell Price] [Margin]
- *   Category / Gross Weight / Stock rows
+ *   Type / Category / Sub-category / Article
+ *   Weight · Gross · Nag less · Chejat · NET WEIGHT (gold's price basis)
+ *   Purity / Karat (or silver %) / Pricing / Labour / charges / Stock / Notes
  *   [Edit Product] [Adjust Stock]
  *
  * Rendered through the shared `MunimBottomSheet` (@gorhom/bottom-sheet) so
@@ -17,7 +19,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {Barcode as BarcodeIcon, Package, ShoppingCart, X} from 'lucide-react-native';
-import {classifyProduct, formatWeight, type ProductDto} from '@munim/core';
+import {classifyProduct, formatLabelLabour, formatWeight, type ProductDto} from '@munim/core';
 import {MunimBottomSheet, BottomSheetScrollView} from './BottomSheet';
 import {ImageFullScreen} from './ImageFullScreen';
 import type BottomSheet from '@gorhom/bottom-sheet';
@@ -161,54 +163,58 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
         </View>
 
         {/* Detail rows */}
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Type</Text>
-          <Text style={styles.detailValue}>
-            {classifyProduct({
+        <DetailRow
+          label="Type"
+          value={
+            classifyProduct({
               type: product.type,
               goldKarat: product.goldKarat,
               purity: product.purity,
               categoryName: product.category,
-            }).text}
-          </Text>
-        </View>
-        {product.category ? (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Category</Text>
-            <Text style={styles.detailValue}>{product.category}</Text>
-          </View>
+            }).text
+          }
+        />
+        <DetailRow label="Category" value={product.category || null} />
+        <DetailRow label="Sub-category" value={product.subCategory || null} />
+        <DetailRow label="Article" value={product.article || null} />
+        {product.type === 'Gold' && product.goldKarat != null ? (
+          <DetailRow label="Karat" value={`${product.goldKarat}K`} />
         ) : null}
-        {product.article ? (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Article</Text>
-            <Text style={styles.detailValue}>{product.article}</Text>
-          </View>
+        {product.type === 'Silver' ? (
+          <DetailRow label="Silver %" value={`${product.silverPercentage}%`} />
         ) : null}
-        {product.weight != null ? (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Gross Weight</Text>
-            <Text style={styles.detailValue}>{formatWeight(product.weight, product.weightUnit)}</Text>
-          </View>
-        ) : null}
-        {product.purity ? (
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Purity</Text>
-            <Text style={styles.detailValue}>{product.purity}</Text>
-          </View>
-        ) : null}
-        <View style={styles.detailRow}>
-          <Text style={styles.detailLabel}>Stock</Text>
-          <Text style={styles.detailValue}>
-            {product.stock} {product.stock === 1 ? 'unit' : 'units'}
-            {product.stock > 0 && product.stock <= product.lowStockThreshold
-              ? '  ·  Low'
-              : ''}
-          </Text>
-        </View>
-        <View style={styles.detailRowLast}>
-          <Text style={styles.detailLabel}>Low Stock Alert</Text>
-          <Text style={styles.detailValue}>{product.lowStockThreshold}</Text>
-        </View>
+
+        {/* Weight matrix — the same figures the bill prints (G. Wt. / N/C /
+            N. Wt.), so the sheet explains the price the product carries. */}
+        <DetailRow
+          label="Weight"
+          value={product.weight != null ? formatWeight(product.weight, product.weightUnit) : null}
+        />
+        <DetailRow label="Gross Weight" value={product.grossWeight?.trim() || null} />
+        <DetailRow label="Nag Less" value={withUnit(product.nagLessWeight, product.nagUnit)} />
+        <DetailRow label="Chejat" value={withUnit(product.chejatWeight, product.nagUnit)} />
+        <DetailRow label="Net Weight" value={withUnit(product.netWeight, product.weightUnit)} />
+
+        <DetailRow label="Purity" value={product.purity || null} />
+        <DetailRow
+          label="Pricing"
+          value={product.priceMode === 'auto' ? 'Auto (metal rate)' : 'Manual price'}
+        />
+        <DetailRow
+          label="Labour"
+          value={
+            formatLabelLabour({labourType: product.labourType, labourValue: product.labourValue}) || null
+          }
+        />
+        <DetailRow label="Charges" value={chargesText(product)} />
+        <DetailRow
+          label="Stock"
+          value={`${product.stock} ${product.stock === 1 ? 'unit' : 'units'}${
+            product.stock > 0 && product.stock <= product.lowStockThreshold ? '  ·  Low' : ''
+          }`}
+        />
+        <DetailRow label="Low Stock Alert" value={String(product.lowStockThreshold)} />
+        {product.notes?.trim() ? <DetailRow label="Notes" value={product.notes.trim()} last /> : null}
 
         {/* Actions */}
         <View style={styles.actions}>
@@ -244,6 +250,46 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
       </BottomSheetScrollView>
       <ImageFullScreen visible={!!fullImage} imageUrl={fullImage} onClose={() => setFullImage(null)} />
     </MunimBottomSheet>
+  );
+}
+
+/** Free-text weight + its unit ("0.620 gm") — "" for an empty value. */
+function withUnit(value: string | null | undefined, unit: string | null | undefined): string | null {
+  const text = value?.trim();
+  if (!text) return null;
+  // Stored free text may already carry the unit — never double it.
+  if (/[a-z]/i.test(text)) return text;
+  return `${text} ${unit === 'mg' ? 'mg' : 'gm'}`;
+}
+
+/** Flat ₹ charges added to the auto price — null when the product has none. */
+function chargesText(product: ProductDto): string | null {
+  const parts = [
+    ['Nag', product.nagRate],
+    ['Povayi', product.povayiRate],
+    ['Other', product.otherCharges],
+  ]
+    .map(([label, raw]) => {
+      const n = raw == null || raw === '' ? NaN : Number(raw);
+      if (!Number.isFinite(n) || n <= 0) return null;
+      const amount = Number.isInteger(n)
+        ? n.toLocaleString('en-IN')
+        : n.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      return `${label} ₹${amount}`;
+    })
+    .filter((part): part is string => part !== null);
+  return parts.length > 0 ? parts.join('  ·  ') : null;
+}
+
+/** One label/value row — omitted entirely when there is no value to show. */
+function DetailRow({label, value, last}: {label: string; value: string | null; last?: boolean}) {
+  const styles = useThemeStyles(makeStyles);
+  if (!value) return null;
+  return (
+    <View style={last ? styles.detailRowLast : styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
   );
 }
 

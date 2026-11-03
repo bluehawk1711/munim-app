@@ -124,17 +124,19 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | Advances | Daybook chips + client paging (8) | C | `advances.tsx:329-355, 449-458` |
 | Job letters | — | — | `job-letters.tsx:145-193` |
 | Reports | Type tabs + full filter panel (search, article/category/sub-category, color/size, product type/metal, karat/silver/weight ranges, sold state, payment status, party, dates + quick ranges, Generate) | S | Shared `ReportFilterPanel` + `REPORT_TYPES` |
-| Reports | Row search (loaded rows only) | C | `reports.tsx` |
+| Reports | Row search (loaded rows only: product/SKU/article/category/sub-category/type/colour/size/purity/karat/silver %) | C | `reports.tsx` |
+| Reports | Shop-wide dashboard charts | — | hidden while `hasReportNarrowing(active)` |
 | Billing | Product search, barcode, party selects | C / S lookup | `billing.tsx:1458-1476` |
 | Settings | Config controls only | — | `settings.tsx` |
 | Help | Static help search | C | `help-center.tsx` |
 
 ## Mobile — `apps/mobile/src/screens/*`
 
-> The 2026-11-01 visual overhaul (Billing / Bills / Stock / product sheet /
-> Articles / Settings) changed presentation only — chip rows became
-> `SegmentedTabs` and summaries became visible metric strips, but every query
-> param, scope and filter set below is unchanged.
+> The 2026-11-01/02 visual overhaul (Billing / Bills / Stock / product sheet /
+> Articles / Reports / Settings) changed presentation only — Stock keeps one
+> horizontally scrollable badge row (status + type + pricing), Reports uses
+> uniform compact pills, and Billing line items are an accordion — but every
+> query param, scope and filter set below is unchanged.
 
 | Screen | Control | Scope | File |
 | --- | --- | --- | --- |
@@ -142,10 +144,8 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | Home | Weight sold tile → drill-down sheet (days × products) | C | `HomeScreen.tsx` (`weightSheetOpen`, `groupWeightByDay`) |
 | Home | Status chips (navigate only) | — | `HomeScreen.tsx:203-217` |
 | Products | Search (local over loaded pages) | C | `ProductsScreen.tsx` (`search` + `allProducts`) |
-| Products | Stock-status tabs (local, with counts) | C | `ProductsScreen.tsx:525` |
-| Products | Type tabs Gold/Silver | S | `ProductsScreen.tsx:536` |
-| Products | Price chips Auto/Manual | S | `ProductsScreen.tsx` (`priceRow`) |
-| Products | Infinite scroll (`pageSize: 40`) | S | `ProductsScreen.tsx:584-585` |
+| Products | Single horizontally scrollable badge row: stock status (local, with counts + dots) → type Gold/Silver → price Auto/Manual | C / S | `ProductsScreen.tsx:488-549` |
+| Products | Infinite scroll (`pageSize: 40`) | S | `ProductsScreen.tsx:566-569` |
 | Catalog | Colors/Sizes/Categories tabs | tab switch | `CatalogScreen.tsx:192-213` |
 | Catalog | Search (local) | C | `CatalogScreen.tsx:154-157` |
 | Articles | Period tabs | S | `ArticlesScreen.tsx:220` |
@@ -153,11 +153,14 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | Bills | Search (filter sheet) | S | `InvoicesScreen.tsx` (`setSearchFilter`) |
 | Bills | Status tabs (page counts) | S | `InvoicesScreen.tsx:321` |
 | Bills | Prev/Next (15) | S | `InvoicesScreen.tsx:386-408` |
-| Orders | Search / status chips / paging | S | `OrdersScreen.tsx:767-803, 933-955` |
+| Orders | Search / status chips / paging | S | `OrdersScreen.tsx` |
+| Orders | Per-order **…** action menu (estimate / payment / history / edit / bill / cancel / delete) | C | `OrdersScreen.tsx` (`actionOrder` + `orderActions`) |
 | Parties/Advances | Balance chips | C | `AdvancesScreen.tsx:241-249` |
 | Job letters | — | — | `JobLettersScreen.tsx:82-106` |
-| Reports | Type pills + filter sheet — search, article/category/sub-category/color/size/party pickers, product type/metal/sold/payment chips, karat/silver/weight ranges, dates + quick ranges, Run | S | `ReportFilterSheet.tsx` (same core `toReportFilters`), opened from `ReportsScreen.tsx` window card |
+| Reports | Type pills + filter sheet — search, article/category/sub-category/color/size/party pickers, product type/metal/sold/payment chips, karat/silver/weight ranges, dates + quick ranges, Run | S | `ReportFilterSheet.tsx` (same core `toReportFilters`, Gorhom sheet + controlled `SheetPicker`), opened from `ReportsScreen.tsx` window card |
+| Reports | Row search over the loaded report (product/SKU/article/category/sub-category/type/colour/size/purity/karat/silver %) | C | `ReportsScreen.tsx` (`rowQuery`, deferred) |
 | Reports | Sort Revenue/Profit/Qty | C | `ReportsScreen.tsx` |
+| Reports | Dashboard charts (shop-wide) | — | hidden while `hasReportNarrowing(active)` — they cannot honour narrowing facets |
 | Billing | Product picker search (server) + barcode | S | `BillingScreen.tsx:263-284, 393-430` |
 | Settings | Group tabs Profile / Rates & Metal / Bill Formats / Appearance (local) | C | `SettingsScreen.tsx:493` |
 | Settings | Silver display unit ₹/gm or ₹/10gm (config) | — | `SettingsScreen.tsx:605` |

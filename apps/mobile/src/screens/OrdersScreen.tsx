@@ -11,7 +11,19 @@ import {
   View,
 } from 'react-native';
 import * as Print from 'expo-print';
-import {Banknote, ChevronDown, FileDown, History, Search, Share2, Trash2} from 'lucide-react-native';
+import {
+  Banknote,
+  ChevronDown,
+  FileDown,
+  FileText,
+  History,
+  MoreVertical,
+  Pencil,
+  Search,
+  Share2,
+  Trash2,
+  XCircle,
+} from 'lucide-react-native';
 import {
   buildBillDocument,
   buildOrderDocument,
@@ -59,6 +71,7 @@ import {
   colors,
 } from '../components/ui';
 import {AnalyticsSheet} from '../components/analytics-sheet';
+import {BottomSheetScrollView, MunimBottomSheet} from '../components/BottomSheet';
 import {HomeHeader, headerScrollHandlers} from '../components/home-header';
 import {useThemeStyles} from '../theme';
 import {savePdf} from '../lib/save-pdf';
@@ -73,6 +86,21 @@ const STATUS_CHIPS: {key: OrderStatusFilter; label: string}[] = [
 ];
 
 const PAGE_SIZE = 15;
+
+/** Hoisted so the sheet's snap points keep a stable identity across renders. */
+const FORM_SNAP_POINTS = ['92%'];
+const MENU_SNAP_POINTS = ['62%'];
+
+/** One row in the per-order 3-dot action menu. */
+type MenuAction = {
+  key: string;
+  label: string;
+  icon: React.ComponentType<{size?: number | string; color?: string}>;
+  danger?: boolean;
+  /** Row is mid-action (e.g. PDF being written) — shown disabled. */
+  busy?: boolean;
+  run: () => void;
+};
 
 type FormLine = {
   key: string;
@@ -416,7 +444,7 @@ function OrderLinesEditor({
           ) : null}
         </View>
       ))}
-      <Button title="+ Add item" variant="outline" onPress={onAdd} style={{marginBottom: 12}} />
+      <Button title="+ Add item" variant="outline" onPress={onAdd} style={{marginTop: 12, marginBottom: 12}} />
     </>
   );
 }
@@ -465,6 +493,9 @@ export function OrdersScreen() {
   const [cancelBusy, setCancelBusy] = useState(false);
   const [deleting, setDeleting] = useState<OrderDto | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  /** 3-dot menu target — one sheet holds every per-order action. */
+  const [actionOrder, setActionOrder] = useState<OrderDto | null>(null);
+  /** Order whose PDF is being produced (disables the export menu rows). */
   const [exporting, setExporting] = useState<OrderDto | null>(null);
 
   const [paying, setPaying] = useState<OrderDto | null>(null);
@@ -660,6 +691,70 @@ export function OrdersScreen() {
   }
 
   /** COMPLETED order → load its invoice and print/save the bill PDF. */
+  /** Closes the 3-dot menu before running its action — two Gorhom sheets
+   *  should never animate over each other. */
+  function runFromMenu(run: () => void) {
+    setActionOrder(null);
+    setTimeout(run, 220);
+  }
+
+  /** Per-order actions for the 3-dot menu — same set web/desktop offer. */
+  function orderActions(o: OrderDto): MenuAction[] {
+    const busy = exporting?.id === o.id;
+    const actions: MenuAction[] = [
+      {
+        key: 'estimate',
+        label: busy ? 'Preparing PDF…' : 'Print estimate',
+        icon: FileDown,
+        busy,
+        run: () => void printEstimate(o),
+      },
+    ];
+    if (o.status === 'OPEN' && o.dueAmount > 0) {
+      actions.push({key: 'pay', label: 'Record payment', icon: Banknote, run: () => openPayment(o)});
+    }
+    if (o.amountPaid > 0) {
+      actions.push({
+        key: 'history',
+        label: 'Payment history',
+        icon: History,
+        run: () => setPayHistory(o),
+      });
+    }
+    if (o.status === 'COMPLETED' && o.invoiceId) {
+      actions.push({
+        key: 'share',
+        label: 'Share invoice',
+        icon: Share2,
+        busy,
+        run: () => void shareInvoice(o),
+      });
+    }
+    if (o.status === 'OPEN') {
+      actions.push(
+        {key: 'edit', label: 'Edit order', icon: Pencil, run: () => openEdit(o)},
+        {key: 'bill', label: 'Generate bill', icon: FileText, run: () => setBilling(o)},
+        {
+          key: 'cancel',
+          label: 'Cancel order',
+          icon: XCircle,
+          danger: true,
+          run: () => setCancelling(o),
+        },
+      );
+    }
+    if (o.status === 'CANCELLED') {
+      actions.push({
+        key: 'delete',
+        label: 'Delete order',
+        icon: Trash2,
+        danger: true,
+        run: () => setDeleting(o),
+      });
+    }
+    return actions;
+  }
+
   async function shareInvoice(o: OrderDto) {
     if (!o.invoiceId || !settings) return;
     setExporting(o);
@@ -817,7 +912,6 @@ export function OrdersScreen() {
           }
           contentContainerStyle={{paddingBottom: 40}}
           renderItem={({item, index}) => {
-            const exportingThis = exporting?.id === item.id;
             const pay = paymentLine(item);
             const payToneStyle =
               pay.tone === 'success'
@@ -827,104 +921,48 @@ export function OrdersScreen() {
                   : null;
             return (
               <Card index={index}>
-                <View style={styles.row}>
-                  <View style={{flex: 1}}>
-                    <View style={styles.rowHeadline}>
-                      <Text style={styles.number}>{item.orderNumber}</Text>
-                      <Badge text={badgeLabel(item.status)} tone={badgeTone(item.status)} />
-                    </View>
-                    <Text style={styles.name}>{item.customerName ?? 'Walk-in customer'}</Text>
-                    <Text style={styles.meta}>
-                      {formatDate(item.date)} · {item.items.length} item
-                      {item.items.length !== 1 ? 's' : ''}
-                      {itemSummary(item)}
+                {/* Headline + details take the full width; the money column +
+                    actions sit on their own footer row so narrow phones never
+                    squeeze seven controls next to the customer name. */}
+                <View style={styles.rowHeadline}>
+                  <Text style={styles.number} numberOfLines={1}>
+                    {item.orderNumber}
+                  </Text>
+                  <Badge text={badgeLabel(item.status)} tone={badgeTone(item.status)} />
+                </View>
+                <Text style={styles.name} numberOfLines={1}>
+                  {item.customerName ?? 'Walk-in customer'}
+                </Text>
+                <Text style={styles.meta} numberOfLines={1}>
+                  {formatDate(item.date)} · {item.items.length} item
+                  {item.items.length !== 1 ? 's' : ''}
+                  {itemSummary(item)}
+                </Text>
+
+                <View style={styles.cardFooter}>
+                  <View style={styles.footerMoney}>
+                    <Text style={styles.total}>{money(item.total)}</Text>
+                    <Text style={[styles.payLine, payToneStyle]} numberOfLines={1}>
+                      {pay.text}
                     </Text>
                   </View>
-                  <View style={styles.rowRight}>
-                    <Text style={styles.total}>{money(item.total)}</Text>
-                    <Text style={[styles.payLine, payToneStyle]}>{pay.text}</Text>
-                    <View style={styles.rowActions}>
-                      <Pressable
-                        onPress={() => {
-                          printEstimate(item);
-                        }}
-                        hitSlop={8}
-                        disabled={exportingThis}
-                        style={({pressed}) => [
-                          styles.iconBtn,
-                          pressed && {opacity: 0.5},
-                          exportingThis && {opacity: 0.4},
-                        ]}
-                        accessibilityLabel={`Print the estimate for ${item.orderNumber}`}>
-                        <FileDown size={16} color={colors.primary} />
-                      </Pressable>
-                      {item.status === 'OPEN' && item.dueAmount > 0 ? (
-                        <Pressable
-                          onPress={() => openPayment(item)}
-                          hitSlop={8}
-                          style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.5}]}
-                          accessibilityLabel={`Record a payment on ${item.orderNumber}`}>
-                          <Banknote size={16} color={colors.primary} />
-                        </Pressable>
-                      ) : null}
-                      {item.amountPaid > 0 ? (
-                        <Pressable
-                          onPress={() => setPayHistory(item)}
-                          hitSlop={8}
-                          style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.5}]}
-                          accessibilityLabel={`Payment history for ${item.orderNumber}`}>
-                          <History size={16} color={colors.primary} />
-                        </Pressable>
-                      ) : null}
-                      {item.status === 'COMPLETED' && item.invoiceId ? (
-                        <Pressable
-                          onPress={() => void shareInvoice(item)}
-                          hitSlop={8}
-                          disabled={exportingThis}
-                          style={({pressed}) => [
-                            styles.iconBtn,
-                            pressed && {opacity: 0.5},
-                            exportingThis && {opacity: 0.4},
-                          ]}
-                          accessibilityLabel={`Share invoice for ${item.orderNumber}`}>
-                          <Share2 size={16} color={colors.primary} />
-                        </Pressable>
-                      ) : null}
-                      {item.status === 'OPEN' ? (
-                        <>
-                          <Button
-                            title="Edit"
-                            variant="outline"
-                            onPress={() => openEdit(item)}
-                            style={styles.smallBtn}
-                          />
-                          <Button
-                            title="Bill"
-                            variant="outline"
-                            onPress={() => setBilling(item)}
-                            style={styles.smallBtn}
-                          />
-                          <Pressable
-                            onPress={() => {
-                              setCancelling(item);
-                            }}
-                            hitSlop={8}
-                            style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.5}]}
-                            accessibilityLabel={`Cancel ${item.orderNumber}`}>
-                            <Trash2 size={16} color={colors.danger} />
-                          </Pressable>
-                        </>
-                      ) : null}
-                      {item.status === 'CANCELLED' ? (
-                        <Pressable
-                          onPress={() => setDeleting(item)}
-                          hitSlop={8}
-                          style={({pressed}) => [styles.iconBtn, pressed && {opacity: 0.5}]}
-                          accessibilityLabel={`Delete ${item.orderNumber}`}>
-                          <Trash2 size={16} color={colors.danger} />
-                        </Pressable>
-                      ) : null}
-                    </View>
+                  <View style={styles.footerActions}>
+                    {item.status === 'OPEN' ? (
+                      <Button
+                        title="Bill"
+                        size="small"
+                        onPress={() => setBilling(item)}
+                        style={styles.billBtn}
+                      />
+                    ) : null}
+                    <Pressable
+                      onPress={() => setActionOrder(item)}
+                      hitSlop={8}
+                      style={({pressed}) => [styles.moreBtn, pressed && {opacity: 0.5}]}
+                      accessibilityRole="button"
+                      accessibilityLabel={`More actions for ${item.orderNumber}`}>
+                      <MoreVertical size={18} color={colors.text} />
+                    </Pressable>
                   </View>
                 </View>
               </Card>
@@ -956,14 +994,59 @@ export function OrdersScreen() {
         />
       </KeyboardAvoidingView>
 
-      {/* Create / edit — full-height sheet */}
-      <ModalSheet
+      {/* Every secondary order action lives in one 3-dot menu so the card
+          stays a readable list row instead of a wall of buttons. */}
+      <MunimBottomSheet
+        visible={!!actionOrder}
+        title={actionOrder ? actionOrder.orderNumber : 'Order actions'}
+        onClose={() => setActionOrder(null)}
+        snapPoints={MENU_SNAP_POINTS}>
+        <BottomSheetScrollView contentContainerStyle={styles.menuScroll}>
+          {actionOrder ? (
+            <>
+              <Text style={styles.menuHeader} numberOfLines={2}>
+                {actionOrder.customerName || 'Walk-in customer'} ·{' '}
+                {money(actionOrder.total)}
+              </Text>
+              {orderActions(actionOrder).map(action => (
+                <Pressable
+                  key={action.key}
+                  disabled={action.busy}
+                  onPress={() => runFromMenu(action.run)}
+                  style={({pressed}) => [
+                    styles.menuItem,
+                    pressed && {opacity: 0.6},
+                    action.busy && {opacity: 0.45},
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={action.label}>
+                  <action.icon
+                    size={18}
+                    color={action.danger ? colors.danger : colors.text}
+                  />
+                  <Text
+                    style={[styles.menuItemText, action.danger && {color: colors.danger}]}>
+                    {action.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
+        </BottomSheetScrollView>
+      </MunimBottomSheet>
+
+      {/* Create / edit — the same Gorhom sheet the product + bill-options
+          editors use, so the keyboard, backdrop and scroll behave alike. */}
+      <MunimBottomSheet
         visible={formOpen}
         title={editing ? `Edit ${editing.orderNumber}` : 'New order'}
         onClose={() => setFormOpen(false)}
-        dismissable={!formBusy}
-        size="xl"
-        scrollable>
+        enableDismissOnDrag={!formBusy}
+        snapPoints={FORM_SNAP_POINTS}>
+        <BottomSheetScrollView
+          contentContainerStyle={styles.formScroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}>
         <Text style={styles.sheetNote}>
           Quote items at locked prices — stock is checked only when you bill it.
         </Text>
@@ -1141,7 +1224,8 @@ export function OrdersScreen() {
           />
         ) : null}
         <View style={{height: 24}} />
-      </ModalSheet>
+        </BottomSheetScrollView>
+      </MunimBottomSheet>
 
       {/* Bill confirmation — prefilled summary */}
       <ModalSheet
@@ -1399,21 +1483,52 @@ const makeStyles = () =>
     number: {fontSize: 12, color: colors.muted, fontFamily: 'monospace', fontWeight: '600'},
     name: {fontSize: 15, fontWeight: '600', color: colors.text, marginTop: 3},
     meta: {fontSize: 11, color: colors.muted, marginTop: 2},
-    rowRight: {alignItems: 'flex-end', gap: 6, marginTop: 2},
     total: {fontSize: 15, fontWeight: '700', color: colors.text},
-    payLine: {fontSize: 11, color: colors.muted},
+    payLine: {fontSize: 11, color: colors.muted, marginTop: 1},
     payLineSuccess: {color: colors.success, fontWeight: '600'},
     payLineWarning: {color: colors.warning, fontWeight: '600'},
-    rowActions: {flexDirection: 'row', alignItems: 'center', gap: 6},
-    smallBtn: {paddingVertical: 6, paddingHorizontal: 10},
-    iconBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
+    // Card footer: money on the left, at most two controls on the right, so
+    // the card stays readable on a 360-wide phone.
+    cardFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      marginTop: 10,
+    },
+    footerMoney: {flex: 1, minWidth: 0},
+    footerActions: {flexDirection: 'row', alignItems: 'center', gap: 8},
+    billBtn: {paddingVertical: 6, paddingHorizontal: 16},
+    moreBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: colors.mutedSoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
     },
+    // 3-dot action menu
+    menuScroll: {paddingHorizontal: 16, paddingBottom: 24},
+    menuHeader: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.muted,
+      marginBottom: 8,
+    },
+    menuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      paddingVertical: 14,
+      paddingHorizontal: 4,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: colors.border,
+    },
+    menuItemText: {fontSize: 14, fontWeight: '600', color: colors.text},
+    // Order editor scroll content (Gorhom sheet).
+    formScroll: {paddingHorizontal: 16, paddingBottom: 24},
     pager: {
       flexDirection: 'row',
       alignItems: 'center',

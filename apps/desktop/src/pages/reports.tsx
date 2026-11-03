@@ -14,7 +14,7 @@ import {
   ShoppingCart,
   TrendingUp,
 } from "lucide-react";
-import { emptyReportFilterForm, toReportFilters, type ReportFilters, type ReportFilterFormValues, type ReportType } from "@munim/core";
+import { emptyReportFilterForm, hasReportNarrowing, toReportFilters, type ReportFilters, type ReportFilterFormValues, type ReportType } from "@munim/core";
 import { getApi } from "@/lib/api";
 import { useArticles, useCatalog, useDashboard, useParties, useReport, useQueryState } from "@munim/query";
 import { money, formatWeight, monthLabelToDate } from "@/lib/format";
@@ -110,18 +110,37 @@ export function ReportsPage() {
   const totals = report?.totals;
 
   // Itemized audit table search (client-side, like the reference's SKU filter).
+  // Matches every facet a row carries, same facets mobile searches.
   const [rowQuery, setRowQuery] = useState("");
   const rows = useMemo(() => {
     const list = report?.rows ?? [];
     const q = rowQuery.trim().toLowerCase();
     if (!q) return list;
-    return list.filter(
-      (r) =>
-        r.productName.toLowerCase().includes(q) ||
-        (r.sku ?? "").toLowerCase().includes(q) ||
-        (r.color ?? "").toLowerCase().includes(q),
+    return list.filter((r) =>
+      [
+        r.productName,
+        r.sku,
+        r.articleName,
+        r.categoryName,
+        r.subCategoryName,
+        r.productType,
+        r.color,
+        r.size,
+        r.purity,
+        r.goldKarat != null ? `${r.goldKarat}K` : null,
+        r.silverPercentage != null ? `${r.silverPercentage}%` : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(q),
     );
   }, [report, rowQuery]);
+
+  // Dashboard charts are shop-wide aggregates: they can't honour narrowing
+  // facets, so they are hidden while a narrowing filter is applied instead of
+  // silently showing unfiltered numbers next to filtered ones.
+  const narrowing = active ? hasReportNarrowing(active) : false;
 
   // Trajectory series from the shared monthlySales data (real dates for the
   // time-series chart's x-axis).
@@ -327,6 +346,14 @@ export function ReportsPage() {
       </div>
 
       {/* ── Trajectory + category split + units run ─────────────────── */}
+      {narrowing ? (
+        <Card>
+          <CardContent className="text-muted-foreground p-4 text-xs">
+            Charts are hidden while a filter is active — they show shop-wide totals and cannot be narrowed.
+            Clear the filters to see the 6-month trajectory, category split and units per month.
+          </CardContent>
+        </Card>
+      ) : (
       <div className="grid gap-4 xl:grid-cols-3">
         <Card className="xl:col-span-2">
           <CardHeader className="pb-2">
@@ -445,6 +472,7 @@ export function ReportsPage() {
           </Card>
         </div>
       </div>
+      )}
 
       {/* ── Itemized performance & margin audit ─────────────────────── */}
       <Card>
@@ -551,6 +579,20 @@ export function ReportsPage() {
                             <p className="font-medium">{r.productName}</p>
                             <p className="text-muted-foreground text-xs">
                               {[r.sku, r.articleName, r.categoryName, r.productType, r.color, r.size, r.weight != null ? formatWeight(r.weight, r.weightUnit) : null].filter(Boolean).join(" · ")}
+                            </p>
+                            {/* Full product detail — the facets the filter panel
+                                narrows by, so an applied filter is verifiable. */}
+                            <p className="text-muted-foreground text-[11px]">
+                              {[
+                                r.subCategoryName,
+                                r.purity,
+                                r.goldKarat != null ? `${r.goldKarat}K` : null,
+                                r.silverPercentage != null ? `${r.silverPercentage}% silver` : null,
+                                r.soldWeight > 0 ? `${formatWeight(r.soldWeight, r.weightUnit)} sold` : null,
+                                r.soldQuantity > 0 ? `avg ${money(r.revenue / r.soldQuantity)}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </p>
                           </TableCell>
                           <TableCell className="text-right tabular-nums">{r.soldQuantity}</TableCell>

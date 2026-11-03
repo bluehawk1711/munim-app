@@ -10,6 +10,7 @@ import { useAllProducts, useSyncProductPrices } from "@/hooks/use-products"
 import { useApiClient, useGoldRates } from "@munim/query"
 import {
   applyGoldBaseRate,
+  billLineBasisSeed,
   buildBillDocument,
   calcNetWeight,
   firstGoldKarat,
@@ -551,6 +552,17 @@ export function BillingView() {
    *  then priced with the bill's CURRENT rates. */
   type CatalogProduct = (typeof products)[number]
   function lineFromProduct(p: CatalogProduct): LineItem {
+    // One shared seeding rule (core): gross weight when the product has one,
+    // else its stored NET weight — a net-only gold product must still bill its
+    // net, and nag/chejat are then not seeded (net is already net).
+    const basis = billLineBasisSeed({
+      grossWeight: p.grossWeight ?? null,
+      netWeight: p.netWeight ?? null,
+      nagLessWeight: p.nagLessWeight ?? null,
+      chejatWeight: p.chejatWeight ?? null,
+      nagUnit: p.nagUnit ?? null,
+      weightUnit: p.weightUnit ?? null,
+    })
     const base: LineItem = {
       productId: p.id,
       productName: p.name,
@@ -558,13 +570,13 @@ export function BillingView() {
       color: p.color ?? undefined,
       size: p.size ?? undefined,
       description: "",
-      weight: p.weight ?? null,
+      weight: p.weight != null && p.weight > 0 ? p.weight : null,
       weightUnit: p.weightUnit === "mg" ? "mg" : "gm",
       weightEdited: false,
       purity: p.purity ?? undefined,
-      grossWeight: p.grossWeight ?? undefined,
-      nagLessWeight: gramsField(weightTextToGrams(p.nagLessWeight ?? null, p.nagUnit ?? null)),
-      chejatWeight: gramsField(weightTextToGrams(p.chejatWeight ?? null, p.nagUnit ?? null)),
+      grossWeight: basis.grossWeight || undefined,
+      nagLessWeight: gramsField(basis.nagLessWeight),
+      chejatWeight: gramsField(basis.chejatWeight),
       quantity: 1,
       price: p.effectivePrice,
       silverPercentage: p.silverPercentage ?? 100,

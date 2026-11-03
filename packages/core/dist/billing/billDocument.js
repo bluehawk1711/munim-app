@@ -141,8 +141,11 @@ export function estimateWeightLines(line) {
  * Empty / non-positive → null (prints "-").
  */
 export function netWeightCellOf(line) {
+    // The fallback must honour the line's weight unit: a product stored in mg
+    // carries e.g. 6890, which is 6.890 gm — printing the raw number (or none,
+    // when it rounded to 0) is the "net weight is 0" report.
     const gross = weightTextToGrams(line.grossWeight, null) ??
-        (line.weight != null && line.weight > 0 ? line.weight : null);
+        weightTextToGrams(line.weight != null && line.weight > 0 ? String(line.weight) : null, line.weightUnit ?? null);
     if (gross === null)
         return null;
     const net = gross - (line.nagLessWeight ?? 0) + (line.chejatWeight ?? 0);

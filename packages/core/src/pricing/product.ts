@@ -399,6 +399,52 @@ export function calcNetWeight(input: NetWeightInput): NetWeightResult | null {
   return { grams, text: `${stored} ${unit}` };
 }
 
+/** The G. Wt. / nag / chejat a BILL LINE starts from when a product is picked.
+ *
+ *  Nearly every product carries a gross weight, and the line derives its net
+ *  from it (net = gross − nag + chejat). But a gold product can legitimately
+ *  have ONLY a net weight (`net_weight` is what its price is built on, and the
+ *  product form lets the shop type it directly) — seeding those lines with an
+ *  empty G. Wt. left them with no net basis, so the line (and the saved bill)
+ *  showed 0 even though the product clearly had a net weight.
+ *
+ *  Rule: prefer the product's gross weight; when there is none, use the stored
+ *  net weight as the line's gross basis and seed NO nag/chejat (net weight is
+ *  already net — subtracting them again would double-count). One helper so
+ *  web, desktop and mobile seed identical lines.
+ */
+export type BillLineBasisSeed = {
+  /** G. Wt. text for the line, in the line's weight unit ("" when nothing). */
+  grossWeight: string;
+  /** Nag-less weight in GRAMS (null = not seeded). */
+  nagLessWeight: number | null;
+  /** Chejat weight in GRAMS (null = not seeded). */
+  chejatWeight: number | null;
+};
+
+export function billLineBasisSeed(product: {
+  grossWeight?: string | null;
+  netWeight?: string | null;
+  nagLessWeight?: string | null;
+  chejatWeight?: string | null;
+  nagUnit?: string | null;
+  weightUnit?: string | null;
+}): BillLineBasisSeed {
+  const gross = (product.grossWeight ?? "").trim();
+  const nag = weightTextToGrams(product.nagLessWeight, product.nagUnit);
+  const chejat = weightTextToGrams(product.chejatWeight, product.nagUnit);
+  if (parseNetWeight(gross) !== null) {
+    return { grossWeight: gross, nagLessWeight: nag, chejatWeight: chejat };
+  }
+  // No usable gross — fall back to the product's stored net weight, which is
+  // already expressed in the product's own weight unit.
+  const net = (product.netWeight ?? "").trim();
+  if (parseNetWeight(net) !== null) {
+    return { grossWeight: net, nagLessWeight: null, chejatWeight: null };
+  }
+  return { grossWeight: "", nagLessWeight: nag, chejatWeight: chejat };
+}
+
 /** One free-text weight value (nag / chejat / gross) → GRAMS, parsed with the
  *  SAME `parseNetWeight` strip and unit rule as `calcNetWeight`. Empty or
  *  unparseable → null. The bill screens use this to materialise their per-line
