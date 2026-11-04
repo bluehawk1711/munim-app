@@ -24,7 +24,7 @@ import {
   Eye,
 } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, Button, Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, BarcodeSvg, Tooltip, SkuCopyButton } from "@munim/ui"
-import { classifyProduct } from "@munim/core"
+import { PRODUCT_IMAGES_ENABLED, classifyProduct } from "@munim/core"
 
 const PRODUCT_TYPE_COLORS: Record<string, string> = {
   Gold: "#D4AF37",
@@ -132,7 +132,9 @@ export function ProductsTable({ products, onEdit, onAdjust, onDelete, onSell, on
           const p = row.original
           return (
             <div className="flex items-center gap-3">
-              {p.imageUrl ? (
+              {/* Photos are parked (PRODUCT_IMAGES_ENABLED) — the placeholder
+                  keeps the row layout; the image code stays for later. */}
+              {PRODUCT_IMAGES_ENABLED && p.imageUrl ? (
                 <Image
                   src={p.imageUrl}
                   alt={p.name}

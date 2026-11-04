@@ -22,13 +22,14 @@ export function products(http: HttpClient) {
     meta(): Promise<ProductMeta> {
       return http.get("/api/products/meta");
     },
-    /** GET /api/products/stats — header aggregates for the products page. */
-    stats(): Promise<InventoryStatsDto> {
-      return http.get("/api/products/stats");
+    /** GET /api/products/stats — header aggregates for the products page.
+     *  Pass the page's filters so the tiles describe the rows on screen. */
+    stats(filters?: ProductFilters): Promise<InventoryStatsDto> {
+      return http.get("/api/products/stats", { ...filters });
     },
     /** GET /api/products/by-category — donut data for the products page. */
-    byCategory(): Promise<CategoryBreakdownDto[]> {
-      return http.get("/api/products/by-category");
+    byCategory(filters?: ProductFilters): Promise<CategoryBreakdownDto[]> {
+      return http.get("/api/products/by-category", { ...filters });
     },
     /** GET /api/products/lookup?barcode=… — fast shop-counter lookup. */
     byBarcode(barcode: string): Promise<ProductDto> {

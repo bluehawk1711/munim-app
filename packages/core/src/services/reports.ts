@@ -2,6 +2,9 @@ import { and, eq, gte, ilike, lte, sql, type SQL } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { startOfDay, startOfMonth } from "../utils/format.js";
+// These are the product's per-piece weight (gold = net weight) — not this
+// module's own `materialWeightGm` for the bill's free-text "material returned".
+import { productWeightGm, productWeightInUnit } from "../pricing/product.js";
 
 /* ── Report vocabulary (shared by every platform's filter UI) ──── */
 
@@ -442,6 +445,8 @@ type StockProduct = {
   stock: number;
   weight: number | null;
   weightUnit: string;
+  /** Free-text net weight — gold's weight basis (see `productWeightGm`). */
+  netWeight: string | null;
   purchasePrice: number;
   lowStockThreshold: number;
   articleId: string | null;
@@ -476,8 +481,10 @@ function matchesStockFilters(p: StockProduct, filters: ReportFilters): boolean {
   if (filters.silverPurityMin != null && p.silverPercentage < filters.silverPurityMin) return false;
   if (filters.silverPurityMax != null && p.silverPercentage > filters.silverPurityMax) return false;
   if (filters.weightMinGm != null || filters.weightMaxGm != null) {
-    if (p.weight == null) return false;
-    const grams = p.weightUnit === "mg" ? p.weight / 1000 : p.weight;
+    // Gold weighs its net weight, so a gold product with only `net_weight` set
+    // must still pass a weight range (it used to be filtered out entirely).
+    const grams = productWeightGm(p);
+    if (grams <= 0) return false;
     if (filters.weightMinGm != null && grams < filters.weightMinGm) return false;
     if (filters.weightMaxGm != null && grams > filters.weightMaxGm) return false;
   }
@@ -582,6 +589,7 @@ export async function getReport(
       stock: schema.products.stock,
       weight: schema.products.weight,
       weightUnit: schema.products.weightUnit,
+      netWeight: schema.products.netWeight,
       purchasePrice: schema.products.purchasePrice,
       lowStockThreshold: schema.products.lowStockThreshold,
       articleId: schema.products.articleId,
@@ -644,7 +652,7 @@ export async function getReport(
       // Deleted products (no current row) still count — key by the snapshot
       // name so they never collide.
       const key = r.productId ?? `name:${r.productName}`;
-      const soldWeight = p?.weight != null ? r.soldQuantity * p.weight : 0;
+      const soldWeight = p ? r.soldQuantity * (productWeightInUnit(p) ?? 0) : 0;
       const soldQuantity = (existing?.soldQuantity ?? 0) + r.soldQuantity;
       const revenue = (existing?.revenue ?? 0) + r.revenue;
       entry.rows.set(key, {
@@ -655,7 +663,7 @@ export async function getReport(
         color: p?.colorName ?? null,
         size: p?.sizeName ?? null,
         stock: p?.stock ?? 0,
-        weight: p?.weight ?? null,
+        weight: p ? productWeightInUnit(p) : null,
         weightUnit: p?.weightUnit ?? "gm",
         soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
         soldWeightGm: (existing?.soldWeightGm ?? 0) + (r.weightGm ?? 0),
@@ -701,9 +709,9 @@ export async function getReport(
           color: p.colorName,
           size: p.sizeName,
           stock: p.stock,
-          weight: p.weight,
+          weight: productWeightInUnit(p),
           weightUnit: p.weightUnit ?? "gm",
-          soldWeight: p.weight != null ? soldQuantity * p.weight : 0,
+          soldWeight: soldQuantity * (productWeightInUnit(p) ?? 0),
           soldWeightGm: sold?.weightGm ?? 0,
           soldQuantity,
           revenue: sold?.revenue ?? 0,
@@ -723,7 +731,7 @@ export async function getReport(
     for (const r of rows) {
       if (!r.productId) continue;
       const p = productById.get(r.productId);
-      const soldWeight = p?.weight != null ? r.soldQuantity * p.weight : 0;
+      const soldWeight = p ? r.soldQuantity * (productWeightInUnit(p) ?? 0) : 0;
       const existing = merged.get(r.productId);
       const soldQuantity = (existing?.soldQuantity ?? 0) + r.soldQuantity;
       const revenue = (existing?.revenue ?? 0) + r.revenue;
@@ -737,7 +745,7 @@ export async function getReport(
         color: p?.colorName ?? null,
         size: p?.sizeName ?? null,
         stock: p?.stock ?? 0,
-        weight: p?.weight ?? null,
+        weight: p ? productWeightInUnit(p) : null,
         weightUnit: p?.weightUnit ?? "gm",
         soldWeight: (existing?.soldWeight ?? 0) + soldWeight,
         soldWeightGm: (existing?.soldWeightGm ?? 0) + (r.weightGm ?? 0),

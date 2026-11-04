@@ -10,7 +10,7 @@ import { useUploadImage, useGoldRates, useSaveGoldRates, useBackfillGoldKarats, 
 import { useProductMeta } from "@/hooks/use-meta"
 import { useCreateProduct, useUpdateProduct } from "@/hooks/use-products"
 import { useArticles } from "@/hooks/use-articles"
-import { productSchema, calcNetWeight, isLabourType, karatPurityPercent, resolveGoldRateTable, priceFallbackMessage, priceWithTable, toGoldKarat, type GoldRateSaveInput, type GoldRateTableEntry, type LabourType, type PriceBreakdown, type ProductFormValues } from "@munim/core"
+import { PRODUCT_IMAGES_ENABLED, productSchema, calcNetWeight, isLabourType, karatPurityPercent, resolveGoldRateTable, priceFallbackMessage, priceWithTable, toGoldKarat, type GoldRateSaveInput, type GoldRateTableEntry, type LabourType, type PriceBreakdown, type ProductFormValues } from "@munim/core"
 import type { Product } from "@/lib/types"
 import { toast } from "@munim/ui"
 
@@ -461,6 +461,10 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Product images are parked for now (PRODUCT_IMAGES_ENABLED in
+              @munim/core) — the upload input + preview will come back with
+              the flag. Code intentionally kept, not removed. */}
+          {PRODUCT_IMAGES_ENABLED && (
           <div className="space-y-2">
             <Label>Product image</Label>
             <div className="flex items-center gap-3">
@@ -523,6 +527,7 @@ export function ProductFormDialog({ open, onOpenChange, product, defaultType }: 
               <p className="text-xs text-destructive">{form.formState.errors.imageUrl.message}</p>
             )}
           </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="name">Product name *</Label>

@@ -23,8 +23,10 @@ export const qk = {
     allPages: ["products", "all-pages"] as const,
     detail: (id: string) => ["products", "detail", id] as const,
     meta: ["products", "meta"] as const,
-    stats: ["products", "stats"] as const,
-    byCategory: ["products", "by-category"] as const,
+    /** Aggregates carry the same filters as the list they describe, so a
+     *  filtered products page can never show tiles computed over other rows. */
+    stats: (filters: ProductFilters = {}) => ["products", "stats", filters] as const,
+    byCategory: (filters: ProductFilters = {}) => ["products", "by-category", filters] as const,
     movements: (id: string) => ["products", "movements", id] as const,
   },
 

@@ -13,6 +13,7 @@ import {
   Boxes,
   TrendingUp,
   Eye,
+  Search,
 } from "lucide-react"
 import {
   Button,
@@ -41,6 +42,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AnalyticsPeriodFilter,
+  defaultAnalyticsRange,
+  type AnalyticsRange,
   toast,
 } from "@munim/ui"
 import {
@@ -72,7 +75,13 @@ type FormState = { mode: "add" } | { mode: "edit"; article: ArticleDto } | null
 export function ArticlesView() {
   const articles = useArticles()
   const [period, setPeriod] = React.useState<ArticleAnalyticsPreset>("6m")
-  const analytics = useArticlesAnalytics(period)
+  // Custom window — only queried while the "Custom" pill is active.
+  const [range, setRange] = React.useState<AnalyticsRange>(defaultAnalyticsRange)
+  const analytics = useArticlesAnalytics({
+    preset: period,
+    from: period === "custom" ? range.from : undefined,
+    to: period === "custom" ? range.to : undefined,
+  })
   const remove = useDeleteArticle()
 
   const setView = useAppStore((s) => s.setActiveView)
@@ -82,14 +91,21 @@ export function ArticlesView() {
   const [deleting, setDeleting] = React.useState<ArticleDto | null>(null)
   const [detail, setDetail] = React.useState<string | null>(null)
   const [sort, setSort] = React.useState<SortKey>("revenue")
+  // Article search — matches name, code and description; filters the
+  // analytics table AND the article list below it (same query, one box).
+  const [query, setQuery] = React.useState("")
 
   const rows = React.useMemo(() => {
+    const q = query.trim().toLowerCase()
     const list = [...(analytics.data?.rows ?? [])]
     if (sort === "revenue") list.sort((a, b) => b.revenue - a.revenue)
     if (sort === "weight") list.sort((a, b) => b.soldWeightGm - a.soldWeightGm)
     if (sort === "stockValue") list.sort((a, b) => b.stockValue - a.stockValue)
-    return list
-  }, [analytics.data, sort])
+    if (!q) return list
+    return list.filter((r) =>
+      [r.name, r.code, r.description].some((v) => (v ?? "").toLowerCase().includes(q)),
+    )
+  }, [analytics.data, sort, query])
 
   const totals = React.useMemo(() => {
     const list = analytics.data?.rows ?? []
@@ -103,7 +119,12 @@ export function ArticlesView() {
 
   const detailRow = rows.find((r) => r.articleId === detail) ?? null
   const periodMeta = ARTICLE_ANALYTICS_PRESET_LABELS[period]
-  const bucketLabel = analytics.data?.period.bucket === "week" ? "Weekly" : "Monthly"
+  const bucketLabel =
+    analytics.data?.period.bucket === "week"
+      ? "Weekly"
+      : analytics.data?.period.bucket === "day"
+        ? "Daily"
+        : "Monthly"
 
   async function confirmDelete() {
     if (!deleting) return
@@ -124,6 +145,12 @@ export function ArticlesView() {
 
   const loading = articles.isLoading || analytics.isLoading
   const list = articles.data ?? []
+  const q = query.trim().toLowerCase()
+  const visibleList = q
+    ? list.filter((a) =>
+        [a.name, a.code, a.description].some((v) => (v ?? "").toLowerCase().includes(q)),
+      )
+    : list
 
   return (
     <div className="space-y-4">
@@ -176,11 +203,26 @@ export function ArticlesView() {
                 {analytics.data?.trendLabels.join(" · ") ?? ""}
               </CardDescription>
             </div>
-            <AnalyticsPeriodFilter value={period} onChange={setPeriod} />
+            <AnalyticsPeriodFilter
+              value={period}
+              onChange={setPeriod}
+              range={range}
+              onRangeChange={setRange}
+            />
           </div>
         </CardHeader>
         <CardContent>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="relative w-full min-w-0 sm:max-w-[280px]">
+              <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+              <Input
+                placeholder="Search articles — name, code, description…"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="h-9 pl-9 text-sm"
+                aria-label="Search articles"
+              />
+            </div>
             <span className="text-muted-foreground text-xs font-medium">Sort by</span>
             <div className="bg-muted flex flex-wrap gap-1 rounded-full p-1">
               {SORTS.map((s) => (
@@ -207,7 +249,9 @@ export function ArticlesView() {
             </div>
           ) : rows.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No articles yet — create one with “New Article”.
+              {list.length === 0
+                ? "No articles yet — create one with “New Article”."
+                : "No article matches your search."}
             </p>
           ) : (
             <div className="-mx-1 overflow-x-auto">
@@ -297,8 +341,8 @@ export function ArticlesView() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">All articles</CardTitle>
           <CardDescription>
-            {list.length} article{list.length === 1 ? "" : "s"} — linked products show up in their
-            analytics row
+            {visibleList.length} of {list.length} article{list.length === 1 ? "" : "s"} — linked
+            products show up in their analytics row
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -308,14 +352,15 @@ export function ArticlesView() {
                 <Skeleton key={i} className="h-10 w-full" />
               ))}
             </div>
-          ) : list.length === 0 ? (
+          ) : visibleList.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              No articles yet. Articles classify products like categories, with an optional code
-              and description.
+              {list.length === 0
+                ? "No articles yet. Articles classify products like categories, with an optional code and description."
+                : "No article matches your search."}
             </p>
           ) : (
             <ul className="divide-y">
-              {list.map((a) => (
+              {visibleList.map((a) => (
                 <li
                   key={a.id}
                   className="group flex items-center justify-between gap-3 py-2.5"

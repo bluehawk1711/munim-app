@@ -19,7 +19,7 @@
 import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import {Barcode as BarcodeIcon, Package, ShoppingCart, X} from 'lucide-react-native';
-import {classifyProduct, formatLabelLabour, formatWeight, type ProductDto} from '@munim/core';
+import {PRODUCT_IMAGES_ENABLED, classifyProduct, formatLabelLabour, formatWeight, type ProductDto} from '@munim/core';
 import {MunimBottomSheet, BottomSheetScrollView} from './BottomSheet';
 import {ImageFullScreen} from './ImageFullScreen';
 import type BottomSheet from '@gorhom/bottom-sheet';
@@ -108,8 +108,9 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
         <Text style={styles.name}>{product.name}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
 
-        {/* Product image */}
-        {product.imageUrl ? (
+        {/* Product image — parked for now (PRODUCT_IMAGES_ENABLED in
+            @munim/core); returns with the flag, code kept intact. */}
+        {PRODUCT_IMAGES_ENABLED && product.imageUrl ? (
           <Pressable
             onPress={() => { actionPress(); setFullImage(product.imageUrl); }}
             style={({pressed}) => [styles.imageWrap, pressed && {opacity: 0.8}]}>
@@ -186,9 +187,17 @@ export function ProductDetailSheet({product, onClose, onEdit, onAdjust, onSell}:
 
         {/* Weight matrix — the same figures the bill prints (G. Wt. / N/C /
             N. Wt.), so the sheet explains the price the product carries. */}
+        {/* Gold weighs its NET weight (the raw `weight` column is empty for
+            gold) — same rule as the web/desktop tables and the reports. */}
         <DetailRow
           label="Weight"
-          value={product.weight != null ? formatWeight(product.weight, product.weightUnit) : null}
+          value={
+            product.type === 'Gold' && product.netWeight?.trim()
+              ? `${product.netWeight.trim()} (net)`
+              : product.weight != null
+                ? formatWeight(product.weight, product.weightUnit)
+                : null
+          }
         />
         <DetailRow label="Gross Weight" value={product.grossWeight?.trim() || null} />
         <DetailRow label="Nag Less" value={withUnit(product.nagLessWeight, product.nagUnit)} />

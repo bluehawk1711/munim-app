@@ -27,9 +27,10 @@ Legend: **S** = server-side (query param reaches the API), **C** = client-side
 | Products: category / color / size | ✅ S | ❌ | ❌ | Missing on desktop + mobile |
 | Products: purity / karat / weight range | ❌ | ❌ | ❌ | **Not available anywhere** |
 | Products: page size selector | ❌ | ❌ | ❌ | Fixed per platform |
-| Articles: analytics period | ✅ S | ✅ S | ✅ S | |
+| Articles: analytics period | ✅ S | ✅ S | ✅ S | Presets + **Custom** from/to dates (server: `preset=custom&from&to`) |
+| Articles: custom date range | ✅ S | ✅ S | ✅ S | Two date inputs (web/desktop shared filter, mobile native picker) |
 | Articles: sort | ✅ C | ✅ C | ✅ C | |
-| Articles: search | ❌ | ❌ | ❌ | Missing everywhere |
+| Articles: search | ✅ C | ✅ C | ❌ | Web + desktop: one box filters the analytics table and the article list (name/code/description); mobile missing |
 | Catalog: search | ❌ | ✅ C | ✅ C | Missing on web |
 | Catalog: master chips (in-use/unused) | ❌ | ✅ C | ❌ | Desktop only |
 | Invoices: search | ✅ S | ✅ S | ✅ S | |

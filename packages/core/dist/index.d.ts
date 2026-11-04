@@ -9,6 +9,7 @@ export { createDb, getDb, pingDatabase, parseConnectionString, type DbClient } f
 export * as schema from "./db/schema.js";
 export type * from "./db/schema.js";
 export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
+export * from "./features.js";
 export * from "./billing/index.js";
 export * from "./security/index.js";
 export * from "./help/pricingGuide.js";
@@ -21,7 +22,7 @@ export * from "./pricing/labels.js";
 export { numberToWords, amountInWords } from "./utils/numberToWords.js";
 export { generateSku, generateInvoiceNumber, generateOrderNumber, stripCodePrefix, codeMatches } from "./utils/codes.js";
 export { normalizeBarcode, isEan13, ean13CheckDigit, generateEan13, barcodeSvg, ean13Svg, code39Svg, type BarcodeSvgOptions, } from "./utils/barcode.js";
-export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
+export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight, isoDay, isoDayOffset, } from "./utils/format.js";
 export { PAYMENT_METHOD_PRESETS, CUSTOM_PAYMENT_METHOD, paymentMethodLabel, isPresetPaymentMethod, type PaymentMethodId, } from "./utils/paymentMethods.js";
 export { newId, idOrNull } from "./utils/id.js";
 export { swatchColor } from "./utils/swatch.js";

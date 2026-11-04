@@ -33,6 +33,7 @@ import {
 } from '../components/ui';
 import {HomeHeader} from '../components/home-header';
 import {AnalyticsSheet} from '../components/analytics-sheet';
+import {DateField, toYmd} from '../components/date-field';
 import {useThemeStyles} from '../theme';
 import {errorFeedback, selectionTick, successFeedback} from '../lib/haptics';
 import {rs, spacing, CARD_MARGIN} from '../lib/responsive';
@@ -57,7 +58,17 @@ export function ArticlesScreen() {
   const styles = useThemeStyles(makeStyles);
   const listQ = useQueryState(useArticles());
   const [period, setPeriod] = useState<ArticleAnalyticsPreset>('6m');
-  const analyticsQ = useQueryState(useArticlesAnalytics(period));
+  // Custom window (YYYY-MM-DD, inclusive) — only queried while 'Custom' is picked.
+  // Defaults to the last 30 days, the same seed web/desktop use.
+  const [rangeFrom, setRangeFrom] = useState(() => toYmd(new Date(Date.now() - 29 * 86400000)));
+  const [rangeTo, setRangeTo] = useState(() => toYmd(new Date()));
+  const analyticsQ = useQueryState(
+    useArticlesAnalytics({
+      preset: period,
+      from: period === 'custom' ? rangeFrom : undefined,
+      to: period === 'custom' ? rangeTo : undefined,
+    }),
+  );
   const createArticle = useCreateArticle();
   const updateArticle = useUpdateArticle();
   const deleteArticle = useDeleteArticle();
@@ -95,7 +106,12 @@ export function ArticlesScreen() {
     [analyticsQ.data],
   );
   const periodMeta = ARTICLE_ANALYTICS_PRESET_LABELS[period];
-  const bucketLabel = analyticsQ.data?.period.bucket === 'week' ? 'weekly' : 'monthly';
+  const bucketLabel =
+    analyticsQ.data?.period.bucket === 'week'
+      ? 'weekly'
+      : analyticsQ.data?.period.bucket === 'day'
+        ? 'daily'
+        : 'monthly';
   const reload = () => {
     listQ.reload();
     analyticsQ.reload();
@@ -229,6 +245,26 @@ export function ArticlesScreen() {
           }}
           style={styles.filterTabs}
         />
+
+        {/* Custom window — the two date pickers appear only for "Custom" */}
+        {period === 'custom' ? (
+          <View style={styles.customRange}>
+            {/* Clamp instead of min/max props: the values are plain YYYY-MM-DD
+                strings, so comparing them needs no Date parsing at all. */}
+            <DateField
+              label="From"
+              value={rangeFrom}
+              onChange={v => setRangeFrom(v > rangeTo ? rangeTo : v)}
+              style={styles.customRangeField}
+            />
+            <DateField
+              label="To"
+              value={rangeTo}
+              onChange={v => setRangeTo(v < rangeFrom ? rangeFrom : v)}
+              style={styles.customRangeField}
+            />
+          </View>
+        ) : null}
 
         {/* Sort pills */}
         <SegmentedTabs<SortKey>
@@ -455,6 +491,13 @@ const makeStyles = () =>
     summaryLabel: {fontSize: rs(9.5), fontWeight: '600', color: colors.muted, textTransform: 'uppercase'},
     summaryValue: {fontSize: rs(12.5), fontWeight: '800', color: colors.text, marginTop: rs(3)},
     filterTabs: {marginBottom: rs(2)},
+    customRange: {
+      flexDirection: 'row',
+      gap: rs(10),
+      marginHorizontal: CARD_MARGIN,
+      marginBottom: rs(6),
+    },
+    customRangeField: {flex: 1, marginBottom: 0},
     card: {marginHorizontal: CARD_MARGIN, marginBottom: spacing.sm, padding: rs(12)},
     cardHeader: {flexDirection: 'row', alignItems: 'flex-start', gap: rs(8)},
     titleRow: {flexDirection: 'row', alignItems: 'center', gap: rs(6), flexWrap: 'wrap'},

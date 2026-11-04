@@ -31,6 +31,22 @@ export function formatDateTime(date) {
         minute: "2-digit",
     });
 }
+/**
+ * Local calendar day as `YYYY-MM-DD` — the exact shape `<input type="date">`
+ * and the analytics date-range pickers use (never UTC, so a late-evening
+ * click doesn't land on tomorrow).
+ */
+export function isoDay(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+/** `YYYY-MM-DD` for today plus `days` (negative = the past). */
+export function isoDayOffset(days, from = new Date()) {
+    const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + days);
+    return isoDay(d);
+}
 export function monthLabel(date) {
     return date.toLocaleDateString("en-IN", { month: "short", year: "numeric" });
 }

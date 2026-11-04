@@ -13,6 +13,7 @@ export * as schema from "./db/schema.js";
  * mismatch when @neondatabase/serverless was added as a peer). */
 export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 /* Billing — shared bill/invoice generation (all 3 apps) */
+export * from "./features.js";
 export * from "./billing/index.js";
 export * from "./security/index.js";
 /* Help — the shared PricingGuide wording rendered by web, desktop & mobile */
@@ -31,7 +32,7 @@ export * from "./pricing/labels.js";
 export { numberToWords, amountInWords } from "./utils/numberToWords.js";
 export { generateSku, generateInvoiceNumber, generateOrderNumber, stripCodePrefix, codeMatches } from "./utils/codes.js";
 export { normalizeBarcode, isEan13, ean13CheckDigit, generateEan13, barcodeSvg, ean13Svg, code39Svg, } from "./utils/barcode.js";
-export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
+export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight, isoDay, isoDayOffset, } from "./utils/format.js";
 export { PAYMENT_METHOD_PRESETS, CUSTOM_PAYMENT_METHOD, paymentMethodLabel, isPresetPaymentMethod, } from "./utils/paymentMethods.js";
 export { newId, idOrNull } from "./utils/id.js";
 export { swatchColor } from "./utils/swatch.js";

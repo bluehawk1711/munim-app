@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   ArticleAnalyticsPreset,
+  ArticleAnalyticsQuery,
   ArticleDto,
   ArticleInput,
   ArticlesAnalytics,
@@ -8,7 +9,14 @@ import type {
 import { useApiClient } from "./provider.js";
 import { qk } from "./keys.js";
 
-export type { ArticleDto, ArticleInput, ArticlesAnalytics, ArticleAnalyticsPreset, ArticleAnalyticsPeriod } from "@munim/core";
+export type {
+  ArticleDto,
+  ArticleInput,
+  ArticlesAnalytics,
+  ArticleAnalyticsPreset,
+  ArticleAnalyticsPeriod,
+  ArticleAnalyticsQuery,
+} from "@munim/core";
 
 /** GET /api/articles — every article with its product count. */
 export function useArticles() {
@@ -22,17 +30,21 @@ export function useArticles() {
   });
 }
 
-/** GET /api/articles/analytics?preset= — per-article stock/sales/trend rows
- *  for the selected window. The key includes the preset so switching the
- *  filter is cached per window, while `invalidateQueries(qk.articles.all)`
- *  still clears every window (key-prefix match). */
-export function useArticlesAnalytics(preset?: ArticleAnalyticsPreset) {
+/** GET /api/articles/analytics?preset=&from=&to= — per-article stock/sales/
+ *  trend rows for the selected window. The key includes the whole query so
+ *  each preset (or custom range) is cached separately, while
+ *  `invalidateQueries(qk.articles.all)` still clears every window by prefix. */
+export function useArticlesAnalytics(
+  query: ArticleAnalyticsQuery | ArticleAnalyticsPreset = {},
+) {
   const getClient = useApiClient();
+  // A bare preset string means "that preset, no custom dates".
+  const q: ArticleAnalyticsQuery = typeof query === "string" ? { preset: query } : query;
   return useQuery({
-    queryKey: [...qk.articles.analytics, preset ?? "6m"],
+    queryKey: [...qk.articles.analytics, q.preset ?? "6m", q.from ?? "", q.to ?? ""],
     queryFn: async () => {
       const api = await getClient();
-      return api.articles.analytics(preset);
+      return api.articles.analytics(q);
     },
     placeholderData: (previous) => previous,
   });

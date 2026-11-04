@@ -7,7 +7,7 @@ import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {Image, Pressable, StyleSheet, Text, View} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import type BottomSheet from '@gorhom/bottom-sheet';
-import {type ProductDto, calcNetWeight, karatPurityPercent, priceFallbackMessage, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
+import {PRODUCT_IMAGES_ENABLED, type ProductDto, calcNetWeight, karatPurityPercent, priceFallbackMessage, priceWithTable, resolveGoldRateTable, toGoldKarat, type LabourType, type PriceBreakdown} from '@munim/core';
 import {
   useArticles,
   useCatalog,
@@ -524,7 +524,10 @@ export function EditProductModal({visible, onClose, onSaved, product, mode = 'fu
             <Text style={styles.hint}>Leave blank to auto-generate an EAN-13.</Text>
           </>
         )}
-        {!isBillMode && (
+        {/* Product images are parked for now (PRODUCT_IMAGES_ENABLED in
+            @munim/core) — not needed yet, coming in a future release. The
+            picker/preview code is kept intact behind the flag. */}
+        {!isBillMode && PRODUCT_IMAGES_ENABLED && (
           <>
             <Text style={styles.imagePickerLabel}>Product image</Text>
             <Pressable style={styles.imagePicker} onPress={handlePickImage} disabled={uploading}>

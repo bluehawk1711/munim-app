@@ -31,6 +31,7 @@ import {
   formatNumber,
   formatWeight,
   isLabourType,
+  PRODUCT_IMAGES_ENABLED,
   karatPurityPercent,
   resolveGoldRateTable,
   priceFallbackMessage,
@@ -42,6 +43,7 @@ import {
   type LabourType,
   type PriceBreakdown,
   type ProductLabel,
+  type ProductFilters,
 } from "@munim/core";
 import type { ProductDto } from "@munim/api-client";
 import {
@@ -278,6 +280,9 @@ export function ProductsPage() {
   const [tablePage, setTablePage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [priceFilter, setPriceFilter] = useState<"all" | "auto" | "manual">("all");
+  // Quick-filter chip — declared up here because it is part of the filters
+  // that feed the table AND its analytics (see `productFilters`).
+  const [activeCategory, setActiveCategory] = useState<FilterChip>({ kind: "all", label: "All SKUs", value: 0 });
   // Article filter — also the deep-link target from the Articles page
   // (/products?article=<name>). Read once on mount; the route remounts us.
   const urlSearch = useUrlSearch();
@@ -285,15 +290,29 @@ export function ProductsPage() {
     () => new URLSearchParams(urlSearch).get("article") ?? "all",
   );
   const TABLE_PAGE_SIZE = 40;
+
+  // ONE filter object for the table and its analytics (stat tiles, material
+  // split, allocation + category charts) — they used to be fetched unfiltered,
+  // so the charts never matched the rows (or the active metal/status chip).
+  const chipStatus: ProductFilters["status"] =
+    activeCategory.kind === "instock"
+      ? "in_stock"
+      : activeCategory.kind === "low"
+        ? "low_stock"
+        : activeCategory.kind === "out"
+          ? "out_of_stock"
+          : undefined;
+  const productFilters: ProductFilters = {
+    search,
+    type: typeFilter,
+    article: articleFilter,
+    priceMode: priceFilter,
+    status: chipStatus,
+    uncategorized: activeCategory.kind === "uncategorized" ? true : undefined,
+  };
+
   const { data, error, loading, refetching, reload } = useQueryState(
-    useProducts({
-      search,
-      type: typeFilter,
-      article: articleFilter,
-      priceMode: priceFilter,
-      page: tablePage,
-      pageSize: TABLE_PAGE_SIZE,
-    }),
+    useProducts({ ...productFilters, page: tablePage, pageSize: TABLE_PAGE_SIZE }),
   );
   const products = useMemo(() => data?.products ?? [], [data]);
   const pagination = data?.pagination;
@@ -311,10 +330,15 @@ export function ProductsPage() {
     [articlesQ.data],
   );
 
-  const statsQ = useInventoryStats();
+  // Catalog-wide totals for the quick-filter chip counts (a chip must show the
+  // fleet count, not the count of the slice it already selected).
+  const fleetStatsQ = useInventoryStats();
+  const fleetStats = fleetStatsQ.data;
+
+  const statsQ = useInventoryStats(productFilters);
   const stats = statsQ.data;
 
-  const categoryQ = useCategoryBreakdown();
+  const categoryQ = useCategoryBreakdown(productFilters);
   const categoryRows = useMemo(() => categoryQ.data ?? [], [categoryQ.data]);
 
   const createProduct = useCreateProduct();
@@ -480,8 +504,6 @@ export function ProductsPage() {
 
   const [backfilling, setBackfilling] = useState(false);
 
-  const [activeCategory, setActiveCategory] = useState<FilterChip>({ kind: "all", label: "All SKUs", value: 0 });
-
   // Direct thermal label printing (desktop only — see lib/printer.ts).
   const [labelPrinters, setLabelPrinters] = useState<LabelPrinterInfo[]>([]);
   const [labelPrinterName, setLabelPrinterName] = useState<string | undefined>(() => getSavedLabelPrinter());
@@ -548,20 +570,22 @@ export function ProductsPage() {
   const velocityScore = totalCount > 0 ? Math.round((inCount / totalCount) * 100) : 0;
   const velocityLabel = velocityScore >= 90 ? "OPTIMAL" : velocityScore >= 70 ? "STEADY" : "SLOW";
 
+  // Chip counts come from the FLEET stats — the tiles above are filtered, so
+  // taking counts from them would collapse every chip to the selected slice.
   const chips = useMemo<FilterChip[]>(() => {
     const uncatCount = products.filter((p) => !p.category || !p.category.trim()).length;
     const goldCount = products.filter((p) => (p.type ?? "Gold") === "Gold").length;
     const silverCount = products.filter((p) => p.type === "Silver").length;
     return [
-      { kind: "all", label: "All SKUs", value: totalCount },
-      { kind: "instock", label: "In Stock", value: inCount },
-      { kind: "low", label: "Low Stock", value: lowCount },
-      { kind: "out", label: "Out of Stock", value: outCount },
+      { kind: "all", label: "All SKUs", value: fleetStats?.totalSkus ?? totalCount },
+      { kind: "instock", label: "In Stock", value: fleetStats?.inStockCount ?? inCount },
+      { kind: "low", label: "Low Stock", value: fleetStats?.lowStockCount ?? lowCount },
+      { kind: "out", label: "Out of Stock", value: fleetStats?.outOfStockCount ?? outCount },
       { kind: "gold", label: "Gold", value: goldCount },
       { kind: "silver", label: "Silver", value: silverCount },
       { kind: "uncategorized", label: "Uncategorized", value: uncatCount },
     ];
-  }, [totalCount, inCount, lowCount, outCount, products]);
+  }, [fleetStats, totalCount, inCount, lowCount, outCount, products]);
 
   // Derived values for Select+custom-input combos
   const colorIsCustom = customColor || (!!form.color && !colors.includes(form.color));
@@ -1388,7 +1412,9 @@ export function ProductsPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      {p.imageUrl ? (
+                      {/* Photos parked (PRODUCT_IMAGES_ENABLED) — placeholder
+                          keeps the column; the <img> stays for later. */}
+                      {PRODUCT_IMAGES_ENABLED && p.imageUrl ? (
                         <img src={p.imageUrl} alt="" className="h-9 w-9 rounded-md border object-cover" />
                       ) : (
                         <div className="bg-muted flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground">
@@ -1545,7 +1571,11 @@ export function ProductsPage() {
               </Select>
             </div>
 
-            {/* Row 3: Image (full width, bigger) */}
+            {/* Row 3: Image (full width, bigger) — PARKED for now
+                (PRODUCT_IMAGES_ENABLED in @munim/core): photos aren't needed
+                yet and will be added in a future release. The whole upload/
+                preview block is kept intact behind the flag. */}
+            {PRODUCT_IMAGES_ENABLED && (
             <div className="space-y-1.5">
               <Label>Product image</Label>
               <div className="flex items-center gap-4">
@@ -1573,6 +1603,7 @@ export function ProductsPage() {
                 <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
               </div>
             </div>
+            )}
 
             {/* Row 4: Color + Size */}
             <div className="grid gap-3 sm:grid-cols-2">

@@ -2,6 +2,14 @@ export declare function formatCurrency(value: number, currency?: string): string
 export declare function formatNumber(value: number): string;
 export declare function formatDate(date: string | Date | null | undefined): string;
 export declare function formatDateTime(date: string | Date | null | undefined): string;
+/**
+ * Local calendar day as `YYYY-MM-DD` — the exact shape `<input type="date">`
+ * and the analytics date-range pickers use (never UTC, so a late-evening
+ * click doesn't land on tomorrow).
+ */
+export declare function isoDay(date?: Date): string;
+/** `YYYY-MM-DD` for today plus `days` (negative = the past). */
+export declare function isoDayOffset(days: number, from?: Date): string;
 export declare function monthLabel(date: Date): string;
 /**
  * Format a weight value with its display unit.

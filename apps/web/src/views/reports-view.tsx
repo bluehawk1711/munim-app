@@ -275,6 +275,9 @@ export function ReportsView() {
                         <TableHead className="text-xs">Type</TableHead>
                         <TableHead className="text-xs">Color</TableHead>
                         <TableHead className="text-xs">Size</TableHead>
+                        {/* Per piece, resolved by core: gold = NET weight,
+                            silver/others = the product's weight. */}
+                        <TableHead className="text-right text-xs">Wt/pc</TableHead>
                         <TableHead className="text-right text-xs">Stock</TableHead>
                         <TableHead className="text-right text-xs">Sold Qty</TableHead>
                         <TableHead className="text-right text-xs">Sold Wt</TableHead>
@@ -284,7 +287,7 @@ export function ReportsView() {
                     <TableBody>
                       {report.rows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={11} className="py-10 text-center text-sm text-muted-foreground">
+                          <TableCell colSpan={12} className="py-10 text-center text-sm text-muted-foreground">
                             No data for this report in the selected period.
                           </TableCell>
                         </TableRow>
@@ -298,6 +301,9 @@ export function ReportsView() {
                             <TableCell className="text-xs">{r.productType ?? "—"}</TableCell>
                             <TableCell>{r.color}</TableCell>
                             <TableCell>{r.size}</TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {r.weight != null ? formatWeight(r.weight, r.weightUnit) : "—"}
+                            </TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(r.stock)}</TableCell>
                             <TableCell className="text-right tabular-nums">{formatNumber(r.soldQuantity)}</TableCell>
                             <TableCell className="text-right tabular-nums">{r.soldWeight > 0 ? formatWeight(r.soldWeight, r.weightUnit) : "—"}</TableCell>

@@ -494,7 +494,8 @@ const RecordCard = React.memo(function RecordCard({
               r.productType || null,
               r.color || null,
               r.size || null,
-              r.weight != null ? formatWeight(r.weight, r.weightUnit) : null,
+              // Per-piece weight — gold resolves to its NET weight in core.
+              r.weight != null ? `Wt ${formatWeight(r.weight, r.weightUnit)}` : null,
             ]
               .filter(Boolean)
               .join(' · ')}

@@ -13,14 +13,21 @@ import type {
 import { useApiClient } from "./provider.js";
 import { qk } from "./keys.js";
 
-/** GET /api/products/stats — header aggregates for the products page. */
-export function useInventoryStats(options?: { enabled?: boolean }) {
+/** GET /api/products/stats — header aggregates for the products page.
+ *
+ *  Pass the page's active filters to make the tiles describe the filtered
+ *  rows; omit them (or pass `{}`) for catalog-wide numbers.
+ */
+export function useInventoryStats(
+  filters: ProductFilters = {},
+  options?: { enabled?: boolean },
+) {
   const getClient = useApiClient();
   return useQuery({
-    queryKey: qk.products.stats,
+    queryKey: qk.products.stats(filters),
     queryFn: async () => {
       const api = await getClient();
-      return api.products.stats();
+      return api.products.stats(filters);
     },
     enabled: options?.enabled,
     staleTime: 30 * 1000,
@@ -28,13 +35,16 @@ export function useInventoryStats(options?: { enabled?: boolean }) {
 }
 
 /** GET /api/products/by-category — donut data for the products page. */
-export function useCategoryBreakdown(options?: { enabled?: boolean }) {
+export function useCategoryBreakdown(
+  filters: ProductFilters = {},
+  options?: { enabled?: boolean },
+) {
   const getClient = useApiClient();
   return useQuery({
-    queryKey: qk.products.byCategory,
+    queryKey: qk.products.byCategory(filters),
     queryFn: async () => {
       const api = await getClient();
-      return api.products.byCategory();
+      return api.products.byCategory(filters);
     },
     enabled: options?.enabled,
     staleTime: 30 * 1000,

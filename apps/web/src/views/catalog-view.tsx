@@ -32,9 +32,10 @@ import {
   type CatalogItem,
   type CatalogKind,
 } from "@/hooks/use-catalog"
+import { useCategoryBreakdown } from "@/hooks/use-products"
 import { swatchColor } from "@munim/core"
 import { useAppStore } from "@/store/view-store"
-import { formatDate } from "@/lib/format"
+import { formatDate, formatWeight } from "@/lib/format"
 import { LOW_STOCK_THRESHOLD } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { toast } from "@munim/ui"
@@ -56,6 +57,17 @@ export function CatalogView() {
   const colors = useCatalog("color")
   const sizes = useCatalog("size")
   const categories = useCatalog("category")
+
+  // On-hand weight per category (grams, gold counted by NET weight in core) —
+  // same number the desktop catalog shows on each Categories row.
+  const breakdown = useCategoryBreakdown()
+  const weightByName = React.useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const row of breakdown.data ?? []) {
+      if (row.category && row.category !== "Uncategorized") map[row.category] = row.weightGm
+    }
+    return map
+  }, [breakdown.data])
 
   const setView = useAppStore((s) => s.setActiveView)
   const setProductColorFilter = useAppStore((s) => s.setProductColorFilter)
@@ -131,6 +143,7 @@ export function CatalogView() {
           description="Product categories — e.g. Jewellery, Apparel"
           items={categories.data}
           isLoading={categories.isLoading}
+          weightByName={weightByName}
           onCreate={() => setDialog({ kind: "category", mode: "add" })}
           onRename={(item) => setDialog({ kind: "category", mode: "rename", item })}
           onDelete={(item) => setDeleting({ kind: "category", item })}
@@ -158,6 +171,7 @@ function CatalogCard({
   onRename,
   onDelete,
   onShowProducts,
+  weightByName,
 }: {
   kind: CatalogKind
   icon: React.ComponentType<{ className?: string }>
@@ -169,6 +183,8 @@ function CatalogCard({
   onRename: (item: CatalogItem) => void
   onDelete: (item: CatalogItem) => void
   onShowProducts: (item: CatalogItem) => void
+  /** On-hand weight per category name (grams) — Categories rows show it. */
+  weightByName?: Record<string, number>
 }) {
   const [page, setPage] = React.useState(0)
   const total = items?.length ?? 0
@@ -239,6 +255,14 @@ function CatalogCard({
                       <Package className="h-3 w-3" />
                       {item.productCount}
                     </button>
+                    {kind === "category" && (weightByName?.[item.name] ?? 0) > 0 && (
+                      <span
+                        className="shrink-0 text-[11px] font-medium tabular-nums text-muted-foreground"
+                        title="On-hand weight (gold counted by net weight)"
+                      >
+                        {formatWeight(weightByName?.[item.name] ?? 0)}
+                      </span>
+                    )}
                     <Badge variant="secondary" className="hidden font-normal sm:inline-flex">
                       {formatDate(item.createdAt)}
                     </Badge>

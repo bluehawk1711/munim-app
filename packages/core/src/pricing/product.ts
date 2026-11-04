@@ -445,6 +445,47 @@ export function billLineBasisSeed(product: {
   return { grossWeight: "", nagLessWeight: nag, chejatWeight: chejat };
 }
 
+/** The weight fields every list/report/aggregate reads. */
+export type MaterialWeightInput = {
+  /** Product type — gold is weighed on its NET weight. */
+  type?: string | null;
+  /** Stored weight, in `weightUnit`. */
+  weight?: number | null;
+  /** "mg" | "gm" — unit of both `weight` and `netWeight`. */
+  weightUnit?: string | null;
+  /** Free-text net weight (gold's pricing basis). */
+  netWeight?: string | null;
+};
+
+/**
+ * Product weight in GRAMS for anything that sums or filters weight — one rule
+ * for every app.
+ *
+ * Gold is weighed and priced on its NET weight and usually has no `weight` at
+ * all, so using `weight` alone made gold read 0 in reports/totals (they looked
+ * like silver-only). Gold therefore prefers `net_weight` and falls back to
+ * `weight`; every other type just uses `weight`.
+ *
+ * TS twin of `materialWeightGmSql` (services/products.ts) — keep them in step.
+ */
+export function productWeightGm(p: MaterialWeightInput): number {
+  const storedGrams = p.weight != null && p.weight > 0 ? toGrams(p.weight, p.weightUnit) : null;
+  if (p.type === "Gold") {
+    const net = weightTextToGrams(p.netWeight, p.weightUnit);
+    if (net != null && net > 0) return net;
+  }
+  return storedGrams ?? 0;
+}
+
+/** `productWeightGm` expressed back in the product's OWN unit (what the
+ *  tables print next to `weightUnit`), or null when there is no weight. */
+export function productWeightInUnit(p: MaterialWeightInput): number | null {
+  const grams = productWeightGm(p);
+  if (grams <= 0) return p.weight ?? null;
+  const value = p.weightUnit === "mg" ? grams * 1000 : grams;
+  return Math.round(value * 10000) / 10000;
+}
+
 /** One free-text weight value (nag / chejat / gross) → GRAMS, parsed with the
  *  SAME `parseNetWeight` strip and unit rule as `calcNetWeight`. Empty or
  *  unparseable → null. The bill screens use this to materialise their per-line

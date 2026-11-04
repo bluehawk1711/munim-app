@@ -1,5 +1,5 @@
 import type {
-  ArticleAnalyticsPreset,
+  ArticleAnalyticsQuery,
   ArticleDto,
   ArticleInput,
   ArticlesAnalytics,
@@ -16,10 +16,11 @@ export function articles(http: HttpClient) {
     list(): Promise<ArticleDto[]> {
       return http.get("/api/articles");
     },
-    /** GET /api/articles/analytics?preset= — per-article stock/sales/trend
-     *  rows for the selected time window (defaults to six months). */
-    analytics(preset?: ArticleAnalyticsPreset): Promise<ArticlesAnalytics> {
-      return http.get("/api/articles/analytics", { preset });
+    /** GET /api/articles/analytics?preset=&from=&to= — per-article
+     *  stock/sales/trend rows for the selected window (defaults to six
+     *  months; `preset=custom` uses the from/to dates). */
+    analytics(query: ArticleAnalyticsQuery = {}): Promise<ArticlesAnalytics> {
+      return http.get("/api/articles/analytics", { ...query });
     },
     /** POST /api/articles — duplicate-guarded create. */
     create(input: ArticleInput): Promise<ArticleDto> {

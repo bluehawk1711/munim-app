@@ -17,6 +17,7 @@ export type * from "./db/schema.js";
 export { and, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 
 /* Billing — shared bill/invoice generation (all 3 apps) */
+export * from "./features.js";
 export * from "./billing/index.js";
 export * from "./security/index.js";
 
@@ -47,7 +48,16 @@ export {
   code39Svg,
   type BarcodeSvgOptions,
 } from "./utils/barcode.js";
-export { formatCurrency, formatNumber, formatDate, formatDateTime, monthLabel, formatWeight } from "./utils/format.js";
+export {
+  formatCurrency,
+  formatNumber,
+  formatDate,
+  formatDateTime,
+  monthLabel,
+  formatWeight,
+  isoDay,
+  isoDayOffset,
+} from "./utils/format.js";
 export {
   PAYMENT_METHOD_PRESETS,
   CUSTOM_PAYMENT_METHOD,

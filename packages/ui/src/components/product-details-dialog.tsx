@@ -12,7 +12,7 @@
  */
 import * as React from "react";
 import { Package, Ruler, Weight, Boxes, IndianRupee, FileText, CalendarDays, Tag, Layers, Scale } from "lucide-react";
-import { classifyProduct } from "@munim/core";
+import { PRODUCT_IMAGES_ENABLED, classifyProduct } from "@munim/core";
 import { BarcodeSvg } from "./barcode-svg";
 import { Badge } from "./badge";
 import { Button } from "./button";
@@ -112,7 +112,16 @@ export function ProductDetailsDialog({
     ...(product.subCategory
       ? [{ label: "Sub-category", value: product.subCategory, icon: <Boxes className="h-3.5 w-3.5" /> }]
       : []),
-    { label: "Weight", value: formatWeight(product.weight, product.weightUnit), icon: <Weight className="h-3.5 w-3.5" /> },
+    // Gold is weighed on its NET weight, so that is the weight shown (the raw
+    // `weight` column is usually empty for gold); other types use `weight`.
+    {
+      label: "Weight",
+      value:
+        product.type === "Gold" && product.netWeight?.trim()
+          ? `${product.netWeight.trim()} (net)`
+          : formatWeight(product.weight, product.weightUnit),
+      icon: <Weight className="h-3.5 w-3.5" />,
+    },
     ...(product.type === "Gold" ? [
       { label: "Gross weight", value: product.grossWeight || "—", icon: <Scale className="h-3.5 w-3.5" /> },
       { label: "Nag less weight", value: product.nagLessWeight || "—" },
@@ -152,7 +161,9 @@ export function ProductDetailsDialog({
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <div className="flex items-start gap-3">
-            {product.imageUrl ? (
+            {/* Photos are parked (PRODUCT_IMAGES_ENABLED) — placeholder keeps
+                the header shape; the image code stays for the next release. */}
+            {PRODUCT_IMAGES_ENABLED && product.imageUrl ? (
               <img
                 src={product.imageUrl}
                 alt={product.name}

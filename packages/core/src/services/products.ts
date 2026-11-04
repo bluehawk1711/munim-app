@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, inArray, isNull, or, sql, type SQLWrapper } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, or, sql, type SQL, type SQLWrapper } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { isGoldKarat, round2 } from "../pricing/gold.js";
@@ -62,7 +62,11 @@ export type CategoryBreakdown = {
  * the page renders instantly with the list. Mirrors `getDashboard` shape but
  * scoped to the catalog (no invoices/sales).
  */
-export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
+export async function getInventoryStats(
+  db: DbClient,
+  filters: ProductFilters = {},
+): Promise<InventoryStats> {
+  const where = productFilterWhere(filters);
   // Single aggregate query — Postgres can fold all of these into one scan.
   const rows = await db
     .select({
@@ -71,7 +75,7 @@ export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
       // collapse to the LAST one's value. See db/client.ts guard.
       totalSkus: sql<number>`count(*)::int`.as("total_skus"),
       totalUnits: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`.as("total_units"),
-      totalWeightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)::double precision`.as("total_weight_gm"),
+      totalWeightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${materialWeightGmSql})), 0)::double precision`.as("total_weight_gm"),
       stockValuationPurchase: sql<number>`coalesce(sum(${schema.products.stock} * ${schema.products.purchasePrice}), 0)::double precision`.as("stock_valuation_purchase"),
       stockValuationSelling: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`.as("stock_valuation_selling"),
       inStockCount: sql<number>`count(*) filter (where ${schema.products.stock} > ${schema.products.lowStockThreshold})::int`.as("in_stock_count"),
@@ -79,16 +83,18 @@ export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
       outOfStockCount: sql<number>`count(*) filter (where ${schema.products.stock} <= 0)::int`.as("out_of_stock_count"),
       withBarcodeCount: sql<number>`count(*) filter (where ${schema.products.barcode} is not null and length(${schema.products.barcode}) > 0)::int`.as("with_barcode_count"),
     })
-    .from(schema.products);
+    .from(schema.products)
+    .where(where);
   // Per-type material split — the same math as totalWeightGm, grouped by type.
   const typeRows = await db
     .select({
       type: schema.products.type,
-      weightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)::double precision`.as("weight_gm"),
+      weightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${materialWeightGmSql})), 0)::double precision`.as("weight_gm"),
     })
     .from(schema.products)
+    .where(where)
     .groupBy(schema.products.type)
-    .orderBy(desc(sql`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)`));
+    .orderBy(desc(sql`coalesce(sum(${schema.products.stock} * (${materialWeightGmSql})), 0)`));
   const row = rows[0];
   return {
     totalSkus: row?.totalSkus ?? 0,
@@ -112,7 +118,11 @@ export async function getInventoryStats(db: DbClient): Promise<InventoryStats> {
  * no products are omitted; the uncategorized bucket (no `categoryId`) is
  * surfaced under "Uncategorized" so the pie always sums to 100% of value.
  */
-export async function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakdown[]> {
+export async function getCategoryBreakdown(
+  db: DbClient,
+  filters: ProductFilters = {},
+): Promise<CategoryBreakdown[]> {
+  const where = productFilterWhere(filters);
   const rows = await db
     .select({
       // Every fragment aliased — unaliased coalesce/count columns collapse in
@@ -120,11 +130,12 @@ export async function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakd
       category: sql<string>`coalesce(${schema.categories.name}, 'Uncategorized')`.as("category"),
       skuCount: sql<number>`count(${schema.products.id})::int`.as("sku_count"),
       units: sql<number>`coalesce(sum(${schema.products.stock}), 0)::double precision`.as("units"),
-      weightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${weightGmSql})), 0)::double precision`.as("weight_gm"),
+      weightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${materialWeightGmSql})), 0)::double precision`.as("weight_gm"),
       value: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)::double precision`.as("value"),
     })
     .from(schema.products)
     .leftJoin(schema.categories, eq(schema.categories.id, schema.products.categoryId))
+    .where(where)
     .groupBy(schema.categories.name)
     .orderBy(desc(sql`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}), 0)`));
 
@@ -219,9 +230,58 @@ export type ProductFilters = {
   status?: "in_stock" | "low_stock" | "out_of_stock" | "all";
   /** Price-mode filter — "auto"/"manual" narrows, "all"/undefined matches everything. */
   priceMode?: "auto" | "manual" | "all";
+  /** Only products with NO category — the products page's "Uncategorized" chip. */
+  uncategorized?: boolean;
   page?: number;
   pageSize?: number;
 };
+
+/**
+ * The ONE where-clause for product queries.
+ *
+ * The list and the aggregates (stats, by-category) share this so a filtered
+ * products page can never show tiles/charts computed over a different set of
+ * rows than the table beneath them.
+ */
+export function productFilterWhere(filters: ProductFilters = {}) {
+  const search = filters.search?.trim() || "";
+  const type = filters.type && filters.type !== "all" ? filters.type : undefined;
+  const color = filters.color && filters.color !== "all" ? filters.color : undefined;
+  const size = filters.size && filters.size !== "all" ? filters.size : undefined;
+  const category = filters.category && filters.category !== "all" ? filters.category : undefined;
+  const article = filters.article && filters.article !== "all" ? filters.article : undefined;
+  const status = filters.status && filters.status !== "all" ? filters.status : undefined;
+  const priceMode = filters.priceMode && filters.priceMode !== "all" ? filters.priceMode : undefined;
+
+  const conditions: SQL[] = [];
+  if (search) {
+    conditions.push(
+      or(
+        ilike(schema.products.name, `%${search}%`),
+        ilike(schema.products.sku, `%${search}%`),
+        ilike(schema.products.barcode, `%${search}%`),
+        sql`exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name ilike ${`%${search}%`})`,
+        sql`exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name ilike ${`%${search}%`})`,
+        sql`exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name ilike ${`%${search}%`})`,
+        sql`exists (select 1 from ${schema.articles} at where at.id = ${schema.products.articleId} and at.name ilike ${`%${search}%`})`,
+      ) ?? sql`true`,
+    );
+  }
+  if (color) conditions.push(sql`exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name = ${color})`);
+  if (size) conditions.push(sql`exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name = ${size})`);
+  if (category) conditions.push(sql`exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name = ${category})`);
+  if (article) conditions.push(sql`exists (select 1 from ${schema.articles} at where at.id = ${schema.products.articleId} and at.name = ${article})`);
+  if (type) conditions.push(eq(schema.products.type, type));
+  if (priceMode) conditions.push(eq(schema.products.priceMode, priceMode));
+  if (filters.uncategorized) conditions.push(isNull(schema.products.categoryId));
+
+  const threshold = sql`${schema.products.lowStockThreshold}`;
+  if (status === "in_stock") conditions.push(sql`${schema.products.stock} > ${threshold}`);
+  if (status === "low_stock") conditions.push(and(sql`${schema.products.stock} > 0`, sql`${schema.products.stock} <= ${threshold}`) ?? sql`false`);
+  if (status === "out_of_stock") conditions.push(sql`${schema.products.stock} <= 0`);
+
+  return conditions.length ? and(...conditions) : undefined;
+}
 
 export type ProductWithMeta = schema.Product & {
   colorName: string | null;
@@ -305,6 +365,21 @@ const netWeightParsedSql = sql<number | null>`(
   end
 )`;
 const netWeightGmSql = sql<number | null>`(case when ${schema.products.weightUnit} = 'mg' then ${netWeightParsedSql} / 1000.0 else ${netWeightParsedSql} end)`;
+
+/**
+ * Weight for INVENTORY / WEIGHT ANALYTICS, in grams — one rule for all apps.
+ *
+ * Gold is weighed and priced on its NET weight, and a gold product usually has
+ * no `weight` at all (the form asks for net), so aggregating `weight` alone made
+ * every gold row contribute 0 and the totals looked like silver only. Gold now
+ * counts its net weight (falling back to `weight` when net is unset/zero);
+ * silver and every other type keep their physical `weight`.
+ */
+export const materialWeightGmSql = sql<number>`(case
+  when ${schema.products.type} = 'Gold'
+    then coalesce(nullif(${netWeightGmSql}, 0), ${weightGmSql})
+  else ${weightGmSql}
+end)`;
 
 /** Silver purity %, clamped exactly like `priceProduct` (>0 → min(s,100), else 100). */
 const silverPercentSql = sql<number>`(case when coalesce(${schema.products.silverPercentage}, 100) > 0 then least(${schema.products.silverPercentage}, 100) else 100 end)`;
@@ -511,44 +586,9 @@ const PRODUCT_SELECT = {
 } as const;
 
 export async function listProducts(db: DbClient, filters: ProductFilters = {}) {
-  const search = filters.search?.trim() || "";
-  const type = filters.type && filters.type !== "all" ? filters.type : undefined;
-  const color = filters.color && filters.color !== "all" ? filters.color : undefined;
-  const size = filters.size && filters.size !== "all" ? filters.size : undefined;
-  const category = filters.category && filters.category !== "all" ? filters.category : undefined;
-  const article = filters.article && filters.article !== "all" ? filters.article : undefined;
-  const status = filters.status && filters.status !== "all" ? filters.status : undefined;
-  const priceMode = filters.priceMode && filters.priceMode !== "all" ? filters.priceMode : undefined;
   const page = Math.max(1, filters.page || 1);
   const pageSize = Math.max(1, Math.min(1000, filters.pageSize || 20));
-
-  const conditions = [];
-  if (search) {
-    conditions.push(
-      or(
-        ilike(schema.products.name, `%${search}%`),
-        ilike(schema.products.sku, `%${search}%`),
-        ilike(schema.products.barcode, `%${search}%`),
-        sql`exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name ilike ${`%${search}%`})`,
-        sql`exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name ilike ${`%${search}%`})`,
-        sql`exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name ilike ${`%${search}%`})`,
-        sql`exists (select 1 from ${schema.articles} at where at.id = ${schema.products.articleId} and at.name ilike ${`%${search}%`})`,
-      ),
-    );
-  }
-  if (color) conditions.push(sql`exists (select 1 from ${schema.colors} c where c.id = ${schema.products.colorId} and c.name = ${color})`);
-  if (size) conditions.push(sql`exists (select 1 from ${schema.sizes} s where s.id = ${schema.products.sizeId} and s.name = ${size})`);
-  if (category) conditions.push(sql`exists (select 1 from ${schema.categories} ct where ct.id = ${schema.products.categoryId} and ct.name = ${category})`);
-  if (article) conditions.push(sql`exists (select 1 from ${schema.articles} at where at.id = ${schema.products.articleId} and at.name = ${article})`);
-  if (type) conditions.push(eq(schema.products.type, type));
-  if (priceMode) conditions.push(eq(schema.products.priceMode, priceMode));
-
-  const threshold = sql`${schema.products.lowStockThreshold}`;
-  if (status === "in_stock") conditions.push(sql`${schema.products.stock} > ${threshold}`);
-  if (status === "low_stock") conditions.push(and(sql`${schema.products.stock} > 0`, sql`${schema.products.stock} <= ${threshold}`));
-  if (status === "out_of_stock") conditions.push(sql`${schema.products.stock} <= 0`);
-
-  const where = conditions.length ? and(...conditions) : undefined;
+  const where = productFilterWhere(filters);
 
   const [rows, total] = await Promise.all([
     db

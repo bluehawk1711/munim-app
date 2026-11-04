@@ -1,3 +1,4 @@
+import { type SQL } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 export type InventoryStats = {
@@ -55,14 +56,14 @@ export type CategoryBreakdown = {
  * the page renders instantly with the list. Mirrors `getDashboard` shape but
  * scoped to the catalog (no invoices/sales).
  */
-export declare function getInventoryStats(db: DbClient): Promise<InventoryStats>;
+export declare function getInventoryStats(db: DbClient, filters?: ProductFilters): Promise<InventoryStats>;
 /**
  * Pie chart data for the products page — per-category inventory value.
  * Drives the donut on the redesigned desktop inventory page. Categories with
  * no products are omitted; the uncategorized bucket (no `categoryId`) is
  * surfaced under "Uncategorized" so the pie always sums to 100% of value.
  */
-export declare function getCategoryBreakdown(db: DbClient): Promise<CategoryBreakdown[]>;
+export declare function getCategoryBreakdown(db: DbClient, filters?: ProductFilters): Promise<CategoryBreakdown[]>;
 export declare function resolveColorId(db: DbClient, name: string): Promise<string>;
 export declare function resolveSizeId(db: DbClient, name: string): Promise<string>;
 export declare function resolveCategoryId(db: DbClient, name: string): Promise<string | null>;
@@ -79,9 +80,19 @@ export type ProductFilters = {
     status?: "in_stock" | "low_stock" | "out_of_stock" | "all";
     /** Price-mode filter — "auto"/"manual" narrows, "all"/undefined matches everything. */
     priceMode?: "auto" | "manual" | "all";
+    /** Only products with NO category — the products page's "Uncategorized" chip. */
+    uncategorized?: boolean;
     page?: number;
     pageSize?: number;
 };
+/**
+ * The ONE where-clause for product queries.
+ *
+ * The list and the aggregates (stats, by-category) share this so a filtered
+ * products page can never show tiles/charts computed over a different set of
+ * rows than the table beneath them.
+ */
+export declare function productFilterWhere(filters?: ProductFilters): SQL<unknown> | undefined;
 export type ProductWithMeta = schema.Product & {
     colorName: string | null;
     sizeName: string | null;
@@ -90,16 +101,26 @@ export type ProductWithMeta = schema.Product & {
     subCategoryName: string | null;
     articleName: string | null;
 } & ProductComputedPricing;
-export declare const goldRatePerGramSql: import("drizzle-orm").SQL<number>;
+export declare const goldRatePerGramSql: SQL<number>;
 /** Effective silver ₹/gram — the product's OWN `silver_rate_per_gram` when
  *  set, else the shop-wide settings value. SQL twin of the silver branch's
  *  rate lookup in `priceProduct` (a global silver change recalculates every
  *  product without a custom rate on the very next read). A stored 0 counts
  *  as "no custom rate" (TS: `customRate > 0`), so `nullif(…, 0)` falls
  *  through to the shop rate; 0 → never prices. */
-export declare const silverRatePerGramSql: import("drizzle-orm").SQL<number>;
+export declare const silverRatePerGramSql: SQL<number>;
 /** Product weight in grams — `weight` is stored in `weightUnit` (mg or gm). */
-export declare const weightGmSql: import("drizzle-orm").SQL<number>;
+export declare const weightGmSql: SQL<number>;
+/**
+ * Weight for INVENTORY / WEIGHT ANALYTICS, in grams — one rule for all apps.
+ *
+ * Gold is weighed and priced on its NET weight, and a gold product usually has
+ * no `weight` at all (the form asks for net), so aggregating `weight` alone made
+ * every gold row contribute 0 and the totals looked like silver only. Gold now
+ * counts its net weight (falling back to `weight` when net is unset/zero);
+ * silver and every other type keep their physical `weight`.
+ */
+export declare const materialWeightGmSql: SQL<number>;
 /**
  * Auto price — the SQL twin of `priceProduct` (pricing/product.ts):
  *
@@ -116,9 +137,9 @@ export declare const weightGmSql: import("drizzle-orm").SQL<number>;
  * can be dropped into any query over `products`. `gold_rates` ≤ 25 rows and
  * `settings` is a single row — both cheap.
  */
-export declare const autoPriceSql: import("drizzle-orm").SQL<number | null>;
+export declare const autoPriceSql: SQL<number | null>;
 /** THE price: the computed auto price when available, else the stored one. */
-export declare const effectivePriceSql: import("drizzle-orm").SQL<number>;
+export declare const effectivePriceSql: SQL<number>;
 /** SQL-computed pricing columns — present on every product query row. */
 export type ProductComputedPricing = {
     /** Effective ₹/gram for the product's karat (0 when not karat-priced). */

@@ -31,6 +31,9 @@ const articleSchema = z.object({
 
 const analyticsQuerySchema = z.object({
   preset: z.enum(ARTICLE_ANALYTICS_PRESETS).optional(),
+  /** Inclusive `YYYY-MM-DD` bounds — required when `preset=custom`. */
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 /**
@@ -58,10 +61,12 @@ export class ArticlesController {
     query: z.infer<typeof analyticsQuerySchema>,
   ) {
     const preset = query.preset ?? "6m";
+    // Custom windows are cached per exact range; presets keep one entry each.
+    const cacheFilters = { preset, from: preset === "custom" ? query.from : undefined, to: preset === "custom" ? query.to : undefined };
     return this.cache.cacheAside(
-      cacheKeys.articlesAnalytics({ preset }),
+      cacheKeys.articlesAnalytics(cacheFilters),
       CACHE_TTL.reports,
-      () => getArticlesAnalytics(this.db, preset),
+      () => getArticlesAnalytics(this.db, { preset, from: query.from, to: query.to }),
     );
   }
 

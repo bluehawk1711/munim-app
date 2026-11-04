@@ -2,7 +2,7 @@ import { count, desc, eq, sql } from "drizzle-orm";
 import type { DbClient } from "../db/client.js";
 import * as schema from "../db/schema.js";
 import { logActivity } from "./activity.js";
-import { ProductError, effectivePriceSql } from "./products.js";
+import { ProductError, effectivePriceSql, materialWeightGmSql } from "./products.js";
 
 /**
  * Articles — a product classification that behaves exactly like a category
@@ -174,9 +174,19 @@ export async function deleteArticle(db: DbClient, id: string): Promise<{ success
 
 /** Selectable Articles analytics window. `month` buckets the current calendar
  *  month by week (a single monthly bucket would hide the trend); the rest use
- *  one bucket per calendar month. */
-export const ARTICLE_ANALYTICS_PRESETS = ["month", "3m", "6m", "12m"] as const;
+ *  one bucket per calendar month. `custom` uses the caller's own from/to
+ *  dates, which every app exposes as a date-range picker. */
+export const ARTICLE_ANALYTICS_PRESETS = ["month", "3m", "6m", "12m", "custom"] as const;
 export type ArticleAnalyticsPreset = (typeof ARTICLE_ANALYTICS_PRESETS)[number];
+
+/** The analytics request — a preset, or (`custom`) an explicit date range. */
+export type ArticleAnalyticsQuery = {
+  preset?: ArticleAnalyticsPreset;
+  /** Inclusive start date, `YYYY-MM-DD` (required for `custom`). */
+  from?: string;
+  /** Inclusive end date, `YYYY-MM-DD` (required for `custom`). */
+  to?: string;
+};
 
 /** Chip copy + compact suffix (column headers / stat tiles) per preset. */
 export const ARTICLE_ANALYTICS_PRESET_LABELS: Record<
@@ -187,6 +197,7 @@ export const ARTICLE_ANALYTICS_PRESET_LABELS: Record<
   "3m": { label: "3 months", short: "3m" },
   "6m": { label: "6 months", short: "6m" },
   "12m": { label: "12 months", short: "12m" },
+  custom: { label: "Custom", short: "Custom" },
 };
 
 /** Window actually used, echoed back so the apps can label charts correctly. */
@@ -195,8 +206,9 @@ export type ArticleAnalyticsPeriod = {
   /** ISO bounds (upper bound exclusive) of the aggregated window. */
   from: string;
   to: string;
-  /** Trend bucket size — weekly for "This month", monthly otherwise. */
-  bucket: "week" | "month";
+  /** Trend bucket size — weekly for "This month", daily for a short custom
+   *  range, monthly otherwise. */
+  bucket: "day" | "week" | "month";
 };
 
 /** One row of per-article analytics for the Articles page. */
@@ -209,7 +221,7 @@ export type ArticleAnalyticsRow = {
   productCount: number;
   /** Units on hand (sum of product stock). */
   stockUnits: number;
-  /** On-hand weight, GRAMS (mg rows converted). */
+  /** On-hand weight, GRAMS (mg rows converted; gold counted by NET weight). */
   stockWeightGm: number;
   /** On-hand value — stock × effective price (auto price when priced). */
   stockValue: number;
@@ -242,6 +254,8 @@ export function articleAnalyticsBuckets(
   preset: ArticleAnalyticsPreset,
   now = new Date(),
 ): AnalyticsBucket[] {
+  // "custom" has no dates here — callers pass it through `customWindow`.
+  if (preset === "custom") return articleAnalyticsBuckets("6m", now);
   if (preset === "month") {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -254,7 +268,7 @@ export function articleAnalyticsBuckets(
     return buckets;
   }
 
-  const months = preset === "3m" ? 3 : preset === "6m" ? 6 : 12;
+  const months = preset === "3m" ? 3 : preset === "12m" ? 12 : 6;
   return Array.from({ length: months }, (_, i) => {
     const start = new Date(now.getFullYear(), now.getMonth() - months + 1 + i, 1);
     const end = new Date(now.getFullYear(), now.getMonth() - months + 2 + i, 1);
@@ -264,6 +278,59 @@ export function articleAnalyticsBuckets(
       end,
     };
   });
+}
+
+/** `YYYY-MM-DD` at local midnight, or null when absent/unparseable. */
+function parseDayStart(value?: string): Date | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value.trim());
+  if (!m) return null;
+  const day = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return Number.isNaN(day.getTime()) ? null : day;
+}
+
+/** Buckets for a caller-picked date range (inclusive `from`/`to`).
+ *
+ *  Short ranges (≤ 14 days) bucket per day so a week's trend still has bars;
+ *  longer ones bucket per calendar month, with the first/last bucket clamped
+ *  to the chosen dates so the custom window never includes days outside it.
+ *  Returns null when either date is missing/invalid (caller falls back).
+ */
+export function articleCustomBuckets(
+  from?: string,
+  to?: string,
+): { ranges: AnalyticsBucket[]; bucket: "day" | "month" } | null {
+  const a = parseDayStart(from);
+  const b = parseDayStart(to);
+  if (!a || !b) return null;
+  const start = a <= b ? a : b;
+  const lastDay = a <= b ? b : a;
+  const endExclusive = new Date(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate() + 1);
+  const days = Math.round((endExclusive.getTime() - start.getTime()) / 86_400_000);
+
+  if (days <= 14) {
+    const ranges: AnalyticsBucket[] = Array.from({ length: days }, (_, i) => {
+      const s = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const e = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i + 1);
+      return { label: String(s.getDate()), start: s, end: e };
+    });
+    return ranges.length ? { ranges, bucket: "day" } : null;
+  }
+
+  const ranges: AnalyticsBucket[] = [];
+  for (
+    let month = new Date(start.getFullYear(), start.getMonth(), 1);
+    month < endExclusive;
+    month = new Date(month.getFullYear(), month.getMonth() + 1, 1)
+  ) {
+    const next = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+    ranges.push({
+      label: month.toLocaleDateString("en-IN", { month: "short" }),
+      start: month < start ? start : month,
+      end: next > endExclusive ? endExclusive : next,
+    });
+  }
+  return ranges.length ? { ranges, bucket: "month" } : null;
 }
 
 /**
@@ -276,9 +343,14 @@ export function articleAnalyticsBuckets(
  */
 export async function getArticlesAnalytics(
   db: DbClient,
-  preset: ArticleAnalyticsPreset = "6m",
+  query: ArticleAnalyticsQuery | ArticleAnalyticsPreset = "6m",
 ): Promise<ArticlesAnalytics> {
-  const ranges = articleAnalyticsBuckets(preset);
+  // Accept a bare preset too (older callers / scripts).
+  const q: ArticleAnalyticsQuery = typeof query === "string" ? { preset: query } : query;
+  const preset = q.preset ?? "6m";
+  const custom = preset === "custom" ? articleCustomBuckets(q.from, q.to) : null;
+  const ranges = custom ? custom.ranges : articleAnalyticsBuckets(preset);
+  const bucket = custom?.bucket ?? (preset === "month" ? "week" : "month");
   const windowStart = ranges[0]!.start;
   const windowEnd = ranges[ranges.length - 1]!.end;
 
@@ -297,7 +369,9 @@ export async function getArticlesAnalytics(
         articleId: schema.products.articleId,
         productCount: count(schema.products.id),
         stockUnits: sql<number>`coalesce(sum(${schema.products.stock}),0)::float8`,
-        stockWeightGm: sql<number>`coalesce(sum(${schema.products.stock} * case when ${schema.products.weightUnit} = 'mg' then coalesce(${schema.products.weight},0)/1000.0 else coalesce(${schema.products.weight},0) end),0)::float8`,
+        // materialWeightGmSql, not `weight` — gold is stocked/priced on its NET
+        // weight, so raw `weight` made every gold article read 0 (see products.ts).
+        stockWeightGm: sql<number>`coalesce(sum(${schema.products.stock} * (${materialWeightGmSql})),0)::float8`,
         stockValue: sql<number>`coalesce(sum(${schema.products.stock} * ${effectivePriceSql}),0)::float8`,
       })
       .from(schema.products)
@@ -383,7 +457,7 @@ export async function getArticlesAnalytics(
       preset,
       from: windowStart.toISOString(),
       to: windowEnd.toISOString(),
-      bucket: preset === "month" ? "week" : "month",
+      bucket,
     },
     trendLabels: ranges.map((r) => r.label),
     rows,

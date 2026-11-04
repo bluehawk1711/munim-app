@@ -30,6 +30,7 @@ import {Search, ScanLine, Package, Plus, X} from 'lucide-react-native';
 import {SvgXml} from 'react-native-svg';
 import * as Print from 'expo-print';
 import {
+  PRODUCT_IMAGES_ENABLED,
   barcodeSvg,
   buildProductLabel,
   classifyProduct,
@@ -139,9 +140,10 @@ const ProductRow = React.memo(function ProductRow({item, onPress, onBill}: Produ
     <Pressable
       onPress={() => onPress(item)}
       style={({pressed}) => [styles.row, pressed && styles.rowPressed]}>
-      {/* Thumbnail */}
+      {/* Thumbnail — photos are parked (PRODUCT_IMAGES_ENABLED in
+          @munim/core), so the placeholder renders; image code kept. */}
       <View style={styles.thumb}>
-        {item.imageUrl ? (
+        {PRODUCT_IMAGES_ENABLED && item.imageUrl ? (
           <Image source={{uri: item.imageUrl}} style={styles.thumbImg} />
         ) : (
           <Package size={rs(24)} color={colors.muted} />

@@ -40,6 +40,35 @@ import { ZodValidationPipe } from "../common/validation.pipe.js";
 import { CacheService } from "../common/cache.service.js";
 import { CACHE_TTL, cacheKeys, invalidate } from "../common/cache.keys.js";
 
+/** The product filter params every product endpoint accepts (list, stats, by-category). */
+type ProductFilterQuery = {
+  search?: string;
+  type?: string;
+  color?: string;
+  size?: string;
+  category?: string;
+  article?: string;
+  status?: string;
+  priceMode?: string;
+  uncategorized?: string;
+};
+
+/** Pagination-free filters — shared by the list and the aggregates so both
+ *  describe the same slice of the catalog. */
+function productFiltersFrom(q: ProductFilterQuery): ProductFilters {
+  return {
+    search: q.search,
+    type: q.type,
+    color: q.color,
+    size: q.size,
+    category: q.category,
+    article: q.article,
+    status: (q.status ?? undefined) as ProductFilters["status"],
+    priceMode: q.priceMode === "auto" || q.priceMode === "manual" ? q.priceMode : undefined,
+    uncategorized: q.uncategorized === "true" || q.uncategorized === "1" ? true : undefined,
+  };
+}
+
 @Controller("products")
 export class ProductsController {
   constructor(
@@ -57,18 +86,12 @@ export class ProductsController {
     @Query("article") article?: string,
     @Query("status") status?: string,
     @Query("priceMode") priceMode?: string,
+    @Query("uncategorized") uncategorized?: string,
     @Query("page") page?: string,
     @Query("pageSize") pageSize?: string,
   ) {
     const filters: ProductFilters = {
-      search,
-      type,
-      color,
-      size,
-      category,
-      article,
-      status: (status ?? undefined) as ProductFilters["status"],
-      priceMode: priceMode === "auto" || priceMode === "manual" ? priceMode : undefined,
+      ...productFiltersFrom({ search, type, color, size, category, article, status, priceMode, uncategorized }),
       page: page ? Math.max(1, parseInt(page, 10) || 1) : undefined,
       pageSize: pageSize ? Math.max(1, Math.min(1000, parseInt(pageSize, 10) || 20)) : undefined,
     };
@@ -86,16 +109,43 @@ export class ProductsController {
     return this.cache.cacheAside(cacheKeys.productsMeta, CACHE_TTL.static, () => listMeta(this.db));
   }
 
-  /** Aggregate header stats for the products page (valuation, weight, health…). */
+  /** Aggregate header stats for the products page (valuation, weight, health…).
+   *  Accepts the page's filters so the tiles follow the active filter set. */
   @Get("stats")
-  async stats() {
-    return this.cache.cacheAside(cacheKeys.productsStats, CACHE_TTL.dashboard, () => getInventoryStats(this.db));
+  async stats(
+    @Query("search") search?: string,
+    @Query("type") type?: string,
+    @Query("color") color?: string,
+    @Query("size") size?: string,
+    @Query("category") category?: string,
+    @Query("article") article?: string,
+    @Query("status") status?: string,
+    @Query("priceMode") priceMode?: string,
+    @Query("uncategorized") uncategorized?: string,
+  ) {
+    const filters = productFiltersFrom({ search, type, color, size, category, article, status, priceMode, uncategorized });
+    return this.cache.cacheAside(cacheKeys.productsStats(filters), CACHE_TTL.dashboard, () =>
+      getInventoryStats(this.db, filters),
+    );
   }
 
   /** Per-category inventory breakdown — drives the donut chart on the products page. */
   @Get("by-category")
-  async byCategory() {
-    return this.cache.cacheAside(cacheKeys.productsByCategory, CACHE_TTL.dashboard, () => getCategoryBreakdown(this.db));
+  async byCategory(
+    @Query("search") search?: string,
+    @Query("type") type?: string,
+    @Query("color") color?: string,
+    @Query("size") size?: string,
+    @Query("category") category?: string,
+    @Query("article") article?: string,
+    @Query("status") status?: string,
+    @Query("priceMode") priceMode?: string,
+    @Query("uncategorized") uncategorized?: string,
+  ) {
+    const filters = productFiltersFrom({ search, type, color, size, category, article, status, priceMode, uncategorized });
+    return this.cache.cacheAside(cacheKeys.productsByCategory(filters), CACHE_TTL.dashboard, () =>
+      getCategoryBreakdown(this.db, filters),
+    );
   }
 
   @Get("lookup")

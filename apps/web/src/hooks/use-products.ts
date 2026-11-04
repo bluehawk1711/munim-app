@@ -8,6 +8,7 @@
 import {
   useProducts,
   useAllProducts,
+  useCategoryBreakdown,
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,
@@ -20,6 +21,7 @@ import {
 export {
   useProducts,
   useAllProducts,
+  useCategoryBreakdown,
   useCreateProduct,
   useUpdateProduct,
   useDeleteProduct,
